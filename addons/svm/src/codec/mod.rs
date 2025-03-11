@@ -14,20 +14,19 @@ use native::ClassicRustProgramArtifacts;
 use serde::Deserialize;
 use serde::Serialize;
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::account_utils::StateMut;
-use solana_sdk::bpf_loader_upgradeable::create_buffer;
-use solana_sdk::bpf_loader_upgradeable::get_program_data_address;
 use solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::commitment_config::CommitmentLevel;
 use solana_sdk::hash::Hash;
+use solana_sdk::loader_v4;
+use solana_sdk::loader_v4::LoaderV4State;
+use solana_sdk::loader_v4::LoaderV4Status;
 use solana_sdk::packet::PACKET_DATA_SIZE;
 use solana_sdk::signature::keypair_from_seed;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signature;
 use solana_sdk::signer::Signer;
 use solana_sdk::system_instruction;
-use solana_sdk::system_instruction::MAX_PERMITTED_DATA_LENGTH;
 // use solana_sdk::loader_v4::finalize;
 use solana_sdk::{
     bpf_loader_upgradeable, instruction::Instruction, message::Message, pubkey::Pubkey,
@@ -62,8 +61,6 @@ pub enum DeploymentTransactionType {
     CreateTempAuthority(Vec<u8>),
     CreateBuffer,
     WriteToBuffer,
-    TransferBufferAuthority,
-    TransferProgramAuthority,
     DeployProgram,
     UpgradeProgram,
     CloseTempAuthority,
@@ -76,8 +73,6 @@ impl DeploymentTransactionType {
             DeploymentTransactionType::CreateTempAuthority(_) => "create_temp_authority",
             DeploymentTransactionType::CreateBuffer => "create_buffer",
             DeploymentTransactionType::WriteToBuffer => "write_to_buffer",
-            DeploymentTransactionType::TransferBufferAuthority => "transfer_buffer_authority",
-            DeploymentTransactionType::TransferProgramAuthority => "transfer_program_authority",
             DeploymentTransactionType::DeployProgram => "deploy_program",
             DeploymentTransactionType::UpgradeProgram => "upgrade_program",
             DeploymentTransactionType::CloseTempAuthority => "close_temp_authority",
@@ -90,12 +85,10 @@ impl DeploymentTransactionType {
             "create_temp_authority" => DeploymentTransactionType::CreateTempAuthority(vec![]),
             "create_buffer" => DeploymentTransactionType::CreateBuffer,
             "write_to_buffer" => DeploymentTransactionType::WriteToBuffer,
-            "transfer_buffer_authority" => DeploymentTransactionType::TransferBufferAuthority,
             "deploy_program" => DeploymentTransactionType::DeployProgram,
             "upgrade_program" => DeploymentTransactionType::UpgradeProgram,
             "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
             "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
-            "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
             _ => unreachable!(),
         }
     }
@@ -191,33 +184,11 @@ impl DeploymentTransaction {
         )
     }
 
-    pub fn transfer_buffer_authority(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
-        Self::new(
-            transaction,
-            keypairs,
-            None,
-            DeploymentTransactionType::TransferBufferAuthority,
-            CommitmentLevel::Confirmed,
-            true,
-        )
-    }
-
-    pub fn transfer_program_authority(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
-        Self::new(
-            transaction,
-            keypairs,
-            None,
-            DeploymentTransactionType::TransferProgramAuthority,
-            CommitmentLevel::Confirmed,
-            true,
-        )
-    }
-
     pub fn deploy_program(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
         Self::new(
             transaction,
             keypairs,
-            None,
+            Some(vec![TxtxDeploymentSigner::FinalAuthority]),
             DeploymentTransactionType::DeployProgram,
             CommitmentLevel::Confirmed,
             true,
@@ -337,8 +308,6 @@ impl DeploymentTransaction {
             }
             DeploymentTransactionType::CreateBuffer => return Ok(None),
             DeploymentTransactionType::WriteToBuffer => return Ok(None),
-            DeploymentTransactionType::TransferBufferAuthority => return Ok(None),
-            DeploymentTransactionType::TransferProgramAuthority => return Ok(None),
             DeploymentTransactionType::DeployProgram => "This transaction will deploy the program.",
             DeploymentTransactionType::UpgradeProgram => {
                 "This transaction will upgrade the program."
@@ -590,25 +559,21 @@ impl CloseTempAuthorityTransactionParts {
 /// ### Transaction 1: Seed Ephemeral authority
 ///  1. This is signed by the payer
 ///
-/// ### Transaction 2: Create Buffer
-///  1. First instruction creates the Buffer account
+/// ### Transaction 2: Create Undeployed Program Account
+///  1. First instruction creates the Undeployed Program account
 ///     1. Signed by the Ephemeral authority
-///  2. Second instruction initializes the Buffer, with the Ephemeral authority as the authority
+///  2. Second instruction sets the program length
 ///
-/// ### Transaction 3 - X: Write to Buffer
-///  1. Ephemeral authority writes to Buffer
+/// ### Transaction 3 - X: Write to Undeployed Program Account
+///  1. Ephemeral authority writes to Undeployed Program Account
 ///
-/// ### Transaction X + 1: Deploy Program              
-///  1. Create final program account
-///     1. Ephemeral authority signs
-///  2. Transfer buffer to final program
-///     1. Ephemeral authority signs (Buffer authority **must match** program authority)
-///     2. After this, the Ephemeral authority owns the final program
+/// ### Transaction X + 1: Deploy Program          
+///  1. Mark the Undeployed Program Account as executable
+///     1. Signed by the Ephemeral authority
+///  2. Transfer program authority from Ephemeral authority to Final Authority
+///     1. Both current authority (Ephemeral authority) and new authority (Final Authority) sign
 ///
-/// ### Transaction X + 2: Transfer Program authority from Ephemeral authority to Final Authority
-///  1. Ephemeral authority signs
-///
-/// ### Transaction X + 3: Transfer leftover Ephemeral authority funds to the Payer
+/// ### Transaction X + 2: Transfer leftover Ephemeral authority funds to the Payer
 ///  1. Ephemeral authority signs
 /// ---
 ///
@@ -618,22 +583,17 @@ impl CloseTempAuthorityTransactionParts {
 ///  1. This is signed by the payer
 ///
 /// ### Transaction 2: Create Buffer
-///  1. First instruction creates the Buffer account
+///  1. First instruction creates the Buffer account, with the Ephemeral authority as the authority
 ///     1. Signed by the Ephemeral authority
-///  2. Second instruction initializes the Buffer, with the Ephemeral authority as the authority
-///  3. Third instruction extends the program data account if necessary
-///     1. Payed for by the Ephemeral authority
+///  2. Second instruction sets the program length
 ///
 /// ### Transaction 3 - X: Write to Buffer
 ///  1. Ephemeral authority writes to Buffer
 ///
-/// ### Transaction X + 1: Transfer Buffer authority from Ephemeral authority to Final Authority
-///  1. Ephemeral authority signs
+/// ### Transaction X + 1: Deploy Program (from source)
+///  1. Instruction to deploy the program from the buffer account
 ///
-/// ### Transaction X + 2: Upgrade Program              
-///  1. Final Authority signs
-///
-/// ### Transaction X + 3: Transfer leftover Ephemeral authority funds to the Payer
+/// ### Transaction X + 2: Transfer leftover Ephemeral authority funds to the Payer
 ///  1. Ephemeral authority signs
 ///
 pub struct UpgradeableProgramDeployer {
@@ -651,9 +611,9 @@ pub struct UpgradeableProgramDeployer {
     pub temp_upgrade_authority: Keypair,
     /// The public key of the buffer account. The buffer account exists to be a temporary address where the program is deployed.
     /// If there are failures in the deployment, the same buffer account can be provided to retry the deployment.
-    pub buffer_pubkey: Pubkey,
+    pub buffer_pubkey: Option<Pubkey>,
     /// The keypair of the buffer account.
-    pub buffer_keypair: Keypair,
+    pub buffer_keypair: Option<Keypair>,
     /// The data of the buffer account from the previous deployment attempt.
     pub buffer_data: Vec<u8>,
     /// The binary of the program to deploy.
@@ -696,21 +656,29 @@ impl UpgradeableProgramDeployer {
         existing_program_buffer_opts: Option<(Pubkey, Keypair, Vec<u8>)>,
         auto_extend: Option<bool>,
     ) -> Result<Self, Diagnostic> {
-        let (buffer_pubkey, buffer_keypair, buffer_data) = match existing_program_buffer_opts {
-            Some((buffer_pubkey, buffer_keypair, buffer_data)) => {
-                (buffer_pubkey, buffer_keypair, buffer_data)
-            }
-            None => {
-                let (_buffer_words, _buffer_mnemonic, buffer_keypair) = create_ephemeral_keypair();
-                (buffer_keypair.pubkey(), buffer_keypair, vec![0; binary.len()])
-            }
-        };
-
         let is_program_upgrade = !UpgradeableProgramDeployer::should_do_initial_deploy(
             &rpc_client,
             &program_keypair.pubkey(),
             &final_upgrade_authority_pubkey,
         )?;
+
+        let (buffer_pubkey, buffer_keypair, buffer_data) = if is_program_upgrade {
+            // if we're doing a program upgrade, we'll need a buffer account to write the new program to.
+            // if the user provided an existing buffer account, use it. Otherwise, create a new one.
+            match existing_program_buffer_opts {
+                Some((buffer_pubkey, buffer_keypair, buffer_data)) => {
+                    (Some(buffer_pubkey), Some(buffer_keypair), buffer_data)
+                }
+                None => {
+                    let (_buffer_words, _buffer_mnemonic, buffer_keypair) =
+                        create_ephemeral_keypair();
+                    (Some(buffer_keypair.pubkey()), Some(buffer_keypair), vec![0; binary.len()])
+                }
+            }
+        } else {
+            // initial deployments don't need a buffer - we can just write to the program account directly.
+            (None, None, vec![0; binary.len()])
+        };
 
         Ok(Self {
             program_pubkey: program_keypair.pubkey(),
@@ -739,7 +707,7 @@ impl UpgradeableProgramDeployer {
             // transactions for first deployment of a program
             if !self.is_program_upgrade {
 
-                // create the buffer account
+                // create the buffer account (or for a deployment, initialize the program undeployed account)
                 let create_account_transaction =
                     self.get_create_buffer_transaction(&recent_blockhash)?;
 
@@ -748,39 +716,31 @@ impl UpgradeableProgramDeployer {
                     self.get_write_to_buffer_transactions(&recent_blockhash)?;
 
                 // deploy the program, with the final authority as program authority
-                let finalize_transaction =
-                    self.get_deploy_with_max_program_len_transaction(&recent_blockhash)?;
-
-                // transfer the program authority from the temp authority to the final authority
-                let transfer_authority = self.get_set_program_authority_to_final_authority_transaction(&recent_blockhash)?;
+                let deploy_and_transfer_authority_transaction = self.get_deploy_program_and_set_final_authority_transaction(&recent_blockhash)?;
 
                 let mut transactions = vec![create_account_transaction];
                 transactions.append(&mut write_transactions);
-                transactions.push(finalize_transaction);
-                transactions.push(transfer_authority);
+                transactions.push(deploy_and_transfer_authority_transaction);
                 transactions
             }
             // transactions for upgrading an existing program
             else {
 
-                // extend the program length and create the buffer account
-                let prepare_program_upgrade_transaction =
-                    self.get_prepare_program_upgrade_transaction(&recent_blockhash)?;
+                // create the buffer account
+                let create_account_transaction =
+                    self.get_create_buffer_transaction(&recent_blockhash)?;
 
                 // write transaction data to the buffer account
                 let mut write_transactions =
                     self.get_write_to_buffer_transactions(&recent_blockhash)?;
 
                 // transfer the buffer authority from the temp authority to the final authority
-                let transfer_authority = self.get_set_buffer_authority_to_final_authority_transaction(&recent_blockhash)?;
+                let deploy_from_source_transaction = self.get_deploy_program_from_source_transaction(&recent_blockhash)?;
 
-                // upgrade the program, with the final authority as program authority
-                let upgrade_transaction = self.get_upgrade_transaction(&recent_blockhash)?;
 
-                let mut transactions = vec![prepare_program_upgrade_transaction];
+                let mut transactions = vec![create_account_transaction];
                 transactions.append(&mut write_transactions);
-                transactions.push(transfer_authority);
-                transactions.push(upgrade_transaction);
+                transactions.push(deploy_from_source_transaction);
                 transactions
             };
 
@@ -809,12 +769,8 @@ impl UpgradeableProgramDeployer {
         // calculate transaction fees for all deployment transactions
         {
             let buffer_create_tx_count = 1;
-            let set_buffer_authority_tx_count = 1;
             let finalize_tx_count = 1;
-            let write_tx_count = transaction_count
-                - buffer_create_tx_count
-                - set_buffer_authority_tx_count
-                - finalize_tx_count;
+            let write_tx_count = transaction_count - buffer_create_tx_count - finalize_tx_count;
             let return_funds_tx_count = 1;
 
             // let temp_account = self
@@ -828,10 +784,7 @@ impl UpgradeableProgramDeployer {
             //         + set_buffer_authority_tx_count
             //         + return_funds_tx_count) as u64;
             lamports += LAMPORTS_PER_SIGNATURE
-                * (buffer_create_tx_count
-                    + write_tx_count
-                    + set_buffer_authority_tx_count
-                    + return_funds_tx_count) as u64;
+                * (buffer_create_tx_count + write_tx_count + return_funds_tx_count) as u64;
 
             // let final_authority_account = self
             //     .rpc_client
@@ -884,21 +837,36 @@ impl UpgradeableProgramDeployer {
 
         let rent_lamports = self
             .rpc_client
-            .get_minimum_balance_for_rent_exemption(UpgradeableLoaderState::size_of_programdata(
-                program_data_length,
-            ))
+            .get_minimum_balance_for_rent_exemption(
+                LoaderV4State::program_data_offset().saturating_add(program_data_length),
+            )
             .map_err(|e| {
                 diagnosed_error!("failed to get minimum balance for rent exemption: {e}")
             })?;
 
-        create_buffer(
-            &self.temp_upgrade_authority_pubkey,
-            &self.buffer_pubkey,
-            &self.temp_upgrade_authority_pubkey,
-            rent_lamports,
-            program_data_length,
-        )
-        .map_err(|e| diagnosed_error!("failed to create buffer: {e}"))
+        if self.is_program_upgrade {
+            if let Some(buffer_pubkey) = &self.buffer_pubkey {
+                Ok(loader_v4::create_buffer(
+                    &self.temp_upgrade_authority_pubkey,
+                    &buffer_pubkey,
+                    rent_lamports,
+                    &self.temp_upgrade_authority_pubkey,
+                    program_data_length as u32,
+                    &self.payer_pubkey,
+                ))
+            } else {
+                return Err(diagnosed_error!("buffer pubkey not set for program upgrade"));
+            }
+        } else {
+            Ok(loader_v4::create_buffer(
+                &self.temp_upgrade_authority_pubkey,
+                &self.program_pubkey,
+                rent_lamports,
+                &self.temp_upgrade_authority_pubkey,
+                program_data_length as u32,
+                &self.payer_pubkey,
+            ))
+        }
     }
 
     fn get_create_buffer_transaction(&self, blockhash: &Hash) -> Result<Value, Diagnostic> {
@@ -912,96 +880,45 @@ impl UpgradeableProgramDeployer {
 
         let transaction = Transaction::new_unsigned(message);
 
-        DeploymentTransaction::create_buffer(
-            &transaction,
-            vec![&self.temp_upgrade_authority, &self.buffer_keypair],
-        )
-        .to_value()
-    }
-
-    // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2807
-    fn get_extend_program_instruction(&self) -> Result<Option<Instruction>, Diagnostic> {
-        let program_data_address = get_program_data_address(&self.program_pubkey);
-
-        let Some(program_data_account) = self
-            .rpc_client
-            .get_account_with_commitment(&program_data_address, CommitmentConfig::processed())
-            .map_err(|e| diagnosed_error!("failed to get program data account: {e}",))?
-            .value
-        else {
-            // Program data has not been allocated yet.
-            return Ok(None);
-        };
-
-        let program_len = self.binary.len();
-        let required_len = UpgradeableLoaderState::size_of_programdata(program_len);
-        let max_permitted_data_length = usize::try_from(MAX_PERMITTED_DATA_LENGTH).unwrap();
-        if required_len > max_permitted_data_length {
-            let max_program_len = max_permitted_data_length
-                .saturating_sub(UpgradeableLoaderState::size_of_programdata(0));
-            return Err(diagnosed_error!(
-                "New program ({}) data account is too big: {}.\n\
-             Maximum program size: {}.",
-                &self.program_pubkey,
-                required_len,
-                max_program_len
+        if self.is_program_upgrade {
+            DeploymentTransaction::create_buffer(
+                &transaction,
+                vec![
+                    &self.temp_upgrade_authority,
+                    &self
+                        .buffer_keypair
+                        .as_ref()
+                        .expect("buffer keypair not set for program upgrade"),
+                ],
             )
-            .into());
+            .to_value()
+        } else {
+            DeploymentTransaction::create_buffer(
+                &transaction,
+                vec![&self.temp_upgrade_authority, &self.program_keypair],
+            )
+            .to_value()
         }
-
-        let current_len = program_data_account.data.len();
-        let additional_bytes = required_len.saturating_sub(current_len);
-        if additional_bytes == 0 {
-            // Current allocation is sufficient.
-            return Ok(None);
-        }
-
-        let additional_bytes =
-            u32::try_from(additional_bytes).expect("`u32` is big enough to hold an account size");
-        let instruction = bpf_loader_upgradeable::extend_program(
-            &self.program_pubkey,
-            Some(&self.temp_upgrade_authority_pubkey),
-            additional_bytes,
-        );
-
-        Ok(Some(instruction))
-    }
-
-    fn get_prepare_program_upgrade_transaction(
-        &self,
-        blockhash: &Hash,
-    ) -> Result<Value, Diagnostic> {
-        let mut instructions = self.get_create_buffer_instruction()?;
-        if self.auto_extend {
-            if let Some(extend_program_instruction) = self.get_extend_program_instruction()? {
-                instructions.push(extend_program_instruction);
-            };
-        }
-
-        let message = Message::new_with_blockhash(
-            &instructions,
-            Some(&self.temp_upgrade_authority_pubkey), // todo: can this be none? isn't the payer already set in the instruction
-            &blockhash,
-        );
-
-        let transaction = Transaction::new_unsigned(message);
-
-        DeploymentTransaction::create_buffer(
-            &transaction,
-            vec![&self.temp_upgrade_authority, &self.buffer_keypair],
-        )
-        .to_value()
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2455
     fn get_write_to_buffer_transactions(&self, blockhash: &Hash) -> Result<Vec<Value>, Diagnostic> {
         let create_msg = |offset: u32, bytes: Vec<u8>| {
-            let instruction = bpf_loader_upgradeable::write(
-                &self.buffer_pubkey,
-                &self.temp_upgrade_authority_pubkey,
-                offset,
-                bytes,
-            );
+            let instruction = if self.is_program_upgrade {
+                bpf_loader_upgradeable::write(
+                    &self.buffer_pubkey.expect("buffer pubkey not set for program upgrade"),
+                    &self.temp_upgrade_authority_pubkey,
+                    offset,
+                    bytes,
+                )
+            } else {
+                bpf_loader_upgradeable::write(
+                    &self.program_pubkey,
+                    &self.temp_upgrade_authority_pubkey,
+                    offset,
+                    bytes,
+                )
+            };
 
             let instructions = vec![instruction];
             Message::new_with_blockhash(
@@ -1043,54 +960,51 @@ impl UpgradeableProgramDeployer {
         Ok(write_transactions)
     }
 
-    fn get_set_buffer_authority_to_final_authority_transaction(
+    fn get_deploy_program_and_set_final_authority_transaction(
         &self,
         blockhash: &Hash,
     ) -> Result<Value, Diagnostic> {
-        let instruction = bpf_loader_upgradeable::set_buffer_authority(
-            &self.buffer_pubkey,
+        let deploy_instruction =
+            loader_v4::deploy(&self.program_pubkey, &self.temp_upgrade_authority_pubkey);
+
+        let transfer_authority_instruction = loader_v4::transfer_authority(
+            &self.program_pubkey,
             &self.temp_upgrade_authority_pubkey,
             &self.final_upgrade_authority_pubkey,
         );
 
         let message = Message::new_with_blockhash(
-            &[instruction],
-            Some(&self.temp_upgrade_authority_pubkey), // todo: can this be none? isn't the payer already set in the instruction
+            &[deploy_instruction, transfer_authority_instruction],
+            Some(&self.temp_upgrade_authority_pubkey),
             &blockhash,
         );
 
         let transaction = Transaction::new_unsigned(message);
 
-        DeploymentTransaction::transfer_buffer_authority(
-            &transaction,
-            vec![&self.temp_upgrade_authority],
-        )
-        .to_value()
+        DeploymentTransaction::deploy_program(&transaction, vec![&self.temp_upgrade_authority])
+            .to_value()
     }
 
-    fn get_set_program_authority_to_final_authority_transaction(
+    fn get_deploy_program_from_source_transaction(
         &self,
         blockhash: &Hash,
     ) -> Result<Value, Diagnostic> {
-        let instruction = bpf_loader_upgradeable::set_upgrade_authority(
+        let deploy_from_source_instruction = loader_v4::deploy_from_source(
             &self.program_pubkey,
-            &self.temp_upgrade_authority_pubkey,
-            Some(&self.final_upgrade_authority_pubkey),
+            &self.final_upgrade_authority_pubkey,
+            &self.buffer_pubkey.expect("buffer pubkey not set for program upgrade"),
         );
 
         let message = Message::new_with_blockhash(
-            &[instruction],
-            Some(&self.temp_upgrade_authority_pubkey), // todo: can this be none? isn't the payer already set in the instruction
+            &[deploy_from_source_instruction],
+            Some(&self.temp_upgrade_authority_pubkey),
             &blockhash,
         );
 
         let transaction = Transaction::new_unsigned(message);
 
-        DeploymentTransaction::transfer_program_authority(
-            &transaction,
-            vec![&self.temp_upgrade_authority],
-        )
-        .to_value()
+        DeploymentTransaction::upgrade_program(&transaction, vec![&self.temp_upgrade_authority])
+            .to_value()
     }
 
     fn get_close_temp_authority_transaction_parts(&self) -> Result<Value, Diagnostic> {
@@ -1166,58 +1080,6 @@ impl UpgradeableProgramDeployer {
         return Ok(None);
     }
 
-    fn get_deploy_with_max_program_len_transaction(
-        &self,
-        blockhash: &Hash,
-    ) -> Result<Value, Diagnostic> {
-        let instructions = bpf_loader_upgradeable::deploy_with_max_program_len(
-            &self.temp_upgrade_authority_pubkey,
-            &self.program_pubkey,
-            &self.buffer_pubkey,
-            &self.temp_upgrade_authority_pubkey,
-            self.rpc_client
-                .get_minimum_balance_for_rent_exemption(UpgradeableLoaderState::size_of_program())
-                .map_err(|e| {
-                    diagnosed_error!("failed to get minimum balance for rent exemption: {e}")
-                })?,
-            self.binary.len(),
-        )
-        .map_err(|e| {
-            diagnosed_error!("failed to create deploy with max program len instruction: {e}")
-        })?;
-
-        let message = Message::new_with_blockhash(
-            &instructions,
-            Some(&self.temp_upgrade_authority_pubkey),
-            &blockhash,
-        );
-        let transaction = Transaction::new_unsigned(message);
-
-        DeploymentTransaction::deploy_program(
-            &transaction,
-            vec![&self.temp_upgrade_authority, &self.program_keypair],
-        )
-        .to_value()
-    }
-
-    fn get_upgrade_transaction(&self, blockhash: &Hash) -> Result<Value, Diagnostic> {
-        let upgrade_instruction = bpf_loader_upgradeable::upgrade(
-            &self.program_pubkey,
-            &self.buffer_pubkey,
-            &self.final_upgrade_authority_pubkey,
-            &self.payer_pubkey,
-        );
-
-        let message = Message::new_with_blockhash(
-            &[upgrade_instruction],
-            Some(&self.final_upgrade_authority_pubkey),
-            &blockhash,
-        );
-        let transaction = Transaction::new_unsigned(message);
-
-        DeploymentTransaction::upgrade_program(&transaction, vec![]).to_value()
-    }
-
     /// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
     fn should_do_initial_deploy(
         rpc_client: &RpcClient,
@@ -1229,60 +1091,35 @@ impl UpgradeableProgramDeployer {
             .map_err(|e| diagnosed_error!("failed to get program account: {e}"))?
             .value
         {
-            if account.owner != bpf_loader_upgradeable::id() {
+            if !loader_v4::check_id(&account.owner) {
                 return Err(diagnosed_error!(
-                    "Account {} is not an upgradeable program or already in use",
+                    "account {} is already in use by another program",
                     program_pubkey
                 )
                 .into());
             }
-            if !account.executable {
-                return Ok(true);
-            } else if let Ok(UpgradeableLoaderState::Program { programdata_address }) =
-                account.state()
+            if let Ok(LoaderV4State { slot: _, authority_address_or_next_version, status }) =
+                solana_loader_v4_program::get_state(&account.data)
             {
-                if let Some(account) = rpc_client
-                    .get_account_with_commitment(
-                        &programdata_address,
-                        CommitmentConfig::processed(),
-                    )
-                    .map_err(|e| diagnosed_error!("failed to get program data account: {e}"))?
-                    .value
-                {
-                    if let Ok(UpgradeableLoaderState::ProgramData {
-                        slot: _,
-                        upgrade_authority_address: program_authority_pubkey,
-                    }) = account.state()
-                    {
-                        if let Some(program_authority_pubkey) = program_authority_pubkey {
-                            if program_authority_pubkey != *final_upgrade_authority_pubkey {
-                                return Err(diagnosed_error!(
-                                    "Program's authority {:?} does not match authority provided {:?}",
-                                    program_authority_pubkey, final_upgrade_authority_pubkey,
-                                )
-                                .into());
-                            }
-                        }
-                        // Do upgrade
-                        return Ok(false);
-                    } else {
-                        return Err(diagnosed_error!(
-                            "Program {} has been closed, use a new Program Id",
-                            program_pubkey
-                        )
-                        .into());
-                    }
-                } else {
-                    return Err(diagnosed_error!(
-                        "Program {} has been closed, use a new Program Id",
-                        program_pubkey
-                    )
-                    .into());
+                if final_upgrade_authority_pubkey != authority_address_or_next_version {
+                    return Err(
+                        diagnosed_error!("the authority ({}) of program ({}) does not match with the provided authority ({})", authority_address_or_next_version, program_pubkey, final_upgrade_authority_pubkey)
+                            ,
+                    );
                 }
+                return match status {
+                    LoaderV4Status::Retracted => Ok(true),
+                    LoaderV4Status::Deployed => Ok(true),
+                    LoaderV4Status::Finalized => Err(diagnosed_error!(
+                        "program ({}) is already finalized and cannot be upgraded",
+                        program_pubkey
+                    )),
+                };
             } else {
-                return Err(
-                    diagnosed_error!("{} is not an upgradeable program", program_pubkey).into()
-                );
+                return Err(diagnosed_error!(
+                    "could not deserialize state for program account ({})",
+                    program_pubkey
+                ));
             }
         } else {
             return Ok(true);
