@@ -581,16 +581,51 @@ impl Runbook {
 
 #[derive(Clone, Debug)]
 pub struct RunbookTopLevelInputsMap {
-    pub current_environment: Option<String>,
-    pub environments: Vec<String>,
-    pub values: HashMap<Option<String>, Vec<(String, Value)>>,
+    current_environment: Option<String>,
+    environments: Vec<String>,
+    values: HashMap<Option<String>, Vec<(String, Value)>>,
 }
 
 pub const DEFAULT_TOP_LEVEL_INPUTS_NAME: &str = "default";
+pub const GLOBAL_TOP_LEVEL_INPUTS_NAME: &str = "global";
 
 impl RunbookTopLevelInputsMap {
     pub fn new() -> Self {
         Self { current_environment: None, environments: vec![], values: HashMap::new() }
+    }
+    pub fn from_environment_map(
+        selector: &Option<String>,
+        environments_map: &IndexMap<String, IndexMap<String, String>>,
+    ) -> Self {
+        let mut environments = vec![];
+        let mut values = HashMap::from_iter([(None, vec![])]);
+
+        let mut global_values = vec![];
+        if let Some(global_env_vars) = environments_map.get(GLOBAL_TOP_LEVEL_INPUTS_NAME) {
+            for (key, value) in global_env_vars.iter() {
+                global_values.push((key.to_string(), Value::parse_and_default_to_string(value)));
+            }
+        };
+
+        for (selector, inputs) in environments_map.iter() {
+            let mut env_values = vec![];
+            // Add global values to all environments
+            for (key, value) in global_values.iter() {
+                env_values.push((key.to_string(), value.clone()));
+            }
+            // _Then_ add the environment specific values, overwriting the global ones in the case of collisions
+            for (key, value) in inputs.iter() {
+                env_values.push((key.to_string(), Value::parse_and_default_to_string(value)));
+            }
+            environments.push(selector.to_string());
+            values.insert(Some(selector.to_string()), env_values);
+        }
+
+        Self {
+            current_environment: selector.clone().or(environments.get(0).map(|v| v.to_string())),
+            environments,
+            values,
+        }
     }
 
     pub fn current_top_level_input_name(&self) -> String {
