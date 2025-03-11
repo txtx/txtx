@@ -14259,7 +14259,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "crossbeam-channel",
  "dirs",
@@ -14463,7 +14463,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -14492,7 +14492,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.2.1"
+version = "0.2.5"
 dependencies = [
  "async-stream",
  "futures",
@@ -14501,7 +14501,6 @@ dependencies = [
  "juniper_codegen",
  "tokio",
  "txtx-addon-kit",
- "uuid 1.15.1",
 ]
 
 [[package]]
@@ -14719,7 +14718,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0f540e3240398cce6128b64ba83fdbdd86129c16a3aa1a3a252efd66eb3d587"
 dependencies = [
  "getrandom 0.3.1",
+ "js-sys",
  "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
