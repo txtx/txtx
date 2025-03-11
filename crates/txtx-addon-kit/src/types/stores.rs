@@ -322,6 +322,9 @@ impl AddonDefaults {
     pub fn iter(&self) -> indexmap::map::Iter<String, Value> {
         self.store.iter()
     }
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.store.contains_key(key)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -603,5 +606,8 @@ impl ValueMap {
     }
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
         self.store.get_mut(key)
+    }
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.store.contains_key(key)
     }
 }

@@ -234,8 +234,13 @@ impl RuntimeContext {
                     let addon_id = name.to_string();
                     self.register_addon(&addon_id, &package_id.did())?;
 
+                    let existing_addon_defaults = runbook_workspace_context
+                        .addons_defaults
+                        .get(&(package_id.did(), addon_id.clone()))
+                        .cloned();
                     let addon_defaults = self
                         .generate_addon_defaults_from_block(
+                            existing_addon_defaults,
                             &block,
                             &addon_id,
                             &package_id,
@@ -261,6 +266,7 @@ impl RuntimeContext {
 
     pub fn generate_addon_defaults_from_block(
         &self,
+        existing_addon_defaults: Option<AddonDefaults>,
         block: &Block,
         addon_id: &str,
         package_id: &PackageId,
@@ -268,7 +274,7 @@ impl RuntimeContext {
         runbook_workspace_context: &mut RunbookWorkspaceContext,
         runbook_execution_context: &RunbookExecutionContext,
     ) -> Result<AddonDefaults, Diagnostic> {
-        let mut addon_defaults = AddonDefaults::new(&addon_id);
+        let mut addon_defaults = existing_addon_defaults.unwrap_or(AddonDefaults::new(addon_id));
         for attribute in block.body.attributes() {
             let eval_result: Result<ExpressionEvaluationStatus, Diagnostic> = eval::eval_expression(
                 &attribute.value,
@@ -284,6 +290,13 @@ impl RuntimeContext {
                 Err(diag) => return Err(diag),
                 w => unimplemented!("{:?}", w),
             };
+            if addon_defaults.contains_key(&key) {
+                return Err(diagnosed_error!(
+                    "duplicate key '{}' in '{}' addon defaults",
+                    key,
+                    addon_id
+                ));
+            }
             addon_defaults.insert(&key, value);
         }
         Ok(addon_defaults)

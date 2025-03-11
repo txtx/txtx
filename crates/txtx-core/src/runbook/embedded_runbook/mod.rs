@@ -175,8 +175,13 @@ impl EmbeddingRunbookContext {
         }
 
         for (_, addon_instance) in execution_context.addon_instances.iter() {
+            let existing_addon_defaults = workspace_context
+                .addons_defaults
+                .get(&(addon_instance.package_id.did(), addon_instance.addon_id.to_string()))
+                .cloned();
             let defaults = runtime_context
                 .generate_addon_defaults_from_block(
+                    existing_addon_defaults,
                     &addon_instance.block,
                     &addon_instance.addon_id,
                     &addon_instance.package_id,
