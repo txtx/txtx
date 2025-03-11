@@ -33,7 +33,7 @@ use crate::codec::{
 use crate::constants::{
     AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION,
     FORMATTED_TRANSACTION, IS_DEPLOYMENT, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID,
-    RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, TRANSACTION_BYTES,
+    PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, TRANSACTION_BYTES,
 };
 use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS, DEPLOYMENT_TRANSACTION_SIGNATURES};
 
@@ -304,6 +304,14 @@ impl CommandImplementation for DeployProgram {
             }
         };
 
+        let program_idl = program_artifacts.idl().map_err(|e| {
+            (
+                signers.clone(),
+                authority_signer_state.clone(),
+                diagnosed_error!("failed to get program idl: {}", e),
+            )
+        })?;
+
         signers.push_signer_state(authority_signer_state);
         if let Some(payer_signer_state) = payer_signer_state {
             signers.push_signer_state(payer_signer_state);
@@ -314,7 +322,7 @@ impl CommandImplementation for DeployProgram {
         let mut cursor = 0;
         let mut res = vec![];
         let transaction_array = transactions.as_array().unwrap();
-        for transaction_value in transaction_array.iter() {
+        for (i, transaction_value) in transaction_array.iter().enumerate() {
             let new_did = ConstructDid(Did::from_components(vec![
                 construct_did.as_bytes(),
                 cursor.to_string().as_bytes(),
@@ -333,6 +341,15 @@ impl CommandImplementation for DeployProgram {
             );
 
             value_store.insert_scoped_value(&new_did.to_string(), PROGRAM_ID, program_id.clone());
+            if i == 0 {
+                if let Some(idl) = &program_idl {
+                    value_store.insert_scoped_value(
+                        &new_did.to_string(),
+                        PROGRAM_IDL,
+                        Value::string(idl.to_string()),
+                    );
+                }
+            }
 
             value_store.insert_scoped_value(
                 &new_did.to_string(),
@@ -459,6 +476,9 @@ impl CommandImplementation for DeployProgram {
             .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
             .unwrap()
             .clone();
+        let program_idl_value = authority_signer_state
+            .get_scoped_value(&construct_did.to_string(), PROGRAM_IDL)
+            .cloned();
 
         let progress_tx = progress_tx.clone();
         let signers_instances = signers_instances.clone();
@@ -471,6 +491,9 @@ impl CommandImplementation for DeployProgram {
             let mut result = CommandExecutionResult::new();
 
             result.outputs.insert(PROGRAM_ID.to_string(), program_id_value.clone());
+            if let Some(idl) = program_idl_value {
+                result.outputs.insert(PROGRAM_IDL.to_string(), idl);
+            }
 
             let nested_construct_did =
                 values.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
@@ -673,6 +696,11 @@ impl CommandImplementation for DeployProgram {
             .first()
             .and_then(|(id, values)| values.get_scoped_value(&id.to_string(), PROGRAM_ID))
             .unwrap();
+        let program_idl = nested_values
+            .first()
+            .and_then(|(id, values)| values.get_scoped_value(&id.to_string(), PROGRAM_IDL))
+            .cloned();
+
         for (res, (nested_construct_did, values)) in nested_results.iter().zip(nested_values) {
             let tx_type = values
                 .get_scoped_value(&nested_construct_did.to_string(), "deployment_transaction_type")
@@ -696,6 +724,9 @@ impl CommandImplementation for DeployProgram {
 
         result.outputs.insert(SIGNATURES.into(), object_type.to_value());
         result.outputs.insert(PROGRAM_ID.into(), program_id.clone());
+        if let Some(program_idl) = program_idl {
+            result.outputs.insert(PROGRAM_IDL.into(), program_idl);
+        }
         Ok(result)
     }
 }
