@@ -5,10 +5,12 @@ pub mod native;
 pub mod send_transaction;
 pub mod subgraph;
 
+use anchor::AnchorProgramArtifacts;
 use bip39::Language;
 use bip39::Mnemonic;
 use bip39::MnemonicType;
 use bip39::Seed;
+use native::ClassicRustProgramArtifacts;
 use serde::Deserialize;
 use serde::Serialize;
 use solana_client::rpc_client::RpcClient;
@@ -1326,4 +1328,61 @@ pub fn transaction_is_fully_signed(transaction: &Transaction) -> bool {
     let expected_signature_count = transaction.message.header.num_required_signatures as usize;
     let actual_signature_count = transaction.signatures.len();
     expected_signature_count == actual_signature_count && transaction.is_signed()
+}
+
+pub enum ProgramArtifacts {
+    Native(ClassicRustProgramArtifacts),
+    Anchor(AnchorProgramArtifacts),
+}
+
+impl ProgramArtifacts {
+    pub fn from_value(value: &Value) -> Result<Self, Diagnostic> {
+        let map =
+            value.as_object().ok_or(diagnosed_error!("program artifacts must be an object"))?;
+
+        let framework = map
+            .get("framework")
+            .ok_or(diagnosed_error!("program artifacts must have a 'framework' field"))?
+            .as_string()
+            .ok_or(diagnosed_error!("'framework' field must be a string"))?;
+
+        match framework {
+            "native" => {
+                let artifacts = ClassicRustProgramArtifacts::from_value(value)?;
+                Ok(ProgramArtifacts::Native(artifacts))
+            }
+            "anchor" => {
+                let artifacts = AnchorProgramArtifacts::from_map(map)?;
+                Ok(ProgramArtifacts::Anchor(artifacts))
+            }
+            _ => Err(diagnosed_error!("unsupported framework: {framework}")),
+        }
+    }
+    pub fn keypair(&self) -> Result<Keypair, Diagnostic> {
+        let keypair_bytes = self.keypair_bytes();
+        Keypair::from_bytes(&keypair_bytes)
+            .map_err(|e| diagnosed_error!("failed to deserialize keypair: {e}"))
+    }
+    pub fn keypair_bytes(&self) -> Vec<u8> {
+        match self {
+            ProgramArtifacts::Native(artifacts) => artifacts.keypair.to_bytes().to_vec(),
+            ProgramArtifacts::Anchor(artifacts) => artifacts.keypair.to_bytes().to_vec(),
+        }
+    }
+    pub fn bin(&self) -> &Vec<u8> {
+        match self {
+            ProgramArtifacts::Native(artifacts) => &artifacts.bin,
+            ProgramArtifacts::Anchor(artifacts) => &artifacts.bin,
+        }
+    }
+    pub fn idl(&self) -> Result<Option<String>, Diagnostic> {
+        match self {
+            ProgramArtifacts::Native(_) => Ok(None),
+            ProgramArtifacts::Anchor(artifacts) => Some(
+                serde_json::to_string(&artifacts.idl)
+                    .map_err(|e| diagnosed_error!("invalid anchor idl: {e}")),
+            )
+            .transpose(),
+        }
+    }
 }
