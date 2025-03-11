@@ -14370,6 +14370,7 @@ dependencies = [
  "async-recursion",
  "bincode",
  "borsh 1.5.5",
+ "convert_case 0.6.0",
  "lazy_static",
  "serde",
  "serde_derive",
