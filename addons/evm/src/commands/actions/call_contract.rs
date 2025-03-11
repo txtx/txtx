@@ -149,6 +149,13 @@ lazy_static! {
                 optional: true,
                 tainting: false,
                 internal: false
+            },
+            confirmations: {
+                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
+                typing: Type::integer(),
+                optional: true,
+                tainting: false,
+                internal: false
             }
           ],
           outputs: [
