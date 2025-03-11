@@ -34,3 +34,4 @@ txtx-addon-network-stacks = { path = "addons/stacks" }
 txtx-addon-network-svm = { path = "addons/svm" }
 txtx-addon-telegram = { path = "addons/telegram" }
 txtx-addon-sp1 = { path = "addons/sp1" }
+uuid = { version = "1.15.1", features = ["v4", "serde", "js"] }
