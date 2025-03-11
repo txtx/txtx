@@ -26,9 +26,10 @@ use txtx_addon_kit::types::types::{ObjectType, RunbookSupervisionContext, Type, 
 use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::codec::native::ClassicRustProgramArtifacts;
 use crate::codec::send_transaction::send_transaction_background_task;
-use crate::codec::{DeploymentTransaction, DeploymentTransactionType, UpgradeableProgramDeployer};
+use crate::codec::{
+    DeploymentTransaction, DeploymentTransactionType, ProgramArtifacts, UpgradeableProgramDeployer,
+};
 use crate::constants::{
     AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION,
     FORMATTED_TRANSACTION, IS_DEPLOYMENT, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID,
@@ -151,11 +152,10 @@ impl CommandImplementation for DeployProgram {
             Ok(a) => a,
             Err(e) => return Err((signers, authority_signer_state, e)),
         };
-        let program_artifacts =
-            match ClassicRustProgramArtifacts::from_value(&program_artifacts_map) {
-                Ok(a) => a,
-                Err(e) => return Err((signers, authority_signer_state, diagnosed_error!("{}", e))),
-            };
+        let program_artifacts = match ProgramArtifacts::from_value(&program_artifacts_map) {
+            Ok(a) => a,
+            Err(e) => return Err((signers, authority_signer_state, diagnosed_error!("{}", e))),
+        };
 
         let rpc_api_url = values
             .get_expected_string(RPC_API_URL)
@@ -168,7 +168,7 @@ impl CommandImplementation for DeployProgram {
         let auto_extend = values.get_bool(AUTO_EXTEND);
 
         // safe unwrap because AnchorProgramArtifacts::from_map already checked for the key
-        let keypair = SvmValue::keypair(program_artifacts.keypair.to_bytes().to_vec());
+        let keypair = SvmValue::keypair(program_artifacts.keypair_bytes());
 
         insert_to_payer_or_authority(
             &mut payer_signer_state,
@@ -257,10 +257,16 @@ impl CommandImplementation for DeployProgram {
                 };
 
                 let mut deployer = UpgradeableProgramDeployer::new(
-                    program_artifacts.keypair,
+                    program_artifacts.keypair().map_err(|e| {
+                        (
+                            signers.clone(),
+                            authority_signer_state.clone(),
+                            diagnosed_error!("failed to get program keypair: {}", e),
+                        )
+                    })?,
                     &authority_pubkey,
                     temp_authority_keypair,
-                    &program_artifacts.bin,
+                    &program_artifacts.bin(),
                     &payer_pubkey,
                     rpc_client,
                     None,

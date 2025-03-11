@@ -4,7 +4,10 @@ use anchor_lang_idl::types::Idl;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 use txtx_addon_kit::{
     indexmap::IndexMap,
-    types::types::{ObjectType, Value},
+    types::{
+        diagnostics::Diagnostic,
+        types::{ObjectType, Value},
+    },
 };
 
 use crate::typing::SvmValue;
@@ -96,32 +99,34 @@ impl AnchorProgramArtifacts {
             ("idl", Value::string(idl_str)),
             ("keypair", SvmValue::keypair(keypair_bytes.to_vec())),
             ("program_id", Value::string(self.program_id.to_string())),
+            ("framework", Value::string("anchor".to_string())),
         ])
         .to_value())
     }
 
-    pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, String> {
+    pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
         let bin = match map.get("binary") {
             Some(Value::Addon(addon_data)) => addon_data.bytes.clone(),
-            _ => return Err("anchor artifacts missing binary".to_string()),
+            _ => return Err(diagnosed_error!("anchor artifacts missing binary")),
         };
         // let idl_bytes = match map.get("idl") {
         //     Some(Value::Addon(addon_data)) => addon_data.bytes.clone(),
         //     _ => return Err("anchor artifacts missing idl".to_string()),
         // };
-        let idl_str = map.get("idl").ok_or("anchor artifacts missing idl")?.to_string();
+        let idl_str =
+            map.get("idl").ok_or(diagnosed_error!("anchor artifacts missing idl"))?.to_string();
         // let idl: Idl =
         //     serde_json::from_slice(&idl_bytes).map_err(|e| format!("invalid anchor idl: {e}"))?;
 
-        let idl: Idl =
-            serde_json::from_str(&idl_str).map_err(|e| format!("invalid anchor idl: {e}"))?;
+        let idl: Idl = serde_json::from_str(&idl_str)
+            .map_err(|e| diagnosed_error!("invalid anchor idl: {e}"))?;
 
         let keypair_bytes = match map.get("keypair") {
             Some(Value::Addon(addon_data)) => addon_data.bytes.clone(),
-            _ => return Err("anchor artifacts missing keypair".to_string()),
+            _ => return Err(diagnosed_error!("anchor artifacts missing keypair")),
         };
         let keypair = Keypair::from_bytes(&keypair_bytes)
-            .map_err(|e| format!("invalid anchor keypair: {e}"))?;
+            .map_err(|e| diagnosed_error!("invalid anchor keypair: {e}"))?;
         let pubkey = keypair.pubkey();
         Ok(Self { idl, bin, keypair, program_id: pubkey })
     }

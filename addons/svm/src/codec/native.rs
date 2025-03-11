@@ -62,6 +62,7 @@ impl ClassicRustProgramArtifacts {
             ("binary", SvmValue::binary(self.bin.clone())),
             ("keypair", SvmValue::keypair(self.keypair.to_bytes().to_vec())),
             ("program_id", SvmValue::pubkey(self.program_id.to_bytes().to_vec())),
+            ("framework", Value::string("native".to_string())),
         ])
         .to_value()
     }
