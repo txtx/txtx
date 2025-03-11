@@ -1,3 +1,6 @@
+use anchor_lang_idl::types::Idl;
+use convert_case::{Case, Casing};
+
 pub fn get_interpolated_header_template(title: &str) -> String {
     return format!(
         r#"################################################################
@@ -63,4 +66,33 @@ action "deploy_{}" "svm::deploy_program" {{
 "#,
         program_name, program_name, program_name
     );
+}
+
+pub fn get_interpolated_anchor_subgraph_template(
+    program_name: &str,
+    idl_str: &str,
+) -> Result<String, String> {
+    let idl: Idl =
+        serde_json::from_str(idl_str).map_err(|e| format!("failed to parse program idl: {}", e))?;
+    Ok(idl
+        .events
+        .iter()
+        .map(|event| {
+            let event_slug = Casing::to_case(&event.name, Case::Snake);
+            format!(
+                r#"
+action "{program_name}_{event_slug}" "svm::deploy_subgraph" {{
+    description = "A subgraph of {} occurrences in the '{program_name}' program"
+    program_id = action.deploy_{program_name}.program_id
+    program_idl = action.deploy_{program_name}.program_idl
+    block_height = 0 // action.deploy_{program_name}.block_height
+    event {{
+        name = "{}"
+    }}
+}}"#,
+                event.name, event.name
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n"))
 }
