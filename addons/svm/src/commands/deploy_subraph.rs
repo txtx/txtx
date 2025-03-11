@@ -122,12 +122,13 @@ impl CommandImplementation for DeployProgram {
             constants::{BLOCK_HEIGHT, EVENT, PROGRAM_IDL, SUBGRAPH_NAME, SUBGRAPH_REQUEST},
         };
         let _rpc = values.get_expected_string(RPC_API_URL)?;
-        let events = SubgraphEventDefinition::parse_map_values(values.get_expected_map(EVENT)?)?;
+        let idl_str = values.get_expected_string(PROGRAM_IDL)?;
+        let events =
+            SubgraphEventDefinition::parse_map_values(values.get_expected_map(EVENT)?, idl_str)?;
 
         let block_height = values.get_expected_uint(BLOCK_HEIGHT)?;
         let program_id = SvmValue::to_pubkey(values.get_expected_value(PROGRAM_ID)?)
             .map_err(|e| diagnosed_error!("{e}"))?;
-        let idl_str = values.get_expected_string(PROGRAM_IDL)?;
 
         let subgraph_name = values.get_string(SUBGRAPH_NAME).unwrap_or(&values.name);
         let description = values.get_string(DESCRIPTION).and_then(|s| Some(s.to_string()));

@@ -1,4 +1,4 @@
-use anchor_lang_idl::types::Idl;
+use anchor_lang_idl::types::{Idl, IdlDefinedFields, IdlTypeDefTy};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::RpcRequest};
@@ -165,10 +165,12 @@ pub struct SubgraphEventDefinition {
 }
 
 impl SubgraphEventDefinition {
-    pub fn parse_map_values(values: &Vec<Value>) -> Result<Vec<Self>, Diagnostic> {
+    pub fn parse_map_values(values: &Vec<Value>, idl_str: &str) -> Result<Vec<Self>, Diagnostic> {
         if values.len() == 0 {
             return Err(diagnosed_error!("subgraph event should not be empty"));
         }
+        let idl: Idl = serde_json::from_str(idl_str)
+            .map_err(|e| diagnosed_error!("could not deserialize IDL: {e}"))?;
         let mut events = Vec::new();
         for entry in values.iter() {
             let entry = entry.as_object().ok_or(diagnosed_error!(
@@ -180,13 +182,26 @@ impl SubgraphEventDefinition {
             let name = name.as_string().ok_or(diagnosed_error!(
                 "could not deserialize subgraph event: expected 'name' to be a string"
             ))?;
-            let fields = entry.get(FIELD).ok_or(diagnosed_error!(
-                "could not deserialize subgraph event: expected 'fields' key"
-            ))?;
-            let fields = fields.as_array().ok_or(diagnosed_error!(
-                "could not deserialize subgraph event: expected 'fields' to be an array"
-            ))?;
-            let fields = SubgraphFieldDefinition::parse_map_values(fields)?;
+
+            let idl_event = idl
+                .events
+                .iter()
+                .find(|e| e.name == name)
+                .ok_or(diagnosed_error!("could not find event '{}' in IDL", name))?;
+
+            let fields = if let Some(fields) = entry.get(FIELD) {
+                let fields = fields.as_array().ok_or(diagnosed_error!(
+                    "could not deserialize subgraph event: expected 'fields' to be an array"
+                ))?;
+                SubgraphFieldDefinition::parse_map_values(fields)?
+            } else {
+                let ty = idl
+                    .types
+                    .iter()
+                    .find(|t| t.name == idl_event.name)
+                    .ok_or(diagnosed_error!("could not find type '{}' in IDL", name))?;
+                SubgraphFieldDefinition::from_idl_type(&ty.ty)?
+            };
             events.push(Self { name: name.to_string(), fields });
         }
         Ok(events)
@@ -201,6 +216,9 @@ pub struct SubgraphFieldDefinition {
 }
 
 impl SubgraphFieldDefinition {
+    pub fn new(name: &str, source: Option<String>, description: Option<String>) -> Self {
+        Self { name: name.to_string(), source, description }
+    }
     pub fn parse_map_values(values: &Vec<Value>) -> Result<Vec<Self>, Diagnostic> {
         if values.len() == 0 {
             return Err(diagnosed_error!("subgraph field should not be empty"));
@@ -222,6 +240,32 @@ impl SubgraphFieldDefinition {
             fields.push(Self { name: name.to_string(), source, description });
         }
         Ok(fields)
+    }
+
+    fn from_idl_type(ty: &IdlTypeDefTy) -> Result<Vec<Self>, Diagnostic> {
+        match ty {
+            IdlTypeDefTy::Struct { fields } => {
+                if let Some(fields) = fields {
+                    match fields {
+                        IdlDefinedFields::Named(idl_fields) => Ok(idl_fields
+                            .iter()
+                            .map(|f| {
+                                Self::new(
+                                    &f.name,
+                                    None,
+                                    if f.docs.is_empty() { None } else { Some(f.docs.join(" ")) },
+                                )
+                            })
+                            .collect()),
+                        IdlDefinedFields::Tuple(_) => todo!(),
+                    }
+                } else {
+                    todo!()
+                }
+            }
+            IdlTypeDefTy::Enum { .. } => todo!(),
+            IdlTypeDefTy::Type { .. } => todo!(),
+        }
     }
 }
 
