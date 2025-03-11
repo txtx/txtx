@@ -305,6 +305,28 @@ pub fn value_to_abi_param(value: &Value, param: &Param) -> Result<DynSolValue, D
         value.get_type().to_string(),
         param.ty.as_str()
     );
+
+    if let Some(addon_data) = value.as_addon_data() {
+        if addon_data.id == EVM_SIM_RESULT {
+            let (result, fn_spec) = EvmValue::to_sim_result(value)?;
+            if let Some(fn_spec) = fn_spec {
+                let res = fn_spec.abi_decode_output(&result, false).map_err(|e| {
+                    diagnosed_error!("{msg}: failed to decode function output: {e}")
+                })?;
+                if res.len() == 1 {
+                    return Ok(res.get(0).unwrap().clone());
+                } else {
+                    return Ok(DynSolValue::Tuple(res));
+                }
+            }
+        } else if addon_data.id == EVM_KNOWN_SOL_PARAM {
+            let (value, param) = EvmValue::to_known_sol_param(value)?;
+            return value_to_abi_param(&value, &param).map_err(|e| {
+                diagnosed_error!("{msg}: failed to encode known Solidity type: {e}",)
+            });
+        }
+    }
+
     let type_specifier = TypeSpecifier::try_from(param.ty.as_str())
         .map_err(|e| diagnosed_error!("{msg}:failed to parse type specifier: {e}"))?;
     let is_array = type_specifier.sizes.len() > 0;
@@ -329,27 +351,6 @@ pub fn value_to_primitive_abi_type(
         value.get_type().to_string(),
         param.ty.as_str()
     );
-
-    if let Some(addon_data) = value.as_addon_data() {
-        if addon_data.id == EVM_SIM_RESULT {
-            let (result, fn_spec) = EvmValue::to_sim_result(value)?;
-            if let Some(fn_spec) = fn_spec {
-                let res = fn_spec.abi_decode_output(&result, false).map_err(|e| {
-                    diagnosed_error!("{msg}: failed to decode function output: {e}")
-                })?;
-                if res.len() == 1 {
-                    return Ok(res.get(0).unwrap().clone());
-                } else {
-                    return Ok(DynSolValue::Tuple(res));
-                }
-            }
-        } else if addon_data.id == EVM_KNOWN_SOL_PARAM {
-            let (value, param) = EvmValue::to_known_sol_param(value)?;
-            return value_to_abi_param(&value, &param).map_err(|e| {
-                diagnosed_error!("{msg}: failed to encode known Solidity type: {e}",)
-            });
-        }
-    }
 
     let type_specifier = TypeSpecifier::try_from(param.ty.as_str())
         .map_err(|e| diagnosed_error!("{msg}: failed to parse type specifier: {e}"))?;
