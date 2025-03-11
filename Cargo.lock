@@ -14259,7 +14259,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "crossbeam-channel",
  "dirs",
@@ -14307,7 +14307,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-evm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "alloy",
  "alloy-chains",
@@ -14404,7 +14404,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -14463,7 +14463,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -14505,7 +14505,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
