@@ -1,3 +1,5 @@
+use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
+use crate::{get_addon_by_namespace, get_available_addons};
 use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
@@ -12,10 +14,7 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
-#[cfg(feature = "ovm")]
-use txtx_addon_network_ovm::OvmNetworkAddon;
-#[cfg(feature = "sp1")]
-use txtx_addon_sp1::Sp1Addon;
+use txtx_core::templates::{build_manifest_data, build_runbook_data};
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     mustache,
@@ -49,21 +48,14 @@ use txtx_core::{
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
 
-use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
-use crate::{
-    get_addon_by_namespace, get_available_addons,
-    web_ui::{
-        self,
-        cloud_relayer::{start_relayer_event_runloop, RelayerChannelEvent},
-    },
-};
-use txtx_core::templates::{build_manifest_data, build_runbook_data};
-use txtx_gql::Context as GqlContext;
-use web_ui::cloud_relayer::RelayerContext;
-
-pub const DEFAULT_BINDING_PORT: &str = "8488";
-pub const SERVE_BINDING_PORT: &str = "18488";
-pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
+#[cfg(feature = "supervisor_ui")]
+use actix_web::dev::ServerHandle;
+#[cfg(feature = "ovm")]
+use txtx_addon_network_ovm::OvmNetworkAddon;
+#[cfg(feature = "sp1")]
+use txtx_addon_sp1::Sp1Addon;
+#[cfg(feature = "supervisor_ui")]
+use txtx_supervisor_ui::{self, cloud_relayer::RelayerChannelEvent};
 
 pub fn display_snapshot_diffing(
     consolidated_changes: ConsolidatedChanges,
@@ -442,11 +434,9 @@ pub async fn run_action(
 pub async fn handle_run_command(
     cmd: &ExecuteRunbook,
     buffer_stdin: Option<String>,
-    ctx: &Context,
+    _ctx: &Context,
 ) -> Result<(), String> {
     let is_execution_unsupervised = cmd.unsupervised;
-    let do_use_term_console = cmd.term_console;
-    let start_web_ui = cmd.web_console || (!is_execution_unsupervised && !do_use_term_console);
 
     let available_addons = get_available_addons();
     if let Some((namespace, command_name)) = cmd.runbook.split_once("::") {
@@ -733,7 +723,15 @@ pub async fn handle_run_command(
         return Ok(());
     }
 
+    let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
+    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
+    let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
+
+    #[cfg(feature = "supervisor_ui")]
     let runbook_description = runbook.description.clone();
+    #[cfg(feature = "supervisor_ui")]
     let registered_addons = runbook
         .runtime_context
         .addons_context
@@ -741,12 +739,6 @@ pub async fn handle_run_command(
         .keys()
         .map(|k| k.clone())
         .collect::<Vec<_>>();
-    let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
-    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
-    let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
-    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
-    let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
-    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
 
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
@@ -769,7 +761,6 @@ pub async fn handle_run_command(
                 }
             };
         } else {
-            println!("completed supervised loop");
             let (_, json_outputs) = collect_formatted_outputs(&runbook.flow_contexts);
 
             if !json_outputs.is_empty() {
@@ -802,56 +793,52 @@ pub async fn handle_run_command(
         }
     });
 
-    let web_ui_handle = if start_web_ui {
-        // start web ui server
-        let gql_context = GqlContext {
-            protocol_name: runbook_name.clone(),
-            runbook_name: runbook_name.clone(),
-            registered_addons,
+    #[cfg(feature = "supervisor_ui")]
+    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
+    #[cfg(feature = "supervisor_ui")]
+    let moved_relayer_channel_tx = relayer_channel_tx.clone();
+    #[cfg(feature = "supervisor_ui")]
+    let moved_kill_loops_tx = kill_loops_tx.clone();
+    #[cfg(feature = "supervisor_ui")]
+    let web_ui_handle: Option<ServerHandle> = if cmd.do_start_supervisor_ui() {
+        use txtx_supervisor_ui::start_supervisor_ui;
+        let (supervisor_events_tx, supervisor_events_rx) = channel::unbounded();
+        let web_ui_handle = start_supervisor_ui(
+            runbook_name,
             runbook_description,
-            block_store: block_store.clone(),
-            block_broadcaster: block_broadcaster.clone(),
-            action_item_events_tx: action_item_events_tx.clone(),
-        };
+            registered_addons,
+            block_store.clone(),
+            block_broadcaster.clone(),
+            action_item_events_tx,
+            moved_relayer_channel_tx,
+            relayer_channel_rx,
+            moved_kill_loops_tx.clone(),
+            &cmd.network_binding_ip_address,
+            cmd.network_binding_port,
+            supervisor_events_tx,
+        )
+        .await
+        .map_err(|e| format!("failed to start web console: {}", e))?;
 
-        let channel_data = Arc::new(RwLock::new(None));
-        let relayer_context = RelayerContext {
-            relayer_channel_tx: relayer_channel_tx.clone(),
-            channel_data: channel_data.clone(),
-        };
-
-        let network_binding =
-            format!("{}:{}", cmd.network_binding_ip_address, cmd.network_binding_port);
-        println!(
-            "\n{} Starting the supervisor web console\n{}",
-            purple!("→"),
-            green!(format!("http://{}", network_binding))
-        );
-
-        let handle =
-            web_ui::http::start_server(gql_context, relayer_context, &network_binding, ctx)
-                .await
-                .map_err(|e| format!("Failed to start web ui: {e}"))?;
-
-        let moved_relayer_channel_tx = relayer_channel_tx.clone();
-        let moved_kill_loops_tx = kill_loops_tx.clone();
-        let moved_action_item_events_tx = action_item_events_tx.clone();
-        let _ = hiro_system_kit::thread_named("Relayer Interaction").spawn(move || {
-            let future = start_relayer_event_runloop(
-                channel_data,
-                relayer_channel_rx,
-                moved_relayer_channel_tx,
-                moved_action_item_events_tx,
-                moved_kill_loops_tx,
-            );
-            hiro_system_kit::nestable_block_on(future)
+        let _ = hiro_system_kit::thread_named("Supervisor UI Event Runloop").spawn(move || {
+            while let Ok(msg) = supervisor_events_rx.recv() {
+                match msg {
+                    txtx_supervisor_ui::SupervisorEvents::Started(network_binding) => {
+                        println!(
+                            "\n{} Starting the supervisor web console\n{}",
+                            purple!("→"),
+                            green!(format!("http://{}", network_binding))
+                        );
+                    }
+                }
+            }
         });
-
-        Some(handle)
+        Some(web_ui_handle)
     } else {
         None
     };
 
+    #[cfg(feature = "supervisor_ui")]
     let moved_relayer_channel_tx = relayer_channel_tx.clone();
     let block_store_handle = tokio::spawn(async move {
         loop {
@@ -911,6 +898,7 @@ pub async fn handle_run_command(
 
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
+                    #[cfg(feature = "supervisor_ui")]
                     let _ = moved_relayer_channel_tx
                         .send(RelayerChannelEvent::ForwardEventToRelayer(block_event.clone()));
                 }
@@ -926,12 +914,14 @@ pub async fn handle_run_command(
             let future = async {
                 match kill_loops_rx.recv() {
                     Ok(_) => {
+                        let _ = block_tx.send(BlockEvent::Exit);
+                        #[cfg(feature = "supervisor_ui")]
+                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
+                        #[cfg(feature = "supervisor_ui")]
                         if let Some(handle) = web_ui_handle {
                             println!("{} Stopping web console", purple!("→"));
                             let _ = handle.stop(true).await;
                         }
-                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
-                        let _ = block_tx.send(BlockEvent::Exit);
                     }
                     Err(_) => {}
                 };

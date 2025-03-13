@@ -167,7 +167,7 @@ jobs:
         
       - name: Build - Cargo
         run: 
-          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }} --features web_ui
+          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }} --features supervisor_ui
 
       # Don't compress for Windows because winget can't yet unzip files
       - name: Compress cargo artifact (not windows)
