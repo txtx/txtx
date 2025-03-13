@@ -1,60 +1,77 @@
-use anchor_lang_idl::types::{Idl, IdlDefinedFields, IdlTypeDefTy};
+use std::str::FromStr;
+
+use anchor_lang_idl::types::{Idl, IdlDefinedFields, IdlType, IdlTypeDefTy};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::RpcRequest};
-use solana_sdk::pubkey::Pubkey;
-use txtx_addon_kit::types::{
-    diagnostics::Diagnostic,
-    frontend::{ProgressBarStatus, ProgressBarStatusColor, StatusUpdater},
-    types::{Type, Value},
+use solana_pubkey::Pubkey;
+use txtx_addon_kit::{
+    diagnosed_error, hex,
+    types::{
+        diagnostics::Diagnostic,
+        types::{Type, Value},
+    },
 };
 
-use crate::{constants::FIELD, typing::SVM_SUBGRAPH_REQUEST};
+use crate::SVM_PUBKEY;
 
-use super::idl::get_expected_field_type_from_idl_type_def_ty;
+// Subgraph keys
+pub const SVM_SUBGRAPH_REQUEST: &str = "svm::subgraph_request";
+pub const FIELD: &str = "field";
 
-pub struct SubgraphRequestClient {
-    rpc_client: RpcClient,
-    plugin_config: PluginConfig,
-    status_updater: StatusUpdater,
+pub fn get_expected_field_type_from_idl_type_def_ty(
+    field_name: &str,
+    idl_type_def_ty: &IdlTypeDefTy,
+) -> Result<Type, String> {
+    let ty = match idl_type_def_ty {
+        IdlTypeDefTy::Struct { fields } => {
+            let ty = if let Some(fields) = fields {
+                let field = match fields {
+                    IdlDefinedFields::Named(idl_fields) => idl_fields
+                        .iter()
+                        .find(|f| f.name == field_name)
+                        .ok_or(format!("unable to find field '{}' in struct", field_name))?,
+                    IdlDefinedFields::Tuple(idl_types) => {
+                        return Err("cannot find field by name for tuple type".to_string())
+                    }
+                };
+                field.ty.clone()
+            } else {
+                return Err(format!("unable to find field '{}' in struct", field_name));
+            };
+            ty
+        }
+        IdlTypeDefTy::Enum { variants } => todo!(),
+        IdlTypeDefTy::Type { alias } => todo!(),
+    };
+
+    Ok(idl_type_to_txtx_type(ty))
 }
 
-impl SubgraphRequestClient {
-    pub fn new(
-        rpc_api_url: &str,
-        request: SubgraphRequest,
-        plugin_name: SubgraphPluginType,
-        status_updater: StatusUpdater,
-    ) -> Self {
-        Self {
-            rpc_client: RpcClient::new(rpc_api_url.to_string()),
-            plugin_config: PluginConfig::new(plugin_name, request),
-            status_updater,
-        }
-    }
-
-    pub async fn deploy_subgraph(&mut self) -> Result<String, Diagnostic> {
-        let stringified_config = json![self.plugin_config.clone()];
-        let params = serde_json::to_value(vec![stringified_config.to_string()])
-            .map_err(|e| diagnosed_error!("could not serialize subgraph request: {e}"))?;
-        let res = self
-            .rpc_client
-            .send::<String>(RpcRequest::Custom { method: "loadPlugin" }, params)
-            .await
-            .map_err(|e| diagnosed_error!("could not deploy subgraph: {e}"))?;
-
-        self.status_updater.propagate_status(ProgressBarStatus::new_msg(
-            ProgressBarStatusColor::Green,
-            "Subgraph Deployed",
-            &format!(
-                "Subgraph {} for program {} has been deployed",
-                self.plugin_config.data.subgraph_name, self.plugin_config.data.program_id,
-            ),
-        ));
-
-        self.status_updater.propagate_info(&format!("Your subgraph can be reached at {}", res));
-
-        Ok(res)
+pub fn idl_type_to_txtx_type(idl_type: IdlType) -> Type {
+    match idl_type {
+        IdlType::Bool => Type::bool(),
+        IdlType::U8 => Type::integer(),
+        IdlType::I8 => Type::integer(),
+        IdlType::U16 => Type::integer(),
+        IdlType::I16 => Type::integer(),
+        IdlType::U32 => Type::integer(),
+        IdlType::I32 => Type::integer(),
+        IdlType::U64 => Type::integer(),
+        IdlType::I64 => Type::integer(),
+        IdlType::I128 => Type::integer(),
+        IdlType::F32 => Type::float(),
+        IdlType::F64 => Type::float(),
+        IdlType::U128 => todo!(),
+        IdlType::U256 => todo!(),
+        IdlType::I256 => todo!(),
+        IdlType::Bytes => Type::buffer(),
+        IdlType::String => Type::string(),
+        IdlType::Pubkey => Type::addon(SVM_PUBKEY),
+        IdlType::Option(idl_type) => idl_type_to_txtx_type(*idl_type),
+        IdlType::Vec(idl_type) => Type::array(idl_type_to_txtx_type(*idl_type)),
+        IdlType::Array(idl_type, ..) => Type::array(idl_type_to_txtx_type(*idl_type)),
+        IdlType::Defined { .. } => todo!(),
+        IdlType::Generic(_) => todo!(),
+        _ => todo!(),
     }
 }
 
@@ -76,16 +93,13 @@ impl PluginConfig {
 pub enum SubgraphPluginType {
     SurfpoolSubgraph,
 }
-impl SubgraphPluginType {
-    pub fn to_string(&self) -> String {
-        match self {
-            SubgraphPluginType::SurfpoolSubgraph => "surfpool-subgraph".to_string(),
-        }
-    }
-}
+
 impl std::fmt::Display for SubgraphPluginType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        let val = match self {
+            SubgraphPluginType::SurfpoolSubgraph => "surfpool-subgraph".to_string(),
+        };
+        write!(f, "{}", val)
     }
 }
 
@@ -297,7 +311,6 @@ impl IndexedSubgraphField {
                 .iter()
                 .find(|t| t.name == event_def.name)
                 .ok_or(diagnosed_error!("could not find type '{}' in IDL", event_def.name))?;
-
             let expected_type = get_expected_field_type_from_idl_type_def_ty(&source_key, &ty.ty)
                 .map_err(|e| {
                 diagnosed_error!(

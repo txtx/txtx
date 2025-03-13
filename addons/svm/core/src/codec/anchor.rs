@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use anchor_lang_idl::types::Idl;
+use crate::typing::anchor::convert::convert_idl as anchor_convert_idl;
+use crate::typing::anchor::types as anchor_types;
+
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 use txtx_addon_kit::{
     indexmap::IndexMap,
@@ -14,7 +16,7 @@ use crate::typing::SvmValue;
 
 pub struct AnchorProgramArtifacts {
     /// The IDL of the anchor program, stored for an anchor project at `target/idl/<program_name>.json`.
-    pub idl: Idl,
+    pub idl: anchor_types::Idl,
     /// The binary of the anchor program, stored for an anchor project at `target/deploy/<program_name>.so`.
     pub bin: Vec<u8>,
     /// The keypair of the anchor program, stored for an anchor project at `target/deploy/<program_name>-keypair.json`.
@@ -32,7 +34,7 @@ impl AnchorProgramArtifacts {
             format!("invalid anchor idl location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
 
-        let idl = anchor_lang_idl::convert::convert_idl(&idl_bytes).map_err(|e| {
+        let idl = anchor_convert_idl(&idl_bytes).map_err(|e| {
             format!("invalid anchor idl at location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
 
@@ -118,7 +120,7 @@ impl AnchorProgramArtifacts {
         // let idl: Idl =
         //     serde_json::from_slice(&idl_bytes).map_err(|e| format!("invalid anchor idl: {e}"))?;
 
-        let idl: Idl = serde_json::from_str(&idl_str)
+        let idl: anchor_types::Idl = serde_json::from_str(&idl_str)
             .map_err(|e| diagnosed_error!("invalid anchor idl: {e}"))?;
 
         let keypair_bytes = match map.get("keypair") {

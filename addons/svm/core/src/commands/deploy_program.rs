@@ -27,15 +27,16 @@ use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::send_transaction::send_transaction_background_task;
-use crate::codec::{
-    DeploymentTransaction, DeploymentTransactionType, ProgramArtifacts, UpgradeableProgramDeployer,
-};
+use crate::codec::{DeploymentTransaction, ProgramArtifacts, UpgradeableProgramDeployer};
 use crate::constants::{
     AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION,
     FORMATTED_TRANSACTION, IS_DEPLOYMENT, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID,
     PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, TRANSACTION_BYTES,
 };
-use crate::typing::{SvmValue, ANCHOR_PROGRAM_ARTIFACTS, DEPLOYMENT_TRANSACTION_SIGNATURES};
+use crate::typing::{
+    DeploymentTransactionType, SvmValue, ANCHOR_PROGRAM_ARTIFACTS,
+    DEPLOYMENT_TRANSACTION_SIGNATURES,
+};
 
 use super::get_custom_signer_did;
 use super::sign_transaction::SignTransaction;

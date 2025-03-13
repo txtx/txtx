@@ -1,4 +1,4 @@
-use anchor_lang_idl::types::Idl;
+use crate::typing::anchor::types::Idl;
 use convert_case::{Case, Casing};
 
 pub fn get_interpolated_header_template(title: &str) -> String {

@@ -25,6 +25,7 @@ use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_network_svm_types::SvmValue;
 
 use crate::codec::DeploymentTransaction;
 use crate::constants::{
@@ -33,7 +34,7 @@ use crate::constants::{
     NAMESPACE, NETWORK_ID, PARTIALLY_SIGNED_TRANSACTION_BYTES, PUBLIC_KEY, RPC_API_URL, SECRET_KEY,
     TRANSACTION_BYTES,
 };
-use crate::typing::SvmValue;
+use crate::utils::build_transaction_from_svm_value;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
@@ -440,7 +441,7 @@ impl SignerImplementation for SvmSecretKey {
 
                 (transaction, deployment_transaction.signers.is_some())
             } else {
-                let mut transaction: Transaction = SvmValue::to_transaction(&payload)
+                let mut transaction: Transaction = build_transaction_from_svm_value(&payload)
                     .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
                 transaction.message.recent_blockhash = blockhash;
