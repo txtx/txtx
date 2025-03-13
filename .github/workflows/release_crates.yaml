@@ -36,7 +36,7 @@ jobs:
           cd txtx-supervisor-ui
           npm run i
           npm run build
-          cd ..
+          cp -r dist ../txtx/crates/txtx-supervisor-ui/supervisor-dist
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
