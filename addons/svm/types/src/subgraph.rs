@@ -1,10 +1,8 @@
-use std::str::FromStr;
-
 use anchor_lang_idl::types::{Idl, IdlDefinedFields, IdlType, IdlTypeDefTy};
 use serde::{Deserialize, Serialize};
 use solana_pubkey::Pubkey;
 use txtx_addon_kit::{
-    diagnosed_error, hex,
+    diagnosed_error,
     types::{
         diagnostics::Diagnostic,
         types::{Type, Value},
