@@ -1,0 +1,28 @@
+name: Setup Environment Variables for the Supervisor
+description: Set up the txtx-supervisor-ui .env file.
+
+inputs:
+  txtx_dev_npm_read_token:
+    description: 'The txtx dev npm read token'
+    required: true
+  nhost_region:
+    description: 'The nhost region'
+    required: true
+  nhost_subdomain:
+    description: 'The nhost subdomain'
+    required: true
+  working_directory:
+    description: 'Optional working directory where .env should be created'
+    required: false
+    default: '.'
+    
+runs:
+  using: 'composite'
+  steps:
+    - run: |
+        touch "${{ inputs.working_directory }}/.env"
+        echo ID_SERVICE_URL="https://id.txtx.run" >> "${{ inputs.working_directory }}/.env"
+        echo TXTX_DEV_NPM_READ_TOKEN="${{ inputs.txtx_dev_npm_read_token }}" >> "${{ inputs.working_directory }}/.env"
+        echo NHOST_REGION="${{ inputs.nhost_region }}" >> "${{ inputs.working_directory }}/.env"
+        echo NHOST_SUBDOMAIN="${{ inputs.nhost_subdomain }}" >> "${{ inputs.working_directory }}/.env"
+      shell: bash
