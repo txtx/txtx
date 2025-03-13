@@ -1,7 +1,6 @@
 use atty::Stream;
 use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use hiro_system_kit::{self, Logger};
-use runbooks::{DEFAULT_BINDING_ADDRESS, DEFAULT_BINDING_PORT, SERVE_BINDING_PORT};
 use std::{process, thread};
 
 mod cloud;
@@ -65,6 +64,7 @@ enum Command {
     Lsp,
     /// Start Txtx Server
     #[clap(name = "serve", bin_name = "serve")]
+    #[cfg(feature = "txtx_serve")]
     Serve(StartServer),
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
@@ -241,10 +241,12 @@ pub struct ExecuteRunbook {
     #[arg(long = "explain", action=ArgAction::SetTrue)]
     pub explain: bool,
     /// Set the port for hosting the web UI
-    #[arg(long = "port", short = 'p', default_value = DEFAULT_BINDING_PORT )]
+    #[arg(long = "port", short = 'p', default_value = txtx_supervisor_ui::DEFAULT_BINDING_PORT )]
+    #[cfg(feature = "supervisor_ui")]
     pub network_binding_port: u16,
     /// Set the port for hosting the web UI
-    #[arg(long = "ip", short = 'i', default_value = DEFAULT_BINDING_ADDRESS )]
+    #[arg(long = "ip", short = 'i', default_value = txtx_supervisor_ui::DEFAULT_BINDING_ADDRESS )]
+    #[cfg(feature = "supervisor_ui")]
     pub network_binding_ip_address: String,
     /// Choose the environment variable to set from those configured in the txtx.yml
     #[arg(long = "env")]
@@ -256,6 +258,12 @@ pub struct ExecuteRunbook {
     /// Execute the Runbook even if the cached state suggests this Runbook has already been executed
     #[arg(long = "force", short = 'f')]
     pub force_execution: bool,
+}
+
+impl ExecuteRunbook {
+    pub fn do_start_supervisor_ui(&self) -> bool {
+        self.web_console || (!self.unsupervised && !self.term_console)
+    }
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -273,6 +281,7 @@ pub struct ListRunbooks {
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
+#[cfg(feature = "txtx_serve")]
 pub struct StartServer {
     /// Serve runbooks from a specific project
     #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
@@ -284,10 +293,10 @@ pub struct StartServer {
     #[arg(long = "output", conflicts_with = "output_json")]
     pub output: Option<String>,
     /// Set the port for hosting the web UI
-    #[arg(long = "port", short = 'p', default_value = SERVE_BINDING_PORT )]
+    #[arg(long = "port", short = 'p', default_value = txtx_serve::SERVE_BINDING_PORT )]
     pub network_binding_port: u16,
     /// Set the port for hosting the web UI
-    #[arg(long = "ip", short = 'i', default_value = DEFAULT_BINDING_ADDRESS )]
+    #[arg(long = "ip", short = 'i', default_value = txtx_serve::SERVE_BINDING_ADDRESS )]
     pub network_binding_ip_address: String,
 }
 
@@ -355,13 +364,14 @@ async fn handle_command(
         Command::Lsp => {
             lsp::run_lsp().await?;
         }
+        #[cfg(feature = "txtx_serve")]
         Command::Serve(cmd) => {
             warn!(
                 ctx.expect_logger(),
                 "The command `txtx serve` is experimental and will run for 30 minutes."
             );
             let addr = format!("{}:{}", cmd.network_binding_ip_address, cmd.network_binding_port);
-            let _ = crate::serve::start_server(&addr, ctx).await.unwrap();
+            let _ = txtx_serve::start_server(&addr).await.unwrap();
             ctrlc::set_handler(move || {
                 std::process::exit(1);
             })
@@ -392,7 +402,9 @@ mod tests {
         assert_eq!(result.unsupervised, false);
         assert_eq!(result.web_console, false);
         assert_eq!(result.term_console, false);
+        #[cfg(feature = "supervisor_ui")]
         assert_eq!(result.network_binding_port, 8488);
+        #[cfg(feature = "supervisor_ui")]
         assert_eq!(result.network_binding_ip_address, "localhost");
         assert_eq!(result.environment, None);
         assert!(result.inputs.is_empty());
@@ -426,6 +438,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "supervisor_ui")]
     fn test_port_setting() {
         let args = vec!["txtx", "runbook", "--port", "9090"];
         let result = parse_args(args);
@@ -433,6 +446,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "supervisor_ui")]
     fn test_ip_setting() {
         let args = vec!["txtx", "runbook", "--ip", "192.168.1.10"];
         let result = parse_args(args);

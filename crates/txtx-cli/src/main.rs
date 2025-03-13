@@ -17,10 +17,8 @@ extern crate hiro_system_kit;
 
 pub mod cli;
 pub mod manifest;
-pub mod serve;
 pub mod snapshots;
 pub mod term_ui;
-pub mod web_ui;
 
 pub fn get_available_addons() -> Vec<Box<dyn Addon>> {
     vec![
