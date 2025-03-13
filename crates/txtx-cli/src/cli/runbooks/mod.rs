@@ -4,7 +4,6 @@ use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use itertools::Itertools;
-use serde_json::Value as JsonValue;
 use std::{
     collections::{BTreeMap, HashSet},
     env,
@@ -18,8 +17,8 @@ use txtx_core::templates::{build_manifest_data, build_runbook_data};
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     mustache,
-    runbook::flow_context::FlowContext,
     templates::{TXTX_MANIFEST_TEMPLATE, TXTX_README_TEMPLATE},
+    utils::try_write_outputs_to_file,
 };
 use txtx_core::{
     kit::{
@@ -30,7 +29,7 @@ use txtx_core::{
         types::{
             commands::{CommandId, CommandInputsEvaluationResult},
             diagnostics::Diagnostic,
-            frontend::{ActionItemRequestType, BlockEvent, ProgressBarStatusColor},
+            frontend::{BlockEvent, ProgressBarStatusColor},
             stores::AddonDefaults,
             types::Value,
             AuthorizationContext, Did, PackageId,
@@ -654,71 +653,13 @@ pub async fn handle_run_command(
         );
 
         let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
-        if let Err(diags) = res {
-            println!("{} Execution aborted", red!("x"));
-            for diag in diags.iter() {
-                println!("{}", red!(format!("- {}", diag)));
-            }
-            if let Some(location) =
-                runbook.mark_failed_and_write_transient_state(runbook_state_location)?
-            {
-                println!("{} Saving transient state to {}", yellow!("!"), location);
-            };
-            return Ok(());
-        }
-
-        let (mut collected_outputs, json_outputs) =
-            collect_formatted_outputs(&runbook.flow_contexts);
-
-        if let Some(location) = runbook.write_runbook_state(runbook_state_location)? {
-            println!("\n{} Saved execution state to {}", green!("✓"), location);
-        }
-
-        if !collected_outputs.is_empty() {
-            if let Some(_) = cmd.output_json.as_ref() {
-                try_display_json_output(
-                    cmd.output_json.clone(),
-                    json_outputs,
-                    &runbook.runtime_context.authorization_context.workspace_location,
-                    &runbook.runbook_id.name,
-                    &runbook.top_level_inputs_map.current_top_level_input_name(),
-                )
-                .map_err(|e| format!("failed to print runbook outputs: {e}"))?;
-            } else {
-                for (flow_name, mut flow_outputs) in collected_outputs.drain(..) {
-                    if !flow_outputs.is_empty() {
-                        println!("{}", yellow!(format!("{} Outputs: ", flow_name)));
-                        let mut data = vec![];
-                        for (key, values) in flow_outputs.drain(..) {
-                            if let Some(ref desired_output) = cmd.output {
-                                if desired_output.eq(&key) && !values.is_empty() {
-                                    println!("{}", values.first().unwrap());
-                                    return Ok(());
-                                }
-                            }
-                            let mut rows = vec![];
-
-                            for (i, value) in values.into_iter().enumerate() {
-                                let value = value.to_string();
-                                let parts = value.split("\n");
-                                for (j, part) in parts.into_iter().enumerate() {
-                                    if i == 0 && j == 0 {
-                                        rows.push(vec![key.clone(), part.to_string()]);
-                                    } else {
-                                        let row = vec!["".to_string(), part.to_string()];
-                                        rows.push(row);
-                                    }
-                                }
-                            }
-                            data.append(&mut rows)
-                        }
-                        let mut ascii_table = AsciiTable::default();
-                        ascii_table.set_max_width(150);
-                        ascii_table.print(data);
-                    }
-                }
-            }
-        }
+        process_runbook_execution_output(
+            res,
+            &mut runbook,
+            runbook_state_location,
+            &cmd.output_json,
+            &cmd.output,
+        );
 
         return Ok(());
     }
@@ -744,50 +685,19 @@ pub async fn handle_run_command(
     let moved_kill_loops_tx = kill_loops_tx.clone();
     let moved_runbook_state = runbook_state_location.clone();
     let output_json = cmd.output_json.clone();
+    let output_filter = cmd.output.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future =
             start_supervised_runbook_runloop(&mut runbook, moved_block_tx, action_item_events_rx);
-        if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
-            for diag in diags.iter() {
-                println!("{} {}", red!("x"), diag);
-            }
-            match runbook.mark_failed_and_write_transient_state(moved_runbook_state) {
-                Ok(Some(location)) => {
-                    println!("{} Saving transient state to {}", yellow!("!"), location);
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    println!("{} Failed to write transient runbook state: {}", red!("x"), e);
-                }
-            };
-        } else {
-            let (_, json_outputs) = collect_formatted_outputs(&runbook.flow_contexts);
 
-            if !json_outputs.is_empty() {
-                match try_display_json_output(
-                    output_json,
-                    json_outputs,
-                    &runbook.runtime_context.authorization_context.workspace_location,
-                    &runbook.runbook_id.name,
-                    &runbook.top_level_inputs_map.current_top_level_input_name(),
-                ) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        println!("{} failed to write runbook outputs{}", red!("x"), e);
-                    }
-                }
-            }
+        process_runbook_execution_output(
+            hiro_system_kit::nestable_block_on(runloop_future),
+            &mut runbook,
+            moved_runbook_state,
+            &output_json,
+            &output_filter,
+        );
 
-            match runbook.write_runbook_state(moved_runbook_state) {
-                Ok(Some(location)) => {
-                    println!("\n{} Saved execution state to {}", green!("✓"), location);
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    println!("{} Failed to write runbook state: {}", red!("x"), e);
-                }
-            };
-        }
         if let Err(_e) = moved_kill_loops_tx.send(true) {
             std::process::exit(1);
         }
@@ -1036,94 +946,74 @@ pub async fn load_runbook_from_file_path(
     Ok((runbook_name, runbook))
 }
 
-#[derive(serde::Serialize)]
-pub struct DisplayableRunbookOutput {
-    pub title: String,
-    pub description: Option<String>,
-    pub value: String,
-}
+fn process_runbook_execution_output(
+    execution_result: Result<(), Vec<Diagnostic>>,
+    runbook: &mut Runbook,
+    runbook_state_location: Option<RunbookStateLocation>,
+    output_json: &Option<Option<String>>,
+    output_filter: &Option<String>,
+) {
+    if let Err(diags) = execution_result {
+        for diag in diags.iter() {
+            println!("{} {}", red!("x"), diag);
+        }
+        match runbook.mark_failed_and_write_transient_state(runbook_state_location) {
+            Ok(Some(location)) => {
+                println!("{} Saving transient state to {}", yellow!("!"), location);
+            }
+            Ok(None) => {}
+            Err(e) => {
+                println!("{} Failed to write transient runbook state: {}", red!("x"), e);
+            }
+        };
+    } else {
+        let runbook_outputs = runbook.collect_formatted_outputs();
 
-pub fn collect_formatted_outputs(
-    flow_contexts: &Vec<FlowContext>,
-) -> (IndexMap<String, IndexMap<String, Vec<JsonValue>>>, Vec<DisplayableRunbookOutput>) {
-    let mut json_outputs = vec![];
-    let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<JsonValue>>> = IndexMap::new();
-    for flow_context in flow_contexts.iter() {
-        let mut running_context_outputs: IndexMap<String, Vec<JsonValue>> = IndexMap::new();
-        let grouped_actions_items =
-            flow_context.execution_context.collect_outputs_constructs_results();
-
-        for (_, items) in grouped_actions_items.iter() {
-            for item in items.iter() {
-                if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
-                    let value = output.value.to_json();
-
-                    let output_name = output.name.to_string();
-                    let display_name = output
-                        .description
-                        .as_ref()
-                        .and_then(|d| Some(d.as_str()))
-                        .unwrap_or(output_name.as_str());
-
-                    json_outputs.push(DisplayableRunbookOutput {
-                        title: output_name.to_string(),
-                        description: output.description.clone(),
-                        value: output.value.to_string(),
-                    });
-                    match running_context_outputs.get_mut(&output.name) {
-                        Some(entries) => {
-                            entries.push(value);
+        if !runbook_outputs.is_empty() {
+            if let Some(some_output_loc) = output_json {
+                if let Some(output_loc) = some_output_loc {
+                    match try_write_outputs_to_file(
+                        &output_loc,
+                        runbook_outputs,
+                        &runbook.runtime_context.authorization_context.workspace_location,
+                        &runbook.runbook_id.name,
+                        &runbook.top_level_inputs_map.current_top_level_input_name(),
+                    ) {
+                        Ok(output_location) => {
+                            println!(
+                                "{} {}",
+                                green!("✓"),
+                                format!("Outputs written to {}", output_location.to_string())
+                            );
                         }
-                        None => {
-                            running_context_outputs.insert(display_name.to_string(), vec![value]);
+                        Err(e) => {
+                            println!("{} failed to write runbook outputs{}", red!("x"), e);
                         }
                     }
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&runbook_outputs.to_json()).unwrap()
+                    );
+                }
+            } else {
+                for (flow_name, data) in runbook_outputs.get_output_row_data(&output_filter) {
+                    println!("{}", yellow!(format!("{} Outputs: ", flow_name)));
+                    let mut ascii_table = AsciiTable::default();
+                    ascii_table.set_max_width(150);
+                    ascii_table.print(data);
                 }
             }
         }
-        collected_outputs.insert(flow_context.name.clone(), running_context_outputs);
+
+        match runbook.write_runbook_state(runbook_state_location) {
+            Ok(Some(location)) => {
+                println!("\n{} Saved execution state to {}", green!("✓"), location);
+            }
+            Ok(None) => {}
+            Err(e) => {
+                println!("{} Failed to write runbook state: {}", red!("x"), e);
+            }
+        };
     }
-    (collected_outputs, json_outputs)
-}
-
-pub fn try_display_json_output(
-    output_json: Option<Option<String>>,
-    json_outputs: Vec<DisplayableRunbookOutput>,
-    workspace_location: &FileLocation,
-    runbook_id: &str,
-    environment: &str,
-) -> Result<(), String> {
-    if let Some(output_loc) = output_json.as_ref() {
-        let output = serde_json::to_string_pretty(&json_outputs)
-            .map_err(|e| format!("failed to serialize outputs: {e}"))?;
-        if let Some(output_loc) = output_loc {
-            let mut output_location = workspace_location
-                .get_parent_location()
-                .map_err(|e| format!("failed to write to output file: {e}"))?;
-            output_location
-                .append_path(output_loc)
-                .map_err(|e| format!("invalid output directory: {e}"))?;
-            output_location
-                .append_path(environment)
-                .map_err(|e| format!("invalid output directory: {e}"))?;
-
-            let now = chrono::Local::now();
-            let formatted = now.format("%Y-%m-%d--%H-%M-%S").to_string();
-            output_location
-                .append_path(&format!("{}_{}.output.json", runbook_id, formatted))
-                .map_err(|e| format!("invalid output file path: {e}"))?;
-
-            output_location
-                .write_content(output.as_bytes())
-                .map_err(|e| format!("failed to write to output file: {e}"))?;
-            println!(
-                "{} {}",
-                green!("✓"),
-                format!("Outputs written to {}", output_location.to_string())
-            );
-        } else {
-            println!("{}", output);
-        }
-    }
-    Ok(())
 }
