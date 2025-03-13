@@ -1,7 +1,9 @@
 use diffing_context::ConsolidatedPlanChanges;
 use flow_context::FlowContext;
 use kit::indexmap::IndexMap;
+use kit::types::frontend::ActionItemRequestType;
 use kit::types::ConstructDid;
+use serde_json::{json, Value as JsonValue};
 use std::collections::{HashMap, HashSet, VecDeque};
 use txtx_addon_kit::hcl::structure::BlockLabel;
 use txtx_addon_kit::hcl::Span;
@@ -576,6 +578,112 @@ impl Runbook {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn collect_formatted_outputs(&self) -> RunbookOutputs {
+        let mut runbook_outputs = RunbookOutputs::new();
+        for flow_context in self.flow_contexts.iter() {
+            let grouped_actions_items =
+                flow_context.execution_context.collect_outputs_constructs_results();
+            for (_, items) in grouped_actions_items.iter() {
+                for item in items.iter() {
+                    if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
+                        runbook_outputs.add_output(
+                            &flow_context.name,
+                            &output.name,
+                            &output.value,
+                            &output.description,
+                        );
+                    }
+                }
+            }
+        }
+        runbook_outputs
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RunbookOutputs {
+    outputs: IndexMap<String, IndexMap<String, (String, Option<String>)>>,
+}
+impl RunbookOutputs {
+    pub fn new() -> Self {
+        Self { outputs: IndexMap::new() }
+    }
+
+    pub fn add_output(
+        &mut self,
+        flow_name: &str,
+        output_name: &str,
+        output_value: &Value,
+        output_description: &Option<String>,
+    ) {
+        let flow_outputs = self.outputs.entry(flow_name.to_string()).or_insert_with(IndexMap::new);
+        flow_outputs.insert(
+            output_name.to_string(),
+            (output_value.to_string(), output_description.clone()),
+        );
+    }
+
+    /// Organizes the outputs in a format suitable to be displayed using the `AsciiTable` crate.
+    pub fn get_output_row_data(
+        &self,
+        filter: &Option<String>,
+    ) -> IndexMap<String, Vec<Vec<String>>> {
+        let mut output_row_data = IndexMap::new();
+        for (flow_name, flow_outputs) in self.outputs.iter() {
+            let mut flow_output_row =
+                vec![vec!["name".to_string(), "value".to_string(), "description".to_string()]];
+            for (output_name, (output_value, output_description)) in flow_outputs.iter() {
+                if let Some(ref filter) = filter {
+                    if !output_name.contains(filter) {
+                        continue;
+                    }
+                }
+
+                let mut row = vec![];
+                row.push(output_name.to_string());
+                row.push(output_value.to_string());
+                row.push(output_description.clone().unwrap_or_else(|| "".to_string()));
+                flow_output_row.push(row);
+            }
+            output_row_data.insert(flow_name.to_string(), flow_output_row);
+        }
+        output_row_data
+    }
+
+    pub fn to_json(&self) -> JsonValue {
+        let mut json = json!({});
+        let only_one_flow = self.outputs.len() == 1;
+        for (flow_name, flow_outputs) in self.outputs.iter() {
+            let mut flow_json = json!({});
+            for (output_name, (output_value, output_description)) in flow_outputs.iter() {
+                let mut output_json = json!({});
+                output_json["value"] = output_value.clone().into();
+                if let Some(ref output_description) = output_description {
+                    output_json["description"] = output_description.clone().into();
+                }
+                flow_json[output_name] = output_json;
+            }
+            if only_one_flow {
+                return flow_json;
+            }
+            json[flow_name] = flow_json;
+        }
+        json
+    }
+
+    pub fn is_empty(&self) -> bool {
+        if self.outputs.is_empty() {
+            return true;
+        }
+        let mut empty = true;
+        for (_, outputs) in self.outputs.iter() {
+            if !outputs.is_empty() {
+                empty = false;
+            }
+        }
+        empty
     }
 }
 
