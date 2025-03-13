@@ -1,0 +1,38 @@
+[package]
+name = "txtx-supervisor-ui"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+
+[dependencies]
+txtx-addon-kit = { workspace = true }
+txtx-core = { workspace = true }
+txtx-gql = { workspace = true }
+actix-cors = "0.7.0"
+actix-web = "4"
+base58 = "0.2.0"
+dotenvy_macro = "0.15.7"
+hiro-system-kit = "0.3.1"
+include_dir = "0.7.4"
+juniper_actix = {version = "0.5.0", features = ["subscriptions"] }
+juniper_graphql_ws = { version = "0.4.0", features = ["graphql-transport-ws"] }
+mime_guess = "2.0.4"
+native-tls = "0.2.11"
+serde = "1"
+serde_json = "1"
+serde_derive = "1"
+tokio = "1.37.0"
+tokio-tungstenite = { version = "0.23.1", features = ["native-tls"] }
+totp-rs = "^5.0"
+
+[build-dependencies]
+npm_rs="1.0.0"
+
+[features]
+
+[lib]
+crate-type = ["lib", "cdylib"] 

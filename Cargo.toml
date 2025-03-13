@@ -12,6 +12,7 @@ members = [
     "crates/txtx-core",
     "crates/txtx-addon-kit",
     "crates/txtx-lsp",
+    "crates/txtx-supervisor-ui",
     "addons/bitcoin",
     "addons/evm",
     "addons/ovm",
@@ -27,6 +28,7 @@ resolver = "2"
 txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
 txtx-core = { path = "crates/txtx-core", default-features = false }
 txtx-gql = { path = "crates/txtx-gql" }
+txtx-supervisor-ui = { path = "crates/txtx-supervisor-ui" }
 txtx-addon-network-evm = { path = "addons/evm" }
 txtx-addon-network-ovm = { path = "addons/ovm" }
 txtx-addon-network-bitcoin = { path = "addons/bitcoin" }
