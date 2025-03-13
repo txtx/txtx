@@ -1,5 +1,6 @@
 [package]
 name = "txtx-supervisor-ui"
+description = "Crate for starting the txtx supervisor UI"
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
