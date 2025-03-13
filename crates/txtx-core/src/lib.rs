@@ -18,6 +18,7 @@ pub mod types;
 
 #[cfg(test)]
 mod tests;
+pub mod utils;
 
 use ::std::collections::BTreeMap;
 use ::std::future::Future;
