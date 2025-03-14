@@ -23,7 +23,7 @@ addon "svm" {{
     );
 }
 
-pub fn get_interpolated_signer_template(keypair_path: &str) -> String {
+pub fn get_interpolated_localnet_signer_template(keypair_path: &str) -> String {
     return format!(
         r#"
 signer "payer" "svm::secret_key" {{
@@ -35,6 +35,16 @@ signer "authority" "svm::secret_key" {{
 }}
 "#,
         keypair_path, keypair_path
+    );
+}
+
+pub fn get_interpolated_devnet_signer_template() -> String {
+    return format!(
+        r#"
+signer "payer" "svm::web_wallet" {{}}
+    
+signer "authority" "svm::web_wallet" {{}}
+"#,
     );
 }
 
