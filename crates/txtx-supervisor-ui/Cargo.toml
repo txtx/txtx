@@ -1,7 +1,7 @@
 [package]
 name = "txtx-supervisor-ui"
 description = "Crate for starting the txtx supervisor UI"
-version = "0.1.2"
+version = "0.1.3"
 edition = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
@@ -34,9 +34,9 @@ totp-rs = "^5.0"
 npm_rs="1.0.0"
 
 [features]
-default = ["release"]
-release = []
-debug = []
+default = ["bin_build"]
+crates_build = []
+bin_build = []
 
 [lib]
 crate-type = ["lib", "cdylib"] 
