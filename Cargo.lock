@@ -6792,16 +6792,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64804cc6a5042d4f05379909ba25b503ec04e2c082151d62122d5dcaa274b961"
 
 [[package]]
-name = "libyml"
-version = "0.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3302702afa434ffa30847a83305f0a69d6abd74293b6554c18ec85c7ef30c980"
-dependencies = [
- "anyhow",
- "version_check",
-]
-
-[[package]]
 name = "libz-sys"
 version = "1.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9164,40 +9154,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust-embed"
-version = "8.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa66af4a4fdd5e7ebc276f115e895611a34739a9c1c01028383d612d550953c0"
-dependencies = [
- "rust-embed-impl",
- "rust-embed-utils",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-impl"
-version = "8.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6125dbc8867951125eec87294137f4e9c2c96566e61bf72c45095a7c77761478"
-dependencies = [
- "proc-macro2",
- "quote",
- "rust-embed-utils",
- "syn 2.0.98",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-utils"
-version = "8.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e5347777e9aacb56039b0e1f28785929a8a3b709e87482e7442c72e7c12529d"
-dependencies = [
- "sha2 0.10.8",
- "walkdir",
-]
-
-[[package]]
 name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9886,28 +9842,13 @@ checksum = "48e76bab63c3fd98d27c17f9cbce177f64a91f5e69ac04cafe04e1bb25d1dc3c"
 dependencies = [
  "indexmap 2.7.1",
  "itoa",
- "libyml 0.0.4",
+ "libyml",
  "log 0.4.25",
  "memchr",
  "ryu",
  "serde",
  "serde_json",
  "tempfile",
-]
-
-[[package]]
-name = "serde_yml"
-version = "0.0.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59e2dd588bf1597a252c3b920e0143eb99b0f76e4e082f4c92ce34fbc9e71ddd"
-dependencies = [
- "indexmap 2.7.1",
- "itoa",
- "libyml 0.0.5",
- "memchr",
- "ryu",
- "serde",
- "version_check",
 ]
 
 [[package]]
@@ -14436,7 +14377,6 @@ dependencies = [
  "ansi_term",
  "ascii_table",
  "atty",
- "base58 0.2.0",
  "base64 0.22.1",
  "chrono",
  "clap 4.5.28",
@@ -14451,27 +14391,18 @@ dependencies = [
  "graphql_client",
  "hiro-system-kit 0.3.4",
  "itertools 0.12.1",
- "juniper_actix",
- "juniper_graphql_ws",
- "mime_guess",
- "native-tls",
- "npm_rs",
  "open",
  "openssl",
  "openssl-sys",
  "ratatui",
  "rusqlite",
- "rust-embed",
  "serde",
  "serde_derive",
  "serde_json",
  "serde_urlencoded",
- "serde_yml 0.0.12",
  "test-case",
  "tokio",
- "tokio-tungstenite 0.23.1",
  "toml 0.8.20",
- "totp-rs",
  "tower-lsp",
  "txtx-addon-network-bitcoin",
  "txtx-addon-network-evm",
@@ -14483,12 +14414,14 @@ dependencies = [
  "txtx-core",
  "txtx-gql",
  "txtx-lsp",
+ "txtx-serve",
+ "txtx-supervisor-ui",
  "unicode-width 0.2.0",
 ]
 
 [[package]]
 name = "txtx-core"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -14507,7 +14440,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_with 3.12.0",
- "serde_yml 0.0.11",
+ "serde_yml",
  "similar",
  "test-case",
  "tokio",
@@ -14547,6 +14480,68 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "txtx-serve"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "ansi_term",
+ "atty",
+ "base58 0.2.0",
+ "dotenvy_macro",
+ "hiro-system-kit 0.3.4",
+ "include_dir",
+ "juniper_actix",
+ "juniper_graphql_ws",
+ "mime_guess",
+ "native-tls",
+ "npm_rs",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.23.1",
+ "totp-rs",
+ "txtx-addon-kit",
+ "txtx-addon-network-bitcoin",
+ "txtx-addon-network-evm",
+ "txtx-addon-network-ovm",
+ "txtx-addon-network-stacks",
+ "txtx-addon-network-svm",
+ "txtx-addon-sp1",
+ "txtx-addon-telegram",
+ "txtx-core",
+ "txtx-gql",
+ "txtx-supervisor-ui",
+]
+
+[[package]]
+name = "txtx-supervisor-ui"
+version = "0.1.1"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "base58 0.2.0",
+ "dotenvy",
+ "hiro-system-kit 0.3.4",
+ "include_dir",
+ "juniper_actix",
+ "juniper_graphql_ws",
+ "mime_guess",
+ "native-tls",
+ "npm_rs",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.23.1",
+ "totp-rs",
+ "txtx-addon-kit",
+ "txtx-core",
+ "txtx-gql",
 ]
 
 [[package]]

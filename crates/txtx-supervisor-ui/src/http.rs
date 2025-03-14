@@ -1,4 +1,4 @@
-use crate::cli::Context;
+use super::ASSETS;
 use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
 use actix_web::http::header::{self};
@@ -20,7 +20,6 @@ pub async fn start_server(
     gql_context: GraphContext,
     relayer_context: RelayerContext,
     network_binding: &str,
-    _ctx: &Context,
 ) -> Result<ServerHandle, Box<dyn StdError>> {
     let gql_context = Data::new(gql_context);
     let relayer_context = Data::new(relayer_context);
@@ -75,27 +74,31 @@ async fn graphiql() -> Result<HttpResponse, Error> {
     graphiql_handler("/graphql", Some("/subscriptions")).await
 }
 
-#[cfg(feature = "web_ui")]
 fn handle_embedded_file(path: &str) -> HttpResponse {
-    use mime_guess::from_path;
-
-    match super::Asset::get(path) {
-        Some(content) => HttpResponse::Ok()
-            .content_type(from_path(path).first_or_octet_stream().as_ref())
-            .body(content.data.into_owned()),
-        None => {
-            if let Some(index_content) = super::Asset::get("index.html") {
-                HttpResponse::Ok().content_type("text/html").body(index_content.data.into_owned())
-            } else {
-                HttpResponse::NotFound().body("404 Not Found")
-            }
-        }
-    }
+    ASSETS.get_file(path).map_or_else(
+        || {
+            ASSETS
+                .get_file("index.html")
+                .map_or_else(|| HttpResponse::NotFound().body("404 Not Found"), parse_file)
+        },
+        parse_file,
+    )
 }
 
-#[cfg(not(feature = "web_ui"))]
-fn handle_embedded_file(_path: &str) -> HttpResponse {
-    HttpResponse::NotFound().body("404 Not Found")
+fn parse_file(file: &include_dir::File<'_>) -> HttpResponse {
+    use mime_guess::from_path;
+    file.contents_utf8().map_or_else(
+        || {
+            HttpResponse::Ok()
+                .content_type(from_path(file.path()).first_or_octet_stream().as_ref())
+                .body(file.contents().to_owned())
+        },
+        |content_str| {
+            HttpResponse::Ok()
+                .content_type(from_path(file.path()).first_or_octet_stream().as_ref())
+                .body(content_str.to_owned())
+        },
+    )
 }
 
 #[actix_web::get("/{_:.*}")]

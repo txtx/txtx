@@ -9,7 +9,6 @@ fn main() {
 
         println!("cargo:warning=------------ EVM Build Script ------------");
         println!("cargo:rerun-if-changed=build.rs");
-        println!("cargo:rerun-if-changed={}", out_dir.to_str().unwrap());
         println!("cargo:rerun-if-changed={}", src_contracts_dir);
 
         println!("cargo:warning=Build script evm contracts dir: {:?}", src_contracts_dir);

@@ -2,11 +2,6 @@ use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::cli::Context;
-use crate::get_addon_by_namespace;
-use crate::web_ui::cloud_relayer::{
-    start_relayer_event_runloop, RelayerChannelEvent, RelayerContext,
-};
 use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
 use actix_web::http::header::{self};
@@ -14,12 +9,24 @@ use actix_web::http::StatusCode;
 use actix_web::web::{self, Data, Json};
 use actix_web::{middleware, App, HttpRequest, HttpResponse, HttpServer};
 use actix_web::{Error, HttpResponseBuilder, Responder};
+use hiro_system_kit::green;
 use juniper_actix::{graphql_handler, subscriptions};
 use juniper_graphql_ws::ConnectionConfig;
 use serde::ser::StdError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tokio::sync::RwLock;
+use txtx_addon_kit::Addon;
+use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
+use txtx_addon_network_evm::EvmNetworkAddon;
+#[cfg(feature = "ovm")]
+use txtx_addon_network_ovm::OvmNetworkAddon;
+#[cfg(feature = "stacks")]
+use txtx_addon_network_stacks::StacksNetworkAddon;
+use txtx_addon_network_svm::SvmNetworkAddon;
+#[cfg(feature = "sp1")]
+use txtx_addon_sp1::Sp1Addon;
+use txtx_addon_telegram::TelegramAddon;
 use txtx_core::kit::channel;
 use txtx_core::kit::helpers::fs::FileLocation;
 use txtx_core::kit::types::frontend::{
@@ -29,17 +36,50 @@ use txtx_core::kit::types::{AuthorizationContext, RunbookId};
 use txtx_core::kit::uuid::Uuid;
 use txtx_core::runbook::RunbookTopLevelInputsMap;
 use txtx_core::start_supervised_runbook_runloop;
+use txtx_core::std::StdAddon;
 use txtx_core::types::{Runbook, RunbookSources};
 use txtx_gql::Context as GqlContext;
 use txtx_gql::{new_graphql_schema, Context as GraphContext, GraphqlSchema};
+use txtx_supervisor_ui::cloud_relayer::{
+    start_relayer_event_runloop, RelayerChannelEvent, RelayerContext,
+};
+
+pub const SERVE_BINDING_PORT: &str = "18488";
+pub const SERVE_BINDING_ADDRESS: &str = "localhost";
+
+fn get_available_addons() -> Vec<Box<dyn Addon>> {
+    vec![
+        Box::new(StdAddon::new()),
+        Box::new(SvmNetworkAddon::new()),
+        #[cfg(feature = "stacks")]
+        Box::new(StacksNetworkAddon::new()),
+        Box::new(EvmNetworkAddon::new()),
+        Box::new(BitcoinNetworkAddon::new()),
+        Box::new(TelegramAddon::new()),
+        #[cfg(feature = "sp1")]
+        Box::new(Sp1Addon::new()),
+        #[cfg(feature = "ovm")]
+        Box::new(OvmNetworkAddon::new()),
+    ]
+}
+
+fn get_addon_by_namespace(namespace: &str) -> Option<Box<dyn Addon>> {
+    let available_addons = get_available_addons();
+    for addon in available_addons.into_iter() {
+        if namespace.starts_with(&format!("{}", addon.get_namespace())) {
+            return Some(addon);
+        }
+    }
+    None
+}
 
 pub async fn start_server(
     network_binding: &str,
-    ctx: &Context,
+    // ctx: &Context,
 ) -> Result<ServerHandle, Box<dyn StdError>> {
-    info!(ctx.expect_logger(), "Starting server {}", network_binding);
+    // info!(ctx.expect_logger(), "Starting server {}", network_binding);
 
-    let boxed_ctx = Data::new(ctx.clone());
+    // let boxed_ctx = Data::new(ctx.clone());
 
     let gql_context: Data<RwLock<Option<GqlContext>>> = Data::new(RwLock::new(None));
 
@@ -47,7 +87,7 @@ pub async fn start_server(
         App::new()
             .app_data(gql_context.clone())
             .app_data(Data::new(new_graphql_schema()))
-            .app_data(boxed_ctx.clone())
+            // .app_data(boxed_ctx.clone())
             .wrap(
                 Cors::default()
                     .allow_any_origin()
@@ -144,35 +184,35 @@ pub struct RunbookExecutionStateResponse {
 }
 
 pub async fn check_service_health(
-    req: HttpRequest,
-    ctx: Data<Context>,
+    _req: HttpRequest,
+    // ctx: Data<Context>,
     // graph_context: Data<GraphContext>,
 ) -> actix_web::Result<HttpResponse> {
-    info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
+    // info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
 
     Ok(HttpResponseBuilder::new(StatusCode::OK).json(true))
 }
 
 pub async fn register_runbook(
-    req: HttpRequest,
-    ctx: Data<Context>,
+    _req: HttpRequest,
+    // ctx: Data<Context>,
     _payload: Json<RunbookRegistrationRequest>,
     // relayer_context: Data<RelayerContext>,
     // graph_context: Data<GraphContext>,
 ) -> actix_web::Result<HttpResponse> {
-    info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
+    // info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
 
     Ok(HttpResponseBuilder::new(StatusCode::OK).json(true))
 }
 
 pub async fn execute_runbook(
-    req: HttpRequest,
-    ctx: Data<Context>,
+    _req: HttpRequest,
+    // ctx: Data<Context>,
     payload: Json<StartRunbookExecutionRequest>,
     // relayer_context: Data<RelayerContext>,
     gql_context: Data<RwLock<Option<GraphContext>>>,
 ) -> actix_web::Result<HttpResponse> {
-    info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
+    // info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
 
     let mut reconstructed_source = "".to_string();
     let mut required_addons = HashSet::new();
@@ -274,7 +314,7 @@ pub async fn execute_runbook(
         .unwrap();
 
     runbook.enable_full_execution_mode();
-    info!(ctx.expect_logger(), "2");
+    // info!(ctx.expect_logger(), "2");
     let runbook_description = runbook.description.clone();
     let registered_addons = runbook
         .runtime_context
@@ -294,14 +334,14 @@ pub async fn execute_runbook(
 
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
-    let moved_ctx = ctx.clone();
+    // let moved_ctx = ctx.clone();
 
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future =
             start_supervised_runbook_runloop(&mut runbook, moved_block_tx, action_item_events_rx);
         if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
-            for diag in diags.iter() {
-                error!(moved_ctx.expect_logger(), "Runbook execution failed: {}", diag.message);
+            for _diag in diags.iter() {
+                // error!(moved_ctx.expect_logger(), "Runbook execution failed: {}", diag.message);
             }
             // if let Err(e) = write_runbook_transient_state(&mut runbook, moved_runbook_state) {
             //     println!("{} Failed to write transient runbook state: {}", red!("x"), e);
@@ -425,8 +465,8 @@ pub async fn execute_runbook(
             let future = async {
                 match kill_loops_rx.recv() {
                     Ok(_) => {
-                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
                         let _ = block_tx.send(BlockEvent::Exit);
+                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
                     }
                     Err(_) => {}
                 };
@@ -436,7 +476,7 @@ pub async fn execute_runbook(
         })
         .unwrap();
 
-    info!(ctx.expect_logger(), "Attempt to initialize execution channel");
+    // info!(ctx.expect_logger(), "Attempt to initialize execution channel");
     Ok(HttpResponseBuilder::new(StatusCode::OK).json(true))
 }
 
@@ -450,9 +490,9 @@ async fn post_graphql(
     payload: web::Payload,
     schema: Data<GraphqlSchema>,
     context: Data<RwLock<Option<GraphContext>>>,
-    ctx: Data<Context>,
+    // ctx: Data<Context>,
 ) -> Result<HttpResponse, Error> {
-    info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
+    // info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
     let context = context.write().await;
     let Some(context) = context.as_ref() else {
         return Err(actix_web::error::ErrorServiceUnavailable("Service Unavailable"));
@@ -465,9 +505,9 @@ async fn get_graphql(
     payload: web::Payload,
     schema: Data<GraphqlSchema>,
     context: Data<RwLock<Option<GraphContext>>>,
-    ctx: Data<Context>,
+    // ctx: Data<Context>,
 ) -> Result<HttpResponse, Error> {
-    info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
+    // info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
     let context = context.read().await;
     let Some(context) = context.as_ref() else {
         return Err(actix_web::error::ErrorServiceUnavailable("Service Unavailable"));
@@ -480,9 +520,9 @@ async fn subscriptions(
     stream: web::Payload,
     schema: Data<GraphqlSchema>,
     context: Data<RwLock<Option<GraphContext>>>,
-    ctx: Data<Context>,
+    // ctx: Data<Context>,
 ) -> Result<HttpResponse, Error> {
-    info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
+    // info!(ctx.expect_logger(), "{} {}", req.method().as_str(), req.path());
     let context = context.read().await;
     let Some(context) = context.as_ref() else {
         return Err(actix_web::error::ErrorServiceUnavailable("Service Unavailable"));

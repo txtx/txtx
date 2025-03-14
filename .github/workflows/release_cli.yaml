@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - main
-      - ci/release
+      - rearrange-crates
   workflow_dispatch:
 
 concurrency:
@@ -86,16 +86,12 @@ jobs:
           path: txtx
           
       - name: Build .env file
-        run: |
-          touch .env
-          echo RELAYER_BASE_URL="https://txtx.link" >> .env
-          echo RELAYER_HOST="txtx.link" >> .env
-          echo INFURA_API_KEY=${{ secrets.INFURA_API_KEY }} >> .env
-          echo NHOST_REGION="${{ secrets.NHOST_REGION }}" >> .env
-          echo NHOST_SUBDOMAIN="${{ secrets.NHOST_SUBDOMAIN }}" >> .env
-          echo TXTX_CONSOLE_URL="https://txtx.run" >> .env
-          echo AUTH_SERVICE_URL="https://id.txtx.run" >> .env
-          cat .env
+        uses: ./txtx/.github/actions/setup_env
+        with:
+          infura_api_key: ${{ secrets.INFURA_API_KEY }}
+          nhost_region: ${{ secrets.NHOST_REGION }}
+          nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
+          working_directory: "txtx"
 
       - name: Checkout Supervisor UI
         uses: actions/checkout@v4
@@ -105,15 +101,12 @@ jobs:
           path: txtx-supervisor-ui 
 
       - name: Build .env file for Supervisor UI
-        run: |
-          cd txtx-supervisor-ui
-          touch .env
-          echo ID_SERVICE_URL="https://id.txtx.run" >> .env
-          echo TXTX_DEV_NPM_READ_TOKEN="${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}" >> .env
-          echo NHOST_REGION="${{ secrets.NHOST_REGION }}" >> .env
-          echo NHOST_SUBDOMAIN="${{ secrets.NHOST_SUBDOMAIN }}" >> .env
-          cat .env
-          cd ..
+        uses: ./txtx/.github/actions/setup_supervisor_env
+        with:
+          txtx_dev_npm_read_token: ${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}
+          nhost_region: ${{ secrets.NHOST_REGION }}
+          nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
+          working_directory: "txtx-supervisor-ui"
 
       - name: Build Supervisor UI
         run: |
@@ -167,7 +160,7 @@ jobs:
         
       - name: Build - Cargo
         run: 
-          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }} --features web_ui
+          cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }} --features supervisor_ui
 
       # Don't compress for Windows because winget can't yet unzip files
       - name: Compress cargo artifact (not windows)

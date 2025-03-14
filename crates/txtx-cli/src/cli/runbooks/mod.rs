@@ -1,8 +1,9 @@
+use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
+use crate::{get_addon_by_namespace, get_available_addons};
 use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use itertools::Itertools;
-use serde_json::Value as JsonValue;
 use std::{
     collections::{BTreeMap, HashSet},
     env,
@@ -12,15 +13,12 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
-#[cfg(feature = "ovm")]
-use txtx_addon_network_ovm::OvmNetworkAddon;
-#[cfg(feature = "sp1")]
-use txtx_addon_sp1::Sp1Addon;
+use txtx_core::templates::{build_manifest_data, build_runbook_data};
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     mustache,
-    runbook::flow_context::FlowContext,
     templates::{TXTX_MANIFEST_TEMPLATE, TXTX_README_TEMPLATE},
+    utils::try_write_outputs_to_file,
 };
 use txtx_core::{
     kit::{
@@ -31,7 +29,7 @@ use txtx_core::{
         types::{
             commands::{CommandId, CommandInputsEvaluationResult},
             diagnostics::Diagnostic,
-            frontend::{ActionItemRequestType, BlockEvent, ProgressBarStatusColor},
+            frontend::{BlockEvent, ProgressBarStatusColor},
             stores::AddonDefaults,
             types::Value,
             AuthorizationContext, Did, PackageId,
@@ -49,21 +47,14 @@ use txtx_core::{
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
 
-use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
-use crate::{
-    get_addon_by_namespace, get_available_addons,
-    web_ui::{
-        self,
-        cloud_relayer::{start_relayer_event_runloop, RelayerChannelEvent},
-    },
-};
-use txtx_core::templates::{build_manifest_data, build_runbook_data};
-use txtx_gql::Context as GqlContext;
-use web_ui::cloud_relayer::RelayerContext;
-
-pub const DEFAULT_BINDING_PORT: &str = "8488";
-pub const SERVE_BINDING_PORT: &str = "18488";
-pub const DEFAULT_BINDING_ADDRESS: &str = "localhost";
+#[cfg(feature = "supervisor_ui")]
+use actix_web::dev::ServerHandle;
+#[cfg(feature = "ovm")]
+use txtx_addon_network_ovm::OvmNetworkAddon;
+#[cfg(feature = "sp1")]
+use txtx_addon_sp1::Sp1Addon;
+#[cfg(feature = "supervisor_ui")]
+use txtx_supervisor_ui::{self, cloud_relayer::RelayerChannelEvent};
 
 pub fn display_snapshot_diffing(
     consolidated_changes: ConsolidatedChanges,
@@ -442,11 +433,9 @@ pub async fn run_action(
 pub async fn handle_run_command(
     cmd: &ExecuteRunbook,
     buffer_stdin: Option<String>,
-    ctx: &Context,
+    _ctx: &Context,
 ) -> Result<(), String> {
     let is_execution_unsupervised = cmd.unsupervised;
-    let do_use_term_console = cmd.term_console;
-    let start_web_ui = cmd.web_console || (!is_execution_unsupervised && !do_use_term_console);
 
     let available_addons = get_available_addons();
     if let Some((namespace, command_name)) = cmd.runbook.split_once("::") {
@@ -664,76 +653,26 @@ pub async fn handle_run_command(
         );
 
         let res = start_unsupervised_runbook_runloop(&mut runbook, &progress_tx).await;
-        if let Err(diags) = res {
-            println!("{} Execution aborted", red!("x"));
-            for diag in diags.iter() {
-                println!("{}", red!(format!("- {}", diag)));
-            }
-            if let Some(location) =
-                runbook.mark_failed_and_write_transient_state(runbook_state_location)?
-            {
-                println!("{} Saving transient state to {}", yellow!("!"), location);
-            };
-            return Ok(());
-        }
-
-        let (mut collected_outputs, json_outputs) =
-            collect_formatted_outputs(&runbook.flow_contexts);
-
-        if let Some(location) = runbook.write_runbook_state(runbook_state_location)? {
-            println!("\n{} Saved execution state to {}", green!("✓"), location);
-        }
-
-        if !collected_outputs.is_empty() {
-            if let Some(_) = cmd.output_json.as_ref() {
-                try_display_json_output(
-                    cmd.output_json.clone(),
-                    json_outputs,
-                    &runbook.runtime_context.authorization_context.workspace_location,
-                    &runbook.runbook_id.name,
-                    &runbook.top_level_inputs_map.current_top_level_input_name(),
-                )
-                .map_err(|e| format!("failed to print runbook outputs: {e}"))?;
-            } else {
-                for (flow_name, mut flow_outputs) in collected_outputs.drain(..) {
-                    if !flow_outputs.is_empty() {
-                        println!("{}", yellow!(format!("{} Outputs: ", flow_name)));
-                        let mut data = vec![];
-                        for (key, values) in flow_outputs.drain(..) {
-                            if let Some(ref desired_output) = cmd.output {
-                                if desired_output.eq(&key) && !values.is_empty() {
-                                    println!("{}", values.first().unwrap());
-                                    return Ok(());
-                                }
-                            }
-                            let mut rows = vec![];
-
-                            for (i, value) in values.into_iter().enumerate() {
-                                let value = value.to_string();
-                                let parts = value.split("\n");
-                                for (j, part) in parts.into_iter().enumerate() {
-                                    if i == 0 && j == 0 {
-                                        rows.push(vec![key.clone(), part.to_string()]);
-                                    } else {
-                                        let row = vec!["".to_string(), part.to_string()];
-                                        rows.push(row);
-                                    }
-                                }
-                            }
-                            data.append(&mut rows)
-                        }
-                        let mut ascii_table = AsciiTable::default();
-                        ascii_table.set_max_width(150);
-                        ascii_table.print(data);
-                    }
-                }
-            }
-        }
+        process_runbook_execution_output(
+            res,
+            &mut runbook,
+            runbook_state_location,
+            &cmd.output_json,
+            &cmd.output,
+        );
 
         return Ok(());
     }
 
+    let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
+    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
+    let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
+
+    #[cfg(feature = "supervisor_ui")]
     let runbook_description = runbook.description.clone();
+    #[cfg(feature = "supervisor_ui")]
     let registered_addons = runbook
         .runtime_context
         .addons_context
@@ -741,117 +680,75 @@ pub async fn handle_run_command(
         .keys()
         .map(|k| k.clone())
         .collect::<Vec<_>>();
-    let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
-    let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
-    let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
-    let block_store = Arc::new(RwLock::new(BTreeMap::new()));
-    let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
-    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
 
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
     let moved_runbook_state = runbook_state_location.clone();
     let output_json = cmd.output_json.clone();
+    let output_filter = cmd.output.clone();
     let _ = hiro_system_kit::thread_named("Runbook Runloop").spawn(move || {
         let runloop_future =
             start_supervised_runbook_runloop(&mut runbook, moved_block_tx, action_item_events_rx);
-        if let Err(diags) = hiro_system_kit::nestable_block_on(runloop_future) {
-            for diag in diags.iter() {
-                println!("{} {}", red!("x"), diag);
-            }
-            match runbook.mark_failed_and_write_transient_state(moved_runbook_state) {
-                Ok(Some(location)) => {
-                    println!("{} Saving transient state to {}", yellow!("!"), location);
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    println!("{} Failed to write transient runbook state: {}", red!("x"), e);
-                }
-            };
-        } else {
-            println!("completed supervised loop");
-            let (_, json_outputs) = collect_formatted_outputs(&runbook.flow_contexts);
 
-            if !json_outputs.is_empty() {
-                match try_display_json_output(
-                    output_json,
-                    json_outputs,
-                    &runbook.runtime_context.authorization_context.workspace_location,
-                    &runbook.runbook_id.name,
-                    &runbook.top_level_inputs_map.current_top_level_input_name(),
-                ) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        println!("{} failed to write runbook outputs{}", red!("x"), e);
-                    }
-                }
-            }
+        process_runbook_execution_output(
+            hiro_system_kit::nestable_block_on(runloop_future),
+            &mut runbook,
+            moved_runbook_state,
+            &output_json,
+            &output_filter,
+        );
 
-            match runbook.write_runbook_state(moved_runbook_state) {
-                Ok(Some(location)) => {
-                    println!("\n{} Saved execution state to {}", green!("✓"), location);
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    println!("{} Failed to write runbook state: {}", red!("x"), e);
-                }
-            };
-        }
         if let Err(_e) = moved_kill_loops_tx.send(true) {
             std::process::exit(1);
         }
     });
 
-    let web_ui_handle = if start_web_ui {
-        // start web ui server
-        let gql_context = GqlContext {
-            protocol_name: runbook_name.clone(),
-            runbook_name: runbook_name.clone(),
-            registered_addons,
+    #[cfg(feature = "supervisor_ui")]
+    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
+    #[cfg(feature = "supervisor_ui")]
+    let moved_relayer_channel_tx = relayer_channel_tx.clone();
+    #[cfg(feature = "supervisor_ui")]
+    let moved_kill_loops_tx = kill_loops_tx.clone();
+    #[cfg(feature = "supervisor_ui")]
+    let web_ui_handle: Option<ServerHandle> = if cmd.do_start_supervisor_ui() {
+        use txtx_supervisor_ui::start_supervisor_ui;
+        let (supervisor_events_tx, supervisor_events_rx) = channel::unbounded();
+        let web_ui_handle = start_supervisor_ui(
+            runbook_name,
             runbook_description,
-            block_store: block_store.clone(),
-            block_broadcaster: block_broadcaster.clone(),
-            action_item_events_tx: action_item_events_tx.clone(),
-        };
+            registered_addons,
+            block_store.clone(),
+            block_broadcaster.clone(),
+            action_item_events_tx,
+            moved_relayer_channel_tx,
+            relayer_channel_rx,
+            moved_kill_loops_tx.clone(),
+            &cmd.network_binding_ip_address,
+            cmd.network_binding_port,
+            supervisor_events_tx,
+        )
+        .await
+        .map_err(|e| format!("failed to start web console: {}", e))?;
 
-        let channel_data = Arc::new(RwLock::new(None));
-        let relayer_context = RelayerContext {
-            relayer_channel_tx: relayer_channel_tx.clone(),
-            channel_data: channel_data.clone(),
-        };
-
-        let network_binding =
-            format!("{}:{}", cmd.network_binding_ip_address, cmd.network_binding_port);
-        println!(
-            "\n{} Starting the supervisor web console\n{}",
-            purple!("→"),
-            green!(format!("http://{}", network_binding))
-        );
-
-        let handle =
-            web_ui::http::start_server(gql_context, relayer_context, &network_binding, ctx)
-                .await
-                .map_err(|e| format!("Failed to start web ui: {e}"))?;
-
-        let moved_relayer_channel_tx = relayer_channel_tx.clone();
-        let moved_kill_loops_tx = kill_loops_tx.clone();
-        let moved_action_item_events_tx = action_item_events_tx.clone();
-        let _ = hiro_system_kit::thread_named("Relayer Interaction").spawn(move || {
-            let future = start_relayer_event_runloop(
-                channel_data,
-                relayer_channel_rx,
-                moved_relayer_channel_tx,
-                moved_action_item_events_tx,
-                moved_kill_loops_tx,
-            );
-            hiro_system_kit::nestable_block_on(future)
+        let _ = hiro_system_kit::thread_named("Supervisor UI Event Runloop").spawn(move || {
+            while let Ok(msg) = supervisor_events_rx.recv() {
+                match msg {
+                    txtx_supervisor_ui::SupervisorEvents::Started(network_binding) => {
+                        println!(
+                            "\n{} Starting the supervisor web console\n{}",
+                            purple!("→"),
+                            green!(format!("http://{}", network_binding))
+                        );
+                    }
+                }
+            }
         });
-
-        Some(handle)
+        Some(web_ui_handle)
     } else {
         None
     };
 
+    #[cfg(feature = "supervisor_ui")]
     let moved_relayer_channel_tx = relayer_channel_tx.clone();
     let block_store_handle = tokio::spawn(async move {
         loop {
@@ -911,6 +808,7 @@ pub async fn handle_run_command(
 
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
+                    #[cfg(feature = "supervisor_ui")]
                     let _ = moved_relayer_channel_tx
                         .send(RelayerChannelEvent::ForwardEventToRelayer(block_event.clone()));
                 }
@@ -926,12 +824,14 @@ pub async fn handle_run_command(
             let future = async {
                 match kill_loops_rx.recv() {
                     Ok(_) => {
+                        let _ = block_tx.send(BlockEvent::Exit);
+                        #[cfg(feature = "supervisor_ui")]
+                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
+                        #[cfg(feature = "supervisor_ui")]
                         if let Some(handle) = web_ui_handle {
                             println!("{} Stopping web console", purple!("→"));
                             let _ = handle.stop(true).await;
                         }
-                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
-                        let _ = block_tx.send(BlockEvent::Exit);
                     }
                     Err(_) => {}
                 };
@@ -1046,94 +946,74 @@ pub async fn load_runbook_from_file_path(
     Ok((runbook_name, runbook))
 }
 
-#[derive(serde::Serialize)]
-pub struct DisplayableRunbookOutput {
-    pub title: String,
-    pub description: Option<String>,
-    pub value: String,
-}
+fn process_runbook_execution_output(
+    execution_result: Result<(), Vec<Diagnostic>>,
+    runbook: &mut Runbook,
+    runbook_state_location: Option<RunbookStateLocation>,
+    output_json: &Option<Option<String>>,
+    output_filter: &Option<String>,
+) {
+    if let Err(diags) = execution_result {
+        for diag in diags.iter() {
+            println!("{} {}", red!("x"), diag);
+        }
+        match runbook.mark_failed_and_write_transient_state(runbook_state_location) {
+            Ok(Some(location)) => {
+                println!("{} Saving transient state to {}", yellow!("!"), location);
+            }
+            Ok(None) => {}
+            Err(e) => {
+                println!("{} Failed to write transient runbook state: {}", red!("x"), e);
+            }
+        };
+    } else {
+        let runbook_outputs = runbook.collect_formatted_outputs();
 
-pub fn collect_formatted_outputs(
-    flow_contexts: &Vec<FlowContext>,
-) -> (IndexMap<String, IndexMap<String, Vec<JsonValue>>>, Vec<DisplayableRunbookOutput>) {
-    let mut json_outputs = vec![];
-    let mut collected_outputs: IndexMap<String, IndexMap<String, Vec<JsonValue>>> = IndexMap::new();
-    for flow_context in flow_contexts.iter() {
-        let mut running_context_outputs: IndexMap<String, Vec<JsonValue>> = IndexMap::new();
-        let grouped_actions_items =
-            flow_context.execution_context.collect_outputs_constructs_results();
-
-        for (_, items) in grouped_actions_items.iter() {
-            for item in items.iter() {
-                if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {
-                    let value = output.value.to_json();
-
-                    let output_name = output.name.to_string();
-                    let display_name = output
-                        .description
-                        .as_ref()
-                        .and_then(|d| Some(d.as_str()))
-                        .unwrap_or(output_name.as_str());
-
-                    json_outputs.push(DisplayableRunbookOutput {
-                        title: output_name.to_string(),
-                        description: output.description.clone(),
-                        value: output.value.to_string(),
-                    });
-                    match running_context_outputs.get_mut(&output.name) {
-                        Some(entries) => {
-                            entries.push(value);
+        if !runbook_outputs.is_empty() {
+            if let Some(some_output_loc) = output_json {
+                if let Some(output_loc) = some_output_loc {
+                    match try_write_outputs_to_file(
+                        &output_loc,
+                        runbook_outputs,
+                        &runbook.runtime_context.authorization_context.workspace_location,
+                        &runbook.runbook_id.name,
+                        &runbook.top_level_inputs_map.current_top_level_input_name(),
+                    ) {
+                        Ok(output_location) => {
+                            println!(
+                                "{} {}",
+                                green!("✓"),
+                                format!("Outputs written to {}", output_location.to_string())
+                            );
                         }
-                        None => {
-                            running_context_outputs.insert(display_name.to_string(), vec![value]);
+                        Err(e) => {
+                            println!("{} failed to write runbook outputs{}", red!("x"), e);
                         }
                     }
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&runbook_outputs.to_json()).unwrap()
+                    );
+                }
+            } else {
+                for (flow_name, data) in runbook_outputs.get_output_row_data(&output_filter) {
+                    println!("{}", yellow!(format!("{} Outputs: ", flow_name)));
+                    let mut ascii_table = AsciiTable::default();
+                    ascii_table.set_max_width(150);
+                    ascii_table.print(data);
                 }
             }
         }
-        collected_outputs.insert(flow_context.name.clone(), running_context_outputs);
+
+        match runbook.write_runbook_state(runbook_state_location) {
+            Ok(Some(location)) => {
+                println!("\n{} Saved execution state to {}", green!("✓"), location);
+            }
+            Ok(None) => {}
+            Err(e) => {
+                println!("{} Failed to write runbook state: {}", red!("x"), e);
+            }
+        };
     }
-    (collected_outputs, json_outputs)
-}
-
-pub fn try_display_json_output(
-    output_json: Option<Option<String>>,
-    json_outputs: Vec<DisplayableRunbookOutput>,
-    workspace_location: &FileLocation,
-    runbook_id: &str,
-    environment: &str,
-) -> Result<(), String> {
-    if let Some(output_loc) = output_json.as_ref() {
-        let output = serde_json::to_string_pretty(&json_outputs)
-            .map_err(|e| format!("failed to serialize outputs: {e}"))?;
-        if let Some(output_loc) = output_loc {
-            let mut output_location = workspace_location
-                .get_parent_location()
-                .map_err(|e| format!("failed to write to output file: {e}"))?;
-            output_location
-                .append_path(output_loc)
-                .map_err(|e| format!("invalid output directory: {e}"))?;
-            output_location
-                .append_path(environment)
-                .map_err(|e| format!("invalid output directory: {e}"))?;
-
-            let now = chrono::Local::now();
-            let formatted = now.format("%Y-%m-%d--%H-%M-%S").to_string();
-            output_location
-                .append_path(&format!("{}_{}.output.json", runbook_id, formatted))
-                .map_err(|e| format!("invalid output file path: {e}"))?;
-
-            output_location
-                .write_content(output.as_bytes())
-                .map_err(|e| format!("failed to write to output file: {e}"))?;
-            println!(
-                "{} {}",
-                green!("✓"),
-                format!("Outputs written to {}", output_location.to_string())
-            );
-        } else {
-            println!("{}", output);
-        }
-    }
-    Ok(())
 }

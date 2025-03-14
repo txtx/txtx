@@ -1,0 +1,52 @@
+[package]
+name = "txtx-serve"
+description = "Crate for serving a txtx runbook"
+version = "0.1.0"
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+
+
+[dependencies]
+txtx-addon-kit = { workspace = true }
+txtx-core = { workspace = true }
+txtx-gql = { workspace = true }
+txtx-supervisor-ui = { workspace = true }
+txtx-addon-network-svm = { workspace = true }
+txtx-addon-network-stacks = { workspace = true, optional = true }
+txtx-addon-network-evm = { workspace = true }
+txtx-addon-network-ovm = { workspace = true, optional = true }
+txtx-addon-network-bitcoin = { workspace = true }
+txtx-addon-telegram = { workspace = true }
+txtx-addon-sp1 = { workspace = true, optional = true }
+actix-cors = "0.7.0"
+actix-web = "4"
+ansi_term = "0.12.1"
+atty = "0.2.14"
+base58 = "0.2.0"
+dotenvy_macro = "0.15.7"
+hiro-system-kit = "0.3.1"
+include_dir = "0.7.4"
+juniper_actix = {version = "0.5.0", features = ["subscriptions"] }
+juniper_graphql_ws = { version = "0.4.0", features = ["graphql-transport-ws"] }
+mime_guess = "2.0.4"
+native-tls = "0.2.11"
+serde = "1"
+serde_json = "1"
+serde_derive = "1"
+tokio = "1.37.0"
+tokio-tungstenite = { version = "0.23.1", features = ["native-tls"] }
+totp-rs = "^5.0"
+
+[build-dependencies]
+npm_rs="1.0.0"
+
+[features]
+sp1 = ["txtx-addon-sp1"]
+ovm = ["txtx-addon-network-ovm"]
+stacks = ["txtx-addon-network-stacks"]
+
+[lib]
+crate-type = ["lib", "cdylib"] 
