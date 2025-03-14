@@ -3,7 +3,6 @@ pub mod idl;
 pub mod instruction;
 pub mod native;
 pub mod send_transaction;
-pub mod subgraph;
 
 use anchor::AnchorProgramArtifacts;
 use bip39::Language;
@@ -29,6 +28,7 @@ use solana_sdk::signer::Signer;
 use solana_sdk::system_instruction;
 use solana_sdk::system_instruction::MAX_PERMITTED_DATA_LENGTH;
 // use solana_sdk::loader_v4::finalize;
+use crate::typing::DeploymentTransactionType;
 use solana_sdk::{
     bpf_loader_upgradeable, instruction::Instruction, message::Message, pubkey::Pubkey,
     transaction::Transaction,
@@ -55,50 +55,6 @@ const LAMPORTS_PER_SIGNATURE: u64 = 5000;
 
 pub fn public_key_from_str(str: &str) -> Result<Pubkey, Diagnostic> {
     Pubkey::from_str(str).map_err(|e| diagnosed_error!("invalid public key: {e}"))
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum DeploymentTransactionType {
-    CreateTempAuthority(Vec<u8>),
-    CreateBuffer,
-    WriteToBuffer,
-    TransferBufferAuthority,
-    TransferProgramAuthority,
-    DeployProgram,
-    UpgradeProgram,
-    CloseTempAuthority,
-    SkipCloseTempAuthority,
-}
-
-impl DeploymentTransactionType {
-    pub fn to_string(&self) -> String {
-        match self {
-            DeploymentTransactionType::CreateTempAuthority(_) => "create_temp_authority",
-            DeploymentTransactionType::CreateBuffer => "create_buffer",
-            DeploymentTransactionType::WriteToBuffer => "write_to_buffer",
-            DeploymentTransactionType::TransferBufferAuthority => "transfer_buffer_authority",
-            DeploymentTransactionType::TransferProgramAuthority => "transfer_program_authority",
-            DeploymentTransactionType::DeployProgram => "deploy_program",
-            DeploymentTransactionType::UpgradeProgram => "upgrade_program",
-            DeploymentTransactionType::CloseTempAuthority => "close_temp_authority",
-            DeploymentTransactionType::SkipCloseTempAuthority => "skip_close_temp_authority",
-        }
-        .into()
-    }
-    pub fn from_string(s: &str) -> Self {
-        match s {
-            "create_temp_authority" => DeploymentTransactionType::CreateTempAuthority(vec![]),
-            "create_buffer" => DeploymentTransactionType::CreateBuffer,
-            "write_to_buffer" => DeploymentTransactionType::WriteToBuffer,
-            "transfer_buffer_authority" => DeploymentTransactionType::TransferBufferAuthority,
-            "deploy_program" => DeploymentTransactionType::DeployProgram,
-            "upgrade_program" => DeploymentTransactionType::UpgradeProgram,
-            "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
-            "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
-            "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
-            _ => unreachable!(),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

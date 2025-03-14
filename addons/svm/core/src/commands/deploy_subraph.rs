@@ -1,20 +1,70 @@
 use std::vec;
 
+use serde_json::json;
+use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::RpcRequest};
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     CommandSpecification, PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent, StatusUpdater};
+use txtx_addon_kit::types::frontend::{
+    Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusColor, StatusUpdater,
+};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
+use txtx_addon_network_svm_types::subgraph::PluginConfig;
 
-use crate::codec::subgraph::{SubgraphPluginType, SubgraphRequest, SubgraphRequestClient};
 use crate::constants::{PROGRAM_ID, RPC_API_URL, SUBGRAPH_REQUEST, SUBGRAPH_URL};
+use crate::typing::subgraph::{SubgraphPluginType, SubgraphRequest};
 use crate::typing::{SvmValue, SUBGRAPH_EVENT};
+
+pub struct SubgraphRequestClient {
+    rpc_client: RpcClient,
+    plugin_config: PluginConfig,
+    status_updater: StatusUpdater,
+}
+
+impl SubgraphRequestClient {
+    pub fn new(
+        rpc_api_url: &str,
+        request: SubgraphRequest,
+        plugin_name: SubgraphPluginType,
+        status_updater: StatusUpdater,
+    ) -> Self {
+        Self {
+            rpc_client: RpcClient::new(rpc_api_url.to_string()),
+            plugin_config: PluginConfig::new(plugin_name, request),
+            status_updater,
+        }
+    }
+
+    pub async fn deploy_subgraph(&mut self) -> Result<String, Diagnostic> {
+        let stringified_config = json![self.plugin_config.clone()];
+        let params = serde_json::to_value(vec![stringified_config.to_string()])
+            .map_err(|e| diagnosed_error!("could not serialize subgraph request: {e}"))?;
+        let res = self
+            .rpc_client
+            .send::<String>(RpcRequest::Custom { method: "loadPlugin" }, params)
+            .await
+            .map_err(|e| diagnosed_error!("could not deploy subgraph: {e}"))?;
+
+        self.status_updater.propagate_status(ProgressBarStatus::new_msg(
+            ProgressBarStatusColor::Green,
+            "Subgraph Deployed",
+            &format!(
+                "Subgraph {} for program {} has been deployed",
+                self.plugin_config.data.subgraph_name, self.plugin_config.data.program_id,
+            ),
+        ));
+
+        self.status_updater.propagate_info(&format!("Your subgraph can be reached at {}", res));
+
+        Ok(res)
+    }
+}
 
 lazy_static! {
     pub static ref DEPLOY_SUBGRAPH: PreCommandSpecification = {
@@ -118,8 +168,8 @@ impl CommandImplementation for DeployProgram {
         use txtx_addon_kit::{constants::DESCRIPTION, types::commands::return_synchronous_ok};
 
         use crate::{
-            codec::subgraph::{SubgraphEventDefinition, SubgraphRequest},
             constants::{BLOCK_HEIGHT, EVENT, PROGRAM_IDL, SUBGRAPH_NAME, SUBGRAPH_REQUEST},
+            typing::subgraph::{SubgraphEventDefinition, SubgraphRequest},
         };
         let _rpc = values.get_expected_string(RPC_API_URL)?;
         let idl_str = values.get_expected_string(PROGRAM_IDL)?;

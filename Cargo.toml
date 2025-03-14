@@ -18,7 +18,7 @@ members = [
     "addons/evm",
     "addons/ovm",
     "addons/stacks",
-    "addons/svm",
+    "addons/svm/core",
     "addons/telegram",
     "addons/sp1", 
 ]
@@ -35,7 +35,7 @@ txtx-addon-network-evm = { path = "addons/evm" }
 txtx-addon-network-ovm = { path = "addons/ovm" }
 txtx-addon-network-bitcoin = { path = "addons/bitcoin" }
 txtx-addon-network-stacks = { path = "addons/stacks" }
-txtx-addon-network-svm = { path = "addons/svm" }
+txtx-addon-network-svm = { path = "addons/svm/core" }
 txtx-addon-telegram = { path = "addons/telegram" }
 txtx-addon-sp1 = { path = "addons/sp1" }
 uuid = { version = "1.15.1", features = ["v4", "serde", "js"] }

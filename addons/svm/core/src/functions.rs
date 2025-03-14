@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use anchor_lang_idl::types::Idl;
+use crate::typing::anchor::types::Idl;
 use solana_sdk::{pubkey::Pubkey, system_program};
 use txtx_addon_kit::{
     indexmap::indexmap,

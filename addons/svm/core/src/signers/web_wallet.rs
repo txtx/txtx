@@ -34,6 +34,7 @@ use crate::constants::{
     TRANSACTION_BYTES, UPDATED_PARTIALLY_SIGNED_TRANSACTION,
 };
 use crate::typing::SvmValue;
+use crate::utils::build_transaction_from_svm_value;
 
 use super::get_additional_actions_for_address;
 
@@ -300,13 +301,14 @@ impl SignerImplementation for SvmWebWallet {
 
         let supervisor_signed_tx = if let Some(signed_transaction_value) = signed_transaction_value
         {
-            let transaction = SvmValue::to_transaction(&signed_transaction_value).map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to deserialize signed transaction: {e}"),
-                )
-            })?;
+            let transaction =
+                build_transaction_from_svm_value(&signed_transaction_value).map_err(|e| {
+                    (
+                        signers.clone(),
+                        signer_state.clone(),
+                        diagnosed_error!("failed to deserialize signed transaction: {e}"),
+                    )
+                })?;
 
             let is_fully_signed = transaction_is_fully_signed(&transaction);
 
@@ -389,7 +391,7 @@ impl SignerImplementation for SvmWebWallet {
             )?;
             (transaction, deployment_transaction.signers.is_some())
         } else {
-            let mut transaction: Transaction = SvmValue::to_transaction(&payload)
+            let mut transaction: Transaction = build_transaction_from_svm_value(&payload)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             transaction.message.recent_blockhash = blockhash;
