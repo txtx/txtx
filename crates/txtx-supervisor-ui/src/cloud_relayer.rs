@@ -3,7 +3,7 @@ use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json};
 use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
-use dotenvy_macro::dotenv;
+use dotenvy::dotenv;
 use native_tls::TlsConnector;
 use serde::Serialize;
 use std::sync::Arc;
@@ -26,8 +26,13 @@ use txtx_core::kit::types::frontend::{
 use txtx_core::kit::uuid::Uuid;
 use txtx_gql::Context as GraphContext;
 
-const RELAYER_BASE_URL: &str = dotenv!("RELAYER_BASE_URL");
-const RELAYER_HOST: &str = dotenv!("RELAYER_HOST");
+const RELAYER_BASE_URL: &str = "RELAYER_BASE_URL";
+const RELAYER_HOST: &str = "RELAYER_HOST";
+
+fn get_env_var(key: &str) -> String {
+    dotenv().ok();
+    std::env::var(key).unwrap_or_else(|_| panic!("{} not found", key))
+}
 
 #[derive(Clone, Debug)]
 pub enum RelayerChannelEvent {
@@ -87,7 +92,7 @@ pub async fn open_channel(
 
     let token = cookie.value();
     let client = reqwest::Client::new();
-    let path = format!("{}/api/v1/channels", RELAYER_BASE_URL);
+    let path = format!("{}/api/v1/channels", get_env_var(RELAYER_BASE_URL));
 
     let totp = auth_token_to_totp(token).get_secret_base32();
     let uuid = Uuid::new_v4();
@@ -183,7 +188,7 @@ async fn send_delete_channel(
     payload: Json<DeleteChannelRequest>,
 ) -> Result<(), String> {
     let client = reqwest::Client::new();
-    let path = format!("{}/api/v1/channels", RELAYER_BASE_URL);
+    let path = format!("{}/api/v1/channels", get_env_var(RELAYER_BASE_URL));
 
     let res = client
         .delete(path)
@@ -209,7 +214,7 @@ pub async fn forward_block_event(
     slug: String,
     payload: BlockEvent,
 ) -> Result<(), String> {
-    let path = format!("{}/api/v1/channels/{}", RELAYER_BASE_URL, slug);
+    let path = format!("{}/api/v1/channels/{}", get_env_var(RELAYER_BASE_URL), slug);
 
     let _ = request_with_retry(&path, &token, &payload)
         .await
@@ -370,7 +375,7 @@ impl RelayerWebSocketChannel {
             .uri(&self.ws_endpoint_url)
             .header("authorization", format!("Bearer {}", &self.operator_token))
             .header("sec-websocket-key", generate_key())
-            .header("host", RELAYER_HOST)
+            .header("host", get_env_var(RELAYER_HOST))
             .header("upgrade", "websocket")
             .header("connection", "upgrade")
             .header("sec-websocket-version", 13)

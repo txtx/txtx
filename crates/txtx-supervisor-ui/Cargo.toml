@@ -1,7 +1,7 @@
 [package]
 name = "txtx-supervisor-ui"
 description = "Crate for starting the txtx supervisor UI"
-version = "0.1.0"
+version = "0.1.1"
 edition = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
@@ -16,7 +16,7 @@ txtx-gql = { workspace = true }
 actix-cors = "0.7.0"
 actix-web = "4"
 base58 = "0.2.0"
-dotenvy_macro = "0.15.7"
+dotenvy = "0.15.7"
 hiro-system-kit = "0.3.1"
 include_dir = "0.7.4"
 juniper_actix = {version = "0.5.0", features = ["subscriptions"] }

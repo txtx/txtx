@@ -14496,12 +14496,12 @@ dependencies = [
 
 [[package]]
 name = "txtx-supervisor-ui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "actix-cors",
  "actix-web",
  "base58 0.2.0",
- "dotenvy_macro",
+ "dotenvy",
  "hiro-system-kit 0.3.4",
  "include_dir",
  "juniper_actix",
