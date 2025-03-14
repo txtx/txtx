@@ -12,9 +12,9 @@ use txtx_addon_kit::types::frontend::{
     ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::signers::{
-    return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, SignerActionErr,
-    SignerActionsFutureResult, SignerActivateFutureResult, SignerImplementation, SignerInstance,
-    SignerSignFutureResult, SignerSpecification, SignersState,
+    return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
+    SignerActivateFutureResult, SignerImplementation, SignerInstance, SignerSignFutureResult,
+    SignerSpecification, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
@@ -94,11 +94,14 @@ impl SignerImplementation for SvmWebWallet {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
+        use txtx_addon_kit::constants::{
+            ACTION_ITEM_CHECK_BALANCE, IS_BALANCE_CHECKED, PROVIDE_PUBLIC_KEY_ACTION_RESULT,
+        };
 
         use crate::{codec::public_key_from_str, constants::NETWORK_ID};
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
+        let is_balance_checked = values.get_bool(IS_BALANCE_CHECKED);
 
         let values = values.clone();
         let expected_address = values
@@ -107,8 +110,8 @@ impl SignerImplementation for SvmWebWallet {
                 public_key_from_str(&a).map_err(|e| (signers.clone(), signer_state.clone(), e))
             })
             .transpose()?;
-        let do_request_address_check = expected_address.is_some();
-        let do_request_public_key = is_public_key_required;
+        let mut do_request_address_check = expected_address.is_some();
+        let mut do_request_public_key = is_public_key_required;
 
         let _is_nonce_required = true;
         let do_request_balance = is_balance_check_required;
@@ -125,7 +128,9 @@ impl SignerImplementation for SvmWebWallet {
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
 
-        if let Ok(public_key_bytes) = values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT) {
+        let (mut actions, connected_public_key) = if let Ok(public_key_bytes) =
+            values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
+        {
             let mut actions: Actions = Actions::none();
             let mut success = true;
 
@@ -153,21 +158,45 @@ impl SignerImplementation for SvmWebWallet {
             if success {
                 signer_state.insert(CHECKED_PUBLIC_KEY, Value::string(sol_address.to_string()));
                 signer_state.insert(CHECKED_ADDRESS, Value::string(sol_address.to_string()));
+                do_request_address_check = false;
+                do_request_public_key = false;
             }
             let update =
                 ActionItemRequestUpdate::from_context(&signer_did, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
                     .set_status(status_update);
             actions.push_action_item_update(update);
 
-            return return_synchronous_actions(Ok((signers, signer_state, actions)));
-        } else if checked_public_key.is_ok() {
-            return return_synchronous_actions(Ok((signers, signer_state, Actions::none())));
+            (actions, Some(sol_address))
+        } else if let Ok(checked_public_key) = checked_public_key {
+            let sol_address = public_key_from_str(&checked_public_key)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+            signer_state.insert(CHECKED_PUBLIC_KEY, Value::string(sol_address.to_string()));
+            signer_state.insert(CHECKED_ADDRESS, Value::string(sol_address.to_string()));
+            (Actions::none(), Some(sol_address))
+        } else {
+            (Actions::none(), None)
+        };
+
+        match is_balance_checked {
+            Some(true) => {
+                actions.push_action_item_update(
+                    ActionItemRequestUpdate::from_context(&signer_did, ACTION_ITEM_CHECK_BALANCE)
+                        .set_status(ActionItemStatus::Success(None)),
+                );
+            }
+            Some(false) => {
+                actions.push_action_item_update(
+                    ActionItemRequestUpdate::from_context(&signer_did, ACTION_ITEM_CHECK_BALANCE)
+                        .set_status(ActionItemStatus::Todo),
+                );
+            }
+            None => {}
         }
 
         let future = async move {
-            let mut actions = Actions::none();
             let res = get_additional_actions_for_address(
                 &expected_address,
+                &connected_public_key,
                 &signer_did,
                 &instance_name,
                 &network_id,
@@ -175,6 +204,7 @@ impl SignerImplementation for SvmWebWallet {
                 do_request_public_key,
                 do_request_balance,
                 do_request_address_check,
+                is_balance_checked,
             )
             .await;
             signer_state.insert(&REQUESTED_STARTUP_DATA, Value::bool(true));
