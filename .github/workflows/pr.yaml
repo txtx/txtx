@@ -59,7 +59,7 @@ jobs:
           path: txtx
 
       - name: Build .env file
-        uses: ./.github/actions/setup_env
+        uses: ./txtx/.github/actions/setup_supervisor_env
         with:
           infura_api_key: ${{ secrets.INFURA_API_KEY }}
           nhost_region: ${{ secrets.NHOST_REGION }}
