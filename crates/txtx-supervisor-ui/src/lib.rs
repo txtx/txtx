@@ -13,8 +13,13 @@ use txtx_addon_kit::{
 };
 use txtx_gql::Context as GqlContext;
 
+#[cfg(feature = "release")]
+pub const CARGO_MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
+#[cfg(feature = "release")]
+pub static ASSETS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/supervisor-dist");
+#[cfg(feature = "debug")]
 pub const OUT_DIR: &str = env!("OUT_DIR");
-
+#[cfg(feature = "debug")]
 pub static ASSETS: Dir<'_> = include_dir!("$OUT_DIR/supervisor");
 
 pub const DEFAULT_BINDING_PORT: &str = "8488";
