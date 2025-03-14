@@ -55,6 +55,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          path: txtx
 
       - name: Build .env file
         uses: ./.github/actions/setup_env
@@ -62,6 +64,7 @@ jobs:
           infura_api_key: ${{ secrets.INFURA_API_KEY }}
           nhost_region: ${{ secrets.NHOST_REGION }}
           nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
+          working_directory: "txtx"
           
       - name: Checkout Supervisor UI
         uses: actions/checkout@v4
