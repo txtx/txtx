@@ -59,7 +59,7 @@ jobs:
           path: txtx
 
       - name: Build .env file
-        uses: ./txtx/.github/actions/setup_supervisor_env
+        uses: ./txtx/.github/actions/setup_env
         with:
           infura_api_key: ${{ secrets.INFURA_API_KEY }}
           nhost_region: ${{ secrets.NHOST_REGION }}
@@ -106,7 +106,7 @@ jobs:
           key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock', './crates/txtx-cli/build.rs', 'addons/evm/src/contracts/**') }}
 
       - name: Build Project
-        run: cargo build  --manifest-path ./txtx/Cargo.toml --workspace --exclude txtx-addon-network-stacks --release
+        run: cargo build --manifest-path ./txtx/Cargo.toml --workspace --exclude txtx-addon-network-stacks --release
 
       - name: Run Tests
-        run: cargo test  --manifest-path ./txtx/Cargo.toml --workspace --exclude txtx-addon-network-stacks
+        run: cargo test --manifest-path ./txtx/Cargo.toml --workspace --exclude txtx-addon-network-stacks
