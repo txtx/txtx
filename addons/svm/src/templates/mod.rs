@@ -41,9 +41,13 @@ signer "authority" "svm::secret_key" {{
 pub fn get_interpolated_devnet_signer_template() -> String {
     return format!(
         r#"
-signer "payer" "svm::web_wallet" {{}}
+signer "payer" "svm::web_wallet" {{
+    // expected_address = input.expected_payer_address
+}}
     
-signer "authority" "svm::web_wallet" {{}}
+signer "authority" "svm::web_wallet" {{
+    // expected_address = input.expected_payer_address
+}}
 "#,
     );
 }
