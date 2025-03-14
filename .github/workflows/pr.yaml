@@ -62,6 +62,28 @@ jobs:
           infura_api_key: ${{ secrets.INFURA_API_KEY }}
           nhost_region: ${{ secrets.NHOST_REGION }}
           nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
+          
+      - name: Checkout Supervisor UI
+        uses: actions/checkout@v4
+        with:
+          repository: txtx/txtx-supervisor-ui
+          token: ${{ secrets.TXTX_ACCESS_TOKEN }} 
+          path: txtx-supervisor-ui 
+
+      - name: Build .env file for Supervisor UI
+        uses: ./txtx/.github/actions/setup_supervisor_env
+        with:
+          txtx_dev_npm_read_token: ${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}
+          nhost_region: ${{ secrets.NHOST_REGION }}
+          nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
+          working_directory: "txtx-supervisor-ui"
+
+      - name: Build Supervisor UI
+        run: |
+          cd txtx-supervisor-ui
+          npm run i
+          npm run build
+          cd ..
 
       - name: Install Rust toolchain
         run: |
@@ -84,4 +106,4 @@ jobs:
         run: cargo build --workspace --exclude txtx-addon-network-stacks --release
 
       - name: Run Tests
-        run: cargo test --workspace --exclude txtx-addon-network-stacks 
+        run: cargo test --workspace --exclude txtx-addon-network-stacks
