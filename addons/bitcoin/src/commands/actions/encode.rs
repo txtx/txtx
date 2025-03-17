@@ -87,9 +87,11 @@ impl CommandImplementation for CallReadonlyStacksFunction {
             .get_expected_array(INSTRUCTIONS)?
             .into_iter()
             .map(|op| {
-                op.try_get_buffer_bytes()
-                    .and_then(|b| Some(b.clone()))
-                    .ok_or(diagnosed_error!("bitcoin instructions should be encoded as bytes"))
+                let t = op.try_get_buffer_bytes_result().map_err(|e| {
+                    diagnosed_error!("bitcoin instructions should be encoded as bytes: {e}")
+                })?;
+
+                t.ok_or(diagnosed_error!("bitcoin instructions should be encoded as bytes"))
             })
             .collect::<Result<Vec<Vec<u8>>, Diagnostic>>()?;
         let script_bytes = instructions.into_iter().flatten().collect::<Vec<u8>>();

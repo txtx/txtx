@@ -177,7 +177,12 @@ impl FunctionImplementation for PushData1 {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let expected_bytes_length = args.get(0).unwrap().as_integer().unwrap();
-        let mut data = args.get(1).unwrap().try_get_buffer_bytes().unwrap();
+        let mut data = args
+            .get(1)
+            .unwrap()
+            .try_get_buffer_bytes_result()
+            .map_err(|e| diagnosed_error!("argument must be decodable to hex: {e}"))?
+            .unwrap();
 
         let expected_bytes_length: u8 = expected_bytes_length
             .try_into()

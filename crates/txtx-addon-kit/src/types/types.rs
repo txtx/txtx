@@ -293,12 +293,14 @@ impl Value {
 
     #[deprecated(note = "use `get_buffer_bytes_result` instead")]
     pub fn expect_buffer_bytes(&self) -> Vec<u8> {
-        self.try_get_buffer_bytes().expect("unable to retrieve bytes")
+        self.try_get_buffer_bytes_result().unwrap().expect("unable to retrieve bytes")
     }
 
     pub fn get_buffer_bytes_result(&self) -> Result<Vec<u8>, String> {
         self.try_get_buffer_bytes_result()?.ok_or("unable to retrieve bytes".into())
     }
+
+    #[deprecated(note = "use `try_get_buffer_bytes_result` instead")]
     pub fn try_get_buffer_bytes(&self) -> Option<Vec<u8>> {
         let bytes = match &self {
             Value::Buffer(value) => value.clone(),
@@ -310,7 +312,9 @@ impl Value {
                 };
                 bytes
             }
-            Value::Array(values) => values.iter().flat_map(|v| v.expect_buffer_bytes()).collect(),
+            Value::Array(values) => {
+                values.iter().flat_map(|v| v.get_buffer_bytes_result().unwrap()).collect()
+            }
             Value::Addon(addon_value) => addon_value.bytes.clone(),
             _ => return None,
         };
@@ -328,24 +332,14 @@ impl Value {
                 })?;
                 bytes
             }
-            Value::Array(values) => {
-                let mut bytes = vec![];
-                for v in values.iter() {
-                    let Some(Ok(byte)) = v.as_uint() else {
-                        return Err(format!("unable to infer sequence of bytes"));
-                    };
-                    match u8::try_from(byte) {
-                        Ok(byte) => bytes.push(byte),
-                        Err(e) => {
-                            return Err(format!(
-                                "unable to infer sequence of bytes ({})",
-                                e.to_string()
-                            ))
-                        }
-                    }
-                }
-                bytes
-            }
+            Value::Array(values) => values
+                .iter()
+                .map(|v| v.try_get_buffer_bytes_result())
+                .collect::<Result<Vec<Option<_>>, String>>()?
+                .into_iter()
+                .filter_map(|v| v)
+                .flat_map(|v| v)
+                .collect(),
             Value::Addon(addon_value) => addon_value.bytes.clone(),
             _ => return Ok(None),
         };
