@@ -31,7 +31,7 @@ pub fn get_expected_field_type_from_idl_type_def_ty(
                         .iter()
                         .find(|f| f.name == field_name)
                         .ok_or(format!("unable to find field '{}' in struct", field_name))?,
-                    IdlDefinedFields::Tuple(..) => {
+                    IdlDefinedFields::Tuple(_) => {
                         return Err("cannot find field by name for tuple type".to_string())
                     }
                 };
