@@ -13,7 +13,7 @@ use txtx_addon_kit::{
     },
 };
 
-use crate::SVM_PUBKEY;
+use crate::{SVM_I256, SVM_PUBKEY, SVM_U128, SVM_U256};
 
 // Subgraph keys
 pub const SVM_SUBGRAPH_REQUEST: &str = "svm::subgraph_request";
@@ -66,9 +66,9 @@ pub fn idl_type_to_txtx_type(idl_type: IdlType) -> Type {
         IdlType::I128 => Type::integer(),
         IdlType::F32 => Type::float(),
         IdlType::F64 => Type::float(),
-        IdlType::U128 => todo!(),
-        IdlType::U256 => todo!(),
-        IdlType::I256 => todo!(),
+        IdlType::U128 => Type::addon(SVM_U128),
+        IdlType::U256 => Type::addon(SVM_U256),
+        IdlType::I256 => Type::addon(SVM_I256),
         IdlType::Bytes => Type::buffer(),
         IdlType::String => Type::string(),
         IdlType::Pubkey => Type::addon(SVM_PUBKEY),
