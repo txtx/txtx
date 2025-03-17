@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anchor_lang_idl::types::{Idl, IdlDefinedFields, IdlType, IdlTypeDefTy};
 use serde::{Deserialize, Serialize};
 use solana_pubkey::Pubkey;
@@ -5,7 +7,9 @@ use txtx_addon_kit::{
     diagnosed_error,
     types::{
         diagnostics::Diagnostic,
+        stores::ValueStore,
         types::{Type, Value},
+        ConstructDid,
     },
 };
 
@@ -27,7 +31,7 @@ pub fn get_expected_field_type_from_idl_type_def_ty(
                         .iter()
                         .find(|f| f.name == field_name)
                         .ok_or(format!("unable to find field '{}' in struct", field_name))?,
-                    IdlDefinedFields::Tuple(idl_types) => {
+                    IdlDefinedFields::Tuple(..) => {
                         return Err("cannot find field by name for tuple type".to_string())
                     }
                 };
@@ -37,8 +41,12 @@ pub fn get_expected_field_type_from_idl_type_def_ty(
             };
             ty
         }
-        IdlTypeDefTy::Enum { variants } => todo!(),
-        IdlTypeDefTy::Type { alias } => todo!(),
+        IdlTypeDefTy::Enum { variants } => {
+            return Err(format!("unsupported enum type: {:?}", variants)); // todo
+        }
+        IdlTypeDefTy::Type { alias } => {
+            return Err(format!("unsupported type alias: {:?}", alias)); // todo
+        }
     };
 
     Ok(idl_type_to_txtx_type(ty))
@@ -103,38 +111,63 @@ impl std::fmt::Display for SubgraphPluginType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubgraphRequest {
-    pub fields: Vec<IndexedSubgraphField>,
+    /// The program id of the program to index.
+    #[serde(serialize_with = "pubkey_serialize", deserialize_with = "pubkey_deserialize")]
     pub program_id: Pubkey,
+    /// The block height at which the subgraph begins indexing.
     pub block_height: u64,
+    /// The name of the subgraph. Either provided in the `deploy_subgraph` action, or the name of the data source.
     pub subgraph_name: String,
+    /// The description of the subgraph. Either provided in the `deploy_subgraph` action, or the docs from the IDL for the associated data source.
     pub subgraph_description: Option<String>,
+    /// The data source to index, with the IDL context needed for the data source type.
+    pub data_source: IndexedSubgraphSourceType,
+    /// The metadata of the fields to index.
+    pub fields: Vec<IndexedSubgraphField>,
+    /// The Construct Did of the subgraph request action.
+    pub construct_did: ConstructDid,
+}
+
+fn pubkey_serialize<S>(value: &Pubkey, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&value.to_string())
+}
+
+fn pubkey_deserialize<'de, D>(deserializer: D) -> Result<Pubkey, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    Pubkey::from_str(&s).map_err(serde::de::Error::custom)
 }
 
 impl SubgraphRequest {
-    pub fn new(
-        subgraph_name: &str,
+    pub fn parse_value_store(
+        subgraph_name: Option<String>,
         subgraph_description: Option<String>,
         program_id: &Pubkey,
         idl_str: &str,
-        events: Vec<SubgraphEventDefinition>,
         block_height: u64,
+        construct_did: &ConstructDid,
+        values: &ValueStore,
     ) -> Result<Self, Diagnostic> {
         let idl = serde_json::from_str(idl_str)
             .map_err(|e| diagnosed_error!("could not deserialize IDL: {e}"))?;
 
-        let fields = events
-            .iter()
-            .map(|f| IndexedSubgraphField::from_event_definition(&idl, f.clone()))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect();
+        let (data_source, field_values) = IndexedSubgraphSourceType::parse_values(values, &idl)?;
+
+        let fields = IndexedSubgraphField::new(data_source.clone(), &field_values)?;
+
         Ok(Self {
-            fields,
             program_id: *program_id,
             block_height,
-            subgraph_name: subgraph_name.to_string(),
-            subgraph_description,
+            subgraph_name: subgraph_name.unwrap_or(data_source.name()),
+            subgraph_description: subgraph_description.or(data_source.description()),
+            data_source,
+            construct_did: construct_did.clone(),
+            fields,
         })
     }
 
@@ -164,27 +197,130 @@ impl SubgraphRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SubgraphSourceType {
-    Instruction(String),
-    Account(String),
-    Event(String),
+pub struct IndexedSubgraphField {
+    /// The name of the field, as it will be indexed in the graphql database.
+    pub display_name: String,
+    /// The name of the field, as it is defined in the IDL. By default, this is the same as the display name.
+    pub source_key: String,
+    /// The expected type of the field as it will appear in the graphql database. This is parsed from the associated source key in the IDL.
+    pub expected_type: Type,
+    /// A description of the field. If not provided, the docs in the IDL Event's field will be used, if available.
+    pub description: Option<String>,
+}
+
+impl IndexedSubgraphField {
+    pub fn new(
+        data_source: IndexedSubgraphSourceType,
+        field_values: &Option<Vec<Value>>,
+    ) -> Result<Vec<Self>, Diagnostic> {
+        let mut fields = vec![];
+        match data_source {
+            IndexedSubgraphSourceType::Instruction(_) => {
+                return Err(diagnosed_error!("instruction subgraph not supported yet"))
+            }
+            IndexedSubgraphSourceType::Event(event_subgraph_source) => {
+                if let Some(field_values) = field_values {
+                    for field_value in field_values.iter() {
+                        let field_value = field_value.as_object().ok_or(diagnosed_error!(
+                            "each entry of a subgraph field should contain an object"
+                        ))?;
+                        let name = field_value.get("name").ok_or(diagnosed_error!(
+                            "could not deserialize subgraph field: expected 'name' key"
+                        ))?;
+                        let name = name.as_string().ok_or(diagnosed_error!(
+                            "could not deserialize subgraph field: expected 'name' to be a string"
+                        ))?;
+                        let idl_key = field_value
+                            .get("idl_key")
+                            .and_then(|v| v.as_string().map(|s| s.to_string()))
+                            .unwrap_or(name.to_string());
+
+                        let description = field_value
+                            .get("description")
+                            .and_then(|v| v.as_string().map(|s| s.to_string()));
+
+                        let expected_type = get_expected_field_type_from_idl_type_def_ty(
+                            &idl_key,
+                            &event_subgraph_source.ty.ty,
+                        )
+                        .map_err(|e| {
+                            diagnosed_error!(
+                                "could not determine expected type for subgraph field '{}': {e}",
+                                idl_key
+                            )
+                        })?;
+
+                        fields.push(Self {
+                            display_name: name.to_string(),
+                            source_key: idl_key,
+                            expected_type,
+                            description,
+                        });
+                    }
+                } else {
+                    match event_subgraph_source.ty.ty {
+                        IdlTypeDefTy::Struct { fields: idl_fields } => {
+                            if let Some(idl_fields) = idl_fields {
+                                match idl_fields {
+                                    IdlDefinedFields::Named(idl_fields) => {
+                                        fields.append(
+                                            &mut idl_fields
+                                                .iter()
+                                                .map(|f| Self {
+                                                    display_name: f.name.clone(),
+                                                    source_key: f.name.clone(),
+                                                    expected_type: idl_type_to_txtx_type(
+                                                        f.ty.clone(),
+                                                    ),
+                                                    description: if f.docs.is_empty() {
+                                                        None
+                                                    } else {
+                                                        Some(f.docs.join(" "))
+                                                    },
+                                                })
+                                                .collect(),
+                                        );
+                                    }
+
+                                    IdlDefinedFields::Tuple(_) => todo!(),
+                                }
+                            } else {
+                                todo!()
+                            }
+                        }
+                        IdlTypeDefTy::Enum { .. } => todo!(),
+                        IdlTypeDefTy::Type { .. } => todo!(),
+                    }
+                }
+            }
+        }
+        Ok(fields)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubgraphEventDefinition {
-    pub name: String,
-    pub fields: Vec<SubgraphFieldDefinition>,
+pub enum IndexedSubgraphSourceType {
+    /// Index a program instruction
+    Instruction(InstructionSubgraphSource),
+    /// Index a program event
+    Event(EventSubgraphSource),
+    // Account(AccountSubgraphSource),
 }
 
-impl SubgraphEventDefinition {
-    pub fn parse_map_values(values: &Vec<Value>, idl_str: &str) -> Result<Vec<Self>, Diagnostic> {
-        if values.len() == 0 {
-            return Err(diagnosed_error!("subgraph event should not be empty"));
-        }
-        let idl: Idl = serde_json::from_str(idl_str)
-            .map_err(|e| diagnosed_error!("could not deserialize IDL: {e}"))?;
-        let mut events = Vec::new();
-        for entry in values.iter() {
+impl IndexedSubgraphSourceType {
+    pub fn parse_values(
+        values: &ValueStore,
+        idl: &Idl,
+    ) -> Result<(Self, Option<Vec<Value>>), Diagnostic> {
+        if let Some(event) = values.get_value("event") {
+            let event_map =
+                event.as_map().ok_or(diagnosed_error!("subgraph event must be a map"))?;
+
+            if event_map.len() != 1 {
+                return Err(diagnosed_error!("exactly one 'event' should be defined"));
+            }
+            let entry = event_map.get(0).unwrap();
+
             let entry = entry.as_object().ok_or(diagnosed_error!(
                 "each entry of a subgraph event should contain an object"
             ))?;
@@ -194,149 +330,47 @@ impl SubgraphEventDefinition {
             let name = name.as_string().ok_or(diagnosed_error!(
                 "could not deserialize subgraph event: expected 'name' to be a string"
             ))?;
-
-            let idl_event = idl
-                .events
-                .iter()
-                .find(|e| e.name == name)
-                .ok_or(diagnosed_error!("could not find event '{}' in IDL", name))?;
-
-            let fields = if let Some(fields) = entry.get(FIELD) {
-                let fields = fields.as_array().ok_or(diagnosed_error!(
-                    "could not deserialize subgraph event: expected 'fields' to be an array"
-                ))?;
-                SubgraphFieldDefinition::parse_map_values(fields)?
-            } else {
-                let ty = idl
-                    .types
-                    .iter()
-                    .find(|t| t.name == idl_event.name)
-                    .ok_or(diagnosed_error!("could not find type '{}' in IDL", name))?;
-                SubgraphFieldDefinition::from_idl_type(&ty.ty)?
-            };
-            events.push(Self { name: name.to_string(), fields });
+            let fields = entry.get("field").and_then(|v| v.as_map().map(|s| s.to_vec()));
+            let event = EventSubgraphSource::new(name, idl)?;
+            return Ok((Self::Event(event), fields));
+        } else if let Some(_) = values.get_value("instruction") {
+            return Err(diagnosed_error!("subgraph instruction not supported yet"));
+        } else if let Some(_) = values.get_value("account") {
+            return Err(diagnosed_error!("subgraph account not supported yet"));
         }
-        Ok(events)
-    }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubgraphFieldDefinition {
-    name: String,
-    source: Option<String>,
-    description: Option<String>,
-}
-
-impl SubgraphFieldDefinition {
-    pub fn new(name: &str, source: Option<String>, description: Option<String>) -> Self {
-        Self { name: name.to_string(), source, description }
-    }
-    pub fn parse_map_values(values: &Vec<Value>) -> Result<Vec<Self>, Diagnostic> {
-        if values.len() == 0 {
-            return Err(diagnosed_error!("subgraph field should not be empty"));
-        }
-        let mut fields = Vec::new();
-        for entry in values.iter() {
-            let entry = entry.as_object().ok_or(diagnosed_error!(
-                "each entry of a subgraph field should contain an object"
-            ))?;
-            let name = entry.get("name").ok_or(diagnosed_error!(
-                "could not deserialize subgraph field: expected 'name' key"
-            ))?;
-            let name = name.as_string().ok_or(diagnosed_error!(
-                "could not deserialize subgraph field: expected 'name' to be a string"
-            ))?;
-            let source = entry.get("idl_key").and_then(|v| v.as_string().map(|s| s.to_string()));
-            let description =
-                entry.get("description").and_then(|v| v.as_string().map(|s| s.to_string()));
-            fields.push(Self { name: name.to_string(), source, description });
-        }
-        Ok(fields)
+        Err(diagnosed_error!("no event, instruction, or account map provided"))
     }
 
-    fn from_idl_type(ty: &IdlTypeDefTy) -> Result<Vec<Self>, Diagnostic> {
-        match ty {
-            IdlTypeDefTy::Struct { fields } => {
-                if let Some(fields) = fields {
-                    match fields {
-                        IdlDefinedFields::Named(idl_fields) => Ok(idl_fields
-                            .iter()
-                            .map(|f| {
-                                Self::new(
-                                    &f.name,
-                                    None,
-                                    if f.docs.is_empty() { None } else { Some(f.docs.join(" ")) },
-                                )
-                            })
-                            .collect()),
-                        IdlDefinedFields::Tuple(_) => todo!(),
-                    }
+    pub fn description(&self) -> Option<String> {
+        match self {
+            IndexedSubgraphSourceType::Instruction(instruction_subgraph_source) => {
+                if instruction_subgraph_source.instruction.docs.is_empty() {
+                    None
                 } else {
-                    todo!()
+                    Some(instruction_subgraph_source.instruction.docs.join(" "))
                 }
             }
-            IdlTypeDefTy::Enum { .. } => todo!(),
-            IdlTypeDefTy::Type { .. } => todo!(),
+            IndexedSubgraphSourceType::Event(event_subgraph_source) => {
+                if event_subgraph_source.ty.docs.is_empty() {
+                    None
+                } else {
+                    Some(event_subgraph_source.ty.docs.join(" "))
+                }
+            } // IndexedSubgraphSourceType::Account(_) => None,
         }
     }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IndexedSubgraphField {
-    pub display_name: String,
-    pub source_key: String,
-    pub expected_type: Type,
-    pub description: Option<String>,
-    pub data_source: IndexedSubgraphSourceType,
-}
-
-impl IndexedSubgraphField {
-    pub fn from_event_definition(
-        idl: &Idl,
-        event_def: SubgraphEventDefinition,
-    ) -> Result<Vec<Self>, Diagnostic> {
-        let mut fields = Vec::new();
-        for field_def in event_def.fields.iter() {
-            let source_key = field_def.source.clone().unwrap_or(field_def.name.clone());
-            let display_name = field_def.name.clone();
-            let idl_event = idl
-                .events
-                .iter()
-                .find(|e| e.name == event_def.name)
-                .ok_or(diagnosed_error!("could not find event '{}' in IDL", event_def.name))?;
-            let ty = idl
-                .types
-                .iter()
-                .find(|t| t.name == event_def.name)
-                .ok_or(diagnosed_error!("could not find type '{}' in IDL", event_def.name))?;
-            let expected_type = get_expected_field_type_from_idl_type_def_ty(&source_key, &ty.ty)
-                .map_err(|e| {
-                diagnosed_error!(
-                    "could not determine expected type for subgraph field '{}': {e}",
-                    source_key
-                )
-            })?;
-
-            fields.push(Self {
-                display_name,
-                source_key,
-                expected_type,
-                description: field_def.description.clone(),
-                data_source: IndexedSubgraphSourceType::Event(EventSubgraphSource {
-                    event: idl_event.clone(),
-                    ty: ty.clone(),
-                }),
-            })
+    pub fn name(&self) -> String {
+        match self {
+            IndexedSubgraphSourceType::Instruction(instruction_subgraph_source) => {
+                instruction_subgraph_source.instruction.name.clone()
+            }
+            IndexedSubgraphSourceType::Event(event_subgraph_source) => {
+                event_subgraph_source.event.name.clone()
+            }
         }
-        Ok(fields)
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum IndexedSubgraphSourceType {
-    Instruction(InstructionSubgraphSource),
-    Event(EventSubgraphSource),
-    // Account(AccountSubgraphSource),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -351,6 +385,22 @@ pub struct EventSubgraphSource {
     pub event: anchor_lang_idl::types::IdlEvent,
     // The type of the event, found from the IDL
     pub ty: anchor_lang_idl::types::IdlTypeDef,
+}
+
+impl EventSubgraphSource {
+    pub fn new(event_name: &str, idl: &Idl) -> Result<Self, Diagnostic> {
+        let event = idl
+            .events
+            .iter()
+            .find(|e| e.name == event_name)
+            .ok_or(diagnosed_error!("could not find event '{}' in IDL", event_name))?;
+        let ty = idl
+            .types
+            .iter()
+            .find(|t| t.name == event_name)
+            .ok_or(diagnosed_error!("could not find type '{}' in IDL", event_name))?;
+        Ok(Self { event: event.clone(), ty: ty.clone() })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
