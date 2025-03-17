@@ -96,7 +96,6 @@ pub fn get_interpolated_anchor_subgraph_template(
             format!(
                 r#"
 action "{program_name}_{event_slug}" "svm::deploy_subgraph" {{
-    description = "A subgraph of {} occurrences in the '{program_name}' program"
     program_id = action.deploy_{program_name}.program_id
     program_idl = action.deploy_{program_name}.program_idl
     block_height = 0 // action.deploy_{program_name}.block_height
@@ -104,7 +103,7 @@ action "{program_name}_{event_slug}" "svm::deploy_subgraph" {{
         name = "{}"
     }}
 }}"#,
-                event.name, event.name
+                event.name,
             )
         })
         .collect::<Vec<_>>()
