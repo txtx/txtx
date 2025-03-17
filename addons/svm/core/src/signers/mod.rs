@@ -29,6 +29,7 @@ lazy_static! {
 
 pub async fn get_additional_actions_for_address(
     expected_address: &Option<Pubkey>,
+    connected_address: &Option<Pubkey>,
     signer_did: &ConstructDid,
     instance_name: &str,
     network_id: &str,
@@ -36,6 +37,7 @@ pub async fn get_additional_actions_for_address(
     do_request_public_key: bool,
     do_request_balance: bool,
     do_request_address_check: bool,
+    is_balance_checked: Option<bool>,
 ) -> Result<Vec<ActionItemRequest>, Diagnostic> {
     let mut action_items: Vec<ActionItemRequest> = vec![];
 
@@ -59,53 +61,81 @@ pub async fn get_additional_actions_for_address(
 
     if let Some(ref expected_address) = expected_address {
         if do_request_address_check {
-            action_items.push(ActionItemRequest::new(
-                &Some(signer_did.clone()),
-                &format!("Check '{}' expected address", instance_name),
-                None,
-                ActionItemStatus::Todo,
-                ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
-                    .to_action_type(),
-                ACTION_ITEM_CHECK_ADDRESS,
-            ))
+            if connected_address.is_none() {
+                action_items.push(ActionItemRequest::new(
+                    &Some(signer_did.clone()),
+                    &format!("Check '{}' expected address", instance_name),
+                    None,
+                    ActionItemStatus::Todo,
+                    ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                        .to_action_type(),
+                    ACTION_ITEM_CHECK_ADDRESS,
+                ))
+            }
         }
         if do_request_balance {
-            let (action_status, value) = match solana_rpc.get_balance(&expected_address).await {
-                Ok(response) => (
-                    ActionItemStatus::Todo,
-                    Value::float(solana_sdk::native_token::lamports_to_sol(response)),
-                ),
-                Err(err) => (
-                    ActionItemStatus::Error(diagnosed_error!(
-                        "unable to retrieve balance {}: {}",
-                        expected_address,
-                        err.to_string()
-                    )),
-                    Value::string("N/A".to_string()),
-                ),
-            };
-            let check_balance = ActionItemRequest::new(
-                &Some(signer_did.clone()),
-                "Check signer balance",
-                None,
-                action_status,
-                ReviewInputRequest::new("", &value).to_action_type(),
-                ACTION_ITEM_CHECK_BALANCE,
-            );
-            action_items.push(check_balance);
+            if let Some(check_balance) = get_check_balance_action(
+                &solana_rpc,
+                &Some(expected_address.clone()),
+                signer_did,
+                is_balance_checked,
+            )
+            .await
+            {
+                action_items.push(check_balance);
+            }
         }
     } else {
         if do_request_balance {
-            let check_balance = ActionItemRequest::new(
-                &Some(signer_did.clone()),
-                "Check signer balance",
-                None,
-                ActionItemStatus::Todo,
-                ReviewInputRequest::new("", &Value::string("N/A".to_string())).to_action_type(),
-                ACTION_ITEM_CHECK_BALANCE,
-            );
-            action_items.push(check_balance);
+            if let Some(check_balance) = get_check_balance_action(
+                &solana_rpc,
+                connected_address,
+                signer_did,
+                is_balance_checked,
+            )
+            .await
+            {
+                action_items.push(check_balance);
+            }
         }
     }
     Ok(action_items)
+}
+
+async fn get_check_balance_action(
+    solana_rpc: &RpcClient,
+    address: &Option<Pubkey>,
+    signer_did: &ConstructDid,
+    is_balance_checked: Option<bool>,
+) -> Option<ActionItemRequest> {
+    if is_balance_checked.is_some() {
+        return None;
+    }
+
+    let (action_status, value) = match address {
+        Some(address) => match solana_rpc.get_balance(&address).await {
+            Ok(response) => (
+                ActionItemStatus::Todo,
+                Value::float(solana_sdk::native_token::lamports_to_sol(response)),
+            ),
+            Err(err) => (
+                ActionItemStatus::Error(diagnosed_error!(
+                    "unable to retrieve balance {}: {}",
+                    address,
+                    err.to_string()
+                )),
+                Value::string("N/A".to_string()),
+            ),
+        },
+        None => (ActionItemStatus::Todo, Value::string("N/A".to_string())),
+    };
+
+    Some(ActionItemRequest::new(
+        &Some(signer_did.clone()),
+        "Check signer balance",
+        None,
+        action_status,
+        ReviewInputRequest::new("", &value).to_action_type(),
+        ACTION_ITEM_CHECK_BALANCE,
+    ))
 }

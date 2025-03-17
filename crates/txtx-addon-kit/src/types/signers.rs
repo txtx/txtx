@@ -1,5 +1,6 @@
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, CHECKED_ADDRESS, PROVIDE_PUBLIC_KEY_ACTION_RESULT,
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, CHECKED_ADDRESS, IS_BALANCE_CHECKED,
+    PROVIDE_PUBLIC_KEY_ACTION_RESULT,
 };
 use crate::helpers::hcl::{
     collect_constructs_references_from_expression, visit_optional_untyped_attribute,
@@ -425,12 +426,12 @@ impl SignerInstance {
                             );
                         }
                         ActionItemResponseType::ReviewInput(response) => {
-                            if response.value_checked {
-                                let request = action_item_requests.map(|requests| {
-                                    requests.iter().find(|r| r.id.eq(&action_item_id))
-                                });
-                                if let Some(Some(request)) = request {
-                                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
+                            let request = action_item_requests
+                                .map(|requests| requests.iter().find(|r| r.id.eq(&action_item_id)));
+
+                            if let Some(Some(request)) = request {
+                                if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
+                                    if response.value_checked {
                                         let data = request
                                             .action_type
                                             .as_review_input()
@@ -440,6 +441,11 @@ impl SignerInstance {
                                             Value::string(data.value.to_string()),
                                         );
                                     }
+                                } else if request.internal_key == ACTION_ITEM_CHECK_BALANCE {
+                                    values.insert(
+                                        IS_BALANCE_CHECKED,
+                                        Value::bool(response.value_checked),
+                                    );
                                 }
                             }
                         }

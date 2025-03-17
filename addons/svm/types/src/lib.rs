@@ -23,50 +23,6 @@ use txtx_addon_kit::{
 
 pub use anchor_lang_idl as anchor;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum DeploymentTransactionType {
-    CreateTempAuthority(Vec<u8>),
-    CreateBuffer,
-    WriteToBuffer,
-    TransferBufferAuthority,
-    TransferProgramAuthority,
-    DeployProgram,
-    UpgradeProgram,
-    CloseTempAuthority,
-    SkipCloseTempAuthority,
-}
-
-impl DeploymentTransactionType {
-    pub fn to_string(&self) -> String {
-        match self {
-            DeploymentTransactionType::CreateTempAuthority(_) => "create_temp_authority",
-            DeploymentTransactionType::CreateBuffer => "create_buffer",
-            DeploymentTransactionType::WriteToBuffer => "write_to_buffer",
-            DeploymentTransactionType::TransferBufferAuthority => "transfer_buffer_authority",
-            DeploymentTransactionType::TransferProgramAuthority => "transfer_program_authority",
-            DeploymentTransactionType::DeployProgram => "deploy_program",
-            DeploymentTransactionType::UpgradeProgram => "upgrade_program",
-            DeploymentTransactionType::CloseTempAuthority => "close_temp_authority",
-            DeploymentTransactionType::SkipCloseTempAuthority => "skip_close_temp_authority",
-        }
-        .into()
-    }
-    pub fn from_string(s: &str) -> Self {
-        match s {
-            "create_temp_authority" => DeploymentTransactionType::CreateTempAuthority(vec![]),
-            "create_buffer" => DeploymentTransactionType::CreateBuffer,
-            "write_to_buffer" => DeploymentTransactionType::WriteToBuffer,
-            "transfer_buffer_authority" => DeploymentTransactionType::TransferBufferAuthority,
-            "deploy_program" => DeploymentTransactionType::DeployProgram,
-            "upgrade_program" => DeploymentTransactionType::UpgradeProgram,
-            "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
-            "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
-            "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
-            _ => unreachable!(),
-        }
-    }
-}
-
 pub const SVM_ADDRESS: &str = "svm::address";
 pub const SVM_BYTES: &str = "svm::bytes";
 pub const SVM_BYTES32: &str = "svm::bytes32";
@@ -402,4 +358,48 @@ lazy_static! {
             tainting: true
         }
     };
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum DeploymentTransactionType {
+    CreateTempAuthority(Vec<u8>),
+    CreateBuffer,
+    WriteToBuffer,
+    TransferBufferAuthority,
+    TransferProgramAuthority,
+    DeployProgram,
+    UpgradeProgram,
+    CloseTempAuthority,
+    SkipCloseTempAuthority,
+}
+
+impl DeploymentTransactionType {
+    pub fn to_string(&self) -> String {
+        match self {
+            DeploymentTransactionType::CreateTempAuthority(_) => "create_temp_authority",
+            DeploymentTransactionType::CreateBuffer => "create_buffer",
+            DeploymentTransactionType::WriteToBuffer => "write_to_buffer",
+            DeploymentTransactionType::TransferBufferAuthority => "transfer_buffer_authority",
+            DeploymentTransactionType::TransferProgramAuthority => "transfer_program_authority",
+            DeploymentTransactionType::DeployProgram => "deploy_program",
+            DeploymentTransactionType::UpgradeProgram => "upgrade_program",
+            DeploymentTransactionType::CloseTempAuthority => "close_temp_authority",
+            DeploymentTransactionType::SkipCloseTempAuthority => "skip_close_temp_authority",
+        }
+        .into()
+    }
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            "create_temp_authority" => DeploymentTransactionType::CreateTempAuthority(vec![]),
+            "create_buffer" => DeploymentTransactionType::CreateBuffer,
+            "write_to_buffer" => DeploymentTransactionType::WriteToBuffer,
+            "transfer_buffer_authority" => DeploymentTransactionType::TransferBufferAuthority,
+            "deploy_program" => DeploymentTransactionType::DeployProgram,
+            "upgrade_program" => DeploymentTransactionType::UpgradeProgram,
+            "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
+            "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
+            "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
+            _ => unreachable!(),
+        }
+    }
 }

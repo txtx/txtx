@@ -32,6 +32,7 @@ use constants::ACTION_ITEM_GENESIS;
 use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::run_constructs_evaluation;
 use eval::run_signers_evaluation;
+use kit::constants::ACTION_ITEM_CHECK_BALANCE;
 use runbook::get_source_context_for_diagnostic;
 use tokio::sync::broadcast::error::TryRecvError;
 use txtx_addon_kit::channel::Sender;
@@ -432,7 +433,9 @@ pub async fn start_supervised_runbook_runloop(
                 // but they need to confirm it in the supervisor. when it is confirmed, we need to
                 // reprocess the signers
                 if let Some(request) = action_item_requests.get(&action_item_id) {
-                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
+                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS
+                        || request.internal_key == ACTION_ITEM_CHECK_BALANCE
+                    {
                         process_signers_action_item_response(
                             runbook,
                             &block_tx,
