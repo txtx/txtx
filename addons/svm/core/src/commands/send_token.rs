@@ -28,6 +28,7 @@ use crate::constants::{
     TOKEN, TOKEN_MINT_ADDRESS, TRANSACTION_BYTES,
 };
 use crate::typing::{SvmValue, SVM_PUBKEY};
+use crate::utils::build_transaction_from_svm_value;
 
 use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
@@ -431,7 +432,7 @@ impl CommandImplementation for SendToken {
             let transaction_bytes_value =
                 res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
             args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes_value.clone());
-            let transaction = SvmValue::to_transaction(transaction_bytes_value)
+            let transaction = build_transaction_from_svm_value(transaction_bytes_value)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             let _ = transaction.verify_and_hash_message().map_err(|e| {

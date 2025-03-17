@@ -1,6 +1,18 @@
+#[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
+extern crate txtx_addon_kit;
+
+pub mod subgraph;
+
 use std::str::FromStr;
 
-use solana_sdk::{pubkey::Pubkey, signature::Keypair, transaction::Transaction};
+use serde::{Deserialize, Serialize};
+use solana_keypair::Keypair;
+use solana_pubkey::Pubkey;
+use solana_transaction::Transaction;
+
 use txtx_addon_kit::{
     hex,
     types::{
@@ -9,7 +21,7 @@ use txtx_addon_kit::{
     },
 };
 
-use crate::codec::DeploymentTransaction;
+pub use anchor_lang_idl as anchor;
 
 pub const SVM_ADDRESS: &str = "svm::address";
 pub const SVM_BYTES: &str = "svm::bytes";
@@ -31,7 +43,6 @@ pub const SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS: &str =
 pub const SVM_PAYER_SIGNED_TRANSACTION: &str = "svm::payer_signed_transaction";
 pub const SVM_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::authority_signed_transaction";
 pub const SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::temp_authority_signed_transaction";
-pub const SVM_SUBGRAPH_REQUEST: &str = "svm::subgraph_request";
 
 pub struct SvmValue {}
 
@@ -66,42 +77,6 @@ impl SvmValue {
         let bytes = serde_json::to_vec(&transaction)
             .map_err(|e| diagnosed_error!("failed to deserialize transaction: {e}"))?;
         Ok(Value::addon(bytes, SVM_TRANSACTION))
-    }
-
-    pub fn to_transaction(value: &Value) -> Result<Transaction, Diagnostic> {
-        match value {
-            Value::String(s) => {
-                if is_hex(s) {
-                    let hex = decode_hex(s)?;
-                    return serde_json::from_slice(&hex)
-                        .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"));
-                }
-                return serde_json::from_str(s)
-                    .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"));
-            }
-            Value::Addon(addon_data) => {
-                if addon_data.id == SVM_TRANSACTION {
-                    return serde_json::from_slice(&addon_data.bytes)
-                        .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"));
-                } else if addon_data.id == SVM_DEPLOYMENT_TRANSACTION
-                    || addon_data.id == SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS
-                {
-                    let deployment_transaction = DeploymentTransaction::from_value(value)
-                        .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"))?;
-                    return Ok(deployment_transaction.transaction);
-                } else {
-                    return Err(diagnosed_error!(
-                        "could not deserialize addon type '{}' into transaction",
-                        addon_data.id
-                    ));
-                }
-            }
-            _ => {
-                return Err(diagnosed_error!(
-                    "could not deserialize transaction: expected string or addon"
-                ))
-            }
-        };
     }
 
     pub fn instruction(bytes: Vec<u8>) -> Value {
@@ -383,4 +358,48 @@ lazy_static! {
             tainting: true
         }
     };
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum DeploymentTransactionType {
+    CreateTempAuthority(Vec<u8>),
+    CreateBuffer,
+    WriteToBuffer,
+    TransferBufferAuthority,
+    TransferProgramAuthority,
+    DeployProgram,
+    UpgradeProgram,
+    CloseTempAuthority,
+    SkipCloseTempAuthority,
+}
+
+impl DeploymentTransactionType {
+    pub fn to_string(&self) -> String {
+        match self {
+            DeploymentTransactionType::CreateTempAuthority(_) => "create_temp_authority",
+            DeploymentTransactionType::CreateBuffer => "create_buffer",
+            DeploymentTransactionType::WriteToBuffer => "write_to_buffer",
+            DeploymentTransactionType::TransferBufferAuthority => "transfer_buffer_authority",
+            DeploymentTransactionType::TransferProgramAuthority => "transfer_program_authority",
+            DeploymentTransactionType::DeployProgram => "deploy_program",
+            DeploymentTransactionType::UpgradeProgram => "upgrade_program",
+            DeploymentTransactionType::CloseTempAuthority => "close_temp_authority",
+            DeploymentTransactionType::SkipCloseTempAuthority => "skip_close_temp_authority",
+        }
+        .into()
+    }
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            "create_temp_authority" => DeploymentTransactionType::CreateTempAuthority(vec![]),
+            "create_buffer" => DeploymentTransactionType::CreateBuffer,
+            "write_to_buffer" => DeploymentTransactionType::WriteToBuffer,
+            "transfer_buffer_authority" => DeploymentTransactionType::TransferBufferAuthority,
+            "deploy_program" => DeploymentTransactionType::DeployProgram,
+            "upgrade_program" => DeploymentTransactionType::UpgradeProgram,
+            "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
+            "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
+            "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
+            _ => unreachable!(),
+        }
+    }
 }

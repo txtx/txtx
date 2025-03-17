@@ -24,6 +24,7 @@ use txtx_addon_kit::uuid::Uuid;
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::constants::{AMOUNT, CHECKED_PUBLIC_KEY, RECIPIENT, RPC_API_URL, TRANSACTION_BYTES};
 use crate::typing::SvmValue;
+use crate::utils::build_transaction_from_svm_value;
 
 use super::get_signer_did;
 use super::sign_transaction::SignTransaction;
@@ -233,7 +234,7 @@ impl CommandImplementation for SendSol {
             let transaction_bytes_value =
                 res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
             args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes_value.clone());
-            let transaction = SvmValue::to_transaction(transaction_bytes_value)
+            let transaction = build_transaction_from_svm_value(transaction_bytes_value)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             let _ = transaction.verify_and_hash_message().map_err(|e| {

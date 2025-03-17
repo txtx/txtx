@@ -1,6 +1,7 @@
 use crate::codec::transaction_is_fully_signed;
 use crate::commands::get_signers_did;
 use crate::typing::{SvmValue, SVM_TRANSACTION};
+use crate::utils::build_transaction_from_svm_value;
 use solana_sdk::signature::Signature;
 use std::collections::HashMap;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
@@ -201,7 +202,7 @@ impl CommandImplementation for SignTransaction {
                     .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
                     .unwrap()
             };
-            let mut combined_transaction = SvmValue::to_transaction(&payload).unwrap();
+            let mut combined_transaction = build_transaction_from_svm_value(&payload).unwrap();
             let mut cursor = 0;
 
             for (signer_did, signer_instance) in signers_dids_with_instances {
@@ -222,10 +223,11 @@ impl CommandImplementation for SignTransaction {
                             let partial_signed_tx = if let Some(partial_signed_tx_value) =
                                 results.outputs.get(PARTIALLY_SIGNED_TRANSACTION_BYTES)
                             {
-                                let partial_signed_tx = SvmValue::to_transaction(
-                                    partial_signed_tx_value,
-                                )
-                                .map_err(|e| (new_signers.clone(), new_signer_state.clone(), e))?;
+                                let partial_signed_tx =
+                                    build_transaction_from_svm_value(partial_signed_tx_value)
+                                        .map_err(|e| {
+                                            (new_signers.clone(), new_signer_state.clone(), e)
+                                        })?;
                                 partial_signed_tx
                             } else {
                                 // if the transaction was "updated" by the downstream signer,
@@ -235,10 +237,11 @@ impl CommandImplementation for SignTransaction {
                                     .get(UPDATED_PARTIALLY_SIGNED_TRANSACTION)
                                     .expect("Signed transaction bytes not found");
 
-                                let partial_signed_tx = SvmValue::to_transaction(
-                                    partial_signed_tx_value,
-                                )
-                                .map_err(|e| (new_signers.clone(), new_signer_state.clone(), e))?;
+                                let partial_signed_tx =
+                                    build_transaction_from_svm_value(partial_signed_tx_value)
+                                        .map_err(|e| {
+                                            (new_signers.clone(), new_signer_state.clone(), e)
+                                        })?;
                                 combined_transaction = partial_signed_tx.clone();
                                 partial_signed_tx
                             };
