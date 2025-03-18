@@ -1,4 +1,4 @@
-use crate::cli::cloud::publish::CloudServiceIndexedRunbook;
+use crate::publish::CloudServiceIndexedRunbook;
 
 use graphql_client::GraphQLQuery;
 
@@ -10,8 +10,8 @@ type Citext = String;
 type Bytea = Vec<u8>;
 #[derive(GraphQLQuery)]
 #[graphql(
-    schema_path = "src/cli/cloud/gql/fixtures/schema.graphql",
-    query_path = "src/cli/cloud/gql/fixtures/queries.graphql",
+    schema_path = "src/gql/fixtures/schema.graphql",
+    query_path = "src/gql/fixtures/queries.graphql",
     response_derives = "Debug",
     normalization = "rust",
     skip_serializing_none
