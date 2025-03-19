@@ -115,7 +115,7 @@ impl Runbook {
         // for each flow_context and each package_id, even if the flow is defined in a different package.
         // we also can't index the flow inputs until we have indexed the packages
         // so first we need to create each of the flows by parsing the hcl and finding the flow blocks
-        let mut flow_map = HashMap::new();
+        let mut flow_map = vec![];
         while let Some((location, package_name, raw_content)) = sources.pop_front() {
             let package_id =
                 PackageId::from_file(&location, &self.runbook_id, &package_name).map_err(|e| e)?;
@@ -135,10 +135,7 @@ impl Runbook {
                             &self.runbook_id,
                             &current_top_level_value_store,
                         );
-                        flow_map.insert(
-                            flow_name,
-                            (flow_context, block.body.attributes().cloned().collect()),
-                        );
+                        flow_map.push((flow_context, block.body.attributes().cloned().collect()));
                     }
                     _ => {}
                 }
@@ -150,11 +147,11 @@ impl Runbook {
             let flow_name = top_level_inputs_map.current_top_level_input_name();
             let flow_context =
                 FlowContext::new(&flow_name, &self.runbook_id, &current_top_level_value_store);
-            flow_map.insert(flow_name, (flow_context, vec![]));
+            flow_map.push((flow_context, vec![]));
         }
 
         // next we need to index the packages for each flow and evaluate the flow inputs
-        for (_, (flow_context, attributes)) in flow_map.iter_mut() {
+        for (flow_context, attributes) in flow_map.iter_mut() {
             for package_id in package_ids.iter() {
                 flow_context.workspace_context.index_package(package_id);
                 flow_context.graph_context.index_package(package_id);
