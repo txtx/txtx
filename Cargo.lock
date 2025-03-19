@@ -14370,7 +14370,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -14463,7 +14463,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
