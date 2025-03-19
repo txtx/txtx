@@ -61,22 +61,15 @@ pub async fn run_signers_evaluation(
     let instantiated_signers = runbook_execution_context.order_for_signers_initialization.clone();
 
     for construct_did in instantiated_signers.into_iter() {
-        let package_id = {
-            let Some(command) = runbook_execution_context.signers_instances.get(&construct_did)
-            else {
-                continue;
-            };
-            command.package_id.clone()
-        };
-
-        let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
-
-        let instantiated = runbook_execution_context.is_signer_instantiated(&construct_did);
-
         let Some(signer_instance) = runbook_execution_context.signers_instances.get(&construct_did)
         else {
             continue;
         };
+        let package_id = signer_instance.package_id.clone();
+
+        let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
+
+        let instantiated = runbook_execution_context.is_signer_instantiated(&construct_did);
 
         let add_ctx_to_diag = add_ctx_to_diag(
             "signer".to_string(),
