@@ -1,5 +1,7 @@
 use std::{borrow::BorrowMut, collections::BTreeMap, fmt::Display};
 
+use crate::constants::ACTION_ITEM_BEGIN_FLOW;
+
 use super::{
     block_id::BlockId,
     diagnostics::Diagnostic,
@@ -996,6 +998,37 @@ impl Actions {
         }))
     }
 
+    pub fn push_begin_flow_panel(
+        &mut self,
+        flow_index: usize,
+        flow_name: &str,
+        flow_description: &Option<String>,
+    ) {
+        self.store.push(ActionType::NewBlock(ActionPanelData {
+            title: "Flow Execution".to_string(),
+            description: "".to_string(),
+            groups: vec![ActionGroup {
+                title: "".to_string(),
+                sub_groups: vec![ActionSubGroup {
+                    title: None,
+                    action_items: vec![ActionItemRequest::new(
+                        &None,
+                        "",
+                        None,
+                        ActionItemStatus::Success(None),
+                        ActionItemRequestType::BeginFlow(FlowBlockData {
+                            index: flow_index,
+                            name: flow_name.to_string(),
+                            description: flow_description.clone(),
+                        }),
+                        ACTION_ITEM_BEGIN_FLOW,
+                    )],
+                    allow_batch_completion: false,
+                }],
+            }],
+        }))
+    }
+
     pub fn new_panel(title: &str, description: &str) -> Actions {
         let store = vec![ActionType::NewBlock(ActionPanelData {
             title: title.to_string(),
@@ -1264,7 +1297,7 @@ impl Actions {
                     }
                 }
                 ActionType::NewBlock(data) => {
-                    if current_panel_data.groups.len() > 1 {
+                    if current_panel_data.groups.len() >= 1 {
                         blocks.push(BlockEvent::Action(Block {
                             uuid: Uuid::new_v4(),
                             panel: Panel::ActionPanel(current_panel_data.clone()),
@@ -1413,6 +1446,7 @@ pub enum ActionItemRequestType {
     OpenModal(OpenModalData),
     ValidateBlock(ValidateBlockData),
     ValidateModal,
+    BeginFlow(FlowBlockData),
 }
 
 impl ActionItemRequestType {
@@ -1550,6 +1584,9 @@ impl ActionItemRequestType {
                 format!("ValidateBlock({})", val.internal_idx.to_string())
             }
             ActionItemRequestType::ValidateModal => format!("ValidateModal"),
+            ActionItemRequestType::BeginFlow(val) => {
+                format!("BeginFlow({}-{})", val.index, val.name)
+            }
         }
     }
 
@@ -1702,6 +1739,7 @@ impl ActionItemRequestType {
             ActionItemRequestType::OpenModal(_) => None,
             ActionItemRequestType::ValidateBlock(_) => None,
             ActionItemRequestType::ValidateModal => None,
+            ActionItemRequestType::BeginFlow(_) => None,
         }
     }
 }
@@ -1757,12 +1795,20 @@ pub struct DisplayErrorLogRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ValidateBlockData {
     /// internal index used to differential one validate block instance from another
-    internal_idx: u8,
+    internal_idx: usize,
 }
 impl ValidateBlockData {
-    pub fn new(internal_idx: u8) -> Self {
+    pub fn new(internal_idx: usize) -> Self {
         ValidateBlockData { internal_idx }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FlowBlockData {
+    index: usize,
+    name: String,
+    description: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
