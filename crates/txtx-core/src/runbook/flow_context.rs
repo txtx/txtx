@@ -16,6 +16,8 @@ use super::{
 pub struct FlowContext {
     /// The name of the flow
     pub name: String,
+    /// The description of the flow
+    pub description: Option<String>,
     /// The resolution context contains all the data related to source code analysis and DAG construction
     pub graph_context: RunbookGraphContext,
     /// The execution context contains all the data related to the execution of the runbook
@@ -35,6 +37,7 @@ impl FlowContext {
         let execution_context = RunbookExecutionContext::new();
         let mut running_context = Self {
             name: name.to_string(),
+            description: None,
             workspace_context,
             graph_context,
             execution_context,
@@ -80,9 +83,14 @@ impl FlowContext {
                 &runtime_context,
             )
             .map_err(|e| e)?;
+
             match res {
                 ExpressionEvaluationStatus::CompleteOk(value) => {
-                    self.index_flow_input(&attr.key, value, &package_id);
+                    if attr.key.to_string().eq("description") {
+                        self.description = Some(value.to_string());
+                    } else {
+                        self.index_flow_input(&attr.key, value, &package_id);
+                    }
                 }
                 ExpressionEvaluationStatus::DependencyNotComputed => {
                     return Err(Diagnostic::error_from_string(format!(
