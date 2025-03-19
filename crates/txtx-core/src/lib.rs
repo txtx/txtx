@@ -186,7 +186,7 @@ pub async fn start_supervised_runbook_runloop(
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
-    let mut runbook_initialized = false;
+    let mut intialized_flow_index: i16 = -1;
     runbook.supervision_context = RunbookSupervisionContext {
         review_input_default_values: true,
         review_input_values: true,
@@ -196,15 +196,18 @@ pub async fn start_supervised_runbook_runloop(
     // Compute number of steps
     // A step is
 
-    // store of action_item_ids and the associated action_item_request
-    let mut action_item_requests: BTreeMap<BlockId, ActionItemRequest> = BTreeMap::new();
-    // store of construct_dids and its associated action_item_response_types
-    let mut action_item_responses = BTreeMap::new();
+    // store of action_item_ids and the associated action_item_request, grouped by the flow index
+    let mut flow_action_item_requests: BTreeMap<usize, BTreeMap<BlockId, ActionItemRequest>> =
+        BTreeMap::new();
+    // store of construct_dids and its associated action_item_response_types, grouped by the flow index
+    let mut flow_action_item_responses = BTreeMap::new();
 
     let mut background_tasks_futures = vec![];
     let mut background_tasks_contructs_dids = vec![];
     let mut background_tasks_handle_uuid = Uuid::new_v4();
     let mut validated_blocks = 0;
+    let total_flows_count = runbook.flow_contexts.len();
+    let mut current_flow_index: usize = 0;
     loop {
         let event_opt = match action_item_responses_rx.try_recv() {
             Ok(action) => Some(action),
@@ -212,20 +215,35 @@ pub async fn start_supervised_runbook_runloop(
             Err(TryRecvError::Closed) => return Ok(()),
         };
 
-        if !runbook_initialized {
-            runbook_initialized = true;
+        if intialized_flow_index != current_flow_index as i16 {
+            intialized_flow_index = current_flow_index as i16;
+
+            flow_action_item_responses.insert(current_flow_index, BTreeMap::new());
+            flow_action_item_requests.insert(current_flow_index, BTreeMap::new());
+
+            let action_item_responses =
+                flow_action_item_responses.get_mut(&current_flow_index).unwrap();
+            let mut action_item_requests =
+                flow_action_item_requests.get_mut(&current_flow_index).unwrap();
 
             let genesis_events = build_genesis_panel(
                 runbook,
                 &mut action_item_requests,
                 &action_item_responses,
                 &block_tx.clone(),
+                validated_blocks,
+                current_flow_index,
+                total_flows_count,
             )
             .await?;
             for event in genesis_events {
                 let _ = block_tx.send(event).unwrap();
             }
         }
+        let action_item_responses =
+            flow_action_item_responses.get_mut(&current_flow_index).unwrap();
+        let mut action_item_requests =
+            flow_action_item_requests.get_mut(&current_flow_index).unwrap();
 
         // Cooldown
         let Some(action_item_response) = event_opt else {
@@ -241,6 +259,8 @@ pub async fn start_supervised_runbook_runloop(
                 &mut action_item_requests,
                 &action_item_responses,
                 &block_tx.clone(),
+                current_flow_index,
+                total_flows_count,
             )
             .await
             {
@@ -286,8 +306,8 @@ pub async fn start_supervised_runbook_runloop(
                     let start_of_loop_had_bg_tasks = !background_tasks_futures.is_empty();
                     // Handle background tasks
                     if start_of_loop_had_bg_tasks {
-                        // todo: we still need to figure out how to have multiple flows in a supervised execution
-                        let flow_context = runbook.flow_contexts.first_mut().unwrap();
+                        let flow_context =
+                            runbook.flow_contexts.get_mut(current_flow_index).unwrap();
                         let supervised_bg_context = if bg_uuid_initialized {
                             None
                         } else {
@@ -314,9 +334,9 @@ pub async fn start_supervised_runbook_runloop(
                     }
 
                     // Retrieve the previous requests sent and update their statuses.
-                    let mut runbook_completed = false;
+                    let mut flow_execution_completed = false;
                     let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
-                    let flow_context = runbook.flow_contexts.first_mut().unwrap();
+                    let flow_context = runbook.flow_contexts.get_mut(current_flow_index).unwrap();
                     let mut pass_results = run_constructs_evaluation(
                         &background_tasks_handle_uuid,
                         &flow_context.workspace_context,
@@ -340,9 +360,8 @@ pub async fn start_supervised_runbook_runloop(
                     let pass_has_pending_actions = pass_results.actions.has_pending_actions();
 
                     if !pass_has_pending_actions && !pass_has_pending_bg_tasks {
-                        runbook_completed = true;
-
-                        let flow_context = runbook.flow_contexts.first_mut().unwrap();
+                        let flow_context =
+                            runbook.flow_contexts.get_mut(current_flow_index).unwrap();
                         let grouped_actions_items =
                             flow_context.execution_context.collect_outputs_constructs_results();
                         let mut actions = Actions::new_panel("output review", "");
@@ -350,6 +369,8 @@ pub async fn start_supervised_runbook_runloop(
                             actions.push_group(key.as_str(), action_items);
                         }
                         pass_results.actions.append(&mut actions);
+
+                        flow_execution_completed = true;
                     } else if !pass_results.actions.store.is_empty() {
                         validated_blocks = validated_blocks + 1;
                         pass_results.actions.push_sub_group(
@@ -392,14 +413,18 @@ pub async fn start_supervised_runbook_runloop(
                             let _ = block_tx.send(event);
                         }
                     }
-                    if runbook_completed && !start_of_loop_had_bg_tasks {
+                    if flow_execution_completed && !start_of_loop_had_bg_tasks {
                         set_progress_bar_visibility(
                             &block_tx,
                             &background_tasks_handle_uuid,
                             false,
                         );
-                        let _ = block_tx.send(BlockEvent::RunbookCompleted);
-                        return Ok(());
+                        if current_flow_index == total_flows_count - 1 {
+                            let _ = block_tx.send(BlockEvent::RunbookCompleted);
+                            return Ok(());
+                        } else {
+                            current_flow_index += 1;
+                        }
                     }
                     if !pass_has_pending_bg_tasks && !start_of_loop_had_bg_tasks {
                         set_progress_bar_visibility(
@@ -442,13 +467,15 @@ pub async fn start_supervised_runbook_runloop(
                             &action_item_id,
                             &mut action_item_requests,
                             &action_item_responses,
+                            current_flow_index,
                         )
                         .await;
                     }
                 }
 
                 if *force_execution {
-                    let running_context = runbook.flow_contexts.first_mut().unwrap();
+                    let running_context =
+                        runbook.flow_contexts.get_mut(current_flow_index).unwrap();
                     let mut pass_results = run_constructs_evaluation(
                         &background_tasks_handle_uuid,
                         &running_context.workspace_context,
@@ -492,6 +519,7 @@ pub async fn start_supervised_runbook_runloop(
                     &action_item_id,
                     &mut action_item_requests,
                     &action_item_responses,
+                    current_flow_index,
                 )
                 .await;
             }
@@ -510,7 +538,7 @@ pub async fn start_supervised_runbook_runloop(
                 let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_did, scoped_requests);
 
-                let running_context = runbook.flow_contexts.first_mut().unwrap();
+                let running_context = runbook.flow_contexts.get_mut(current_flow_index).unwrap();
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
                     &running_context.workspace_context,
@@ -591,6 +619,8 @@ pub async fn reset_runbook_execution(
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
+    current_flow_index: usize,
+    total_flows_count: usize,
 ) -> Result<(), Vec<Diagnostic>> {
     let ActionItemResponseType::PickInputOption(environment_key) = payload else {
         unreachable!(
@@ -606,9 +636,16 @@ pub async fn reset_runbook_execution(
     }
 
     let _ = progress_tx.send(BlockEvent::Clear);
-    let genesis_events =
-        build_genesis_panel(runbook, action_item_requests, action_item_responses, &progress_tx)
-            .await?;
+    let genesis_events = build_genesis_panel(
+        runbook,
+        action_item_requests,
+        action_item_responses,
+        &progress_tx,
+        0,
+        current_flow_index,
+        total_flows_count,
+    )
+    .await?;
     for event in genesis_events {
         let _ = progress_tx.send(event).unwrap();
     }
@@ -620,10 +657,30 @@ pub async fn build_genesis_panel(
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
+    validated_blocks: usize,
+    current_flow_index: usize,
+    total_flows_count: usize,
 ) -> Result<Vec<BlockEvent>, Vec<Diagnostic>> {
-    let mut actions = Actions::new_panel("runbook checklist", "");
+    let mut actions = Actions::none();
+
     let environments = runbook.get_inputs_selectors();
     let selector = runbook.get_active_inputs_selector();
+
+    let Some(flow_context) = runbook.flow_contexts.get_mut(current_flow_index) else {
+        return Err(vec![diagnosed_error!(
+            "internal error: attempted to access a flow that does not exist"
+        )]);
+    };
+
+    if total_flows_count > 1 {
+        actions.push_begin_flow_panel(
+            current_flow_index,
+            &flow_context.name,
+            &flow_context.description,
+        );
+    } else {
+    }
+    actions.push_panel("runbook checklist", "");
 
     if environments.len() > 0 {
         let input_options: Vec<InputOption> = environments
@@ -651,12 +708,9 @@ pub async fn build_genesis_panel(
         actions.push_sub_group(None, vec![action_request]);
     }
 
-    let Some(running_context) = runbook.flow_contexts.first_mut() else {
-        return Err(vec![diagnosed_error!("runbook empty")]);
-    };
     let mut pass_result: eval::EvaluationPassResult = run_signers_evaluation(
-        &running_context.workspace_context,
-        &mut running_context.execution_context,
+        &flow_context.workspace_context,
+        &mut flow_context.execution_context,
         &runbook.runtime_context,
         &runbook.supervision_context,
         &mut BTreeMap::new(),
@@ -676,7 +730,7 @@ pub async fn build_genesis_panel(
         "start runbook".into(),
         None,
         ActionItemStatus::Todo,
-        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(0)),
+        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(validated_blocks)),
         ACTION_ITEM_GENESIS,
     );
     actions.push_sub_group(None, vec![validate_action]);
@@ -803,6 +857,7 @@ pub async fn process_signers_action_item_response(
     action_item_id: &BlockId,
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
+    current_flow_index: usize,
 ) {
     // Retrieve the previous requests sent and update their statuses.
     let Some((signer_construct_did, scoped_requests)) =
@@ -814,7 +869,7 @@ pub async fn process_signers_action_item_response(
     let mut map = BTreeMap::new();
     map.insert(signer_construct_did, scoped_requests);
 
-    let flow_context = runbook.flow_contexts.first_mut().unwrap();
+    let flow_context = runbook.flow_contexts.get_mut(current_flow_index).unwrap();
     let mut pass_result = run_signers_evaluation(
         &flow_context.workspace_context,
         &mut flow_context.execution_context,
