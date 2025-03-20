@@ -24,11 +24,7 @@ fn main() {
         copy_dir_recursive(src_contracts_dir.as_path(), out_dir.as_path())
             .expect("Failed to copy contracts directory");
 
-        let cp_status = Command::new("cp")
-            .args(&["-a", &src_contracts_dir.display().to_string(), out_dir.to_str().unwrap()])
-            .status()
-            .expect("Failed to copy contracts directory");
-        println!("cargo:warning=Copied contracts directory to output directory: {:?}", cp_status);
+        println!("cargo:warning=Copied contracts directory to output directory: ok");
 
         let exit_status = Command::new("forge")
             .args(&["build"])
