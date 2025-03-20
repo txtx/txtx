@@ -182,6 +182,7 @@ jobs:
           ls
           ls txtx
           ls txtx/target
+          ls txtx/target/${{ matrix.target }}
           mv txtx/target/${{ matrix.target }}/*.msi txtx-${{ env.SHORT_TARGET_NAME }}.msi
 
       - name: Store SHA256 Hash of Tar (Linux x64)
