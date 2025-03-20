@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{fs, path::PathBuf, str::FromStr};
 
 fn main() {
     // evm contract builds
@@ -21,6 +21,9 @@ fn main() {
             std::fs::create_dir_all(&out_dir).expect("Failed to create output directory");
         }
 
+        copy_dir_recursive(src_contracts_dir.as_path(), out_dir.as_path())
+            .expect("Failed to copy contracts directory");
+
         let cp_status = Command::new("cp")
             .args(&["-a", &src_contracts_dir.display().to_string(), out_dir.to_str().unwrap()])
             .status()
@@ -36,4 +39,25 @@ fn main() {
         println!("cargo:info={}", exit_status);
         println!("cargo:warning=------------ EVM Build Script Complete ------------");
     }
+}
+
+use std::path::Path;
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
 }

@@ -1,5 +1,7 @@
 use alloy::{contract::Interface, json_abi::JsonAbi, primitives::Address};
-use txtx_addon_kit::{helpers::fs::get_path_from_components, hex, indexmap::IndexMap, types::types::Value};
+use txtx_addon_kit::{
+    helpers::fs::get_path_from_components, hex, indexmap::IndexMap, types::types::Value,
+};
 
 use crate::codec::foundry::FoundryCompiledOutputJson;
 
