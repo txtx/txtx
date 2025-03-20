@@ -175,6 +175,11 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: tar -C txtx/target/${{ matrix.target }}/release -zcvf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz txtx
 
+      - name: Rename cargo artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: mv txtx/target/wix/*.msi txtx-${{ env.SHORT_TARGET_NAME }}.msi
+
       - name: Store SHA256 Hash of Tar (Linux x64)
         if: matrix.os == 'ubuntu-20.04'
         id: linux_x64_sha
@@ -201,6 +206,12 @@ jobs:
           name: txtx-${{ env.SHORT_TARGET_NAME }}
           path: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
 
+      - name: Upload cargo artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: txtx-${{ env.SHORT_TARGET_NAME }}
+          path: txtx-${{ env.SHORT_TARGET_NAME }}.msi
   release:
     name: Release
     runs-on: ubuntu-latest
