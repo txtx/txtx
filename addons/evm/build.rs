@@ -1,3 +1,5 @@
+use std::{path::PathBuf, str::FromStr};
+
 fn main() {
     // evm contract builds
     {
@@ -5,11 +7,12 @@ fn main() {
         let out_dir =
             std::path::Path::new(&format!("{}", out_dir.to_str().unwrap())).join("contracts");
         use std::process::Command;
-        let src_contracts_dir = "./src/contracts/.";
+        let mut src_contracts_dir = PathBuf::from_str("src").unwrap();
+        src_contracts_dir.push("contracts");
 
         println!("cargo:warning=------------ EVM Build Script ------------");
         println!("cargo:rerun-if-changed=build.rs");
-        println!("cargo:rerun-if-changed={}", src_contracts_dir);
+        println!("cargo:rerun-if-changed={}", src_contracts_dir.display());
 
         println!("cargo:warning=Build script evm contracts dir: {:?}", src_contracts_dir);
         println!("cargo:warning=Build script evm output dir: {:?}", out_dir);
@@ -19,7 +22,7 @@ fn main() {
         }
 
         let cp_status = Command::new("cp")
-            .args(&["-a", src_contracts_dir, out_dir.to_str().unwrap()])
+            .args(&["-a", &src_contracts_dir.display().to_string(), out_dir.to_str().unwrap()])
             .status()
             .expect("Failed to copy contracts directory");
         println!("cargo:warning=Copied contracts directory to output directory: {:?}", cp_status);
