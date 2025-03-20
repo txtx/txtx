@@ -18,11 +18,8 @@ fn main() {
 
             fs::create_dir_all(&out_dir).unwrap();
 
-            let cp_status = Command::new("cp")
-                .args(&["-a", local_dist_dir.to_str().unwrap(), out_dir.to_str().unwrap()])
-                .status()
+            copy_dir_recursive(&local_dist_dir, &out_dir)
                 .expect("Failed to copy supervisor dist directory");
-            println!("cargo:info={}", cp_status);
         } else {
             println!("cargo:warning=Running npm build in txtx-supervisor-ui");
 
