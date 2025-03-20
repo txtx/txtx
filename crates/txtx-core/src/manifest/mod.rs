@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::runbook::{
     RunbookExecutionSnapshot, RunbookTopLevelInputsMap, DEFAULT_TOP_LEVEL_INPUTS_NAME,
 };
@@ -224,7 +226,11 @@ pub struct RunbookMetadata {
 
 impl RunbookMetadata {
     pub fn new(action: &str, name: &str, description: Option<String>) -> Self {
-        let location = format!("runbooks/{}/{}.tx", action, name);
+        let mut location = PathBuf::new();
+        location.push("runbooks");
+        location.push(action);
+        location.push(format!("{}.tx", name));
+        let location = location.display().to_string();
         RunbookMetadata { location, description, name: name.to_string(), state: None }
     }
 }
