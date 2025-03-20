@@ -178,7 +178,7 @@ jobs:
       - name: Rename cargo artifact (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash
-        run: mv txtx/target/${{ matrix.target }}/*.msi txtx-${{ env.SHORT_TARGET_NAME }}.msi
+        run: mv target/${{ matrix.target }}/*.msi txtx-${{ env.SHORT_TARGET_NAME }}.msi
 
       - name: Store SHA256 Hash of Tar (Linux x64)
         if: matrix.os == 'ubuntu-20.04'
