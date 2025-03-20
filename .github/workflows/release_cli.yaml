@@ -180,9 +180,9 @@ jobs:
         shell: bash
         run: |
           ls
-          ls ./target
           ls txtx
-          mv ./target/${{ matrix.target }}/*.msi txtx-${{ env.SHORT_TARGET_NAME }}.msi
+          ls txtx/target
+          mv txtx/target/${{ matrix.target }}/*.msi txtx-${{ env.SHORT_TARGET_NAME }}.msi
 
       - name: Store SHA256 Hash of Tar (Linux x64)
         if: matrix.os == 'ubuntu-20.04'
