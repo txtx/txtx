@@ -175,15 +175,12 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: tar -C txtx/target/${{ matrix.target }}/release -zcvf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz txtx
 
-      - name: Rename cargo artifact (Windows)
+      - name: Compress artifact (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash
         run: |
-          ls
-          ls txtx
-          ls txtx/target
-          ls txtx/target/${{ matrix.target }}
-          mv txtx/target/${{ matrix.target }}/*.msi txtx-${{ env.SHORT_TARGET_NAME }}.msi
+          ls -la ./target/${{ matrix.target }}/release
+          tar -czf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz -C ./target/${{ matrix.target }}/release txtx.exe
 
       - name: Store SHA256 Hash of Tar (Linux x64)
         if: matrix.os == 'ubuntu-20.04'
@@ -211,12 +208,12 @@ jobs:
           name: txtx-${{ env.SHORT_TARGET_NAME }}
           path: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
 
-      - name: Upload cargo artifact (Windows)
+      - name: Upload tar archive (Windows)
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: txtx-${{ env.SHORT_TARGET_NAME }}
-          path: txtx-${{ env.SHORT_TARGET_NAME }}.msi
+          path: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
   release:
     name: Release
     runs-on: ubuntu-latest
