@@ -108,10 +108,17 @@ jobs:
           nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
           working_directory: "txtx-supervisor-ui"
 
-      - name: Build Supervisor UI
+      # install supervisor dependencies (windows)
+      - name: "Install dotenv-cli (windows)"
+        if: matrix.os == 'windows-latest'
         run: |
           cd txtx-supervisor-ui
           npm i -g dotenv-cli
+          cd ..
+
+      - name: Build Supervisor UI
+        run: |
+          cd txtx-supervisor-ui
           npm run i
           npm run build
           cd ..
