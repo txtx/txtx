@@ -178,8 +178,7 @@ jobs:
       - name: Compress artifact (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash
-        run: |
-          ls txtx/target/${{ matrix.target }}/release
+        run:
           tar -czf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz -C txtx/target/${{ matrix.target }}/release txtx.exe
 
       - name: Store SHA256 Hash of Tar (Linux x64)
