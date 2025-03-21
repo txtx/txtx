@@ -179,8 +179,8 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: bash
         run: |
-          ls ./target/${{ matrix.target }}/release
-          tar -czf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz -C ./target/${{ matrix.target }}/release txtx.exe
+          ls txtx/target/${{ matrix.target }}/release
+          tar -czf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz -C txtx/target/${{ matrix.target }}/release txtx.exe
 
       - name: Store SHA256 Hash of Tar (Linux x64)
         if: matrix.os == 'ubuntu-20.04'
