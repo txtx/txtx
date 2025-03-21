@@ -408,7 +408,7 @@ pub fn generate_create2_address(
     salt: &str,
     init_code: &Vec<u8>,
 ) -> Result<Address, String> {
-    let Some(factory_address_bytes) = factory_address.try_get_buffer_bytes() else {
+    let Some(factory_address_bytes) = factory_address.try_get_buffer_bytes_result()? else {
         return Err("failed to generate create2 address: invalid create2 factory address".into());
     };
     let salt_bytes =
@@ -454,7 +454,8 @@ async fn validate_create2_factory_address(
     rpc: &EvmRpc,
     create2_factory_address: &Value,
 ) -> Result<(), String> {
-    let Some(create2_factory_address) = create2_factory_address.try_get_buffer_bytes() else {
+    let Some(create2_factory_address) = create2_factory_address.try_get_buffer_bytes_result()?
+    else {
         return Err(format!(
             "invalid create2 factory address: {}",
             create2_factory_address.to_string()
