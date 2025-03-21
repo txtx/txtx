@@ -57,6 +57,7 @@ pub const FACTORY_FUNCTION_NAME: &str = "factory_function_name";
 pub const FACTORY_FUNCTION_ARGS: &str = "factory_function_args";
 pub const EXPECTED_CONTRACT_ADDRESS: &str = "expected_contract_address";
 pub const DO_VERIFY_CONTRACT: &str = "verify";
+pub const EXPLORER_VERIFICATION_OPTS: &str = "explorer_verification_opts";
 pub const CONTRACT: &str = "contract";
 pub const SALT: &str = "salt";
 pub const ALREADY_DEPLOYED: &str = "already_deployed";

@@ -618,7 +618,9 @@ impl CommandImplementation for DeployContract {
 
             result.append(&mut res);
 
-            let do_verify = inputs.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
+            let do_verify = inputs
+                .get_bool(DO_VERIFY_CONTRACT)
+                .unwrap_or(inputs.get_array(EXPLORER_VERIFICATION_OPTS).is_some());
             if do_verify {
                 let contract_artifacts = inputs.get_expected_value(CONTRACT)?;
                 inputs.insert(ARTIFACTS, contract_artifacts.clone());

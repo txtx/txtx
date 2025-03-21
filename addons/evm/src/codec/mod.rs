@@ -2,6 +2,7 @@ pub mod contract_deployment;
 pub mod crypto;
 pub mod foundry;
 pub mod hardhat;
+pub mod verify;
 
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;

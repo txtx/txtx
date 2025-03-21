@@ -833,32 +833,50 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
             .get_contract_source(&manifest_path, &contract_name)
             .map_err(|e| to_diag(fn_spec, e))?;
 
+        let target_path = compiled_output
+            .get_contract_path(&manifest_file_path, &contract_name)
+            .map_err(|e| diagnosed_error!("{}: {}", prefix, e))
+            .map(|path| FileLocation::from_path(path))?
+            .get_absolute_path()
+            .map_err(|e| {
+                diagnosed_error!("{}: could not find compilation target path: {}", prefix, e)
+            })?;
+        let target_path = target_path.to_str().ok_or(diagnosed_error!(
+            "{}: invalid compilation target path for contract {}",
+            prefix,
+            contract_name
+        ))?;
+        let bytecode = Value::string(compiled_output.bytecode.object);
         let abi = Value::string(abi_string);
-        let bytecode = Value::string(compiled_output.bytecode.object.clone());
         let source = Value::string(source);
-        let compiler_version =
-            Value::string(format!("v{}", compiled_output.metadata.compiler.version));
-        let contract_name = Value::string(contract_name.to_string());
+        let compiler_version = Value::string(compiled_output.metadata.compiler.version);
+        let contract_name = Value::string(contract_name);
+        let contract_target_path = Value::string(target_path.to_string());
         let optimizer_enabled = Value::bool(compiled_output.metadata.settings.optimizer.enabled);
         let optimizer_runs =
             Value::integer(compiled_output.metadata.settings.optimizer.runs as i128);
         let evm_version = Value::string(compiled_output.metadata.settings.evm_version);
+        let project_root = Value::string(manifest_file_path.to_string());
+        let foundry_config = Value::buffer(serde_json::to_vec(&config).unwrap());
 
-        let mut obj_props = indexmap::indexmap! {
-            "abi".to_string() => abi,
-            "bytecode".to_string() => bytecode,
-            "source".to_string() => source,
-            "compiler_version".to_string() => compiler_version,
-            "contract_name".to_string() => contract_name,
-            "optimizer_enabled".to_string() => optimizer_enabled,
-            "optimizer_runs".to_string() => optimizer_runs,
-            "evm_version".to_string() => evm_version,
-        };
+        let mut obj_props = ObjectType::from(vec![
+            ("bytecode", bytecode),
+            ("abi", abi),
+            ("source", source),
+            ("compiler_version", compiler_version),
+            ("contract_name", contract_name),
+            ("contract_target_path", contract_target_path),
+            ("optimizer_enabled", optimizer_enabled),
+            ("optimizer_runs", optimizer_runs),
+            ("evm_version", evm_version),
+            ("project_root", project_root),
+            ("foundry_config", foundry_config),
+        ]);
         if let Some(via_ir) = compiled_output.metadata.settings.via_ir {
-            let via_ir = Value::bool(via_ir);
-            obj_props.insert("via_ir".to_string(), via_ir);
+            obj_props.insert("via_ir", Value::bool(via_ir));
         }
-        Ok(Value::object(obj_props))
+
+        Ok(Value::object(obj_props.inner()))
     }
 }
 
@@ -1030,7 +1048,7 @@ impl FunctionImplementation for EncodeFunctionCall {
             let function_args = value_to_abi_function_args(&function_name, &function_args, &abi)
                 .map_err(|e| to_diag(fn_spec, e.message))?;
 
-            encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
+            encode_contract_call_inputs_from_abi_str(abi_str, &function_name, &function_args)
                 .map_err(|e| to_diag(fn_spec, e))?
         } else {
             let function_args = function_args
@@ -1040,7 +1058,7 @@ impl FunctionImplementation for EncodeFunctionCall {
                 .map(|v| value_to_sol_value(&v).map_err(|e| to_diag(fn_spec, e)))
                 .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?;
 
-            encode_contract_call_inputs_from_selector(function_name, &function_args)
+            encode_contract_call_inputs_from_selector(&function_name, &function_args)
                 .map_err(|e| to_diag(fn_spec, e))?
         };
         Ok(EvmValue::function_call(input))

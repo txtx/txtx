@@ -1,6 +1,7 @@
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use std::borrow::BorrowMut;
 use std::fmt::{self, Display, Formatter};
+use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::str::FromStr;
@@ -235,6 +236,19 @@ impl FileLocation {
                         self.get_file_name().unwrap_or_default()
                     )),
                 }
+            }
+        }
+    }
+
+    pub fn get_absolute_path(&self) -> Result<PathBuf, String> {
+        match self {
+            FileLocation::FileSystem { path } => {
+                let abs = fs::canonicalize(path)
+                    .map_err(|e| format!("failed to get absolute path: {e}"))?;
+                Ok(abs)
+            }
+            FileLocation::Url { url } => {
+                return Err(format!("cannot get absolute path for url {}", url))
             }
         }
     }
