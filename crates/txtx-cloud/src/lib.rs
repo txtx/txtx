@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, ValueEnum};
 use dotenvy::dotenv;
 
 pub mod auth;
@@ -9,17 +9,6 @@ pub mod publish;
 pub fn get_env_var(key: &str) -> String {
     dotenv().ok();
     std::env::var(key).unwrap_or_else(|_| panic!("{} not found", key))
-}
-
-#[derive(Subcommand, PartialEq, Clone, Debug)]
-pub enum CloudCommand {
-    #[clap(name = "login", bin_name = "login")]
-    Login(LoginCommand),
-    /// Publish a runbook to the cloud, allowing it to be called by other runbooks.
-    /// In order to package the runbook for publishing, it will be simulated, and thus requires all required inputs to be provided.
-    /// However, the published runbook will have the inputs removed.
-    #[clap(name = "publish", bin_name = "publish")]
-    Publish(PublishRunbook),
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]

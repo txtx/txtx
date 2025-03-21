@@ -3,7 +3,7 @@ use clap::{ArgAction, Parser, Subcommand};
 use hiro_system_kit::{self, Logger};
 use runbooks::load_runbook_from_manifest;
 use std::process;
-use txtx_cloud::CloudCommand;
+use txtx_cloud::{LoginCommand, PublishRunbook};
 
 mod docs;
 mod lsp;
@@ -70,7 +70,7 @@ enum Command {
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
     Snapshots(SnapshotCommand),
-    /// Authentication management
+    /// Txtx cloud commands
     #[clap(subcommand, name = "cloud", bin_name = "cloud")]
     Cloud(CloudCommand),
 }
@@ -224,6 +224,18 @@ pub struct StartServer {
     /// Set the port for hosting the web UI
     #[arg(long = "ip", short = 'i', default_value = txtx_serve::SERVE_BINDING_ADDRESS )]
     pub network_binding_ip_address: String,
+}
+
+#[derive(Subcommand, PartialEq, Clone, Debug)]
+pub enum CloudCommand {
+    /// Login to the Txtx Cloud
+    #[clap(name = "login", bin_name = "login")]
+    Login(LoginCommand),
+    /// Publish a runbook to the cloud, allowing it to be called by other runbooks.
+    /// In order to package the runbook for publishing, it will be simulated, and thus requires all required inputs to be provided.
+    /// However, the published runbook will have the inputs removed.
+    #[clap(name = "publish", bin_name = "publish")]
+    Publish(PublishRunbook),
 }
 
 fn load_stdin() -> Option<String> {
