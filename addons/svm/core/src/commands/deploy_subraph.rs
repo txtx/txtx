@@ -21,54 +21,9 @@ use crate::constants::{PROGRAM_ID, RPC_API_URL, SUBGRAPH_REQUEST, SUBGRAPH_URL};
 use crate::typing::subgraph::{SubgraphPluginType, SubgraphRequest};
 use crate::typing::{SvmValue, SUBGRAPH_EVENT};
 
-pub struct SubgraphRequestClient {
-    rpc_client: RpcClient,
-    plugin_config: PluginConfig,
-    status_updater: StatusUpdater,
-}
-
-impl SubgraphRequestClient {
-    pub fn new(
-        rpc_api_url: &str,
-        request: SubgraphRequest,
-        plugin_name: SubgraphPluginType,
-        status_updater: StatusUpdater,
-    ) -> Self {
-        Self {
-            rpc_client: RpcClient::new(rpc_api_url.to_string()),
-            plugin_config: PluginConfig::new(plugin_name, request),
-            status_updater,
-        }
-    }
-
-    pub async fn deploy_subgraph(&mut self) -> Result<String, Diagnostic> {
-        let stringified_config = json![self.plugin_config.clone()];
-        let params = serde_json::to_value(vec![stringified_config.to_string()])
-            .map_err(|e| diagnosed_error!("could not serialize subgraph request: {e}"))?;
-        let res = self
-            .rpc_client
-            .send::<String>(RpcRequest::Custom { method: "loadPlugin" }, params)
-            .await
-            .map_err(|e| diagnosed_error!("could not deploy subgraph: {e}"))?;
-
-        self.status_updater.propagate_status(ProgressBarStatus::new_msg(
-            ProgressBarStatusColor::Green,
-            "Subgraph Deployed",
-            &format!(
-                "Subgraph {} for program {} has been deployed",
-                self.plugin_config.data.subgraph_name, self.plugin_config.data.program_id,
-            ),
-        ));
-
-        self.status_updater.propagate_info(&format!("Your subgraph can be reached at {}", res));
-
-        Ok(res)
-    }
-}
-
 lazy_static! {
     pub static ref DEPLOY_SUBGRAPH: PreCommandSpecification = {
-        let mut command = define_command! {
+        let command = define_command! {
             DeployProgram => {
                 name: "Deploy SVM Program Subgraph",
                 matcher: "deploy_subgraph",
@@ -131,6 +86,13 @@ lazy_static! {
                 outputs: [
                 ],
                 example: txtx_addon_kit::indoc! {r#"
+                    action "transfer_event_subgraph" "svm::deploy_subgraph" {
+                        program_id = action.deploy.program_id
+                        program_idl = action.deploy.program_idl
+                        block_height = action.deploy.block_height
+                        event {
+                            name = "TransferEvent"
+                        }
                 "#},
             }
         };
@@ -160,7 +122,7 @@ impl CommandImplementation for DeployProgram {
 
     #[cfg(not(feature = "wasm"))]
     fn run_execution(
-        _construct_id: &ConstructDid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
@@ -168,28 +130,27 @@ impl CommandImplementation for DeployProgram {
         use txtx_addon_kit::{constants::DESCRIPTION, types::commands::return_synchronous_ok};
 
         use crate::{
-            constants::{BLOCK_HEIGHT, EVENT, PROGRAM_IDL, SUBGRAPH_NAME, SUBGRAPH_REQUEST},
-            typing::subgraph::{SubgraphEventDefinition, SubgraphRequest},
+            constants::{BLOCK_HEIGHT, PROGRAM_IDL, SUBGRAPH_NAME, SUBGRAPH_REQUEST},
+            typing::subgraph::SubgraphRequest,
         };
         let _rpc = values.get_expected_string(RPC_API_URL)?;
         let idl_str = values.get_expected_string(PROGRAM_IDL)?;
-        let events =
-            SubgraphEventDefinition::parse_map_values(values.get_expected_map(EVENT)?, idl_str)?;
 
         let block_height = values.get_expected_uint(BLOCK_HEIGHT)?;
         let program_id = SvmValue::to_pubkey(values.get_expected_value(PROGRAM_ID)?)
             .map_err(|e| diagnosed_error!("{e}"))?;
 
-        let subgraph_name = values.get_string(SUBGRAPH_NAME).unwrap_or(&values.name);
+        let subgraph_name = values.get_string(SUBGRAPH_NAME).and_then(|s| Some(s.to_string()));
         let description = values.get_string(DESCRIPTION).and_then(|s| Some(s.to_string()));
 
-        let subgraph_request = SubgraphRequest::new(
+        let subgraph_request = SubgraphRequest::parse_value_store(
             subgraph_name,
             description,
             &program_id,
             idl_str,
-            events,
             block_height,
+            construct_did,
+            values,
         )?;
 
         let mut result = CommandExecutionResult::new();
@@ -237,5 +198,50 @@ impl CommandImplementation for DeployProgram {
             Ok(result)
         };
         Ok(Box::pin(future))
+    }
+}
+
+pub struct SubgraphRequestClient {
+    rpc_client: RpcClient,
+    plugin_config: PluginConfig,
+    status_updater: StatusUpdater,
+}
+
+impl SubgraphRequestClient {
+    pub fn new(
+        rpc_api_url: &str,
+        request: SubgraphRequest,
+        plugin_name: SubgraphPluginType,
+        status_updater: StatusUpdater,
+    ) -> Self {
+        Self {
+            rpc_client: RpcClient::new(rpc_api_url.to_string()),
+            plugin_config: PluginConfig::new(plugin_name, request),
+            status_updater,
+        }
+    }
+
+    pub async fn deploy_subgraph(&mut self) -> Result<String, Diagnostic> {
+        let stringified_config = json![self.plugin_config.clone()];
+        let params = serde_json::to_value(vec![stringified_config.to_string()])
+            .map_err(|e| diagnosed_error!("could not serialize subgraph request: {e}"))?;
+        let res = self
+            .rpc_client
+            .send::<String>(RpcRequest::Custom { method: "loadPlugin" }, params)
+            .await
+            .map_err(|e| diagnosed_error!("could not deploy subgraph: {e}"))?;
+
+        self.status_updater.propagate_status(ProgressBarStatus::new_msg(
+            ProgressBarStatusColor::Green,
+            "Subgraph Deployed",
+            &format!(
+                "Subgraph {} for program {} has been deployed",
+                self.plugin_config.data.subgraph_name, self.plugin_config.data.program_id,
+            ),
+        ));
+
+        self.status_updater.propagate_info(&format!("Your subgraph can be reached at {}", res));
+
+        Ok(res)
     }
 }
