@@ -1,45 +1,45 @@
 use dialoguer::{theme::ColorfulTheme, Select};
-use dotenvy_macro::dotenv;
+use hiro_system_kit::green;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashSet;
+use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_core::{
     kit::types::{embedded_runbooks::EmbeddedRunbookInputSpecification, types::Type},
+    manifest::WorkspaceManifest,
     runbook::embedded_runbook::publishable::PublishableEmbeddedRunbookSpecification,
+    types::Runbook,
 };
 
-use crate::cli::{
-    cloud::gql::{
+use crate::{
+    get_env_var,
+    gql::{
         get_orgs_for_user::{OrgsForUser, OrgsForUserHelper},
         insert_runbook::{insert_runbooks_one, InsertRunbookHelper, InsertRunbooksOne},
     },
-    runbooks::load_runbook_from_manifest,
-    Context, PublishRunbook, PublishRunbookReadPermissions, PublishRunbookWritePermissions,
+    PublishRunbook, PublishRunbookReadPermissions, PublishRunbookWritePermissions,
 };
 
 use super::{auth::AuthConfig, gql::GqlClient};
 
-pub const TXTX_CONSOLE_URL: &str = dotenv!("TXTX_CONSOLE_URL");
+pub const TXTX_CONSOLE_URL: &str = "TXTX_CONSOLE_URL";
+
+pub fn load_workspace_manifest_from_manifest_path(
+    manifest_path: &str,
+) -> Result<WorkspaceManifest, String> {
+    let manifest_location = FileLocation::from_path_string(manifest_path)?;
+    WorkspaceManifest::from_location(&manifest_location)
+}
 
 pub async fn handle_publish_command(
     cmd: &PublishRunbook,
-    buffer_stdin: Option<String>,
-    _ctx: &Context,
+    mut runbook: Runbook,
 ) -> Result<(), String> {
     let auth_config = AuthConfig::read_from_system_config()
         .map_err(|e| format!("failed to authenticate user: {e}"))?
         .ok_or(format!(
             "You must be logged in to publish a runbook. Run `txtx cloud login` to log in."
         ))?;
-
-    let (_manifest, _runbook_name, mut runbook, _runbook_state) = load_runbook_from_manifest(
-        &cmd.manifest_path,
-        &cmd.runbook,
-        &cmd.environment,
-        &cmd.inputs,
-        buffer_stdin,
-    )
-    .await?;
 
     {
         let run = runbook.flow_contexts.first_mut().expect("no flow contexts found");
@@ -153,7 +153,7 @@ async fn publish_gql(
     println!(
         "{} Runbook published to {}/runbook/{}",
         green!("✓"),
-        TXTX_CONSOLE_URL,
+        get_env_var(TXTX_CONSOLE_URL),
         response.insert_runbooks_one.unwrap().id
     );
 

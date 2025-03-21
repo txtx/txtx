@@ -4097,18 +4097,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
-name = "dotenvy_macro"
-version = "0.15.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb0235d912a8c749f4e0c9f18ca253b4c28cfefc1d2518096016d6e3230b6424"
-dependencies = [
- "dotenvy",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "downcast-rs"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14206,7 +14194,6 @@ version = "0.2.7"
 dependencies = [
  "crossbeam-channel",
  "dirs",
- "dotenvy_macro",
  "futures",
  "getrandom 0.2.15",
  "hcl-edit",
@@ -14372,12 +14359,10 @@ dependencies = [
 name = "txtx-cli"
 version = "0.2.10"
 dependencies = [
- "actix-cors",
  "actix-web",
  "ansi_term",
  "ascii_table",
  "atty",
- "base64 0.22.1",
  "chrono",
  "clap 4.5.28",
  "clap_generate",
@@ -14386,12 +14371,8 @@ dependencies = [
  "crossterm",
  "ctrlc",
  "dialoguer",
- "dirs",
- "dotenvy_macro",
- "graphql_client",
  "hiro-system-kit 0.3.4",
  "itertools 0.12.1",
- "open",
  "openssl",
  "openssl-sys",
  "ratatui",
@@ -14399,10 +14380,8 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "serde_urlencoded",
  "test-case",
  "tokio",
- "toml 0.8.20",
  "tower-lsp",
  "txtx-addon-network-bitcoin",
  "txtx-addon-network-evm",
@@ -14411,12 +14390,41 @@ dependencies = [
  "txtx-addon-network-svm",
  "txtx-addon-sp1",
  "txtx-addon-telegram",
+ "txtx-cloud",
  "txtx-core",
  "txtx-gql",
  "txtx-lsp",
  "txtx-serve",
  "txtx-supervisor-ui",
  "unicode-width 0.2.0",
+]
+
+[[package]]
+name = "txtx-cloud"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "ansi_term",
+ "atty",
+ "base64 0.22.1",
+ "clap 4.5.28",
+ "clap_generate",
+ "dialoguer",
+ "dirs",
+ "dotenvy",
+ "graphql_client",
+ "hiro-system-kit 0.3.4",
+ "open",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_urlencoded",
+ "tokio",
+ "toml 0.8.20",
+ "txtx-addon-kit",
+ "txtx-core",
+ "txtx-gql",
 ]
 
 [[package]]
@@ -14491,7 +14499,6 @@ dependencies = [
  "ansi_term",
  "atty",
  "base58 0.2.0",
- "dotenvy_macro",
  "hiro-system-kit 0.3.4",
  "include_dir",
  "juniper_actix",

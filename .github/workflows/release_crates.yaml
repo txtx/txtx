@@ -80,7 +80,7 @@ jobs:
       - name: Publish Crates
         run: |
           cd txtx
-          for manifest in crates/txtx-addon-kit/Cargo.toml crates/txtx-core/Cargo.toml crates/txtx-gql/Cargo.toml crates/txtx-supervisor-ui/Cargo.toml addons/evm/Cargo.toml addons/svm/Cargo.toml; do
+          for manifest in crates/txtx-addon-kit/Cargo.toml crates/txtx-core/Cargo.toml crates/txtx-cloud/Cargo.toml crates/txtx-gql/Cargo.toml crates/txtx-supervisor-ui/Cargo.toml addons/evm/Cargo.toml addons/svm/Cargo.toml; do
             if [ -f "$manifest" ]; then
               echo "Checking $manifest for changes..."
               

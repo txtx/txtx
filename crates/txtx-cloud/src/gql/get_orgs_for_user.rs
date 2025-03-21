@@ -3,8 +3,8 @@ use graphql_client::GraphQLQuery;
 type Uuid = String;
 #[derive(GraphQLQuery)]
 #[graphql(
-    schema_path = "src/cli/cloud/gql/fixtures/schema.graphql",
-    query_path = "src/cli/cloud/gql/fixtures/queries.graphql",
+    schema_path = "src/gql/fixtures/schema.graphql",
+    query_path = "src/gql/fixtures/queries.graphql",
     response_derives = "Debug",
     normalization = "rust",
     skip_serializing_none
