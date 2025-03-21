@@ -601,7 +601,7 @@ impl Runbook {
 
 #[derive(Clone, Debug)]
 pub struct RunbookOutputs {
-    outputs: IndexMap<String, IndexMap<String, (String, Option<String>)>>,
+    outputs: IndexMap<String, IndexMap<String, (Value, Option<String>)>>,
 }
 impl RunbookOutputs {
     pub fn new() -> Self {
@@ -616,10 +616,8 @@ impl RunbookOutputs {
         output_description: &Option<String>,
     ) {
         let flow_outputs = self.outputs.entry(flow_name.to_string()).or_insert_with(IndexMap::new);
-        flow_outputs.insert(
-            output_name.to_string(),
-            (output_value.to_string(), output_description.clone()),
-        );
+        flow_outputs
+            .insert(output_name.to_string(), (output_value.clone(), output_description.clone()));
     }
 
     /// Organizes the outputs in a format suitable to be displayed using the `AsciiTable` crate.
@@ -656,7 +654,7 @@ impl RunbookOutputs {
             let mut flow_json = json!({});
             for (output_name, (output_value, output_description)) in flow_outputs.iter() {
                 let mut output_json = json!({});
-                output_json["value"] = output_value.clone().into();
+                output_json["value"] = output_value.to_json();
                 if let Some(ref output_description) = output_description {
                     output_json["description"] = output_description.clone().into();
                 }
