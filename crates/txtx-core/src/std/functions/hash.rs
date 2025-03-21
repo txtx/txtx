@@ -1,6 +1,7 @@
-use kit::sha2::Sha256 as LibSha256;
-use kit::types::AuthorizationContext;
 use ripemd::{Digest, Ripemd160 as LibRipemd160};
+use txtx_addon_kit::keccak_hash::keccak;
+use txtx_addon_kit::sha2::Sha256 as LibSha256;
+use txtx_addon_kit::types::AuthorizationContext;
 
 use txtx_addon_kit::{
     define_function, indoc,
@@ -11,6 +12,7 @@ use txtx_addon_kit::{
     },
 };
 
+use super::{arg_checker, to_diag};
 use crate::std::typing::StdValue;
 
 lazy_static! {
@@ -51,6 +53,28 @@ lazy_static! {
                     value: {
                         documentation: "The hex-encoded value to hash.",
                         typing: vec![Type::buffer(), Type::array(Type::buffer())]
+                    }
+                ],
+                output: {
+                    documentation: "The hashed result.",
+                    typing: Type::string()
+                },
+            }
+        },
+        define_function! {
+            Keccak256 => {
+                name: "keccak256",
+                documentation: "`std::keccak256` computes the keccak256 hash of a value.",
+                example: indoc!{r#"
+                output "hashed_data" {
+                    value = keccak256("hello, world")
+                }
+                // > hashed_data: 0x09ca7e4eaa6e8ae9c7d261167129184883644d07dfba7cbfbc4c8a2e08360d5b
+              "#},
+                inputs: [
+                    value: {
+                        documentation: "The string value to hash.",
+                        typing: vec![Type::string()]
                     }
                 ],
                 output: {
@@ -111,5 +135,27 @@ impl FunctionImplementation for Sha256 {
         hasher.update(value.to_bytes());
         let result = hasher.finalize();
         Ok(StdValue::hash(result[..].to_vec()))
+    }
+}
+
+pub struct Keccak256;
+impl FunctionImplementation for Keccak256 {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let value = args.get(0).unwrap().as_string().unwrap().to_string();
+        let hash = keccak(value.as_bytes());
+        Ok(StdValue::hash(hash.0.to_vec()))
     }
 }

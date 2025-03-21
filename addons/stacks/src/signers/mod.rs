@@ -4,7 +4,7 @@ use txtx_addon_kit::types::{
         ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
         ReviewInputRequest,
     },
-    signers::{signer_diag_with_namespace_ctx, SignerSpecification},
+    signers::SignerSpecification,
     types::Value,
     ConstructDid,
 };
@@ -20,7 +20,7 @@ use web_wallet::STACKS_WEB_WALLET;
 use crate::{
     constants::{
         ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-        DEFAULT_MESSAGE, NAMESPACE,
+        DEFAULT_MESSAGE,
     },
     rpc::StacksRpc,
 };
@@ -30,11 +30,6 @@ pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/5757'/0'/0/0";
 lazy_static! {
     pub static ref WALLETS: Vec<SignerSpecification> =
         vec![STACKS_SECRET_KEY.clone(), STACKS_WEB_WALLET.clone(), STACKS_MULTISIG.clone()];
-}
-
-pub fn namespaced_err_fn() -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
-    let error_fn = signer_diag_with_namespace_ctx(NAMESPACE.to_string());
-    error_fn
 }
 
 pub async fn get_addition_actions_for_address(
@@ -55,7 +50,7 @@ pub async fn get_addition_actions_for_address(
     if do_request_public_key {
         action_items.push(ActionItemRequest::new(
             &Some(signer_did.clone()),
-            &format!("Connect wallet {instance_name}"),
+            &format!("Connect wallet '{instance_name}'"),
             None,
             ActionItemStatus::Todo,
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
@@ -72,13 +67,11 @@ pub async fn get_addition_actions_for_address(
         if do_request_address_check {
             action_items.push(ActionItemRequest::new(
                 &Some(signer_did.clone()),
-                &format!("Check {} expected address", instance_name),
+                &format!("Check '{}' expected address", instance_name),
                 None,
                 ActionItemStatus::Todo,
-                ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                    input_name: "".into(), // todo
-                    value: Value::string(expected_address.to_owned()),
-                }),
+                ReviewInputRequest::new("", &Value::string(expected_address.to_owned()))
+                    .to_action_type(),
                 ACTION_ITEM_CHECK_ADDRESS,
             ))
         }
@@ -101,10 +94,7 @@ pub async fn get_addition_actions_for_address(
                 "Check signer balance",
                 None,
                 action_status,
-                ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                    input_name: "".into(), // todo
-                    value,
-                }),
+                ReviewInputRequest::new("", &value).to_action_type(),
                 ACTION_ITEM_CHECK_BALANCE,
             );
             action_items.push(check_balance);
@@ -116,10 +106,7 @@ pub async fn get_addition_actions_for_address(
                 "Check signer balance",
                 None,
                 ActionItemStatus::Todo,
-                ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                    input_name: "".into(), // todo
-                    value: Value::string("N/A".to_string()),
-                }),
+                ReviewInputRequest::new("", &Value::string("N/A".to_string())).to_action_type(),
                 ACTION_ITEM_CHECK_BALANCE,
             );
             action_items.push(check_balance);

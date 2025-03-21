@@ -37,19 +37,19 @@ lazy_static! {
         SendContractCall => {
             name: "Send Contract Call Transaction",
             matcher: "call_contract",
-            documentation: "The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.",
+            documentation: "The `stacks::call_contract` action encodes a contract call transaction, signs the transaction using the specified signer, and broadcasts the signed transaction to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
                 description: {
-                    documentation: "Description of the transaction",
+                    documentation: "The description of the transaction.",
                     typing: Type::string(),
                     optional: true,
                     tainting: false,
                     internal: false
                 },
                 contract_id: {
-                    documentation: "The address and identifier of the contract to invoke.",
+                    documentation: "The Stacks address and contract name of the contract to invoke.",
                     typing: Type::addon(STACKS_CV_PRINCIPAL),
                     optional: false,
                     tainting: true,
@@ -70,16 +70,16 @@ lazy_static! {
                     internal: false
                 },
                 network_id: {
-                    documentation: "The network id used to validate the transaction version.",
+                    documentation: indoc!{r#"The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`."#},
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: true,
                     internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: false,
                     internal: false
                 },
@@ -98,7 +98,7 @@ lazy_static! {
                     internal: false
                 },
                 confirmations: {
-                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
                     typing: Type::integer(),
                     optional: true,
                     tainting: false,
@@ -133,7 +133,7 @@ lazy_static! {
                     internal: false
                 },
                 post_condition_mode: {
-                    documentation: "The post condition mode ('allow', 'deny'). In Allow mode other asset transfers not covered by the post-conditions are permitted. In Deny mode no other asset transfers are permitted besides those named in the post-conditions.",
+                    documentation: "The post condition mode ('allow', 'deny'). In Allow mode other asset transfers not covered by the post-conditions are permitted. In Deny mode no other asset transfers are permitted besides those named in the post-conditions. The default is Deny mode.",
                     typing: Type::string(),
                     optional: true,
                     tainting: true,
@@ -166,18 +166,18 @@ lazy_static! {
                     function_args = [
                         stacks::cv_buff(output.bitcoin_price_feed),
                         stacks::cv_tuple({
-                            "pyth-storage-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-store-v1"),
-                            "pyth-decoder-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-                            "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
+                            "pyth-storage-contract": stacks::cv_principal("${input.pyth_deployer}.pyth-store-v1"),
+                            "pyth-decoder-contract": stacks::cv_principal("${input.pyth_deployer}.pyth-pnau-decoder-v1"),
+                            "wormhole-core-contract": stacks::cv_principal("${input.pyth_deployer}.wormhole-core-v1")
                         })
                     ]
                     signer = signer.alice
                 }            
                 output "tx_id" {
-                value = action.my_ref.tx_id
+                    value = action.my_ref.tx_id
                 }
                 output "result" {
-                value = action.my_ref.result
+                    value = action.my_ref.result
                 }
                 // > tx_id: 0x...
                 // > result: success
@@ -204,7 +204,10 @@ impl CommandImplementation for SendContractCall {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        let signer_did = get_signer_did(values).unwrap();
+        let signer_did = match get_signer_did(values) {
+            Ok(value) => value,
+            Err(diag) => return Err((signers, ValueStore::tmp(), diag)),
+        };
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
         // Extract network_id
         let network_id: String = match values.get_expected_string("network_id") {
@@ -219,11 +222,8 @@ impl CommandImplementation for SendContractCall {
             Ok(value) => value,
             Err(diag) => return Err((signers, signer_state, diag)),
         };
-        let function_args_values = match values.get_expected_array("function_args") {
-            Ok(value) => value,
-            Err(diag) => return Err((signers, signer_state, diag)),
-        };
         let empty_vec = vec![];
+        let function_args_values = values.get_expected_array("function_args").unwrap_or(&empty_vec);
         let post_conditions_values =
             values.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = values.get_string("post_condition_mode").unwrap_or("deny");
@@ -273,7 +273,7 @@ impl CommandImplementation for SendContractCall {
         let network_id: String = args.get_expected_string("network_id").unwrap().to_owned();
         let contract_id_value = args.get_expected_value("contract_id").unwrap();
         let function_name = args.get_expected_string("function_name").unwrap();
-        let function_args_values = args.get_expected_array("function_args").unwrap();
+        let function_args_values = args.get_expected_array("function_args").unwrap_or(&empty_vec);
         let post_conditions_values =
             args.get_expected_array("post_conditions").unwrap_or(&empty_vec);
         let post_condition_mode = args.get_string("post_condition_mode").unwrap_or("deny");
@@ -281,7 +281,7 @@ impl CommandImplementation for SendContractCall {
         let bytes = encode_contract_call(
             spec,
             function_name,
-            function_args_values,
+            &function_args_values,
             &network_id,
             contract_id_value,
         )

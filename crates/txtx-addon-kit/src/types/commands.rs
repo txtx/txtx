@@ -11,15 +11,15 @@ use std::{
 use uuid::Uuid;
 
 use hcl_edit::{expr::Expression, structure::Block, Span};
+use indexmap::IndexMap;
 
-use crate::types::stores::ValueStore;
 use crate::{
     constants::{SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES},
     helpers::hcl::{
-        collect_constructs_references_from_expression, get_object_expression_key,
-        visit_optional_untyped_attribute,
+        collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
 };
+use crate::{helpers::hcl::get_object_expression_key, types::stores::ValueStore};
 
 use super::{
     diagnostics::Diagnostic,
@@ -29,12 +29,13 @@ use super::{
         ProvidedInputResponse, ReviewedInputResponse,
     },
     signers::{
-        consolidate_signer_activate_future_result, consolidate_signer_future_result,
+        consolidate_nested_execution_result, consolidate_signer_activate_future_result,
+        consolidate_signer_future_result, return_synchronous, PrepareSignedNestedExecutionResult,
         SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
     },
     stores::ValueMap,
     types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
-    ConstructDid, Did, PackageId,
+    ConstructDid, Did, EvaluatableInput, PackageId, WithEvaluatableInputs,
 };
 
 #[derive(Clone, Debug)]
@@ -72,12 +73,113 @@ impl CommandExecutionResult {
         }
         Self { outputs }
     }
+
+    pub fn insert(&mut self, key: &str, value: Value) {
+        self.outputs.insert(key.into(), value);
+    }
+
+    /// Applies each of the keys/values of `other` onto `self`
+    pub fn apply(&mut self, other: &CommandExecutionResult) {
+        for (key, value) in other.outputs.iter() {
+            self.outputs.insert(key.clone(), value.clone());
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct DependencyExecutionResultCache {
+    cache: HashMap<ConstructDid, Result<CommandExecutionResult, Diagnostic>>,
+}
+impl DependencyExecutionResultCache {
+    pub fn new() -> Self {
+        Self { cache: HashMap::new() }
+    }
+
+    pub fn get(
+        &self,
+        construct_did: &ConstructDid,
+    ) -> Option<&Result<CommandExecutionResult, Diagnostic>> {
+        self.cache.get(construct_did)
+    }
+
+    pub fn insert(
+        &mut self,
+        construct_did: ConstructDid,
+        result: Result<CommandExecutionResult, Diagnostic>,
+    ) {
+        self.cache.insert(construct_did, result);
+    }
+
+    /// If `self` does not contain `construct_did`, insert `construct_did` with `other_result`.
+    /// If `self` contains `construct_did`, apply `other_result` onto the existing value by only inserting
+    /// each of the keys of `other_result` into `self`'s results at `construct_did`.
+    pub fn merge(
+        &mut self,
+        construct_did: &ConstructDid,
+        other_result: &CommandExecutionResult,
+    ) -> Result<(), Diagnostic> {
+        match self.cache.get_mut(&construct_did) {
+            Some(Ok(result)) => {
+                result.apply(&other_result);
+            }
+            Some(Err(e)) => return Err(e.clone()),
+            None => {
+                self.cache.insert(construct_did.clone(), Ok(other_result.clone()));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct CommandInputsEvaluationResult {
     pub inputs: ValueStore,
-    pub unevaluated_inputs: Vec<String>,
+    pub unevaluated_inputs: UnevaluatedInputsMap,
+}
+
+impl CommandInputsEvaluationResult {
+    pub fn get_if_not_unevaluated<'a, ReturnType>(
+        &'a self,
+        key: &str,
+        getter: impl Fn(&'a ValueStore, &str) -> Result<ReturnType, Diagnostic>,
+    ) -> Result<ReturnType, Diagnostic> {
+        self.unevaluated_inputs.check_for_diagnostic(key)?;
+        getter(&self.inputs, key)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct UnevaluatedInputsMap {
+    pub map: IndexMap<String, Option<Diagnostic>>,
+}
+impl UnevaluatedInputsMap {
+    pub fn new() -> Self {
+        Self { map: IndexMap::new() }
+    }
+
+    pub fn insert(&mut self, key: String, value: Option<Diagnostic>) {
+        self.map.insert(key, value);
+    }
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.map.contains_key(key)
+    }
+
+    pub fn check_for_diagnostic(&self, key: &str) -> Result<(), Diagnostic> {
+        match self.map.get(key) {
+            Some(diag) => match diag {
+                Some(diag) => Err(diag.clone()),
+                None => {
+                    Err(Diagnostic::error_from_string(format!("input '{}' was not evaluated", key)))
+                }
+            },
+            _ => Ok(()),
+        }
+    }
+    pub fn merge(&mut self, other: &UnevaluatedInputsMap) {
+        for (key, value) in other.map.iter() {
+            self.map.insert(key.clone(), value.clone());
+        }
+    }
 }
 
 impl Serialize for CommandInputsEvaluationResult {
@@ -98,7 +200,7 @@ impl CommandInputsEvaluationResult {
         Self {
             inputs: ValueStore::new(&format!("{name}_inputs"), &Did::zero())
                 .with_defaults(defaults),
-            unevaluated_inputs: vec![],
+            unevaluated_inputs: UnevaluatedInputsMap::new(),
         }
     }
 
@@ -119,46 +221,35 @@ pub struct CommandInput {
     pub sensitive: bool,
     pub internal: bool,
 }
+impl EvaluatableInput for CommandInput {
+    fn optional(&self) -> bool {
+        self.optional
+    }
+    fn typing(&self) -> &Type {
+        &self.typing
+    }
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+}
 
 impl CommandInput {
     pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
-        match &self.typing {
-            Type::Object(spec) => Some(spec),
-            Type::Addon(_) => None,
-            Type::Array(_) => None,
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-        }
+        self.typing.as_object()
     }
     pub fn as_array(&self) -> Option<&Box<Type>> {
-        match &self.typing {
-            Type::Object(_) => None,
-            Type::Addon(_) => None,
-            Type::Array(array) => Some(array),
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-        }
+        self.typing.as_array()
     }
     pub fn as_action(&self) -> Option<&String> {
-        match &self.typing {
-            Type::Object(_) => None,
-            Type::Addon(addon) => Some(addon),
-            Type::Array(_) => None,
-            Type::Bool => None,
-            Type::Null => None,
-            Type::Integer => None,
-            Type::Float => None,
-            Type::String => None,
-            Type::Buffer => None,
-        }
+        self.typing.as_action()
+    }
+    pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+        self.typing.as_map()
+    }
+    pub fn check_value(&self, value: &Value) -> Result<(), Diagnostic> {
+        self.typing.check_value(value).map_err(|e| {
+            Diagnostic::error_from_string(format!("error in input '{}': {}", self.name, e.message))
+        })
     }
 }
 
@@ -248,10 +339,13 @@ pub struct CommandSpecification {
     pub inputs_post_processing_closure: InputsPostProcessingClosure,
     pub check_instantiability: InstantiabilityChecker,
     pub check_executability: CommandCheckExecutabilityClosure,
+    pub prepare_nested_execution: CommandPrepareNestedExecution,
     pub run_execution: CommandExecutionClosure,
     pub check_signed_executability: CommandCheckSignedExecutabilityClosure,
+    pub prepare_signed_nested_execution: CommandSignedPrepareNestedExecution,
     pub run_signed_execution: CommandSignedExecutionClosure,
     pub build_background_task: CommandBackgroundTaskExecutionClosure,
+    pub aggregate_nested_execution_results: CommandAggregateNestedExecutionResults,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -343,11 +437,13 @@ impl Serialize for CommandSpecification {
     where
         S: Serializer,
     {
-        let mut ser = serializer.serialize_struct("CommandSpecification", 4)?;
+        let mut ser = serializer.serialize_struct("CommandSpecification", 6)?;
+        ser.serialize_field("id", &self.matcher)?;
         ser.serialize_field("name", &self.name)?;
         ser.serialize_field("documentation", &self.documentation)?;
         ser.serialize_field("inputs", &self.inputs)?;
         ser.serialize_field("outputs", &self.outputs)?;
+        ser.serialize_field("example", &self.example)?;
         ser.end()
     }
 }
@@ -398,6 +494,12 @@ pub type CommandBackgroundTaskExecutionClosure = Box<
     ) -> CommandExecutionFutureResult,
 >;
 
+pub type CommandAggregateNestedExecutionResults = fn(
+    &ConstructDid,
+    &Vec<(ConstructDid, ValueStore)>,
+    &Vec<CommandExecutionResult>,
+) -> Result<CommandExecutionResult, Diagnostic>;
+
 pub type CommandSignedExecutionClosure = Box<
     fn(
         &ConstructDid,
@@ -430,6 +532,17 @@ pub type CommandCheckSignedExecutabilityClosure = fn(
     SignersState,
 ) -> SignerActionsFutureResult;
 
+pub type CommandSignedPrepareNestedExecution = fn(
+    &ConstructDid,
+    &str,
+    &ValueStore,
+    &HashMap<ConstructDid, SignerInstance>,
+    SignersState,
+) -> PrepareSignedNestedExecutionResult;
+
+pub type CommandPrepareNestedExecution =
+    fn(&ConstructDid, &str, &ValueStore) -> Result<Vec<(ConstructDid, ValueStore)>, Diagnostic>;
+
 pub fn return_synchronous_result(
     res: Result<CommandExecutionResult, Diagnostic>,
 ) -> CommandExecutionFutureResult {
@@ -456,10 +569,23 @@ pub trait CompositeCommandImplementation {
 pub enum CommandInstanceType {
     Variable,
     Output,
-    Action,
+    Action(String),
     Prompt,
     Module,
     Addon,
+}
+
+impl CommandInstanceType {
+    pub fn to_ident(&self) -> &str {
+        match self {
+            CommandInstanceType::Variable => "variable",
+            CommandInstanceType::Output => "output",
+            CommandInstanceType::Action(_) => "action",
+            CommandInstanceType::Prompt => "prompt",
+            CommandInstanceType::Module => "module",
+            CommandInstanceType::Addon => "addon",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -491,6 +617,91 @@ impl Serialize for CommandInstance {
     }
 }
 
+impl WithEvaluatableInputs for CommandInstance {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+    /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
+    fn get_expression_from_input(&self, input_name: &str) -> Option<Expression> {
+        visit_optional_untyped_attribute(&input_name, &self.block)
+    }
+
+    fn get_blocks_for_map(
+        &self,
+        input_name: &str,
+        input_typing: &Type,
+        input_optional: bool,
+    ) -> Result<Option<Vec<Block>>, Vec<Diagnostic>> {
+        let mut entries = vec![];
+
+        match &input_typing {
+            Type::Map(_) => {
+                for block in self.block.body.get_blocks(&input_name) {
+                    entries.push(block.clone());
+                }
+            }
+            _ => {
+                unreachable!()
+            }
+        };
+        if entries.is_empty() {
+            if !input_optional {
+                return Err(vec![Diagnostic::error_from_string(format!(
+                    "command '{}' (type '{}') is missing value for object '{}'",
+                    self.name, self.specification.matcher, input_name
+                ))]);
+            } else {
+                return Ok(None);
+            }
+        }
+        Ok(Some(entries))
+    }
+
+    fn get_expression_from_block(
+        &self,
+        block: &Block,
+        prop: &ObjectProperty,
+    ) -> Option<Expression> {
+        visit_optional_untyped_attribute(&prop.name, &block)
+    }
+
+    fn get_expression_from_object(
+        &self,
+        input_name: &str,
+        input_typing: &Type,
+    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
+        match &input_typing {
+            Type::Object(_) => Ok(visit_optional_untyped_attribute(&input_name, &self.block)),
+            _ => Err(vec![Diagnostic::error_from_string(format!(
+                "command '{}' (type '{}') expected object for input '{}'",
+                self.name, self.specification.matcher, input_name
+            ))]),
+        }
+    }
+
+    fn get_expression_from_object_property(
+        &self,
+        input_name: &str,
+        prop: &ObjectProperty,
+    ) -> Option<Expression> {
+        let expr = visit_optional_untyped_attribute(&input_name, &self.block);
+        match expr {
+            Some(expr) => {
+                let object_expr = expr.as_object().unwrap();
+                let expr_res = get_object_expression_key(object_expr, &prop.name);
+                match expr_res {
+                    Some(expression) => Some(expression.expr().clone()),
+                    None => None,
+                }
+            }
+            None => None,
+        }
+    }
+    fn spec_inputs(&self) -> Vec<impl EvaluatableInput> {
+        self.specification.inputs.iter().map(|x| x.clone()).collect()
+    }
+}
+
 impl CommandInstance {
     pub async fn post_process_inputs_evaluations(
         &self,
@@ -508,9 +719,24 @@ impl CommandInstance {
         let mut expressions = vec![];
         for input in self.specification.inputs.iter() {
             match input.typing {
+                Type::Map(ref props) => {
+                    for block in self.block.body.get_blocks(&input.name) {
+                        for prop in props.iter() {
+                            let res = visit_optional_untyped_attribute(&prop.name, &block);
+                            if let Some(expr) = res {
+                                let mut references = vec![];
+                                collect_constructs_references_from_expression(
+                                    &expr,
+                                    Some(input),
+                                    &mut references,
+                                );
+                                expressions.append(&mut references);
+                            }
+                        }
+                    }
+                }
                 Type::Object(ref props) => {
-                    let res = visit_optional_untyped_attribute(&input.name, &self.block)
-                        .map_err(|e| format!("{:?}", e))?;
+                    let res = visit_optional_untyped_attribute(&input.name, &self.block);
                     if let Some(expr) = res {
                         let mut references = vec![];
                         collect_constructs_references_from_expression(
@@ -523,8 +749,7 @@ impl CommandInstance {
                     for prop in props.iter() {
                         let mut blocks_iter = self.block.body.get_blocks(&input.name);
                         while let Some(block) = blocks_iter.next() {
-                            let res = visit_optional_untyped_attribute(&prop.name, &block)
-                                .map_err(|e| format!("{:?}", e))?;
+                            let res = visit_optional_untyped_attribute(&prop.name, &block);
                             if let Some(expr) = res {
                                 let mut references = vec![];
                                 collect_constructs_references_from_expression(
@@ -538,8 +763,7 @@ impl CommandInstance {
                     }
                 }
                 _ => {
-                    let res = visit_optional_untyped_attribute(&input.name, &self.block)
-                        .map_err(|e| format!("{:?}", e))?;
+                    let res = visit_optional_untyped_attribute(&input.name, &self.block);
                     if let Some(expr) = res {
                         let mut references = vec![];
                         collect_constructs_references_from_expression(
@@ -566,22 +790,6 @@ impl CommandInstance {
         Ok(expressions)
     }
 
-    /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
-    pub fn get_expression_from_input(
-        &self,
-        input: &CommandInput,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let res = visit_optional_untyped_attribute(&input.name, &self.block)?;
-        match (res, input.optional) {
-            (Some(res), _) => Ok(Some(res)),
-            (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing value for field '{}'",
-                self.name, self.specification.matcher, input.name
-            ))]),
-        }
-    }
-
     pub fn get_group(&self) -> String {
         let Some(group) = self.block.body.get_attribute("group") else {
             return format!("{} Review", self.specification.name.to_string());
@@ -589,61 +797,10 @@ impl CommandInstance {
         group.value.to_string()
     }
 
-    pub fn get_expression_from_object(
-        &self,
-        input: &CommandInput,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let object = match &input.typing {
-            Type::Object(_) => visit_optional_untyped_attribute(&input.name, &self.block)?,
-            _ => {
-                unreachable!()
-            }
-        };
-        match (object, input.optional) {
-            (Some(expr), _) => Ok(Some(expr)),
-            (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing value for object '{}'",
-                self.name, self.specification.matcher, input.name
-            ))]),
-        }
-    }
-
-    pub fn get_expression_from_object_property(
-        &self,
-        input: &CommandInput,
-        prop: &ObjectProperty,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let expr = visit_optional_untyped_attribute(&input.name, &self.block)?;
-        match (expr, input.optional) {
-            (Some(expr), _) => {
-                let object_expr = expr.as_object().unwrap();
-                let expr_res = get_object_expression_key(object_expr, &prop.name);
-                match (expr_res, prop.optional) {
-                    (Some(expression), _) => Ok(Some(expression.expr().clone())),
-                    (None, true) => Ok(None),
-                    (None, false) => todo!(
-                        "command '{}' (type '{}') is missing property '{}' for object '{}'",
-                        self.name,
-                        self.specification.matcher,
-                        prop.name,
-                        input.name
-                    ),
-                }
-            }
-            (None, true) => Ok(None),
-            (None, false) => todo!(
-                "command '{}' (type '{}') is missing object '{}'",
-                self.name,
-                self.specification.matcher,
-                input.name
-            ),
-        }
-    }
-
     pub fn check_executability(
         &mut self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &mut CommandInputsEvaluationResult,
         _signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
@@ -653,7 +810,8 @@ impl CommandInstance {
             &format!("{}_inputs", self.specification.matcher),
             &construct_did.value(),
         )
-        .with_defaults(&evaluated_inputs.inputs.defaults);
+        .with_defaults(&evaluated_inputs.inputs.defaults)
+        .append_inputs(&nested_evaluation_values.inputs);
 
         let mut consolidated_actions = Actions::none();
         match action_item_response {
@@ -663,6 +821,7 @@ impl CommandInstance {
                         ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                             input_name,
                             value_checked,
+                            ..
                         }) => {
                             for input in self.specification.inputs.iter_mut() {
                                 if &input.name == input_name {
@@ -736,6 +895,7 @@ impl CommandInstance {
     pub async fn perform_execution(
         &self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
@@ -743,7 +903,8 @@ impl CommandInstance {
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
-            .with_inputs(&evaluated_inputs.inputs.inputs);
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .append_inputs(&nested_evaluation_values.inputs);
 
         let spec = &self.specification;
         let res = (spec.run_execution)(&construct_did, &self.specification, &values, progress_tx)?
@@ -772,6 +933,11 @@ impl CommandInstance {
                         request.action_status = status.clone();
                     }
                 }
+                ActionItemRequestType::SendTransaction(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
                 ActionItemRequestType::ProvideSignedMessage(_) => {
                     if success {
                         request.action_status = status.clone();
@@ -783,9 +949,46 @@ impl CommandInstance {
         res
     }
 
+    pub async fn prepare_signed_nested_execution(
+        &self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        signers: SignersState,
+        signer_instances: &HashMap<ConstructDid, SignerInstance>,
+    ) -> Result<(SignersState, Vec<(ConstructDid, ValueStore)>), (SignersState, Diagnostic)> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+
+        let spec = &self.specification;
+        let future = (spec.prepare_signed_nested_execution)(
+            &construct_did,
+            &self.name,
+            &values,
+            signer_instances,
+            signers,
+        );
+        return consolidate_nested_execution_result(future, self.block.span()).await;
+    }
+
+    pub fn prepare_nested_execution(
+        &self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+    ) -> Result<Vec<(ConstructDid, ValueStore)>, Diagnostic> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+
+        let spec = &self.specification;
+
+        (spec.prepare_nested_execution)(&construct_did, &self.name, &values)
+    }
+
     pub async fn check_signed_executability(
         &mut self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
         signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
@@ -795,7 +998,8 @@ impl CommandInstance {
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
-            .with_inputs(&evaluated_inputs.inputs.inputs);
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .append_inputs(&nested_evaluation_values.inputs);
 
         // TODO
         let mut consolidated_actions = Actions::none();
@@ -831,6 +1035,12 @@ impl CommandInstance {
                                     .set_status(ActionItemStatus::Success(None));
                             consolidated_actions.push_action_item_update(action_item_update);
                         }
+                        ActionItemResponseType::SendTransaction(_) => {
+                            let action_item_update =
+                                ActionItemRequestUpdate::from_id(&action_item_id)
+                                    .set_status(ActionItemStatus::Success(None));
+                            consolidated_actions.push_action_item_update(action_item_update);
+                        }
                         ActionItemResponseType::ProvideSignedMessage(_response) => {
                             let action_item_update =
                                 ActionItemRequestUpdate::from_id(&action_item_id)
@@ -854,10 +1064,8 @@ impl CommandInstance {
             signer_instances,
             signers,
         );
-        let res = consolidate_signer_future_result(future)
-            .await?
-            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
-        let (signer_state, mut actions) = res?;
+        let (signer_state, mut actions) =
+            consolidate_signer_future_result(future, self.block.span()).await?;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
         Ok((signer_state, consolidated_actions))
@@ -866,6 +1074,7 @@ impl CommandInstance {
     pub async fn perform_signed_execution(
         &self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         signers: SignersState,
         signer_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -875,7 +1084,8 @@ impl CommandInstance {
     ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
-            .with_inputs(&evaluated_inputs.inputs.inputs);
+            .with_inputs(&evaluated_inputs.inputs.inputs)
+            .append_inputs(&nested_evaluation_values.inputs);
 
         let spec = &self.specification;
         let future = (spec.run_signed_execution)(
@@ -886,9 +1096,7 @@ impl CommandInstance {
             signer_instances,
             signers,
         );
-        let res = consolidate_signer_activate_future_result(future)
-            .await?
-            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
+        let res = consolidate_signer_activate_future_result(future, self.block.span()).await?;
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {
@@ -909,6 +1117,11 @@ impl CommandInstance {
                         request.action_status = status.clone();
                     }
                 }
+                ActionItemRequestType::SendTransaction(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
                 ActionItemRequestType::ProvideSignedMessage(_) => {
                     if success {
                         request.action_status = status.clone();
@@ -923,6 +1136,7 @@ impl CommandInstance {
     pub fn build_background_task(
         &self,
         construct_did: &ConstructDid,
+        nested_evaluation_values: &ValueStore,
         evaluated_inputs: &CommandInputsEvaluationResult,
         execution_result: &CommandExecutionResult,
         progress_tx: &channel::Sender<BlockEvent>,
@@ -932,7 +1146,8 @@ impl CommandInstance {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
             .with_inputs(&evaluated_inputs.inputs.inputs)
-            .with_inputs_from_map(&execution_result.outputs);
+            .with_inputs_from_map(&execution_result.outputs)
+            .append_inputs(&nested_evaluation_values.inputs);
         let outputs = ValueStore::new(&self.name, &construct_did.value())
             .with_inputs_from_map(&execution_result.outputs);
 
@@ -947,6 +1162,30 @@ impl CommandInstance {
             supervision_context,
         );
         res
+    }
+
+    pub fn aggregate_nested_execution_results(
+        &self,
+        construct_did: &ConstructDid,
+        nested_values: &Vec<(ConstructDid, ValueStore)>,
+        commands_execution_results: &HashMap<ConstructDid, CommandExecutionResult>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let mut nested_results = vec![];
+        for (nested_construct_did, _) in nested_values {
+            let nested_result = commands_execution_results
+                .get(nested_construct_did)
+                .cloned()
+                .unwrap_or_else(|| {
+                    return CommandExecutionResult::new();
+                });
+            nested_results.push(nested_result);
+        }
+
+        (self.specification.aggregate_nested_execution_results)(
+            &construct_did,
+            &nested_values,
+            &nested_results,
+        )
     }
 
     pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
@@ -1016,6 +1255,7 @@ pub trait CommandImplementation {
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
+
     fn run_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
@@ -1037,6 +1277,49 @@ pub trait CommandImplementation {
         unimplemented!()
     }
 
+    fn prepare_signed_nested_execution(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        _values: &ValueStore,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers_state: SignersState,
+    ) -> PrepareSignedNestedExecutionResult {
+        let signer_state = signers_state
+            .get_first_signer()
+            .expect(&format!("no signers provided for action '{}'", instance_name));
+        return_synchronous((
+            signers_state,
+            signer_state,
+            vec![(
+                construct_did.clone(),
+                ValueStore::new(&construct_did.to_string(), &construct_did.0),
+            )],
+        ))
+    }
+
+    fn prepare_nested_execution(
+        construct_did: &ConstructDid,
+        _instance_name: &str,
+        _values: &ValueStore,
+    ) -> Result<Vec<(ConstructDid, ValueStore)>, Diagnostic> {
+        Ok(vec![(
+            construct_did.clone(),
+            ValueStore::new(&construct_did.to_string(), &construct_did.0),
+        )])
+    }
+
+    fn aggregate_nested_execution_results(
+        _construct_did: &ConstructDid,
+        _values: &Vec<(ConstructDid, ValueStore)>,
+        nested_results: &Vec<CommandExecutionResult>,
+    ) -> Result<CommandExecutionResult, Diagnostic> {
+        let mut result = CommandExecutionResult::new();
+        for nested_result in nested_results {
+            result.outputs.extend(nested_result.outputs.clone());
+        }
+        Ok(result)
+    }
+
     fn run_signed_execution(
         _construct_id: &ConstructDid,
         _spec: &CommandSpecification,
@@ -1049,7 +1332,7 @@ pub trait CommandImplementation {
     }
 
     fn build_background_task(
-        _construct_id: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _outputs: &ValueStore,
@@ -1059,4 +1342,32 @@ pub trait CommandImplementation {
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }
+}
+
+pub fn add_ctx_to_diag(
+    command_type: String,
+    matcher: String,
+    command_instance_name: String,
+    namespace: String,
+) -> impl Fn(&Diagnostic) -> Diagnostic {
+    let diag_with_command_ctx = move |diag: &Diagnostic| -> Diagnostic {
+        let mut diag = diag.clone();
+        diag.message = format!(
+            "'{}:{}' {} '{}': {}",
+            namespace, matcher, command_type, command_instance_name, diag.message
+        );
+        diag
+    };
+    return diag_with_command_ctx;
+}
+pub fn add_ctx_to_embedded_runbook_diag(
+    embedded_runbook_instance_name: String,
+) -> impl Fn(&Diagnostic) -> Diagnostic {
+    let diag_with_command_ctx = move |diag: &Diagnostic| -> Diagnostic {
+        let mut diag = diag.clone();
+        diag.message =
+            format!("embedded runbook '{}': {}", embedded_runbook_instance_name, diag.message);
+        diag
+    };
+    return diag_with_command_ctx;
 }

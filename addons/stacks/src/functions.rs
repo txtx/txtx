@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     codec::cv::value_to_cv,
-    constants::{NAMESPACE, SIGNER},
+    constants::{DEFAULT_CLARINET_MANIFEST_PATH, NAMESPACE, SIGNER},
     typing::{DEPLOYMENT_ARTIFACTS_TYPE, STACKS_CV_ERR, STACKS_POST_CONDITIONS},
 };
 use clarity::vm::{
@@ -466,7 +466,7 @@ lazy_static! {
                         optional: false
                     },
                     contract_asset_id: {
-                        documentation: "The NFT Contract Asset Id to check (<principal>.<contract_nam>::<non_fungible_storage>).",
+                        documentation: "The NFT Contract Asset Id to check (`<principal>.<contract_name>::<non_fungible_storage>`).",
                         typing: vec![Type::string()],
                         optional: false
                     },
@@ -506,7 +506,7 @@ lazy_static! {
                         optional: false
                     },
                     contract_asset_id: {
-                        documentation: "The NFT Contract Asset Id to check (<principal>.<contract_name>::<non_fungible_storage>).",
+                        documentation: "The NFT Contract Asset Id to check (`<principal>.<contract_name>::<non_fungible_storage>`).",
                         typing: vec![Type::string()],
                         optional: false
                     },
@@ -556,17 +556,24 @@ lazy_static! {
             RetrieveClarinetContract => {
                 name: "get_contract_from_clarinet_project",
                 documentation: "`stacks::get_contract_from_clarinet_project` retrieves the source of a contract present in a Clarinet manifest.",
-                example: indoc! {r#"// Coming soon "#},
+                example: indoc! {r#"
+                variable "contract_source" {
+                    value = stacks::get_contract_from_clarinet_project("my-contract")
+                }
+                output "contract_source" {
+                    value = variable.contract_source
+                }
+                "#},
                 inputs: [
-                    clarinet_manifest_path: {
-                        documentation: "The path of the Clarinet toml file.",
-                        typing: vec![Type::string()],
-                        optional: false
-                    },
                     contract_name: {
                         documentation: "Contract name of the contract source to fetch.",
                         typing: vec![Type::string()],
                         optional: false
+                    },
+                    clarinet_manifest_path: {
+                        documentation: "The path of the Clarinet.toml file. Defaults to `./Clarinet.toml`.",
+                        typing: vec![Type::string()],
+                        optional: true
                     }
                 ],
                 output: {
@@ -1221,8 +1228,9 @@ impl FunctionImplementation for RetrieveClarinetContract {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
-        let clarinet_toml_path = args.get(0).unwrap().as_string().unwrap();
-        let contract_key = args.get(1).unwrap().as_string().unwrap();
+        let contract_key = args.get(0).unwrap().as_string().unwrap();
+        let clarinet_toml_path =
+            args.get(1).and_then(|v| v.as_string()).unwrap_or(DEFAULT_CLARINET_MANIFEST_PATH);
 
         let mut clarinet_manifest =
             auth_ctx.workspace_location.get_parent_location().map_err(|e| {

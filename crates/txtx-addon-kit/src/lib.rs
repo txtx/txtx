@@ -20,7 +20,11 @@ use types::ConstructDid;
 pub use uuid;
 pub extern crate crossbeam_channel as channel;
 pub use futures;
+pub use hmac;
 pub use indexmap;
+pub use libsecp256k1 as secp256k1;
+pub use pbkdf2;
+pub use tiny_hderive;
 
 pub use dotenvy_macro::dotenv;
 pub use hcl_edit as hcl;
@@ -31,11 +35,13 @@ use types::{
     signers::SignerSpecification,
 };
 
+pub use keccak_hash;
 pub use reqwest;
 pub use serde;
 pub use serde_json;
 pub use sha2;
 
+pub mod crypto;
 pub mod helpers;
 pub mod types;
 
@@ -111,7 +117,7 @@ pub trait Addon: Debug + Sync + Send {
             &'a CommandInstance,
             Option<&'a CommandInputsEvaluationResult>,
         )>,
-    ) -> Result<AddonPostProcessingResult, Diagnostic> {
+    ) -> Result<AddonPostProcessingResult, (Diagnostic, ConstructDid)> {
         Ok(AddonPostProcessingResult::new())
     }
 }

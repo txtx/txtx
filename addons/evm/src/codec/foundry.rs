@@ -8,6 +8,8 @@ use serde_json::Value as JsonValue;
 use std::{collections::HashMap, path::PathBuf, str::FromStr};
 use txtx_addon_kit::helpers::fs::FileLocation;
 
+use crate::constants::DEFAULT_FOUNDRY_OUT_DIR;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FoundryCompiledOutputJson {
@@ -111,8 +113,8 @@ pub struct ContractCompilerVersion {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FoundryProfile {
-    pub src: String,
-    pub out: String,
+    pub src: Option<String>,
+    pub out: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -135,16 +137,19 @@ impl FoundryToml {
 
     pub fn get_compiled_output(
         &self,
-        contract_filename: &str,
         contract_name: &str,
+        contract_filename: &str,
         profile_name: Option<&str>,
     ) -> Result<FoundryCompiledOutputJson, String> {
         let foundry_config = self.get_foundry_config(profile_name)?;
 
         let mut path = PathBuf::from_str(&self.toml_path).unwrap();
         path.pop();
-        path.push(&format!("{}", foundry_config.out.to_str().unwrap_or("out")));
-        path.push(&format!("{}.sol", contract_filename));
+        path.push(&format!(
+            "{}",
+            profile.out.clone().unwrap_or(DEFAULT_FOUNDRY_OUT_DIR.to_string())
+        ));
+        path.push(contract_filename);
         path.push(&format!("{}.json", contract_name));
 
         let bytes = std::fs::read(&path).map_err(|e| {

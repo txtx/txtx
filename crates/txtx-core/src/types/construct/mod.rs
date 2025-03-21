@@ -1,3 +1,4 @@
+use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInstance;
 use txtx_addon_kit::{
     hcl::structure::Block,
     types::{commands::CommandInstance, signers::SignerInstance},
@@ -12,6 +13,7 @@ pub enum PreConstructData {
     Action(CommandInstance),
     Signer(SignerInstance),
     Addon(Block),
+    EmbeddedRunbook(EmbeddedRunbookInstance),
     Root,
 }
 
@@ -25,6 +27,7 @@ impl PreConstructData {
             PreConstructData::Action(_) => "action",
             PreConstructData::Signer(_) => "signer",
             PreConstructData::Addon(_) => "addon",
+            PreConstructData::EmbeddedRunbook(_) => "runbook",
             PreConstructData::Root => unreachable!(),
         }
     }

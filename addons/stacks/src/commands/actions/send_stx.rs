@@ -30,35 +30,35 @@ lazy_static! {
         SendStxTransfer => {
             name: "Send STX Transfer Transaction",
             matcher: "send_stx",
-            documentation: "The `send_stx` action encodes a STX transfer transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.",
+            documentation: "The `stacks::send_stx` action encodes a STX transfer transaction, signs the transaction using the specified signer, and broadcasts the signed transaction to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
                 amount: {
-                    documentation: "The amount of STX to send.",
+                    documentation: "The amount to send, in microSTX (1 STX = 10^6 µSTX).",
                     typing: Type::addon(STACKS_CV_PRINCIPAL),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
                 recipient: {
-                    documentation: "The recipient of the transfer.",
+                    documentation: "The Stacks address of the recipient.",
                     typing: Type::string(),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
                 network_id: {
-                    documentation: "The network id used to validate the transaction version.",
+                    documentation: indoc!{r#"The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`."#},
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: true,
                     internal: false
-                    },
+                },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: false,
                     internal: false
                 },
@@ -77,7 +77,7 @@ lazy_static! {
                     internal: false
                 },
                 confirmations: {
-                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
                     typing: Type::integer(),
                     optional: true,
                     tainting: true,
@@ -124,7 +124,7 @@ lazy_static! {
                 value = action.stx_transfer.tx_id
             }
             // > transfer_tx_id: 0x1020321039120390239103193012909424854753848509019302931023849320
-  "#},
+        "#},
       }
     };
 }

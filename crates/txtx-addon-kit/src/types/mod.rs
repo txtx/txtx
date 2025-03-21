@@ -1,17 +1,23 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use diagnostics::Diagnostic;
+use hcl_edit::expr::Expression;
+use hcl_edit::structure::Block;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
+use types::{ObjectProperty, Type};
 
 use crate::helpers::fs::FileLocation;
 
 pub mod block_id;
 pub mod commands;
 pub mod diagnostics;
+pub mod embedded_runbooks;
 pub mod frontend;
 pub mod functions;
+pub mod package;
 pub mod signers;
 pub mod stores;
 pub mod types;
@@ -107,7 +113,7 @@ impl RunbookDid {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct RunbookId {
     /// Canonical name of the org authoring the workspace
     pub org: Option<String>,
@@ -118,6 +124,9 @@ pub struct RunbookId {
 }
 
 impl RunbookId {
+    pub fn new(org: Option<String>, workspace: Option<String>, name: &str) -> RunbookId {
+        RunbookId { org, workspace, name: name.into() }
+    }
     pub fn did(&self) -> RunbookDid {
         let mut comps = vec![];
         if let Some(ref org) = self.org {
@@ -149,7 +158,7 @@ impl PackageDid {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct PackageId {
     /// Id of the Runbook
     pub runbook_id: RunbookId,
@@ -209,9 +218,13 @@ impl ConstructDid {
     pub fn to_string(&self) -> String {
         self.0.to_string()
     }
+
+    pub fn from_hex_string(did_str: &str) -> Self {
+        ConstructDid(Did::from_hex_string(did_str))
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConstructId {
     /// Id of the Package
     pub package_id: PackageId,
@@ -256,6 +269,32 @@ impl AuthorizationContext {
     pub fn empty() -> Self {
         Self { workspace_location: FileLocation::working_dir() }
     }
+
+    pub fn get_path_from_str(&self, path_str: &str) -> Result<FileLocation, String> {
+        let path = Path::new(path_str);
+
+        let path = if path.starts_with("~") {
+            if let Some(home) = dirs::home_dir() {
+                let path = home.join(path_str.trim_start_matches("~/"));
+                FileLocation::from_path(path)
+            } else {
+                return Err(format!("unable to resolve home directory in path {}", path_str));
+            }
+        } else if path.is_absolute() {
+            FileLocation::from_path(path.to_path_buf())
+        } else {
+            let mut workspace_loc = self
+                .workspace_location
+                .get_parent_location()
+                .map_err(|e| format!("unable to read workspace location: {e}"))?;
+
+            workspace_loc
+                .append_path(&path_str.to_string())
+                .map_err(|e| format!("invalid path: {}", e))?;
+            workspace_loc
+        };
+        Ok(path)
+    }
 }
 
 #[derive(Debug)]
@@ -272,5 +311,54 @@ pub struct AddonPostProcessingResult {
 impl AddonPostProcessingResult {
     pub fn new() -> AddonPostProcessingResult {
         AddonPostProcessingResult { dependencies: HashMap::new(), transforms: HashMap::new() }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AddonInstance {
+    pub addon_id: String,
+    pub package_id: PackageId,
+    pub block: Block,
+}
+
+pub trait WithEvaluatableInputs {
+    fn name(&self) -> String;
+    fn get_expression_from_input(&self, input_name: &str) -> Option<Expression>;
+    fn get_blocks_for_map(
+        &self,
+        input_name: &str,
+        input_typing: &Type,
+        input_optional: bool,
+    ) -> Result<Option<Vec<Block>>, Vec<Diagnostic>>;
+    fn get_expression_from_block(&self, block: &Block, prop: &ObjectProperty)
+        -> Option<Expression>;
+    fn get_expression_from_object(
+        &self,
+        input_name: &str,
+        input_typing: &Type,
+    ) -> Result<Option<Expression>, Vec<Diagnostic>>;
+    fn get_expression_from_object_property(
+        &self,
+        input_name: &str,
+        prop: &ObjectProperty,
+    ) -> Option<Expression>;
+    fn spec_inputs(&self) -> Vec<impl EvaluatableInput>;
+}
+
+pub trait EvaluatableInput {
+    fn optional(&self) -> bool;
+    fn typing(&self) -> &Type;
+    fn name(&self) -> String;
+    fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+        self.typing().as_object()
+    }
+    fn as_array(&self) -> Option<&Box<Type>> {
+        self.typing().as_array()
+    }
+    fn as_action(&self) -> Option<&String> {
+        self.typing().as_action()
+    }
+    fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+        self.typing().as_map()
     }
 }

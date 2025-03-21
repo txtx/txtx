@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use alloy::primitives::Address;
 use check_confirmations::CHECK_CONFIRMATIONS;
 use txtx_addon_kit::types::stores::ValueStore;
@@ -10,52 +8,35 @@ use txtx_addon_kit::types::{
 pub mod call_contract;
 pub mod check_confirmations;
 pub mod deploy_contract;
-mod deploy_contract_create2;
 pub mod eth_call;
+pub mod send_eth;
 pub mod sign_transaction;
-pub mod sign_transfer;
 pub mod verify_contract;
 
 use call_contract::SIGN_EVM_CONTRACT_CALL;
-use deploy_contract::EVM_DEPLOY_CONTRACT;
-use deploy_contract_create2::EVM_DEPLOY_CONTRACT_CREATE2;
+use deploy_contract::DEPLOY_CONTRACT;
 use eth_call::ETH_CALL;
+use send_eth::SEND_ETH;
 use sign_transaction::SIGN_TRANSACTION;
-use sign_transfer::SIGN_EVM_TRANSFER;
 use verify_contract::VERIFY_CONTRACT;
 
-use crate::{
-    constants::{GAS_LIMIT, NONCE, SIGNER, TRANSACTION_AMOUNT},
-    typing::EVM_ADDRESS,
-};
+use crate::constants::{GAS_LIMIT, NONCE, SIGNER, TRANSACTION_AMOUNT};
+use crate::typing::EvmValue;
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
-        SIGN_EVM_TRANSFER.clone(),
         SIGN_EVM_CONTRACT_CALL.clone(),
         ETH_CALL.clone(),
-        EVM_DEPLOY_CONTRACT.clone(),
         VERIFY_CONTRACT.clone(),
         CHECK_CONFIRMATIONS.clone(),
         SIGN_TRANSACTION.clone(),
-        EVM_DEPLOY_CONTRACT_CREATE2.clone()
+        SEND_ETH.clone(),
+        DEPLOY_CONTRACT.clone(),
     ];
 }
 
 pub fn get_expected_address(value: &Value) -> Result<Address, String> {
-    match value {
-        Value::Buffer(bytes) => Ok(Address::from_slice(&bytes)),
-        Value::String(address) => {
-            Ok(Address::from_str(&address).map_err(|e| format!("invalid address: {}", e))?)
-        }
-        Value::Addon(addon_data) => {
-            if addon_data.id != EVM_ADDRESS {
-                return Err(format!("invalid data type for address: {}", addon_data.id));
-            }
-            Ok(Address::from_slice(&addon_data.bytes))
-        }
-        value => Err(format!("unexpected address type: {:?}", value)),
-    }
+    EvmValue::to_address(value).map_err(|e| format!("failed to parse address: {}", e.message))
 }
 
 pub fn get_common_tx_params_from_args(

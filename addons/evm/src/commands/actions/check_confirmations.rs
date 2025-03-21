@@ -8,7 +8,7 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::{CommandExecutionResult, CommandImplementation, CommandSpecification},
     diagnostics::Diagnostic,
-    types::{Type, Value},
+    types::Type,
 };
 use txtx_addon_kit::uuid::Uuid;
 
@@ -16,7 +16,7 @@ use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
 
 lazy_static! {
     pub static ref CHECK_CONFIRMATIONS: PreCommandSpecification = define_command! {
-        CheckEVMConfirmations => {
+        CheckEvmConfirmations => {
             name: "Check Transaction Confirmations",
             matcher: "check_confirmations",
             documentation: "The `evm::check_confirmations` action polls the network until the provided `tx_hash` has been confirmed by `confirmations` blocks.",
@@ -38,14 +38,14 @@ lazy_static! {
                     internal: false
                 },
                 chain_id: {
-                    documentation: "Coming soon",
+                    documentation: "The chain ID of the network to check the transaction on.",
                     typing: Type::integer(),
                     optional: false,
                     tainting: true,
                     internal: false
                 },
                 confirmations: {
-                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
                     typing: Type::integer(),
                     optional: true,
                     tainting: false,
@@ -56,19 +56,22 @@ lazy_static! {
                 contract_address: {
                     documentation: "The contract address from the transaction receipt.",
                     typing: Type::buffer()
+                },
+                logs: {
+                    documentation: "The decoded contract logs from the transaction receipt.",
+                    typing: Type::array(Type::array(Type::string()))
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
             action "confirm_deployment" "evm::check_confirmations" {
                 tx_hash = action.some_deploying_action.tx_hash
-                confirmations = 1
             }
         "#},
         }
     };
 }
-pub struct CheckEVMConfirmations;
-impl CommandImplementation for CheckEVMConfirmations {
+pub struct CheckEvmConfirmations;
+impl CommandImplementation for CheckEvmConfirmations {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -124,12 +127,19 @@ impl CommandImplementation for CheckEVMConfirmations {
         use alloy_chains::{Chain, ChainKind};
         use txtx_addon_kit::{
             hex,
-            types::{commands::return_synchronous_result, frontend::ProgressBarStatusColor},
+            types::{
+                commands::return_synchronous_result, frontend::ProgressBarStatusColor, types::Value,
+            },
         };
 
         use crate::{
-            constants::{ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, TX_HASH},
-            rpc::EVMRpc,
+            codec::abi_decode_logs,
+            constants::{
+                ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, LOGS, RAW_LOGS,
+                TX_HASH,
+            },
+            rpc::EvmRpc,
+            typing::{EvmValue, RawLog},
         };
 
         let inputs = inputs.clone();
@@ -143,6 +153,7 @@ impl CommandImplementation for CheckEVMConfirmations {
             ChainKind::Named(name) => name.to_string(),
             ChainKind::Id(id) => id.to_string(),
         };
+        let address_abi_map = inputs.get_value(ADDRESS_ABI_MAP).cloned();
         let progress_tx = progress_tx.clone();
 
         let skip_confirmations = inputs.get_bool(ALREADY_DEPLOYED).unwrap_or(false);
@@ -197,7 +208,7 @@ impl CommandImplementation for CheckEVMConfirmations {
 
             let backoff_ms = 500;
 
-            let rpc = EVMRpc::new(&rpc_api_url)
+            let rpc = EvmRpc::new(&rpc_api_url)
                 .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
 
             let mut included_block = u64::MAX - confirmations_required as u64;
@@ -250,7 +261,11 @@ impl CommandImplementation for CheckEVMConfirmations {
                 }
 
                 if !receipt.status() {
-                    let diag = diagnosed_error!("transaction reverted");
+                    let diag = match rpc.trace_transaction(&tx_hash_bytes).await {
+                        Ok(trace) => diagnosed_error!("transaction reverted with trace: {}", trace),
+                        Err(_) => diagnosed_error!("transaction reverted"),
+                    };
+
                     status_update.update_status(&ProgressBarStatus::new_err(
                         "Failed",
                         &format!("Transaction Failed for Chain {}", chain_name),
@@ -262,15 +277,26 @@ impl CommandImplementation for CheckEVMConfirmations {
                     return Err(diag);
                 }
                 if let Some(contract_address) = receipt.contract_address {
-                    result.outputs.insert(
-                        CONTRACT_ADDRESS.to_string(),
-                        Value::string(contract_address.to_string()),
-                    );
+                    result
+                        .outputs
+                        .insert(CONTRACT_ADDRESS.to_string(), EvmValue::address(&contract_address));
                 }
                 // a contract deployed via create2 factory won't have the address in the receipt, so pull it from our inputs
                 else if let Some(contract_address) = contract_address.clone() {
                     result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address);
                 };
+
+                let logs = receipt.inner.logs();
+                if let Some(abi) = &address_abi_map {
+                    let logs = abi_decode_logs(&abi, logs).map_err(|e| diagnosed_error!(" {e}"))?;
+                    result.outputs.insert(LOGS.to_string(), Value::array(logs));
+                }
+                result.outputs.insert(
+                    RAW_LOGS.to_string(),
+                    Value::array(
+                        logs.iter().map(|log| RawLog::to_value(log)).collect::<Vec<Value>>(),
+                    ),
+                );
 
                 if latest_block >= included_block + confirmations_required as u64 {
                     break receipt;

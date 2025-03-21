@@ -1,4 +1,4 @@
-use kit::types::AuthorizationContext;
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::{
     define_function, indoc,
     types::{
@@ -7,6 +7,8 @@ use txtx_addon_kit::{
         types::{Type, Value},
     },
 };
+
+use super::arg_checker;
 
 lazy_static! {
     pub static ref OPERATORS_FUNCTIONS: Vec<FunctionSpecification> = vec![
@@ -100,12 +102,12 @@ lazy_static! {
                 "#},
                 inputs: [
                     lhs: {
-                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        documentation: "Any value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::object(vec![])]
                     },
                     rhs: {
-                        documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        documentation: "Any value.",
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::object(vec![])]
                     }
                 ],
                 output: {
@@ -309,11 +311,13 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "The first `integer` operand.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::integer()],
+                        optional: false
                     },
                     rhs: {
                         documentation: "The second `integer` operand.",
-                        typing: vec![Type::integer()]
+                        typing: vec![Type::integer()],
+                        optional: false
                     }
                 ],
                 output: {
@@ -501,35 +505,14 @@ impl FunctionImplementation for BinaryEq {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        match args.get(0) {
-            Some(Value::Integer(lhs)) => {
-                let Some(Value::Integer(rhs)) = args.get(1) else { return Ok(Value::bool(false)) };
-                Ok(Value::bool(lhs.eq(rhs)))
-            }
-            Some(Value::Float(lhs)) => {
-                let Some(Value::Float(rhs)) = args.get(1) else { return Ok(Value::bool(false)) };
-                Ok(Value::bool(lhs.eq(rhs)))
-            }
-            Some(Value::Bool(lhs)) => {
-                let Some(Value::Bool(rhs)) = args.get(1) else { return Ok(Value::bool(false)) };
-                Ok(Value::bool(lhs.eq(rhs)))
-            }
-            Some(Value::String(lhs)) => {
-                let Some(Value::String(rhs)) = args.get(1) else { return Ok(Value::bool(false)) };
-                Ok(Value::bool(lhs.eq(rhs)))
-            }
-            Some(Value::Null) => {
-                let Some(Value::Null) = args.get(1) else {
-                    return Ok(Value::bool(false));
-                };
-                Ok(Value::bool(true))
-            }
-            _ => return Ok(Value::bool(false)),
-        }
+        arg_checker(fn_spec, args)?;
+        let lhs = args.get(0).unwrap();
+        let rhs = args.get(1).unwrap();
+        Ok(Value::bool(lhs.eq(rhs)))
     }
 }
 
@@ -550,7 +533,7 @@ impl FunctionImplementation for BinaryGreater {
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::bool(lhs.gt(rhs)))
+        Ok(Value::bool(lhs.gt(&rhs)))
     }
 }
 
@@ -571,7 +554,7 @@ impl FunctionImplementation for BinaryGreaterEq {
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::bool(lhs.ge(rhs)))
+        Ok(Value::bool(lhs.ge(&rhs)))
     }
 }
 
@@ -592,7 +575,7 @@ impl FunctionImplementation for BinaryLess {
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::bool(lhs.lt(rhs)))
+        Ok(Value::bool(lhs.lt(&rhs)))
     }
 }
 
@@ -613,7 +596,7 @@ impl FunctionImplementation for BinaryLessEq {
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::bool(lhs.le(rhs)))
+        Ok(Value::bool(lhs.le(&rhs)))
     }
 }
 
@@ -632,31 +615,9 @@ impl FunctionImplementation for BinaryNotEq {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        match args.get(0) {
-            Some(Value::Integer(lhs)) => {
-                let Some(Value::Integer(rhs)) = args.get(1) else { return Ok(Value::bool(true)) };
-                Ok(Value::bool(!lhs.eq(rhs)))
-            }
-            Some(Value::Float(lhs)) => {
-                let Some(Value::Float(rhs)) = args.get(1) else { return Ok(Value::bool(true)) };
-                Ok(Value::bool(!lhs.eq(rhs)))
-            }
-            Some(Value::Bool(lhs)) => {
-                let Some(Value::Bool(rhs)) = args.get(1) else { return Ok(Value::bool(true)) };
-                Ok(Value::bool(!lhs.eq(rhs)))
-            }
-            Some(Value::String(lhs)) => {
-                let Some(Value::String(rhs)) = args.get(1) else { return Ok(Value::bool(true)) };
-                Ok(Value::bool(!lhs.eq(rhs)))
-            }
-            Some(Value::Null) => {
-                let Some(Value::Null) = args.get(1) else {
-                    return Ok(Value::bool(true));
-                };
-                Ok(Value::bool(false))
-            }
-            _ => return Ok(Value::bool(true)),
-        }
+        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
+        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
+        Ok(Value::bool(!lhs.eq(&rhs)))
     }
 }
 
@@ -713,13 +674,14 @@ impl FunctionImplementation for BinaryMul {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
-        let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
-        Ok(Value::integer(lhs.saturating_mul(*rhs)))
+        arg_checker(fn_spec, args)?;
+        let lhs = args.get(0).unwrap().as_integer().unwrap();
+        let rhs = args.get(1).unwrap().as_integer().unwrap();
+        Ok(Value::integer(lhs.saturating_mul(rhs)))
     }
 }
 

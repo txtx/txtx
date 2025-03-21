@@ -1,7 +1,8 @@
-use alloy::dyn_abi::{DynSolValue, JsonAbiExt};
+use alloy::dyn_abi::DynSolValue;
 use alloy::json_abi::JsonAbi;
-use alloy::rpc::types::TransactionRequest;
+use alloy::primitives::Address;
 use std::collections::HashMap;
+use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     PreCommandSpecification,
@@ -11,178 +12,262 @@ use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
+use txtx_addon_kit::types::{
+    commands::CommandSpecification,
+    diagnostics::Diagnostic,
+    types::{Type, Value},
+};
 use txtx_addon_kit::types::{
     signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
 use txtx_addon_kit::uuid::Uuid;
 
-use crate::codec::{get_typed_transaction_bytes, verify::DeploymentArtifacts};
-
-use crate::codec::{value_to_sol_value, CommonTransactionFields};
-use crate::constants::{
-    ARTIFACTS, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT,
-    EXPLORER_VERIFICATION_OPTS, RPC_API_URL, SIGNED_TRANSACTION_BYTES, TX_HASH,
+use crate::codec::contract_deployment::create_opts::ContractCreationOpts;
+use crate::codec::contract_deployment::{
+    create_init_code, AddressAbiMap, ContractDeploymentTransaction,
 };
-use crate::rpc::EVMRpc;
-use crate::typing::CONTRACT_METADATA;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use crate::codec::{
+    get_typed_transaction_bytes, value_to_abi_constructor_args, value_to_sol_value, TransactionType,
+};
 
-use super::check_confirmations::CheckEVMConfirmations;
-use super::get_signer_did;
-use super::sign_transaction::SignEVMTransaction;
-use super::verify_contract::VerifyEVMContract;
+use crate::constants::{
+    ADDRESS_ABI_MAP, ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ADDRESS,
+    CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, IMPL_CONTRACT_ADDRESS, IS_PROXIED,
+    PROXY_CONTRACT_ADDRESS, RPC_API_URL, TRANSACTION_TYPE,
+};
+use crate::rpc::EvmRpc;
+use crate::signers::common::get_signer_nonce;
+use crate::typing::{
+    EvmValue, CONTRACT_METADATA, CREATE2_OPTS, DECODED_LOG_OUTPUT, PROXIED_CONTRACT_INITIALIZER,
+    PROXY_CONTRACT_OPTS, RAW_LOG_OUTPUT,
+};
+
+use super::call_contract::{
+    encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
+};
+use super::check_confirmations::CheckEvmConfirmations;
+use super::sign_transaction::SignEvmTransaction;
+use super::verify_contract::VerifyEvmContract;
+use super::{get_common_tx_params_from_args, get_expected_address, get_signer_did};
+use txtx_addon_kit::constants::TX_HASH;
 
 lazy_static! {
-    pub static ref EVM_DEPLOY_CONTRACT: PreCommandSpecification = define_command! {
-      EVMDeployContract => {
-          name: "Sign EVM Contract Deployment Transaction",
-          matcher: "deploy_contract",
-          documentation: "The `evm::deploy_contract` action encodes a contract deployment transaction, signs it with the provided signer data, and broadcasts it to the network.",
-          implements_signing_capability: true,
-          implements_background_task_capability: true,
-          inputs: [
-            description: {
-                documentation: "A description of the transaction",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            rpc_api_url: {
-                documentation: "The URL of the EVM API used to broadcast the transaction.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            signer: {
-                documentation: "A reference to a signer construct, which will be used to sign the transaction.",
-                typing: Type::string(),
-                optional: false,
-                tainting: true,
-                internal: false
-            },
-            amount: {
-                documentation: "The amount, in WEI, to send with the deployment.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            type: {
-                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
-                typing: Type::string(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            max_fee_per_gas: {
-                documentation: "Sets the max fee per gas of an EIP1559 transaction.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            max_priority_fee_per_gas: {
-                documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            chain_id: {
-                documentation: "The chain id.",
-                typing: Type::string(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            nonce: {
-                documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            gas_limit: {
-                documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            gas_price: {
-                documentation: "Sets the gas price for Legacy transactions.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            contract: {
-                documentation: "Coming soon",
-                typing: CONTRACT_METADATA.clone(),
-                optional: false,
-                tainting: true,
-                internal: false
-            },
-            constructor_args: {
-                documentation: "Coming soon",
-                typing: Type::array(Type::string()),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            confirmations: {
-                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
-                typing: Type::integer(),
-                optional: true,
-                tainting: false,
-                internal: false
-            },
-            verify: {
-                documentation: "",
-                typing: Type::bool(),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-            explorer_verification_opts: {
-                documentation: "The URL of the block explorer used to verify the contract.",
-                typing: Type::array(define_object_type!{
-                    key: {
-                        documentation: "The block explorer API key.",
+    pub static ref DEPLOY_CONTRACT: PreCommandSpecification = {
+        let mut command = define_command! {
+            DeployContract => {
+                name: "Coming soon",
+                matcher: "deploy_contract",
+                documentation: indoc!{r#"
+                    The `evm::deploy_contract` is coming soon.
+                "#},
+                implements_signing_capability: true,
+                implements_background_task_capability: true,
+                inputs: [
+                    description: {
+                        documentation: "A description of the transaction",
                         typing: Type::string(),
                         optional: true,
-                        tainting: true
+                        tainting: false,
+                        internal: false
                     },
-                    url: {
-                        documentation: "The block explorer contract verification URL (default Etherscan).",
+                    rpc_api_url: {
+                        documentation: "The URL of the EVM API used to broadcast the transaction.",
                         typing: Type::string(),
                         optional: true,
-                        tainting: true
+                        tainting: false,
+                        internal: false
+                    },
+                    chain_id: {
+                        documentation: "The chain id.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    signer: {
+                        documentation: "A reference to a signer construct, which will be used to sign the transaction.",
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: true,
+                        internal: false
+                    },
+                    contract: {
+                        documentation: indoc!{r#"
+                            The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
+                            The abi field can also be provided to add type checking for the constructor arguments.
+                            The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
+                        "#},
+                        typing: CONTRACT_METADATA.clone(),
+                        optional: false,
+                        tainting: true,
+                        internal: false
+                    },
+                    initializer: {
+                        documentation: "An optional array of initializer functions + arguments to call on the contract that is deployed to the proxy contract.",
+                        typing: PROXIED_CONTRACT_INITIALIZER.clone(),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    constructor_args: {
+                        documentation: "The optional constructor arguments for the deployed contract.",
+                        typing: Type::array(Type::string()),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    // create2 opts
+                    create_opcode: {
+                        documentation: "The create opcode to use for deployment. Options are 'create' and 'create2'. The default is 'create2'.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    create2: {
+                        documentation: "Options for deploying the contract with the CREATE2 opcode, overwriting txtx default options.",
+                        typing: CREATE2_OPTS.clone(),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    // proxy opts
+                    proxied: {
+                        documentation: "Deploys the contract via a proxy contract. The default is false.",
+                        typing: Type::bool(),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    proxy: {
+                        documentation: "Options for deploying the contract via a proxy contract, overwriting txtx default options.",
+                        typing: PROXY_CONTRACT_OPTS.clone(),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    // standard transaction opts
+                    amount: {
+                        documentation: "The amount, in WEI, to send with the deployment.",
+                        typing: Type::integer(),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    type: {
+                        documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: false
+                    },
+                    max_fee_per_gas: {
+                        documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+                        typing: Type::integer(),
+                        optional: true,
+                        tainting: false,
+                        internal: false
+                    },
+                    max_priority_fee_per_gas: {
+                        documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+                        typing: Type::integer(),
+                        optional: true,
+                        tainting: false,
+                        internal: false
+                    },
+                    nonce: {
+                        documentation: "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+                        typing: Type::integer(),
+                        optional: true,
+                        tainting: false,
+                        internal: false
+                    },
+                    gas_limit: {
+                        documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
+                        typing: Type::integer(),
+                        optional: true,
+                        tainting: false,
+                        internal: false
+                    },
+                    gas_price: {
+                        documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
+                        typing: Type::integer(),
+                        optional: true,
+                        tainting: false,
+                        internal: false
+                    },
+                    expected_contract_address: {
+                        documentation: "The contract address that the deployment should yield. If the deployment does not yield this address, the action will fail. If this field is omitted, the any deployed address will be accepted.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    confirmations: {
+                        documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
+                        typing: Type::integer(),
+                        optional: true,
+                        tainting: false,
+                        internal: false
+                    },
+                    verify: {
+                        documentation: "Coming soon.",
+                        typing: Type::bool(),
+                        optional: true,
+                        tainting: true,
+                        internal: false
+                    },
+                    block_explorer_api_key: {
+                        documentation: "Coming soon.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: false
                     }
-                }),
-                optional: true,
-                tainting: true,
-                internal: false
-            },
-          ],
-          outputs: [
-              tx_hash: {
-                  documentation: "The hash of the transaction.",
-                  typing: Type::string()
-              }
-          ],
-          example: txtx_addon_kit::indoc! {r#"
-          // Coming soon
-      "#},
-      }
+                ],
+                outputs: [
+                    tx_hash: {
+                        documentation: "The hash of the transaction.",
+                        typing: Type::string()
+                    },
+                    abi: {
+                        documentation: "The deployed contract ABI, if it was provided as a contract input.",
+                        typing: Type::string()
+                    },
+                    contract_address: {
+                        documentation: "The address of the deployed transaction.",
+                        typing: Type::string()
+                    },
+                    logs: {
+                        documentation: "The logs of the transaction, decoded via any ABI provided by the contract call.",
+                        typing: DECODED_LOG_OUTPUT.clone()
+                    },
+                    raw_logs: {
+                          documentation: "The raw logs of the transaction.",
+                          typing: RAW_LOG_OUTPUT.clone()
+                    }
+                ],
+                example: txtx_addon_kit::indoc! {r#"
+                    action "my_contract" "evm::deploy_contract" {
+                        contract = evm::get_contract_from_foundry_project("MyContract")
+                        signer = signer.deployer
+                        create2 {
+                            salt = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+                        }
+                    }
+                "#},
+            }
+        };
+
+        if let PreCommandSpecification::Atomic(ref mut spec) = command {
+            spec.create_critical_output = Some("contract_address".to_string());
+        }
+        command
     };
 }
 
-pub struct EVMDeployContract;
-impl CommandImplementation for EVMDeployContract {
+pub struct DeployContract;
+impl CommandImplementation for DeployContract {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -200,9 +285,17 @@ impl CommandImplementation for EVMDeployContract {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::helpers::build_diag_context_fn;
-
-        use crate::{constants::TRANSACTION_PAYLOAD_BYTES, typing::EvmValue};
+        use crate::{
+            codec::contract_deployment::{
+                ContractDeploymentTransactionStatus, ProxiedDeploymentTransaction,
+                TransactionDeploymentRequestData,
+            },
+            constants::{
+                CHAIN_ID, IMPL_CONTRACT_ADDRESS, PROXY_CONTRACT_ADDRESS, TRANSACTION_COST,
+                TRANSACTION_PAYLOAD_BYTES,
+            },
+            typing::EvmValue,
+        };
 
         let signer_did = get_signer_did(values).unwrap();
 
@@ -212,41 +305,122 @@ impl CommandImplementation for EVMDeployContract {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
-        let to_diag_with_ctx =
-            build_diag_context_fn(instance_name.to_string(), "evm::deploy_contract".to_string());
 
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) = signer_state
-                .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            if let Some(_) =
+                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
-            let transaction = build_unsigned_contract_deploy(
-                &mut signer_state,
-                &spec,
+            let from = signer_state
+                .get_expected_value("signer_address")
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
+            let rpc_api_url = values
+                .get_expected_string(RPC_API_URL)
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            let chain_id = values
+                .get_expected_uint(CHAIN_ID)
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
+            let deployer = ContractDeploymentTransactionRequestBuilder::new(
+                &rpc_api_url,
+                chain_id,
+                from,
+                &signer_state,
                 &values,
-                &to_diag_with_ctx,
             )
             .await
-            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
-            let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("command 'evm::deploy_contract': {e}"),
-                )
-            })?;
+            let impl_deploy_tx = deployer
+                .get_implementation_deployment_transaction(&values)
+                .await
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
-            let payload = EvmValue::transaction(bytes);
+            let payload = match impl_deploy_tx {
+                ContractDeploymentTransaction::Create(status)
+                | ContractDeploymentTransaction::Create2(status) => match status {
+                    ContractDeploymentTransactionStatus::AlreadyDeployed(contract_address) => {
+                        signer_state.insert_scoped_value(
+                            &construct_did.to_string(),
+                            ALREADY_DEPLOYED,
+                            Value::bool(true),
+                        );
+                        signer_state.insert_scoped_value(
+                            &construct_did.to_string(),
+                            CONTRACT_ADDRESS,
+                            EvmValue::address(&contract_address),
+                        );
+                        Value::null()
+                    }
+                    ContractDeploymentTransactionStatus::NotYetDeployed(
+                        TransactionDeploymentRequestData { tx, tx_cost, expected_address },
+                    ) => {
+                        signer_state.insert_scoped_value(
+                            &construct_did.to_string(),
+                            CONTRACT_ADDRESS,
+                            EvmValue::address(&expected_address),
+                        );
+                        signer_state.insert_scoped_value(
+                            &construct_did.to_string(),
+                            TRANSACTION_COST,
+                            Value::integer(tx_cost),
+                        );
+                        let bytes = get_typed_transaction_bytes(&tx).map_err(|e| {
+                            (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e))
+                        })?;
+                        let payload = EvmValue::transaction(bytes);
+                        payload
+                    }
+                },
+                ContractDeploymentTransaction::Proxied(ProxiedDeploymentTransaction {
+                    tx,
+                    tx_cost,
+                    expected_impl_address,
+                    expected_proxy_address,
+                }) => {
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        IS_PROXIED,
+                        Value::bool(true),
+                    );
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        CONTRACT_ADDRESS,
+                        EvmValue::address(&expected_proxy_address),
+                    );
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        IMPL_CONTRACT_ADDRESS,
+                        EvmValue::address(&expected_impl_address),
+                    );
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        PROXY_CONTRACT_ADDRESS,
+                        EvmValue::address(&expected_proxy_address),
+                    );
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        TRANSACTION_COST,
+                        Value::integer(tx_cost),
+                    );
+                    let bytes = get_typed_transaction_bytes(&tx).map_err(|e| {
+                        (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e))
+                    })?;
+                    let payload = EvmValue::transaction(bytes);
+                    payload
+                }
+            };
+
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload);
             signers.push_signer_state(signer_state);
 
-            let future_result = SignEVMTransaction::check_signed_executability(
+            let future_result = SignEvmTransaction::check_signed_executability(
                 &construct_did,
                 &instance_name,
                 &spec,
@@ -282,26 +456,86 @@ impl CommandImplementation for EVMDeployContract {
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
+        let mut signers = signers.clone();
+
+        let mut result: CommandExecutionResult = CommandExecutionResult::new();
+        let signer_did = get_signer_did(&values).unwrap();
+        let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
+
+        let already_deployed = signer_state
+            .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
+            .unwrap_or(false);
+
+        let is_proxied =
+            signer_state.get_scoped_bool(&construct_did.to_string(), IS_PROXIED).unwrap_or(false);
+        // insert pre-calculated contract address into outputs to be used by verify contract bg task
+        let contract_address =
+            signer_state.get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS).unwrap();
+        result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address.clone());
+        let contract = values.get_expected_object("contract").unwrap();
+        let contract_abi = contract.get("abi");
+
+        let mut address_abi_map = AddressAbiMap::new();
+
+        // the check confirmations function can decode the receipt logs if it has the available contract abi's,
+        // so we can index the contract addresses with their abi's here
+        if is_proxied {
+            let impl_contract_value = signer_state
+                .get_scoped_value(&construct_did.to_string(), IMPL_CONTRACT_ADDRESS)
+                .unwrap();
+            let proxy_contract_value = signer_state
+                .get_scoped_value(&construct_did.to_string(), PROXY_CONTRACT_ADDRESS)
+                .unwrap();
+            let impl_contract_address = get_expected_address(impl_contract_value).unwrap();
+            let proxy_contract_address = get_expected_address(proxy_contract_value).unwrap();
+
+            result.outputs.insert(IMPL_CONTRACT_ADDRESS.to_string(), impl_contract_value.clone());
+
+            result.outputs.insert(PROXY_CONTRACT_ADDRESS.to_string(), proxy_contract_value.clone());
+
+            address_abi_map.insert_opt(&impl_contract_address, &contract_abi);
+            address_abi_map.insert_proxy_abis(&proxy_contract_address, &contract_abi);
+            address_abi_map.insert_proxy_factory_abi();
+        } else {
+            address_abi_map
+                .insert_opt(&get_expected_address(contract_address).unwrap(), &contract_abi);
+        }
+
+        result.outputs.insert(ADDRESS_ABI_MAP.to_string(), address_abi_map.to_value());
+
+        result.outputs.insert(ALREADY_DEPLOYED.into(), Value::bool(already_deployed));
 
         let future = async move {
-            let run_signing_future = SignEVMTransaction::run_signed_execution(
-                &construct_did,
-                &spec,
-                &values,
-                &progress_tx,
-                &signers_instances,
-                signers,
-            );
-            let (signers, signer_state, mut res_signing) = match run_signing_future {
-                Ok(future) => match future.await {
-                    Ok(res) => res,
+            // if this contract has already been deployed, we'll skip signing and confirming
+            let (signers, signer_state) = if !already_deployed {
+                signers.push_signer_state(signer_state);
+                let run_signing_future = SignEvmTransaction::run_signed_execution(
+                    &construct_did,
+                    &spec,
+                    &values,
+                    &progress_tx,
+                    &signers_instances,
+                    signers,
+                );
+                let (signers, signer_state, mut res_signing) = match run_signing_future {
+                    Ok(future) => match future.await {
+                        Ok(res) => res,
+                        Err(err) => return Err(err),
+                    },
                     Err(err) => return Err(err),
-                },
-                Err(err) => return Err(err),
+                };
+
+                result.append(&mut res_signing);
+                values.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
+
+                (signers, signer_state)
+            } else {
+                (signers.clone(), signer_state.clone())
             };
 
-            values.insert(TX_HASH, res_signing.outputs.get(TX_HASH).unwrap().clone());
-            let mut res = match CheckEVMConfirmations::run_execution(
+            values.insert(ALREADY_DEPLOYED, Value::bool(already_deployed)); // todo: delete?
+
+            let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
                 &spec,
                 &values,
@@ -313,12 +547,11 @@ impl CommandImplementation for EVMDeployContract {
                 },
                 Err(data) => return Err((signers, signer_state, data)),
             };
-
-            res_signing.append(&mut res);
+            result.append(&mut res);
 
             let do_verify = values.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
             if do_verify {
-                let mut res = match VerifyEVMContract::run_execution(
+                let mut res = match VerifyEvmContract::run_execution(
                     &construct_did,
                     &spec,
                     &values,
@@ -331,10 +564,10 @@ impl CommandImplementation for EVMDeployContract {
                     Err(data) => return Err((signers, signer_state, data)),
                 };
 
-                res_signing.append(&mut res);
+                result.append(&mut res);
             }
 
-            Ok((signers, signer_state, res_signing))
+            Ok((signers, signer_state, result))
         };
 
         Ok(Box::pin(future))
@@ -359,7 +592,20 @@ impl CommandImplementation for EVMDeployContract {
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
-            let mut res = CheckEVMConfirmations::build_background_task(
+
+            // If the deployment is done through create2, it could have already been deployed,
+            // which means we don't have a tx_hash
+            if let Some(tx_hash) = inputs.get_value(TX_HASH) {
+                result.insert(TX_HASH, tx_hash.clone());
+            };
+
+            if let Some(impl_contract_address) = outputs.get_value(IMPL_CONTRACT_ADDRESS) {
+                result.insert(IMPL_CONTRACT_ADDRESS, impl_contract_address.clone());
+            }
+            if let Some(proxy_contract_address) = outputs.get_value(PROXY_CONTRACT_ADDRESS) {
+                result.insert(PROXY_CONTRACT_ADDRESS, proxy_contract_address.clone());
+            }
+            let mut res = CheckEvmConfirmations::build_background_task(
                 &construct_did,
                 &spec,
                 &inputs,
@@ -376,16 +622,15 @@ impl CommandImplementation for EVMDeployContract {
                 .get_bool(DO_VERIFY_CONTRACT)
                 .unwrap_or(inputs.get_array(EXPLORER_VERIFICATION_OPTS).is_some());
             if do_verify {
-                let contract_artifacts = inputs.get_expected_value("contract")?;
+                let contract_artifacts = inputs.get_expected_value(CONTRACT)?;
                 inputs.insert(ARTIFACTS, contract_artifacts.clone());
-                if let Some(opts) = inputs.get_value(EXPLORER_VERIFICATION_OPTS) {
-                    inputs.insert(EXPLORER_VERIFICATION_OPTS, opts.clone());
-                }
+
+                // insert pre-calculated contract address into outputs to be used by verify contract bg task
                 if let Some(contract_address) = result.outputs.get(CONTRACT_ADDRESS) {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
                 }
 
-                let mut res = VerifyEVMContract::build_background_task(
+                let mut res = VerifyEvmContract::build_background_task(
                     &construct_did,
                     &spec,
                     &inputs,
@@ -403,121 +648,195 @@ impl CommandImplementation for EVMDeployContract {
     }
 }
 
-#[cfg(not(feature = "wasm"))]
-async fn build_unsigned_contract_deploy(
-    signer_state: &mut ValueStore,
-    _spec: &CommandSpecification,
-    values: &ValueStore,
-    to_diag_with_ctx: &impl Fn(std::string::String) -> Diagnostic,
-) -> Result<TransactionRequest, Diagnostic> {
-    use crate::{
-        codec::{build_unsigned_transaction, TransactionType},
-        commands::actions::get_common_tx_params_from_args,
-        constants::{CHAIN_ID, NONCE, TRANSACTION_TYPE},
-    };
-
-    let from = signer_state.get_expected_value("signer_address")?.clone();
-
-    let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
-    let chain_id = values.get_expected_uint(CHAIN_ID)?;
-    let init_code = get_contract_init_code(values)
-        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))?;
-
-    let (amount, gas_limit, mut nonce) =
-        get_common_tx_params_from_args(values).map_err(to_diag_with_ctx)?;
-    if nonce.is_none() {
-        if let Some(signer_nonce) = signer_state
-            .get_value(NONCE)
-            .map(|v| v.expect_uint())
-            .transpose()
-            .map_err(to_diag_with_ctx)?
-        {
-            nonce = Some(signer_nonce + 1);
-        }
-    }
-    let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
-
-    let rpc = EVMRpc::new(&rpc_api_url)
-        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {}", e))?;
-
-    let common = CommonTransactionFields {
-        to: None,
-        from: from.clone(),
-        nonce,
-        chain_id,
-        amount,
-        gas_limit,
-        tx_type,
-        input: None,
-        deploy_code: Some(init_code),
-    };
-    let tx = build_unsigned_transaction(rpc, values, common)
-        .await
-        .map_err(|e| diagnosed_error!("command 'evm::deploy_contract': {e}"))?;
-    Ok(tx)
+pub struct ContractDeploymentTransactionRequestBuilder {
+    rpc: EvmRpc,
+    chain_id: u64,
+    from_address: Address,
+    amount: u64,
+    gas_limit: Option<u64>,
+    signer_starting_nonce: u64,
+    tx_type: TransactionType,
+    contract_creation_opts: ContractCreationOpts,
+    abi: Option<JsonAbi>,
 }
 
-pub fn get_contract_init_code(args: &ValueStore) -> Result<Vec<u8>, String> {
-    let artifacts = DeploymentArtifacts::from_value(
-        args.get_expected_value("contract").map_err(|e| e.to_string())?,
-    )?;
-    let constructor_args = if let Some(function_args) = args.get_value(CONTRACT_CONSTRUCTOR_ARGS) {
-        let sol_args = function_args
-            .expect_array()
-            .iter()
-            .map(|v| value_to_sol_value(&v))
-            .collect::<Result<Vec<DynSolValue>, String>>()?;
-        Some(sol_args)
-    } else {
-        None
-    };
+impl ContractDeploymentTransactionRequestBuilder {
+    pub async fn new(
+        rpc_api_url: &str,
+        chain_id: u64,
+        from_address: &Value,
+        signer_state: &ValueStore,
+        values: &ValueStore,
+    ) -> Result<Self, String> {
+        let rpc = EvmRpc::new(&rpc_api_url)?;
+        let from_address = get_expected_address(from_address)?;
 
-    let bytecode = artifacts.bytecode;
+        let is_proxy_contract =
+            values.get_bool("proxied").unwrap_or(false) || values.get_value("proxy").is_some();
 
-    // if we have an abi available in the contract, parse it out
-    let json_abi: Option<JsonAbi> = match artifacts.abi {
-        Some(abi_string) => {
-            let abi = serde_json::from_str(&abi_string)
-                .map_err(|e| format!("failed to decode contract abi: {e}"))?;
-            Some(abi)
-        }
-        None => None,
-    };
-    create_init_code(bytecode, constructor_args, json_abi)
-}
+        let contract = values.get_expected_object("contract").map_err(|e| e.to_string())?;
 
-pub fn create_init_code(
-    bytecode: String,
-    constructor_args: Option<Vec<DynSolValue>>,
-    json_abi: Option<JsonAbi>,
-) -> Result<Vec<u8>, String> {
-    let mut init_code = alloy::hex::decode(bytecode).map_err(|e| e.to_string())?;
-    if let Some(constructor_args) = constructor_args {
-        // if we have an abi, use it to validate the constructor arguments
-        let mut abi_encoded_args = if let Some(json_abi) = json_abi {
-            if let Some(constructor) = json_abi.constructor {
-                constructor
-                    .abi_encode_input(&constructor_args)
-                    .map_err(|e| format!("failed to encode constructor args: {e}"))?
-            } else {
-                return Err(format!(
-                    "invalid arguments: constructor arguments provided, but abi has no constructor"
-                ));
+        let json_abi: Option<JsonAbi> = match contract.get("abi") {
+            Some(abi_string) => {
+                let abi = serde_json::from_str(&abi_string.expect_string())
+                    .map_err(|e| format!("failed to decode contract abi: {e}"))?;
+                Some(abi)
             }
-        } else {
-            constructor_args.iter().flat_map(|s| s.abi_encode()).collect::<Vec<u8>>()
+            None => None,
         };
 
-        init_code.append(&mut abi_encoded_args);
-    } else {
-        // if we have an abi, use it to validate whether constructor arguments are needed
-        if let Some(json_abi) = json_abi {
-            if json_abi.constructor.is_some() {
+        let constructor_args = if let Some(function_args) =
+            values.get_value(CONTRACT_CONSTRUCTOR_ARGS)
+        {
+            if is_proxy_contract {
                 return Err(format!(
-                    "invalid arguments: no constructor arguments provided, but abi has constructor"
+                    "invalid arguments: constructor arguments provided, but contract is a proxy contract"
                 ));
             }
+            if let Some(abi) = &json_abi {
+                if let Some(constructor) = &abi.constructor {
+                    Some(
+                        value_to_abi_constructor_args(&function_args, &constructor)
+                            .map_err(|e| e.message)?,
+                    )
+                } else {
+                    return Err(format!(
+                        "constructor args provided, but no constructor found in abi"
+                    ));
+                }
+            } else {
+                let sol_args = function_args
+                    .expect_array()
+                    .iter()
+                    .map(|v| value_to_sol_value(&v))
+                    .collect::<Result<Vec<DynSolValue>, String>>()?;
+                Some(sol_args)
+            }
+        } else {
+            None
+        };
+
+        let Some(bytecode) =
+            contract.get("bytecode").and_then(|code| Some(code.expect_string().to_string()))
+        else {
+            return Err(format!("contract missing required bytecode"));
+        };
+
+        let init_code = create_init_code(bytecode, constructor_args, &json_abi)?;
+
+        let (amount, gas_limit, nonce) = get_common_tx_params_from_args(values)?;
+        let signer_starting_nonce = match nonce {
+            Some(user_set_nonce) => user_set_nonce,
+            None => {
+                if let Some(signer_nonce) = get_signer_nonce(signer_state, chain_id)? {
+                    signer_nonce + 1
+                } else {
+                    let signer_nonce = rpc
+                        .get_nonce(&from_address)
+                        .await
+                        .map_err(|e| format!("failed to get nonce: {e}"))?;
+                    signer_nonce
+                }
+            }
+        };
+
+        let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))
+            .map_err(|diag| diag.message)?;
+
+        let contract_creation_opts = ContractCreationOpts::new(values, &init_code)?;
+
+        contract_creation_opts.validate(&rpc).await?;
+
+        Ok(Self {
+            rpc,
+            chain_id,
+            from_address: from_address.clone(),
+            amount,
+            gas_limit,
+            signer_starting_nonce,
+            tx_type,
+            contract_creation_opts,
+            abi: json_abi,
+        })
+    }
+
+    async fn get_implementation_deployment_transaction(
+        &self,
+        values: &ValueStore,
+    ) -> Result<ContractDeploymentTransaction, String> {
+        self.contract_creation_opts
+            .get_deployment_transaction(
+                &self.rpc,
+                &EvmValue::address(&self.from_address),
+                self.get_implementation_deployment_nonce(),
+                self.chain_id,
+                self.amount,
+                self.gas_limit,
+                &self.tx_type,
+                values,
+                &self.abi,
+            )
+            .await
+    }
+
+    /// Gets the nonce for the implementation deployment transaction.
+    pub fn get_implementation_deployment_nonce(&self) -> u64 {
+        self.signer_starting_nonce
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ProxiedContractInitializer {
+    function_name: String,
+    function_args: Vec<DynSolValue>,
+}
+impl ProxiedContractInitializer {
+    pub fn new(initializers: &Value) -> Result<Vec<Self>, String> {
+        let initializers = initializers
+            .as_map()
+            .map(|values| {
+                values
+                    .iter()
+                    .map(|v| {
+                        v.as_object()
+                            .ok_or(format!("proxied contract initializer must be a map type"))
+                    })
+                    .collect::<Result<Vec<&IndexMap<String, Value>>, String>>()
+            })
+            .transpose()?
+            .ok_or(format!("proxied contract initializer must be a map type"))?;
+
+        let mut res = vec![];
+        for initializer in initializers {
+            let function_name = initializer
+                .get("function_name")
+                .and_then(|v| v.as_string())
+                .ok_or(format!("initializer must contain a 'function_name'"))?;
+            let function_args = if let Some(function_args) = initializer.get("function_args") {
+                let sol_args = function_args
+                    .expect_array()
+                    .iter()
+                    .map(|v| value_to_sol_value(&v))
+                    .collect::<Result<Vec<DynSolValue>, String>>()?;
+                sol_args
+            } else {
+                vec![]
+            };
+            res.push(Self { function_name: function_name.to_string(), function_args });
         }
-    };
-    Ok(init_code)
+        Ok(res)
+    }
+
+    pub fn get_fn_input_bytes(
+        &self,
+        initialized_contract_abi: &Option<JsonAbi>,
+    ) -> Result<Vec<u8>, String> {
+        if let Some(abi) = &initialized_contract_abi {
+            encode_contract_call_inputs_from_abi(&abi, &self.function_name, &self.function_args)
+                .map_err(|e| format!("failed to encode initializer function: {e}"))
+        } else {
+            encode_contract_call_inputs_from_selector(&self.function_name, &self.function_args)
+                .map_err(|e| format!("failed to encode initializer function: {e}"))
+        }
+    }
 }

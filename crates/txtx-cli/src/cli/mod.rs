@@ -1,14 +1,13 @@
 use atty::Stream;
-use clap::{ArgAction, Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use hiro_system_kit::{self, Logger};
-use runbooks::{DEFAULT_BINDING_ADDRESS, DEFAULT_BINDING_PORT};
-use std::process;
+use std::{process, thread};
 
+mod cloud;
 mod docs;
 mod lsp;
 mod runbooks;
 mod snapshots;
-mod templates;
 
 #[derive(Clone)]
 pub struct Context {
@@ -63,9 +62,91 @@ enum Command {
     /// Start Txtx Language Server
     #[clap(name = "lsp", bin_name = "lsp")]
     Lsp,
+    /// Start Txtx Server
+    #[clap(name = "serve", bin_name = "serve")]
+    #[cfg(feature = "txtx_serve")]
+    Serve(StartServer),
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
     Snapshots(SnapshotCommand),
+    /// Authentication management
+    #[clap(subcommand, name = "cloud", bin_name = "cloud")]
+    Cloud(CloudCommand),
+}
+
+#[derive(Subcommand, PartialEq, Clone, Debug)]
+pub enum CloudCommand {
+    #[clap(name = "login", bin_name = "login")]
+    Login(LoginCommand),
+    /// Publish a runbook to the cloud, allowing it to be called by other runbooks.
+    /// In order to package the runbook for publishing, it will be simulated, and thus requires all required inputs to be provided.
+    /// However, the published runbook will have the inputs removed.
+    #[clap(name = "publish", bin_name = "publish")]
+    Publish(PublishRunbook),
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct LoginCommand {
+    /// The username to use for authentication
+    #[arg(long = "email", short = 'e', requires = "password", conflicts_with = "pat")]
+    pub email: Option<String>,
+
+    /// The password to use for authentication
+    #[arg(long = "password", short = 'p', requires = "email", conflicts_with = "pat")]
+    pub password: Option<String>,
+
+    /// Automatically log in using a Personal Access Token
+    #[arg(long = "pat", conflicts_with_all = &["email", "password"])]
+    pub pat: Option<String>,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct PublishRunbook {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: String,
+    /// Name of the runbook as indexed in the txtx.yml, or the path of the .tx file to run
+    pub runbook: String,
+    /// Choose the environment variable to set from those configured in the txtx.yml
+    #[arg(long = "env")]
+    pub environment: Option<String>,
+    /// A set of inputs to use for batch processing
+    #[arg(long = "input")]
+    pub inputs: Vec<String>,
+    /// The destination to publish the runbook to. By default, the published runbook will be at /manifest/path/<runbook-id>.output.json
+    #[arg(long = "destination", short = 'd')]
+    pub destination: Option<String>,
+    /// The permissions to set for what users can read the runbook.
+    ///  - `public`: Anyone can read the runbook
+    ///  - `private`: Only the owner can read the runbook
+    ///  - `org`: Only members of the organization can read the runbook
+    #[arg(long = "read-permissions", default_value = "private")]
+    pub read_permissions: Option<PublishRunbookReadPermissions>,
+    /// The permissions to set for what users can update the runbook.
+    ///  - `private`: Only the owner can update the runbook
+    ///  - `org`: Only members of the organization can update the runbook
+    #[arg(long = "update-permissions", default_value = "private")]
+    pub update_permissions: Option<PublishRunbookWritePermissions>,
+    /// The permissions to set for what users can delete the runbook.
+    ///  - `private`: Only the owner can delete the runbook
+    ///  - `org`: Only members of the organization can delete the runbook
+    #[arg(long = "delete-permissions", default_value = "private")]
+    pub delete_permissions: Option<PublishRunbookWritePermissions>,
+}
+
+#[derive(ValueEnum, PartialEq, Clone, Debug)]
+#[clap(rename_all = "snake-case")]
+pub enum PublishRunbookReadPermissions {
+    Public,
+    Private,
+    Org,
+}
+
+#[derive(ValueEnum, PartialEq, Clone, Debug)]
+#[clap(rename_all = "snake-case")]
+pub enum PublishRunbookWritePermissions {
+    Private,
+    Org,
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -150,9 +231,9 @@ pub struct ExecuteRunbook {
     /// Execute the runbook with supervision via the terminal console (coming soon)
     #[arg(long = "terminal", short = 't', action=ArgAction::SetTrue, group = "execution_mode")]
     pub term_console: bool,
-    /// When running in unsupervised mode, print outputs in JSON format
-    #[arg(long = "output-json", action=ArgAction::SetTrue)]
-    pub output_json: bool,
+    /// When running in unsupervised mode, print outputs in JSON format. If a directory is provided, the output will be written a file at the directory.
+    #[arg(long = "output-json")]
+    pub output_json: Option<Option<String>>,
     /// Pick a specific output to stdout at the end of the execution
     #[arg(long = "output", conflicts_with = "output_json")]
     pub output: Option<String>,
@@ -160,10 +241,12 @@ pub struct ExecuteRunbook {
     #[arg(long = "explain", action=ArgAction::SetTrue)]
     pub explain: bool,
     /// Set the port for hosting the web UI
-    #[arg(long = "port", short = 'p', default_value = DEFAULT_BINDING_PORT )]
+    #[arg(long = "port", short = 'p', default_value = txtx_supervisor_ui::DEFAULT_BINDING_PORT )]
+    #[cfg(feature = "supervisor_ui")]
     pub network_binding_port: u16,
     /// Set the port for hosting the web UI
-    #[arg(long = "ip", short = 'i', default_value = DEFAULT_BINDING_ADDRESS )]
+    #[arg(long = "ip", short = 'i', default_value = txtx_supervisor_ui::DEFAULT_BINDING_ADDRESS )]
+    #[cfg(feature = "supervisor_ui")]
     pub network_binding_ip_address: String,
     /// Choose the environment variable to set from those configured in the txtx.yml
     #[arg(long = "env")]
@@ -175,6 +258,12 @@ pub struct ExecuteRunbook {
     /// Execute the Runbook even if the cached state suggests this Runbook has already been executed
     #[arg(long = "force", short = 'f')]
     pub force_execution: bool,
+}
+
+impl ExecuteRunbook {
+    pub fn do_start_supervisor_ui(&self) -> bool {
+        self.web_console || (!self.unsupervised && !self.term_console)
+    }
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
@@ -189,6 +278,26 @@ pub struct ListRunbooks {
     /// Path to the manifest
     #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
     pub manifest_path: String,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+#[cfg(feature = "txtx_serve")]
+pub struct StartServer {
+    /// Serve runbooks from a specific project
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: Option<String>,
+    /// When running in unsupervised mode, print outputs in JSON format
+    #[arg(long = "output-json", action=ArgAction::SetTrue)]
+    pub output_json: bool,
+    /// Pick a specific output to stdout at the end of the execution
+    #[arg(long = "output", conflicts_with = "output_json")]
+    pub output: Option<String>,
+    /// Set the port for hosting the web UI
+    #[arg(long = "port", short = 'p', default_value = txtx_serve::SERVE_BINDING_PORT )]
+    pub network_binding_port: u16,
+    /// Set the port for hosting the web UI
+    #[arg(long = "ip", short = 'i', default_value = txtx_serve::SERVE_BINDING_ADDRESS )]
+    pub network_binding_ip_address: String,
 }
 
 fn load_stdin() -> Option<String> {
@@ -255,6 +364,22 @@ async fn handle_command(
         Command::Lsp => {
             lsp::run_lsp().await?;
         }
+        #[cfg(feature = "txtx_serve")]
+        Command::Serve(cmd) => {
+            warn!(
+                ctx.expect_logger(),
+                "The command `txtx serve` is experimental and will run for 30 minutes."
+            );
+            let addr = format!("{}:{}", cmd.network_binding_ip_address, cmd.network_binding_port);
+            let _ = txtx_serve::start_server(&addr).await.unwrap();
+            ctrlc::set_handler(move || {
+                std::process::exit(1);
+            })
+            .expect("Error setting Ctrl-C handler");
+            // Consider making the duration configurable or running indefinitely
+            thread::sleep(std::time::Duration::new(1800, 0));
+        }
+        Command::Cloud(cmd) => cloud::handle_cloud_commands(&cmd, buffer_stdin, ctx).await?,
     }
     Ok(())
 }
@@ -277,7 +402,9 @@ mod tests {
         assert_eq!(result.unsupervised, false);
         assert_eq!(result.web_console, false);
         assert_eq!(result.term_console, false);
+        #[cfg(feature = "supervisor_ui")]
         assert_eq!(result.network_binding_port, 8488);
+        #[cfg(feature = "supervisor_ui")]
         assert_eq!(result.network_binding_ip_address, "localhost");
         assert_eq!(result.environment, None);
         assert!(result.inputs.is_empty());
@@ -311,6 +438,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "supervisor_ui")]
     fn test_port_setting() {
         let args = vec!["txtx", "runbook", "--port", "9090"];
         let result = parse_args(args);
@@ -318,6 +446,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "supervisor_ui")]
     fn test_ip_setting() {
         let args = vec!["txtx", "runbook", "--ip", "192.168.1.10"];
         let result = parse_args(args);

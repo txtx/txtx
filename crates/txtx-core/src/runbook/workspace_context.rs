@@ -1,20 +1,29 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
+use crate::runbook::embedded_runbook::EmbeddedRunbookInstanceBuilder;
 use crate::runbook::RawHclContent;
 use crate::std::commands;
-use crate::types::{Package, PreConstructData};
-use kit::hcl::expr::{Expression, TraversalOperator};
-use kit::hcl::structure::BlockLabel;
-use kit::hcl::Span;
-use kit::helpers::fs::{get_txtx_files_paths, FileLocation};
-use kit::helpers::hcl::visit_required_string_literal_attribute;
-use kit::indexmap::IndexMap;
-use kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
-use kit::types::diagnostics::Diagnostic;
-use kit::types::signers::SignerInstance;
-use kit::types::stores::AddonDefaults;
-use kit::types::types::Value;
-use kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
+use crate::types::PreConstructData;
+use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
+use txtx_addon_kit::hcl::structure::BlockLabel;
+use txtx_addon_kit::hcl::template::Element;
+use txtx_addon_kit::hcl::Span;
+use txtx_addon_kit::helpers::fs::{get_txtx_files_paths, FileLocation};
+use txtx_addon_kit::helpers::hcl::{
+    visit_optional_untyped_attribute, visit_required_string_literal_attribute,
+};
+use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
+use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::embedded_runbooks::{
+    EmbeddedRunbookInputSpecification, EmbeddedRunbookInstance,
+};
+use txtx_addon_kit::types::package::Package;
+use txtx_addon_kit::types::signers::SignerInstance;
+use txtx_addon_kit::types::stores::AddonDefaults;
+use txtx_addon_kit::types::types::Value;
+use txtx_addon_kit::types::AddonInstance;
+use txtx_addon_kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
 
 use super::{
     get_source_context_for_diagnostic, RunbookExecutionContext, RunbookGraphContext,
@@ -25,6 +34,8 @@ pub enum ConstructInstanceType {
     Executable(CommandInstance),
     Signing(SignerInstance),
     Import,
+    EmbeddedRunbook(EmbeddedRunbookInstance),
+    Addon(AddonInstance),
 }
 
 #[derive(better_debug::BetterDebug, Clone)]
@@ -87,10 +98,10 @@ impl RunbookWorkspaceContext {
         addon_defaults
     }
 
-    pub fn build_from_sources(
+    pub async fn build_from_sources(
         &mut self,
         runbook_sources: &RunbookSources,
-        runtime_context: &RuntimeContext,
+        runtime_context: &mut RuntimeContext,
         graph_context: &mut RunbookGraphContext,
         execution_context: &mut RunbookExecutionContext,
         environment_selector: &Option<String>,
@@ -238,7 +249,7 @@ impl RunbookWorkspaceContext {
                             (block.labels.get(0), block.labels.get(1))
                         else {
                             diagnostics.push(
-                                Diagnostic::error_from_string("action syntax invalid".into())
+                                Diagnostic::error_from_string("invalid action syntax: expected `action \"action_name\" \"namespace::action\"".into())
                                     .location(&location),
                             );
                             continue;
@@ -313,7 +324,87 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
-                    "flow" | "addon" => {}
+                    "runbook" => {
+                        let Some(runbook_name) = block.labels.get(0) else {
+                            diagnostics.push(
+                                Diagnostic::error_from_string("'runbook' syntax invalid".into())
+                                    .location(&location),
+                            );
+                            continue;
+                        };
+                        let runbook_name = runbook_name.to_string();
+                        let embedded_runbook_location =
+                            visit_required_string_literal_attribute("location", &block).unwrap();
+                        println!("Loading {runbook_name} at path ({embedded_runbook_location})");
+
+                        let imported_package_location =
+                            location.get_parent_location().map_err(|e| {
+                                vec![diagnosed_error!(
+                                    "invalid runbook location: {}",
+                                    e.to_string()
+                                )
+                                .location(&location)]
+                            })?;
+
+                        match FileLocation::try_parse(
+                            &embedded_runbook_location,
+                            Some(&imported_package_location),
+                        ) {
+                            None => {
+                                diagnostics.push(diagnosed_error!(
+                                    "failed to index embedded runbook ({}): could not find runbook at location {}",
+                                    runbook_name,
+                                    embedded_runbook_location
+                                ));
+                                continue;
+                            }
+                            Some(loc) => {
+                                let embedded_runbook =
+                                    EmbeddedRunbookInstanceBuilder::from_location(
+                                        loc,
+                                        &runbook_name.to_string(),
+                                        &package_id,
+                                        &block,
+                                        &mut runtime_context.addons_context,
+                                    )
+                                    .await
+                                    .map_err(|e| {
+                                        vec![diagnosed_error!(
+                                            "failed to index embedded runbook ({}): {}",
+                                            runbook_name,
+                                            e
+                                        )]
+                                    })?;
+
+                                let _ = self.index_construct(
+                                    runbook_name.to_string(),
+                                    location.clone(),
+                                    PreConstructData::EmbeddedRunbook(embedded_runbook),
+                                    &package_id,
+                                    graph_context,
+                                    execution_context,
+                                );
+                            }
+                        }
+                    }
+                    "addon" => {
+                        let Some(BlockLabel::String(addon_id)) = block.labels.first() else {
+                            diagnostics.push(
+                                Diagnostic::error_from_string("addon name missing".into())
+                                    .location(&location),
+                            );
+                            continue;
+                        };
+                        let _ = self.index_construct(
+                            addon_id.to_string(),
+                            location.clone(),
+                            PreConstructData::Addon(block.clone()),
+                            &package_id,
+                            graph_context,
+                            execution_context,
+                        );
+                    }
+                    "flow" => {}
                     unknown => {
                         diagnostics.push(
                             Diagnostic::error_from_string(format!("unknown construct {}", unknown))
@@ -413,7 +504,7 @@ impl RunbookWorkspaceContext {
                 package.variables_dids.insert(construct_did.clone());
                 package.variables_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
-                    specification: commands::new_input_specification(),
+                    specification: commands::new_variable_specification(),
                     name: construct_name.clone(),
                     block: block.clone(),
                     package_id: package_id.clone(),
@@ -422,15 +513,12 @@ impl RunbookWorkspaceContext {
                 })
             }
             PreConstructData::Addon(block) => {
-                package.commands_dids.insert(construct_did.clone());
+                package.addons_dids.insert(construct_did.clone());
                 package.addons_did_lookup.insert(construct_name.clone(), construct_did.clone());
-                ConstructInstanceType::Executable(CommandInstance {
-                    specification: commands::new_runtime_setting(),
-                    name: construct_name.clone(),
+                ConstructInstanceType::Addon(AddonInstance {
                     block: block.clone(),
                     package_id: package_id.clone(),
-                    namespace: construct_name.clone(),
-                    typing: CommandInstanceType::Addon,
+                    addon_id: construct_name.clone(),
                 })
             }
             PreConstructData::Output(block) => {
@@ -453,7 +541,7 @@ impl RunbookWorkspaceContext {
             PreConstructData::Action(command_instance) => {
                 package.commands_dids.insert(construct_did.clone());
                 package
-                    .addons_did_lookup
+                    .commands_did_lookup
                     .insert(CommandId::Action(construct_name).to_string(), construct_did.clone());
                 ConstructInstanceType::Executable(command_instance)
             }
@@ -462,10 +550,14 @@ impl RunbookWorkspaceContext {
                 package.signers_did_lookup.insert(construct_name, construct_did.clone());
                 ConstructInstanceType::Signing(signer_instance)
             }
+            PreConstructData::EmbeddedRunbook(embedded_runbook) => {
+                package.embedded_runbooks_dids.insert(construct_did.clone());
+                package.embedded_runbooks_did_lookup.insert(construct_name, construct_did.clone());
+                ConstructInstanceType::EmbeddedRunbook(embedded_runbook)
+            }
             PreConstructData::Root => unreachable!(),
         };
 
-        let construct_did = construct_id.did();
         graph_context.index_construct(&construct_did);
         match construct_instance_type {
             ConstructInstanceType::Executable(instance) => {
@@ -475,9 +567,186 @@ impl RunbookWorkspaceContext {
                 execution_context.signers_instances.insert(construct_did.clone(), instance);
             }
             ConstructInstanceType::Import => {}
+            ConstructInstanceType::EmbeddedRunbook(runbook) => {
+                execution_context.embedded_runbooks.insert(construct_did.clone(), runbook);
+            }
+            ConstructInstanceType::Addon(instance) => {
+                execution_context.addon_instances.insert(construct_did.clone(), instance);
+            }
         }
 
         construct_id
+    }
+
+    /// Iterates over the attributes of `command_instance` to see if any of the attributes reference a top level input.
+    /// If so, it retrieves the value of the top level input and creates an [EmbeddedRunbookInputSpecification] with it.
+    /// For example, the following command instance:
+    /// ```hcl
+    /// action "deploy" "evm::deploy_contract" {
+    ///     ...
+    ///     create2 {
+    ///         salt = input.salt
+    ///     }
+    /// }
+    /// ```
+    /// would generate and embedded runbook input with the name `salt` and type [Type::String].
+    pub fn get_embedded_runbook_input_from_command_instance_input_referencing_top_level_input(
+        &self,
+        command_instance: &CommandInstance,
+    ) -> Vec<EmbeddedRunbookInputSpecification> {
+        let mut embedded_runbook_inputs = vec![];
+        for input in command_instance.specification.inputs.iter() {
+            let res = visit_optional_untyped_attribute(&input.name, &command_instance.block);
+            if let Some(expr) = res {
+                if let Some(input_names) =
+                    self.get_top_level_input_name_from_expression_reference(&expr)
+                {
+                    for input_name in input_names {
+                        embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
+                            &input_name,
+                            &input.typing,
+                            &input.documentation,
+                        ));
+                    }
+                }
+            }
+        }
+        embedded_runbook_inputs
+    }
+
+    /// Iterates over the attributes of `addon_instance` to see if any of the attributes reference a top level input.
+    /// If so, it retrieves the value of the top level input and creates an [EmbeddedRunbookInputSpecification] with it.
+    /// For example, the following addon instance:
+    /// ```hcl
+    /// addon "evm" {
+    ///     chain_id = input.chain_id
+    /// }
+    /// ```
+    ///
+    /// would generate and embedded runbook input with the name `chain_id` and type [Type::Integer].
+    pub fn get_embedded_runbook_input_from_addon_instance_input_referencing_top_level_input(
+        &self,
+        addon_instance: &AddonInstance,
+    ) -> Vec<EmbeddedRunbookInputSpecification> {
+        let mut embedded_runbook_inputs = vec![];
+        for attribute in addon_instance.block.body.attributes() {
+            let expr = &attribute.value;
+            if let Some(input_names) =
+                self.get_top_level_input_name_from_expression_reference(&expr)
+            {
+                let addon_defaults = self.get_addon_defaults(&(
+                    addon_instance.package_id.did(),
+                    addon_instance.addon_id.clone(),
+                ));
+                for input_name in input_names {
+                    if let Some(value) = addon_defaults.store.get_value(&input_name) {
+                        embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
+                            &input_name,
+                            &value.get_type(),
+                            &"".into(),
+                        ));
+                    }
+                }
+            }
+        }
+        embedded_runbook_inputs
+    }
+
+    /// Iterates over the attributes of `embedded_runbook_instance` to see if any of the attributes reference a top level input.
+    /// If so, it retrieves the value of the top level input and creates an [EmbeddedRunbookInputSpecification] with it.
+    /// For example, the following addon instance:
+    /// ```hcl
+    /// runbook "some_book" {
+    ///     chain_id = input.chain_id
+    /// }
+    /// ```
+    ///
+    /// would generate and embedded runbook input with the name `chain_id` and type [Type::Integer].
+    pub fn get_embedded_runbook_input_from_embedded_runbook_instance_input_referencing_top_level_input(
+        &self,
+        embedded_runbook_instance: &EmbeddedRunbookInstance,
+    ) -> Vec<EmbeddedRunbookInputSpecification> {
+        let mut embedded_runbook_inputs = vec![];
+        for input in embedded_runbook_instance.specification.inputs.iter() {
+            let EmbeddedRunbookInputSpecification::Value(input) = input else {
+                continue;
+            };
+            let res =
+                visit_optional_untyped_attribute(&input.name, &embedded_runbook_instance.block);
+            if let Some(expr) = res {
+                if let Some(input_names) =
+                    self.get_top_level_input_name_from_expression_reference(&expr)
+                {
+                    for input_name in input_names {
+                        embedded_runbook_inputs.push(EmbeddedRunbookInputSpecification::new_value(
+                            &input_name,
+                            &input.typing,
+                            &input.documentation,
+                        ));
+                    }
+                }
+            }
+        }
+        embedded_runbook_inputs
+    }
+
+    fn get_top_level_input_name_from_expression_reference(
+        &self,
+        expression: &Expression,
+    ) -> Option<Vec<String>> {
+        if let Some(traversal) = expression.as_traversal() {
+            let Some(root) = traversal.expr.as_variable() else {
+                return None;
+            };
+            if root.eq_ignore_ascii_case("input") {
+                let Some(TraversalOperator::GetAttr(value)) =
+                    traversal.operators.first().map(|op| op.value())
+                else {
+                    return None;
+                };
+                let top_level_input_name = value.to_string();
+                if let Some(_) = self.top_level_inputs_did_lookup.get(&top_level_input_name) {
+                    return Some(vec![top_level_input_name]);
+                };
+            }
+        } else if let Some(arr) = expression.as_array() {
+            let mut res = vec![];
+            for expr in arr.iter() {
+                if let Some(mut input_name) =
+                    self.get_top_level_input_name_from_expression_reference(expr)
+                {
+                    res.append(&mut input_name);
+                }
+            }
+            return Some(res);
+        } else if let Some(obj) = expression.as_object() {
+            let mut res = vec![];
+            for (_, object_value) in obj.iter() {
+                if let Some(mut input_name) =
+                    self.get_top_level_input_name_from_expression_reference(object_value.expr())
+                {
+                    res.append(&mut input_name);
+                }
+            }
+            return Some(res);
+        } else if let Some(string_template) = expression.as_string_template() {
+            let mut res = vec![];
+            for element in string_template.into_iter() {
+                match element {
+                    Element::Literal(_) => {}
+                    Element::Interpolation(interpolation) => {
+                        if let Some(mut input_name) = self
+                            .get_top_level_input_name_from_expression_reference(&interpolation.expr)
+                        {
+                            res.append(&mut input_name);
+                        }
+                    }
+                    Element::Directive(_) => {}
+                }
+            }
+            return Some(res);
+        }
+        None
     }
 
     /// Expects `expression` to be a traversal and `package_did_source` to be indexed in the runbook's `packages`.
@@ -526,9 +795,7 @@ impl RunbookWorkspaceContext {
 
         let mut is_root = true;
         while let Some(component) = components.pop_front() {
-            // Look for modules
             if is_root {
-                // Look for env variables
                 if component.eq_ignore_ascii_case("input") {
                     let Some(env_variable_name) = components.pop_front() else {
                         continue;
@@ -590,7 +857,7 @@ impl RunbookWorkspaceContext {
                         continue;
                     };
                     if let Some(construct_did) = current_package
-                        .addons_did_lookup
+                        .commands_did_lookup
                         .get(&CommandId::Action(action_name).to_string())
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
@@ -618,6 +885,19 @@ impl RunbookWorkspaceContext {
                     };
                     if let Some(construct_did) =
                         current_package.flow_inputs_did_lookup.get(&flow_input_name)
+                    {
+                        return Ok(Some((construct_did.clone(), components, subpath)));
+                    }
+                }
+
+                // Look for embedded runbooks
+                if component.eq_ignore_ascii_case("runbook") {
+                    is_root = false;
+                    let Some(embedded_runbook_name) = components.pop_front() else {
+                        continue;
+                    };
+                    if let Some(construct_did) =
+                        current_package.embedded_runbooks_did_lookup.get(&embedded_runbook_name)
                     {
                         return Ok(Some((construct_did.clone(), components, subpath)));
                     }

@@ -8,7 +8,6 @@ use txtx_addon_kit::types::commands::{CommandExecutionResult, CommandSpecificati
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 
 use crate::codec::codec::expect_stacks_public_key;
-use crate::signers::namespaced_err_fn;
 use crate::{
     codec::codec::{
         StacksTransaction, TransactionAuth, TransactionAuthField, TransactionAuthFlags,
@@ -22,10 +21,9 @@ use txtx_addon_kit::types::frontend::{
     BlockEvent, OpenModalData,
 };
 use txtx_addon_kit::types::signers::{
-    consolidate_signer_activate_result, consolidate_signer_result, signer_diag_with_ctx,
-    signer_err_fn, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
-    SignerActivateFutureResult, SignerImplementation, SignerInstance, SignerSignFutureResult,
-    SignerSpecification, SignersState,
+    consolidate_signer_activate_result, consolidate_signer_result, CheckSignabilityOk,
+    SignerActionErr, SignerActionsFutureResult, SignerActivateFutureResult, SignerImplementation,
+    SignerInstance, SignerSignFutureResult, SignerSpecification, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
@@ -117,12 +115,13 @@ impl SignerImplementation for StacksConnect {
     fn check_activability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
+        auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
         is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
@@ -136,6 +135,7 @@ impl SignerImplementation for StacksConnect {
         let values = values.clone();
         let signers_instances = signers_instances.clone();
         let supervision_context = supervision_context.clone();
+        let auth_ctx = auth_ctx.clone();
         let instance_name = instance_name.to_string();
         let expected_address: Option<String> = None;
 
@@ -150,21 +150,17 @@ impl SignerImplementation for StacksConnect {
             .insert(REQUIRED_SIGNATURE_COUNT, Value::integer(required_signature_count as i128));
 
         let instance_name = instance_name.clone();
-        let spec = spec.clone();
         let future = async move {
-            let signer_err =
-                signer_err_fn(signer_diag_with_ctx(&spec, &instance_name, namespaced_err_fn()));
-
             let rpc_api_url = values
                 .get_expected_string(RPC_API_URL)
-                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             let rpc_api_auth_token =
                 values.get_string(RPC_API_AUTH_TOKEN).and_then(|t| Some(t.to_owned()));
 
             let network_id = values
                 .get_expected_string(NETWORK_ID)
-                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             let mut consolidated_actions = Actions::none();
 
@@ -194,7 +190,7 @@ impl SignerImplementation for StacksConnect {
                 false,
             )
             .await
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             open_modal_action.append(res);
 
@@ -214,11 +210,12 @@ impl SignerImplementation for StacksConnect {
                     signers,
                     &signers_instances,
                     &supervision_context,
+                    &auth_ctx,
                     false,
                     true,
                 )?;
                 let (updated_signers, mut actions) = match future.await {
-                    Ok(res) => consolidate_signer_result(Ok(res)).unwrap(),
+                    Ok(res) => consolidate_signer_result(Ok(res), None).unwrap(),
                     Err(e) => return Err(e),
                 };
                 signers = updated_signers;
@@ -241,10 +238,10 @@ impl SignerImplementation for StacksConnect {
                         ordered_public_keys.push(public_key.clone());
                         let bytes = public_key.expect_buffer_bytes();
                         let public_key = Secp256k1PublicKey::from_slice(&bytes).map_err(|e| {
-                            signer_err(
-                                &signers,
-                                &signer_state,
-                                format!("unable to parse public key {}", e.to_string()),
+                            (
+                                signers.clone(),
+                                signer_state.clone(),
+                                diagnosed_error!("unable to parse public key {}", e.to_string()),
                             )
                         })?;
                         ordered_parsed_public_keys.push(public_key);
@@ -293,10 +290,7 @@ impl SignerImplementation for StacksConnect {
                                 &root_construct_did,
                                 ACTION_ITEM_CHECK_BALANCE,
                             )
-                            .set_type(ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value,
-                            }))
+                            .set_type(ReviewInputRequest::new("", &value).to_action_type())
                             .set_status(status_update),
                         );
                     }
@@ -331,30 +325,27 @@ impl SignerImplementation for StacksConnect {
     #[cfg(not(feature = "wasm"))]
     fn activate(
         _construct_id: &ConstructDid,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
-        let signer_did = ConstructDid(signer_state.uuid.clone());
-        let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
+        use txtx_addon_kit::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
 
         let values = values.clone();
         let public_key = signer_state
             .get_expected_value(CHECKED_PUBLIC_KEY)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
         let address = signer_state
             .get_expected_value(CHECKED_ADDRESS)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
         let network_id = values
             .get_expected_string(NETWORK_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
 
         let multisig_signer_instances = get_multisig_signer_instances(&values, signers_instances);
@@ -381,7 +372,7 @@ impl SignerImplementation for StacksConnect {
                     &progress_tx,
                 )?;
                 let (updated_signers, _) =
-                    consolidate_signer_activate_result(Ok(future.await?)).unwrap();
+                    consolidate_signer_activate_result(Ok(future.await?), None).unwrap();
                 signers = updated_signers;
             }
 
@@ -396,7 +387,7 @@ impl SignerImplementation for StacksConnect {
             signer_state.insert("signers", Value::array(signers_uuids.clone()));
 
             result.outputs.insert("signers".into(), Value::array(signers_uuids));
-            result.outputs.insert("public_key".into(), public_key.clone());
+            result.outputs.insert(PROVIDE_PUBLIC_KEY_ACTION_RESULT.into(), public_key.clone());
             result.outputs.insert("address".into(), address.clone());
 
             Ok((signers, signer_state, result))
@@ -511,7 +502,7 @@ impl SignerImplementation for StacksConnect {
                 signer_wallet_state.insert_scoped_value(
                     &origin_uuid.to_string(),
                     FORMATTED_TRANSACTION,
-                    Value::string(formatted_payload),
+                    formatted_payload,
                 );
 
                 let (mut updated_wallets, signer_wallet_state, mut actions) =
@@ -613,7 +604,7 @@ impl SignerImplementation for StacksConnect {
                 )?;
 
                 let (updated_signers, updated_results) =
-                    consolidate_signer_activate_result(Ok(future.await?)).unwrap();
+                    consolidate_signer_activate_result(Ok(future.await?), None).unwrap();
                 signers = updated_signers;
                 let updated_message = updated_results.outputs.get(MESSAGE_BYTES).unwrap().clone();
                 let signature = updated_results.outputs.get(SIGNED_MESSAGE_BYTES).unwrap().clone();

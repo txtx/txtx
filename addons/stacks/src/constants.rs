@@ -30,6 +30,7 @@ pub const DEFAULT_MAINNET_BACKOFF: u64 = 15000;
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
 pub const DEFAULT_MESSAGE: &str =
     "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks.";
+pub const DEFAULT_CLARINET_MANIFEST_PATH: &str = "Clarinet.toml";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";

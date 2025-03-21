@@ -1,4 +1,4 @@
-use kit::types::AuthorizationContext;
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::{
     define_function, indoc,
     types::{
@@ -49,7 +49,7 @@ impl FunctionImplementation for EncodeHex {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         let input = args.get(0).unwrap().expect_string();
-        let hex = kit::hex::encode(input);
+        let hex = txtx_addon_kit::hex::encode(input);
         Ok(Value::string(hex))
     }
 }

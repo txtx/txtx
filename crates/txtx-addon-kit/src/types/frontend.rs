@@ -1,5 +1,7 @@
 use std::{borrow::BorrowMut, collections::BTreeMap, fmt::Display};
 
+use crate::constants::ACTION_ITEM_BEGIN_FLOW;
+
 use super::{
     block_id::BlockId,
     diagnostics::Diagnostic,
@@ -55,6 +57,13 @@ impl BlockEvent {
     pub fn expect_updated_action_items(&self) -> &Vec<NormalizedActionItemRequestUpdate> {
         match &self {
             BlockEvent::UpdateActionItems(ref updates) => updates,
+            _ => unreachable!("block expected"),
+        }
+    }
+
+    pub fn expect_progress_bar_visibility_update(&self) -> &ProgressBarVisibilityUpdate {
+        match &self {
+            BlockEvent::UpdateProgressBarVisibility(ref update) => update,
             _ => unreachable!("block expected"),
         }
     }
@@ -481,6 +490,9 @@ impl ProgressSymbol {
     pub fn new() -> Self {
         ProgressSymbol { current: 0 }
     }
+    pub fn new_with_default_index(default_index: usize) -> Self {
+        ProgressSymbol { current: default_index }
+    }
     pub fn next(&mut self) -> &str {
         self.current = (self.current + 1) % PROGRESS_SYMBOLS.len();
         PROGRESS_SYMBOLS[self.current]
@@ -497,12 +509,12 @@ pub struct StatusUpdater {
     progress: ProgressSymbol,
 }
 impl StatusUpdater {
-    pub fn new(
+    fn _new(
         background_tasks_uuid: &Uuid,
         construct_did: &ConstructDid,
         tx: &channel::Sender<BlockEvent>,
+        mut progress: ProgressSymbol,
     ) -> Self {
-        let mut progress = ProgressSymbol::new();
         let initial_status = ProgressBarStatusUpdate::new(
             &background_tasks_uuid,
             &construct_did,
@@ -510,11 +522,60 @@ impl StatusUpdater {
         );
         StatusUpdater { status_update: initial_status, tx: tx.clone(), progress }
     }
+    pub fn new(
+        background_tasks_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        tx: &channel::Sender<BlockEvent>,
+    ) -> Self {
+        let progress = ProgressSymbol::new();
+        Self::_new(background_tasks_uuid, construct_did, tx, progress)
+    }
+
+    /// Creates a new StatusUpdater with a default progress index.
+    /// This is useful for creating a StatusUpdater for a transaction that is part of a larger set of transactions,
+    /// since each transaction's execution is independent, but we want to show progress for the entire set of transactions.
+    pub fn new_with_default_progress_index(
+        background_tasks_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        tx: &channel::Sender<BlockEvent>,
+        default_progress_index: usize,
+    ) -> Self {
+        let progress = ProgressSymbol::new_with_default_index(default_progress_index);
+        Self::_new(background_tasks_uuid, construct_did, tx, progress)
+    }
+
+    pub fn propagate_info(&mut self, info: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg(
+            ProgressBarStatusColor::Purple,
+            "Info",
+            info,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
     pub fn propagate_pending_status(&mut self, new_status_msg: &str) {
         self.status_update.update_status(&ProgressBarStatus::new_msg(
             ProgressBarStatusColor::Yellow,
             &self.progress.pending(),
             new_status_msg,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_failed_status(&mut self, new_status_msg: &str, diag: &Diagnostic) {
+        self.status_update.update_status(&ProgressBarStatus::new_err(
+            "Failed",
+            new_status_msg,
+            diag,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_success_status(&mut self, status: &str, msg: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg(
+            ProgressBarStatusColor::Green,
+            status,
+            msg,
         ));
         let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
     }
@@ -937,6 +998,37 @@ impl Actions {
         }))
     }
 
+    pub fn push_begin_flow_panel(
+        &mut self,
+        flow_index: usize,
+        flow_name: &str,
+        flow_description: &Option<String>,
+    ) {
+        self.store.push(ActionType::NewBlock(ActionPanelData {
+            title: "Flow Execution".to_string(),
+            description: "".to_string(),
+            groups: vec![ActionGroup {
+                title: "".to_string(),
+                sub_groups: vec![ActionSubGroup {
+                    title: None,
+                    action_items: vec![ActionItemRequest::new(
+                        &None,
+                        "",
+                        None,
+                        ActionItemStatus::Success(None),
+                        ActionItemRequestType::BeginFlow(FlowBlockData {
+                            index: flow_index,
+                            name: flow_name.to_string(),
+                            description: flow_description.clone(),
+                        }),
+                        ACTION_ITEM_BEGIN_FLOW,
+                    )],
+                    allow_batch_completion: false,
+                }],
+            }],
+        }))
+    }
+
     pub fn new_panel(title: &str, description: &str) -> Actions {
         let store = vec![ActionType::NewBlock(ActionPanelData {
             title: title.to_string(),
@@ -1205,7 +1297,7 @@ impl Actions {
                     }
                 }
                 ActionType::NewBlock(data) => {
-                    if current_panel_data.groups.len() > 1 {
+                    if current_panel_data.groups.len() >= 1 {
                         blocks.push(BlockEvent::Action(Block {
                             uuid: Uuid::new_v4(),
                             panel: Panel::ActionPanel(current_panel_data.clone()),
@@ -1348,11 +1440,13 @@ pub enum ActionItemRequestType {
     ProvidePublicKey(ProvidePublicKeyRequest),
     ProvideSignedTransaction(ProvideSignedTransactionRequest),
     ProvideSignedMessage(ProvideSignedMessageRequest),
+    SendTransaction(SendTransactionRequest),
     DisplayOutput(DisplayOutputRequest),
     DisplayErrorLog(DisplayErrorLogRequest),
     OpenModal(OpenModalData),
     ValidateBlock(ValidateBlockData),
     ValidateModal,
+    BeginFlow(FlowBlockData),
 }
 
 impl ActionItemRequestType {
@@ -1386,6 +1480,12 @@ impl ActionItemRequestType {
             _ => None,
         }
     }
+    pub fn as_sign_tx(&self) -> Option<&SendTransactionRequest> {
+        match &self {
+            ActionItemRequestType::SendTransaction(value) => Some(value),
+            _ => None,
+        }
+    }
     pub fn as_provide_signed_msg(&self) -> Option<&ProvideSignedMessageRequest> {
         match &self {
             ActionItemRequestType::ProvideSignedMessage(value) => Some(value),
@@ -1416,7 +1516,9 @@ impl ActionItemRequestType {
     ///
     pub fn get_block_id_string(&self) -> String {
         match self {
-            ActionItemRequestType::ReviewInput(val) => format!("ReviewInput({})", val.input_name),
+            ActionItemRequestType::ReviewInput(val) => {
+                format!("ReviewInput({}-{})", val.input_name, val.force_execution)
+            }
             ActionItemRequestType::ProvideInput(val) => format!(
                 "ProvideInput({}-{})",
                 val.input_name,
@@ -1435,6 +1537,18 @@ impl ActionItemRequestType {
             ActionItemRequestType::ProvideSignedTransaction(val) => {
                 format!(
                     "ProvideSignedTransaction({}-{}-{}-{})",
+                    val.check_expectation_action_uuid
+                        .as_ref()
+                        .and_then(|u| Some(u.to_string()))
+                        .unwrap_or("None".to_string()),
+                    val.signer_uuid.to_string(),
+                    val.namespace,
+                    val.network_id
+                )
+            }
+            ActionItemRequestType::SendTransaction(val) => {
+                format!(
+                    "SendTransaction({}-{}-{}-{})",
                     val.check_expectation_action_uuid
                         .as_ref()
                         .and_then(|u| Some(u.to_string()))
@@ -1470,6 +1584,9 @@ impl ActionItemRequestType {
                 format!("ValidateBlock({})", val.internal_idx.to_string())
             }
             ActionItemRequestType::ValidateModal => format!("ValidateModal"),
+            ActionItemRequestType::BeginFlow(val) => {
+                format!("BeginFlow({}-{})", val.index, val.name)
+            }
         }
     }
 
@@ -1490,6 +1607,9 @@ impl ActionItemRequestType {
                 if new.value != existing.value {
                     if new.input_name != existing.input_name {
                         unreachable!("cannot change review input request input_name")
+                    }
+                    if new.force_execution != existing.force_execution {
+                        unreachable!("cannot change review input request force_execution")
                     }
                     Some(new_type.clone())
                 } else {
@@ -1566,6 +1686,30 @@ impl ActionItemRequestType {
                     None
                 }
             }
+            ActionItemRequestType::SendTransaction(new) => {
+                let Some(existing) = existing_item.as_sign_tx() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.payload != existing.payload {
+                    if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
+                        unreachable!(
+                            "cannot change provide signed tx request check_expectation_action_uuid"
+                        );
+                    }
+                    if new.signer_uuid != existing.signer_uuid {
+                        unreachable!("cannot change provide signed tx request signer_uuid");
+                    }
+                    if new.namespace != existing.namespace {
+                        unreachable!("cannot change provide signed tx request namespace");
+                    }
+                    if new.network_id != existing.network_id {
+                        unreachable!("cannot change provide signed tx request network_id");
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
             ActionItemRequestType::ProvideSignedMessage(new) => {
                 let Some(existing) = existing_item.as_provide_signed_msg() else {
                     unreachable!("cannot change action item request type")
@@ -1595,6 +1739,7 @@ impl ActionItemRequestType {
             ActionItemRequestType::OpenModal(_) => None,
             ActionItemRequestType::ValidateBlock(_) => None,
             ActionItemRequestType::ValidateModal => None,
+            ActionItemRequestType::BeginFlow(_) => None,
         }
     }
 }
@@ -1604,6 +1749,24 @@ impl ActionItemRequestType {
 pub struct ReviewInputRequest {
     pub input_name: String,
     pub value: Value,
+    pub force_execution: bool,
+}
+
+impl ReviewInputRequest {
+    pub fn new(input_name: &str, value: &Value) -> Self {
+        ReviewInputRequest {
+            input_name: input_name.to_string(),
+            value: value.clone(),
+            force_execution: false,
+        }
+    }
+    pub fn force_execution(&mut self) -> &mut Self {
+        self.force_execution = true;
+        self
+    }
+    pub fn to_action_type(&self) -> ActionItemRequestType {
+        ActionItemRequestType::ReviewInput(self.clone())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1632,12 +1795,20 @@ pub struct DisplayErrorLogRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ValidateBlockData {
     /// internal index used to differential one validate block instance from another
-    internal_idx: u8,
+    internal_idx: usize,
 }
 impl ValidateBlockData {
-    pub fn new(internal_idx: u8) -> Self {
+    pub fn new(internal_idx: usize) -> Self {
         ValidateBlockData { internal_idx }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FlowBlockData {
+    index: usize,
+    name: String,
+    description: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1677,7 +1848,7 @@ pub struct ProvideSignedTransactionRequest {
     pub skippable: bool,
     pub only_approval_needed: bool,
     pub payload: Value,
-    pub formatted_payload: Option<String>,
+    pub formatted_payload: Option<Value>,
     pub namespace: String,
     pub network_id: String,
 }
@@ -1717,13 +1888,58 @@ impl ProvideSignedTransactionRequest {
         self
     }
 
-    pub fn formatted_payload(&mut self, display_payload: Option<String>) -> &mut Self {
-        self.formatted_payload = display_payload;
+    pub fn formatted_payload(&mut self, display_payload: Option<&Value>) -> &mut Self {
+        self.formatted_payload = display_payload.cloned();
         self
     }
 
     pub fn to_action_type(&self) -> ActionItemRequestType {
         ActionItemRequestType::ProvideSignedTransaction(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SendTransactionRequest {
+    pub check_expectation_action_uuid: Option<ConstructDid>,
+    pub signer_uuid: ConstructDid,
+    pub expected_signer_address: Option<String>,
+    pub payload: Value,
+    pub formatted_payload: Option<Value>,
+    pub namespace: String,
+    pub network_id: String,
+}
+
+impl SendTransactionRequest {
+    pub fn new(signer_uuid: &Did, payload: &Value, namespace: &str, network_id: &str) -> Self {
+        SendTransactionRequest {
+            signer_uuid: ConstructDid(signer_uuid.clone()),
+            check_expectation_action_uuid: None,
+            expected_signer_address: None,
+            payload: payload.clone(),
+            formatted_payload: None,
+            namespace: namespace.to_string(),
+            network_id: network_id.to_string(),
+        }
+    }
+
+    pub fn check_expectation_action_uuid(&mut self, uuid: &ConstructDid) -> &mut Self {
+        self.check_expectation_action_uuid = Some(uuid.clone());
+        self
+    }
+
+    pub fn expected_signer_address(&mut self, address: Option<&str>) -> &mut Self {
+        self.expected_signer_address = address.and_then(|a| Some(a.to_string()));
+        self
+    }
+
+    pub fn formatted_payload(&mut self, display_payload: Option<&Value>) -> &mut Self {
+        self.formatted_payload = display_payload.cloned();
+        self
+    }
+
+    pub fn to_action_type(&self) -> ActionItemRequestType {
+        ActionItemRequestType::SendTransaction(self.clone())
     }
 }
 
@@ -1754,6 +1970,7 @@ pub enum ActionItemResponseType {
     ProvidePublicKey(ProvidePublicKeyResponse),
     ProvideSignedMessage(ProvideSignedMessageResponse),
     ProvideSignedTransaction(ProvideSignedTransactionResponse),
+    SendTransaction(SendTransactionResponse),
     ValidateBlock,
     ValidateModal,
 }
@@ -1772,6 +1989,7 @@ impl ActionItemResponseType {
 pub struct ReviewedInputResponse {
     pub input_name: String,
     pub value_checked: bool,
+    pub force_execution: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1799,6 +2017,13 @@ pub struct ProvideSignedMessageResponse {
 pub struct ProvideSignedTransactionResponse {
     pub signed_transaction_bytes: Option<String>,
     pub signature_approved: Option<bool>,
+    pub signer_uuid: ConstructDid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendTransactionResponse {
+    pub transaction_hash: String,
     pub signer_uuid: ConstructDid,
 }
 
@@ -1832,6 +2057,7 @@ pub struct ChannelParticipantAuthResponse {
 pub struct OpenChannelRequest {
     pub runbook_name: String,
     pub runbook_description: Option<String>,
+    pub registered_addons: Vec<String>,
     pub block_store: BTreeMap<usize, Block>,
     pub uuid: Uuid,
     pub slug: String,

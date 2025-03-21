@@ -5,12 +5,10 @@ use alloy::json_abi::JsonAbi;
 use alloy::rpc::types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
-    CommandExecutionResult, CommandImplementation, PreCommandSpecification,
+    CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
+    PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ReviewInputRequest,
-};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
@@ -23,25 +21,29 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{
     signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
+use txtx_addon_kit::uuid::Uuid;
 
+use crate::codec::contract_deployment::AddressAbiMap;
 use crate::codec::CommonTransactionFields;
-use crate::commands::actions::check_confirmations::CheckEVMConfirmations;
-use crate::commands::actions::sign_transaction::SignEVMTransaction;
-use crate::constants::{RPC_API_URL, TX_HASH, UNSIGNED_TRANSACTION_BYTES};
-use crate::rpc::EVMRpc;
-use crate::typing::EVM_ADDRESS;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use crate::commands::actions::check_confirmations::CheckEvmConfirmations;
+use crate::commands::actions::sign_transaction::SignEvmTransaction;
+use crate::constants::{
+    ABI_ENCODED_RESULT, ADDRESS_ABI_MAP, CONTRACT_ABI, CONTRACT_ADDRESS, RESULT, RPC_API_URL,
+};
+use crate::rpc::EvmRpc;
+use crate::typing::{DECODED_LOG_OUTPUT, EVM_ADDRESS, EVM_SIM_RESULT, RAW_LOG_OUTPUT};
+use txtx_addon_kit::constants::TX_HASH;
 
-use super::get_signer_did;
+use super::{get_expected_address, get_signer_did};
 
 lazy_static! {
     pub static ref SIGN_EVM_CONTRACT_CALL: PreCommandSpecification = define_command! {
-      SignEVMContractCall => {
+      SignEvmContractCall => {
           name: "Sign EVM Contract Call Transaction",
           matcher: "call_contract",
           documentation: "The `evm::call_contract` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.",
           implements_signing_capability: true,
-          implements_background_task_capability: false,
+          implements_background_task_capability: true,
           inputs: [
             description: {
                 documentation: "A description of the transaction.",
@@ -107,14 +109,14 @@ lazy_static! {
                 internal: false
             },
             max_fee_per_gas: {
-                documentation: "Sets the max fee per gas of an EIP1559 transaction.",
+                documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             max_priority_fee_per_gas: {
-                documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
+                documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
@@ -135,14 +137,21 @@ lazy_static! {
                 internal: false
             },
             gas_limit: {
-                documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
+                documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             gas_price: {
-                documentation: "Sets the gas price for Legacy transactions.",
+                documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
+                typing: Type::integer(),
+                optional: true,
+                tainting: false,
+                internal: false
+            },
+            confirmations: {
+                documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
@@ -153,22 +162,38 @@ lazy_static! {
               tx_hash: {
                   documentation: "The hash of the transaction.",
                   typing: Type::string()
+              },
+              logs: {
+                  documentation: "The logs of the transaction, decoded via any ABI provided by the contract call.",
+                  typing: DECODED_LOG_OUTPUT.clone()
+              },
+              raw_logs: {
+                    documentation: "The raw logs of the transaction.",
+                    typing: RAW_LOG_OUTPUT.clone()
+              },
+              result: {
+                    documentation: "The result of simulating the execution of the transaction directly before its execution.",
+                    typing: Type::string()
+              },
+              abi_encoded_result: {
+                    documentation: "The simulation result with ABI context for using in other function calls.",
+                    typing: Type::addon(EVM_SIM_RESULT)
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
             action "call_some_contract" "evm::call_contract" {
-                contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
+                contract_address = input.contract_address
                 function_name = "myFunction"
                 function_args = [evm::bytes("0x1234")]
-                from = evm::address(env.MY_ADDRESS)
+                signer = signer.operator
             }
       "#},
       }
     };
 }
 
-pub struct SignEVMContractCall;
-impl CommandImplementation for SignEVMContractCall {
+pub struct SignEvmContractCall;
+impl CommandImplementation for SignEvmContractCall {
     fn check_instantiability(
         _ctx: &CommandSpecification,
         _args: Vec<Type>,
@@ -186,14 +211,10 @@ impl CommandImplementation for SignEVMContractCall {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use alloy::{consensus::Transaction, network::TransactionBuilder};
-
         use crate::{
             codec::get_typed_transaction_bytes,
-            commands::actions::sign_transaction::SignEVMTransaction,
-            constants::{
-                ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, TRANSACTION_PAYLOAD_BYTES,
-            },
+            commands::actions::sign_transaction::SignEvmTransaction,
+            constants::{ABI_ENCODED_RESULT, RESULT, TRANSACTION_COST, TRANSACTION_PAYLOAD_BYTES},
             typing::EvmValue,
         };
 
@@ -209,71 +230,42 @@ impl CommandImplementation for SignEVMContractCall {
         let future = async move {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
-            if let Some(_) = signer_state
-                .get_scoped_value(&construct_did.value().to_string(), SIGNED_TRANSACTION_BYTES)
+            if let Some(_) =
+                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
-            let transaction = build_unsigned_contract_call(&signer_state, &spec, &values)
-                .await
-                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            let (transaction, transaction_cost, sim_result_raw, sim_result_with_encoding) =
+                build_unsigned_contract_call(&signer_state, &spec, &values)
+                    .await
+                    .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                RESULT,
+                Value::String(sim_result_raw),
+            );
+            signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                ABI_ENCODED_RESULT,
+                sim_result_with_encoding,
+            );
 
-            let bytes = get_typed_transaction_bytes(&transaction).map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("command 'evm::call_contract': {e}"),
-                )
-            })?;
-            let transaction = transaction.build_unsigned().unwrap();
+            let bytes = get_typed_transaction_bytes(&transaction)
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
             let payload = EvmValue::transaction(bytes);
 
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload.clone());
 
-            // todo: is this necessary? not happening in deploy_contract
             signer_state.insert_scoped_value(
-                &construct_did.value().to_string(),
-                UNSIGNED_TRANSACTION_BYTES,
-                payload.clone(),
+                &construct_did.to_string(),
+                TRANSACTION_COST,
+                Value::integer(transaction_cost),
             );
             signers.push_signer_state(signer_state);
-            let description =
-                values.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
 
-            if supervision_context.review_input_values {
-                actions.push_panel("Transaction Signing", "");
-                actions.push_sub_group(
-                    description.clone(),
-                    vec![
-                        ActionItemRequest::new(
-                            &Some(construct_did.clone()),
-                            "".into(),
-                            Some(format!("Check account nonce")),
-                            ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.nonce().into()),
-                            }),
-                            ACTION_ITEM_CHECK_NONCE,
-                        ),
-                        ActionItemRequest::new(
-                            &Some(construct_did.clone()),
-                            "µSTX".into(),
-                            Some(format!("Check transaction fee")),
-                            ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.gas_limit().try_into().unwrap()), // todo
-                            }),
-                            ACTION_ITEM_CHECK_FEE,
-                        ),
-                    ],
-                )
-            }
-
-            let future_result = SignEVMTransaction::check_signed_executability(
+            let future_result = SignEvmTransaction::check_signed_executability(
                 &construct_did,
                 &instance_name,
                 &spec,
@@ -308,15 +300,33 @@ impl CommandImplementation for SignEVMContractCall {
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
-        let mut signers = signers.clone();
+        let signers = signers.clone();
 
         let mut result: CommandExecutionResult = CommandExecutionResult::new();
-        let signer_did = get_signer_did(&values).unwrap();
-        let signer_state = signers.clone().pop_signer_state(&signer_did).unwrap();
+
         let future = async move {
-            // if this contract has already been deployed, we'll skip signing and confirming
-            signers.push_signer_state(signer_state);
-            let run_signing_future = SignEVMTransaction::run_signed_execution(
+            let contract_address =
+                get_expected_address(values.get_value(CONTRACT_ADDRESS).unwrap()).unwrap();
+
+            let signer_did = get_signer_did(&values).unwrap();
+            let signer_state = signers.get_signer_state(&signer_did).unwrap();
+            let call_result = signer_state
+                .get_expected_scoped_value(&construct_did.to_string(), RESULT)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+            result.outputs.insert(RESULT.to_string(), call_result.clone());
+
+            let encoded_result = signer_state
+                .get_expected_scoped_value(&construct_did.to_string(), ABI_ENCODED_RESULT)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+            result.outputs.insert(ABI_ENCODED_RESULT.to_string(), encoded_result.clone());
+
+            let contract_abi = values.get_value(CONTRACT_ABI);
+            let mut address_abi_map = AddressAbiMap::new();
+            address_abi_map.insert_opt(&contract_address, &contract_abi);
+
+            result.outputs.insert(ADDRESS_ABI_MAP.to_string(), address_abi_map.to_value());
+
+            let run_signing_future = SignEvmTransaction::run_signed_execution(
                 &construct_did,
                 &spec,
                 &values,
@@ -334,7 +344,7 @@ impl CommandImplementation for SignEVMContractCall {
             result.append(&mut res_signing);
             values.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
 
-            let mut res = match CheckEVMConfirmations::run_execution(
+            let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
                 &spec,
                 &values,
@@ -353,6 +363,54 @@ impl CommandImplementation for SignEVMContractCall {
 
         Ok(Box::pin(future))
     }
+
+    fn build_background_task(
+        construct_did: &ConstructDid,
+        spec: &CommandSpecification,
+        inputs: &ValueStore,
+        outputs: &ValueStore,
+        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+        supervision_context: &RunbookSupervisionContext,
+    ) -> CommandExecutionFutureResult {
+        let construct_did = construct_did.clone();
+        let spec = spec.clone();
+        let inputs = inputs.clone();
+        let outputs = outputs.clone();
+        let progress_tx = progress_tx.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
+        let supervision_context = supervision_context.clone();
+
+        let future = async move {
+            let mut result = CommandExecutionResult::new();
+            result.outputs.insert(TX_HASH.to_string(), inputs.get_value(TX_HASH).unwrap().clone());
+
+            let call_result = outputs.get_expected_value(RESULT)?;
+            result.outputs.insert(RESULT.to_string(), call_result.clone());
+
+            let encoded_result = outputs.get_expected_value(ABI_ENCODED_RESULT)?;
+            result.outputs.insert(ABI_ENCODED_RESULT.to_string(), encoded_result.clone());
+
+            if let Some(contract_abi) = outputs.get_value(CONTRACT_ABI) {
+                result.outputs.insert(CONTRACT_ABI.to_string(), contract_abi.clone());
+            }
+            let mut res = CheckEvmConfirmations::build_background_task(
+                &construct_did,
+                &spec,
+                &inputs,
+                &outputs,
+                &progress_tx,
+                &background_tasks_uuid,
+                &supervision_context,
+            )?
+            .await?;
+
+            result.append(&mut res);
+
+            Ok(result)
+        };
+        Ok(Box::pin(future))
+    }
 }
 
 #[cfg(not(feature = "wasm"))]
@@ -360,14 +418,19 @@ async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<TransactionRequest, Diagnostic> {
+) -> Result<(TransactionRequest, i128, String, Value), Diagnostic> {
     use crate::{
-        codec::{build_unsigned_transaction, value_to_sol_value, TransactionType},
+        codec::{
+            build_unsigned_transaction, value_to_abi_function_args, value_to_sol_value,
+            TransactionType,
+        },
         commands::actions::get_common_tx_params_from_args,
         constants::{
             CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
-            CONTRACT_FUNCTION_NAME, NONCE, TRANSACTION_TYPE,
+            CONTRACT_FUNCTION_NAME, TRANSACTION_TYPE,
         },
+        signers::common::get_signer_nonce,
+        typing::EvmValue,
     };
 
     let from = signer_state.get_expected_value("signer_address")?;
@@ -378,27 +441,33 @@ async fn build_unsigned_contract_call(
     let contract_address = values.get_expected_value(CONTRACT_ADDRESS)?;
     let contract_abi = values.get_string(CONTRACT_ABI);
     let function_name = values.get_expected_string(CONTRACT_FUNCTION_NAME)?;
-    let function_args: Vec<DynSolValue> = values
-        .get_value(CONTRACT_FUNCTION_ARGS)
-        .map(|v| {
-            v.expect_array()
-                .iter()
-                .map(|v| {
-                    value_to_sol_value(&v)
-                        .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))
-                })
-                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
-        })
-        .unwrap_or(Ok(vec![]))?;
 
-    let (amount, gas_limit, mut nonce) = get_common_tx_params_from_args(values)
-        .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?;
+    let function_args = if let Some(abi_str) = contract_abi {
+        values
+            .get_value(CONTRACT_FUNCTION_ARGS)
+            .map(|v| {
+                let abi: JsonAbi = serde_json::from_str(&abi_str)
+                    .map_err(|e| diagnosed_error!("invalid contract abi: {}", e))?;
+                value_to_abi_function_args(&function_name, &v, &abi)
+            })
+            .unwrap_or(Ok(vec![]))?
+    } else {
+        values
+            .get_value(CONTRACT_FUNCTION_ARGS)
+            .map(|v| {
+                v.expect_array()
+                    .iter()
+                    .map(|v| value_to_sol_value(&v).map_err(|e| diagnosed_error!("{}", e)))
+                    .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
+            })
+            .unwrap_or(Ok(vec![]))?
+    };
+
+    let (amount, gas_limit, mut nonce) =
+        get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{}", e))?;
     if nonce.is_none() {
-        if let Some(signer_nonce) = signer_state
-            .get_value(NONCE)
-            .map(|v| v.expect_uint())
-            .transpose()
-            .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?
+        if let Some(signer_nonce) =
+            get_signer_nonce(signer_state, chain_id).map_err(|e| diagnosed_error!("{}", e))?
         {
             nonce = Some(signer_nonce + 1);
         }
@@ -406,15 +475,14 @@ async fn build_unsigned_contract_call(
 
     let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
-    let rpc = EVMRpc::new(&rpc_api_url)
-        .map_err(|e| diagnosed_error!("command 'evm::call_contract': {}", e))?;
+    let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{}", e))?;
 
     let input = if let Some(abi_str) = contract_abi {
-        encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
-            .map_err(|e| diagnosed_error!("command 'call_contract': {e}"))?
+        encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
+            .map_err(|e| diagnosed_error!("{}", e))?
     } else {
         encode_contract_call_inputs_from_selector(function_name, &function_args)
-            .map_err(|e| diagnosed_error!("command 'call_contract': {e}"))?
+            .map_err(|e| diagnosed_error!("{}", e))?
     };
 
     let common = CommonTransactionFields {
@@ -429,10 +497,33 @@ async fn build_unsigned_contract_call(
         deploy_code: None,
     };
 
-    let tx = build_unsigned_transaction(rpc, values, common)
+    let function_spec = if let Some(abi_str) = contract_abi {
+        let abi: JsonAbi = serde_json::from_str(&abi_str)
+            .map_err(|e| diagnosed_error!("invalid contract abi: {}", e))?;
+
+        if let Some(function) = abi.function(&function_name).and_then(|f| f.first()) {
+            if let Ok(out) = serde_json::to_vec(&function) {
+                Some(out)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let (tx, cost, sim_result_raw) = build_unsigned_transaction(rpc, values, common)
         .await
-        .map_err(|e| diagnosed_error!("command 'evm::call_contract': {e}"))?;
-    Ok(tx)
+        .map_err(|e| diagnosed_error!("{}", e))?;
+
+    let sim_result_bytes = hex::decode(&sim_result_raw)
+        .map_err(|e| diagnosed_error!("invalid simulation result: {}", e))?;
+
+    let sim_result = EvmValue::sim_result(sim_result_bytes, function_spec);
+
+    Ok((tx, cost, sim_result_raw, sim_result))
 }
 
 pub fn encode_contract_call_inputs_from_selector(
@@ -455,7 +546,7 @@ pub fn encode_contract_call_inputs_from_selector(
     Ok(data)
 }
 
-pub fn encode_contract_call_inputs_from_abi(
+pub fn encode_contract_call_inputs_from_abi_str(
     abi_str: &str,
     function_name: &str,
     function_args: &Vec<DynSolValue>,
@@ -463,7 +554,15 @@ pub fn encode_contract_call_inputs_from_abi(
     let abi: JsonAbi =
         serde_json::from_str(&abi_str).map_err(|e| format!("invalid contract abi: {}", e))?;
 
-    let interface = Interface::new(abi);
+    encode_contract_call_inputs_from_abi(&abi, function_name, function_args)
+}
+
+pub fn encode_contract_call_inputs_from_abi(
+    abi: &JsonAbi,
+    function_name: &str,
+    function_args: &Vec<DynSolValue>,
+) -> Result<Vec<u8>, String> {
+    let interface = Interface::new(abi.clone());
     interface
         .encode_input(function_name, &function_args)
         .map_err(|e| format!("failed to encode contract inputs: {e}"))

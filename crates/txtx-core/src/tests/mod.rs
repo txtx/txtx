@@ -1,4 +1,3 @@
-use kit::types::block_id::BlockId;
 use txtx_addon_kit::types::{
     frontend::{
         ActionItemResponse, ActionItemResponseType, ActionItemStatus, ProvidedInputResponse,
@@ -6,14 +5,27 @@ use txtx_addon_kit::types::{
     },
     types::Value,
 };
+use txtx_addon_kit::{types::block_id::BlockId, Addon};
 use txtx_test_utils::test_harness::setup_test;
+
+use crate::std::StdAddon;
+
+pub fn get_addon_by_namespace(namespace: &str) -> Option<Box<dyn Addon>> {
+    let available_addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new())];
+    for addon in available_addons.into_iter() {
+        if namespace.starts_with(&format!("{}", addon.get_namespace())) {
+            return Some(addon);
+        }
+    }
+    None
+}
 
 #[test]
 fn test_ab_c_runbook_no_env() {
     // Load Runbook ab_c.tx
     let abc_tx = include_str!("./fixtures/ab_c.tx");
 
-    let harness = setup_test("ab_c.tx", &abc_tx, vec![]);
+    let harness = setup_test("ab_c.tx", &abc_tx, get_addon_by_namespace);
 
     // runbook checklist assertions
     {
@@ -40,21 +52,26 @@ fn test_ab_c_runbook_no_env() {
         let inputs_panel_data =
             harness.expect_action_panel(None, "variables review", vec![vec![2, 1]]);
 
-        let input_b_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
-        let input_a_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[1];
+        let input_a_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
+        let input_b_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[1];
 
         assert_eq!(&input_a_action.internal_key, "check_input");
         assert_eq!(&input_b_action.internal_key, "provide_input");
 
-        // review input a and expect action item update
-        harness.send_and_expect_action_item_update(
+        harness.send_and_expect_progress_bar_visibility_update(
             ActionItemResponse {
                 action_item_id: input_a_action.id.clone(),
                 payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                     value_checked: true,
                     input_name: "value".into(),
+                    force_execution: false,
                 }),
             },
+            false,
+        );
+        // review input a and expect action item update
+        harness.expect_action_item_update(
+            None,
             vec![(&input_a_action.id, Some(ActionItemStatus::Success(None)))],
         );
 
@@ -76,6 +93,7 @@ fn test_ab_c_runbook_no_env() {
                 payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
                     value_checked: true,
                     input_name: "value".into(),
+                    force_execution: false,
                 }),
             },
             vec![(&input_b_action.id, Some(ActionItemStatus::Success(None)))],
@@ -97,5 +115,6 @@ fn test_ab_c_runbook_no_env() {
         harness.expect_action_panel(None, "output review", vec![vec![1]]);
     }
 
+    harness.expect_progress_bar_visibility_update(None, false);
     harness.expect_runbook_complete();
 }

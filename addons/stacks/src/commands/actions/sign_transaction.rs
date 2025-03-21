@@ -15,8 +15,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions, BlockEvent,
-    ReviewInputRequest,
+    ActionItemRequest, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
@@ -45,7 +44,7 @@ lazy_static! {
       SignStacksTransaction => {
           name: "Sign Stacks Transaction",
           matcher: "sign_transaction",
-          documentation: "The `stacks::sign_transaction` action signs an encoded transaction payload with the supplied signer data.",
+          documentation: "The `stacks::sign_transaction` action signs an encoded transaction payload with the specified signer.",
           implements_signing_capability: true,
           implements_background_task_capability: false,
           inputs: [
@@ -64,9 +63,9 @@ lazy_static! {
                 internal: false
             },
             network_id: {
-                documentation: indoc!{r#"The network id, which is used to set the transaction version. Can be `"mainnet"`, `"testnet"` and `"devnet"`."#},
+                documentation: indoc!{r#"The network id, which is used to set the transaction version. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`."#},
                 typing: Type::string(),
-                optional: true,
+                optional: false,
                 tainting: true,
                 internal: false
             },
@@ -234,10 +233,11 @@ impl CommandImplementation for SignStacksTransaction {
                             "".into(),
                             Some(format!("Check account nonce")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.get_origin_nonce() as i128),
-                            }),
+                            ReviewInputRequest::new(
+                                "",
+                                &Value::integer(transaction.get_origin_nonce() as i128),
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_NONCE,
                         ),
                         ActionItemRequest::new(
@@ -245,10 +245,11 @@ impl CommandImplementation for SignStacksTransaction {
                             "µSTX".into(),
                             Some(format!("Check transaction fee")),
                             ActionItemStatus::Todo,
-                            ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                                input_name: "".into(),
-                                value: Value::integer(transaction.get_tx_fee() as i128),
-                            }),
+                            ReviewInputRequest::new(
+                                "".into(),
+                                &Value::integer(transaction.get_tx_fee() as i128),
+                            )
+                            .to_action_type(),
                             ACTION_ITEM_CHECK_FEE,
                         ),
                     ],

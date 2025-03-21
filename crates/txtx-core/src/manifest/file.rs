@@ -1,13 +1,13 @@
-use kit::{
+use serde::{Deserialize, Serialize};
+use txtx_addon_kit::{
     helpers::fs::{get_txtx_files_paths, FileLocation},
     indexmap::IndexMap,
     types::RunbookId,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::runbook::{Runbook, RunbookSources};
 
-use super::{RunbookState, WorkspaceManifest};
+use super::{RunbookStateLocation, WorkspaceManifest};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkspaceManifestFile {
@@ -36,7 +36,6 @@ pub struct RunbookMetadataFile {
     pub location: String,
     pub name: String,
     pub description: Option<String>,
-    pub id: String,
     pub state: Option<RunbookStateFile>,
 }
 
@@ -49,7 +48,8 @@ pub fn read_runbooks_from_manifest(
     manifest: &WorkspaceManifest,
     environment_selector: &Option<String>,
     runbooks_filter_in: Option<&Vec<String>>,
-) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookState>)>, String> {
+) -> Result<IndexMap<String, (Runbook, RunbookSources, String, Option<RunbookStateLocation>)>, String>
+{
     let mut runbooks = IndexMap::new();
 
     let root_path =
@@ -57,23 +57,29 @@ pub fn read_runbooks_from_manifest(
 
     for runbook_metadata in manifest.runbooks.iter() {
         if let Some(runbooks_filter_in) = runbooks_filter_in {
-            if !runbooks_filter_in.contains(&runbook_metadata.id) {
+            if !runbooks_filter_in.contains(&runbook_metadata.name) {
                 continue;
             }
         }
+
         let mut package_location = root_path.clone();
         package_location.append_path(&runbook_metadata.location)?;
-        let (_, runbook, sources) = read_runbook_from_location(
+        if let Ok((_, runbook, sources)) = read_runbook_from_location(
             &package_location,
             &runbook_metadata.description,
             environment_selector,
-            Some(&runbook_metadata.id),
-        )?;
-
-        runbooks.insert(
-            runbook_metadata.id.to_string(),
-            (runbook, sources, runbook_metadata.name.to_string(), runbook_metadata.state.clone()),
-        );
+            Some(&runbook_metadata.name),
+        ) {
+            runbooks.insert(
+                runbook_metadata.name.to_string(),
+                (
+                    runbook,
+                    sources,
+                    runbook_metadata.name.to_string(),
+                    runbook_metadata.state.clone(),
+                ),
+            );
+        }
     }
     Ok(runbooks)
 }
@@ -105,6 +111,6 @@ pub fn read_runbook_from_location(
         }
     }
 
-    let runbook_id = RunbookId { org: None, workspace: None, name: runbook_name.clone() };
+    let runbook_id = RunbookId::new(None, None, &runbook_name);
     Ok((runbook_name, Runbook::new(runbook_id, description.clone()), runbook_sources))
 }

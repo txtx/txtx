@@ -52,7 +52,7 @@ lazy_static! {
         StacksDeployContract => {
             name: "Stacks Contract Deployment",
             matcher: "deploy_contract",
-            documentation: "The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.",
+            documentation: "The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using the specified signer, and broadcasts the signed transaction to the network.",
             implements_signing_capability: true,
             implements_background_task_capability: true,
             inputs: [
@@ -95,16 +95,16 @@ lazy_static! {
                     internal: false
                 },
                 network_id: {
-                    documentation: "The network id used to validate the transaction version.",
+                    documentation: indoc!{r#"The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`."#},
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: true,
                     internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: false,
                     internal: false
                 },
@@ -262,7 +262,9 @@ impl CommandImplementation for StacksDeployContract {
         _ctx: &CommandSpecification,
         mut evaluated_inputs: CommandInputsEvaluationResult,
     ) -> InputsPostProcessingFutureResult {
-        let contract = evaluated_inputs.inputs.get_expected_object("contract")?;
+        let contract =
+            evaluated_inputs.get_if_not_unevaluated("contract", ValueStore::get_expected_object)?;
+
         let mut contract_source = match contract.get("contract_source").map(|v| v.as_string()) {
             Some(Some(value)) => value.to_string(),
             _ => return Err(diagnosed_error!("unable to retrieve 'contract_source'")),
@@ -301,16 +303,28 @@ impl CommandImplementation for StacksDeployContract {
         // and retrieve the dependencies.
         let mut dependencies = vec![];
         let mut lazy_dependencies = vec![];
-        if let Err((data, _)) =
-            ASTDependencyDetector::detect_dependencies(&contracts_asts, &preloaded)
-        {
-            for (_contract_id, deps) in data.iter() {
-                for dep in deps.iter() {
-                    let contract_id = Value::string(dep.contract_id.to_string());
-                    if dep.required_before_publish {
-                        dependencies.push(contract_id);
-                    } else {
-                        lazy_dependencies.push(contract_id);
+        match ASTDependencyDetector::detect_dependencies(&contracts_asts, &preloaded) {
+            Err((data, _)) => {
+                for (_contract_id, deps) in data.iter() {
+                    for dep in deps.iter() {
+                        let contract_id = Value::string(dep.contract_id.to_string());
+                        if dep.required_before_publish {
+                            dependencies.push(contract_id);
+                        } else {
+                            lazy_dependencies.push(contract_id);
+                        }
+                    }
+                }
+            }
+            Ok(data) => {
+                for (_contract_id, deps) in data.iter() {
+                    for dep in deps.iter() {
+                        let contract_id = Value::string(dep.contract_id.to_string());
+                        if dep.required_before_publish {
+                            dependencies.push(contract_id);
+                        } else {
+                            lazy_dependencies.push(contract_id);
+                        }
                     }
                 }
             }
@@ -567,10 +581,7 @@ impl CommandImplementation for StacksDeployContract {
                     .unwrap();
             let sender_address = transaction.origin_address().to_string();
 
-            values.insert(
-                SIGNED_TRANSACTION_BYTES,
-                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
-            );
+            values.insert(SIGNED_TRANSACTION_BYTES, signed_transaction.clone());
 
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,

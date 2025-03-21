@@ -24,7 +24,7 @@ lazy_static! {
         BroadcastStacksTransaction => {
             name: "Broadcast Stacks Transaction",
             matcher: "broadcast_transaction",
-            documentation: "The `broadcast_transaction` action sends a signed transaction payload to the specified network.",
+            documentation: "The `stacks::broadcast_transaction` action sends a signed transaction payload to the specified network.",
             implements_signing_capability: false,
             implements_background_task_capability: true,
             inputs: [
@@ -36,16 +36,16 @@ lazy_static! {
                   internal: false
                 },
                 network_id: {
-                    documentation: "The network id used to validate the transaction version.",
+                    documentation: indoc!{r#"The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`."#},
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: true,
                     internal: false
                 },
                 rpc_api_url: {
                     documentation: "The URL to use when making API requests.",
                     typing: Type::string(),
-                    optional: true,
+                    optional: false,
                     tainting: false,
                     internal: false
                 },
@@ -57,7 +57,7 @@ lazy_static! {
                     internal: false
                 },
                 confirmations: {
-                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.",
+                    documentation: "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
                     typing: Type::integer(),
                     optional: true,
                     tainting: false,
@@ -222,12 +222,20 @@ impl CommandImplementation for BroadcastStacksTransaction {
             })?;
 
             let client = StacksRpc::new(&rpc_api_url, &rpc_api_auth_token);
+
             let tx_result = loop {
                 progress = (progress + 1) % progress_symbol.len();
                 match client.post_transaction(&transaction_bytes).await {
                     Ok(res) => break res,
-                    Err(RpcError::ContractAlreadyExists(data)) => {
-                        result.outputs.insert("contract_id".into(), Value::string(data.unwrap()));
+                    Err(RpcError::ContractAlreadyDeployed(data)) => {
+                        result.outputs.insert("contract_id".into(), Value::string(data));
+                        status_update.update_status(&ProgressBarStatus::new_msg(
+                            ProgressBarStatusColor::Green,
+                            "Complete",
+                            &format!("Contract deployed"),
+                        ));
+                        let _ =
+                            progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update));
                         return Ok(result);
                     }
                     Err(e) => {

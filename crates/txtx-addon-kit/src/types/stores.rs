@@ -2,9 +2,11 @@ use std::collections::HashMap;
 
 use indexmap::IndexMap;
 
-use super::{commands::CommandInput, diagnostics::Diagnostic, types::Value, Did, CACHED_NONCE};
+use super::{
+    commands::CommandInput, diagnostics::Diagnostic, types::Value, ConstructDid, Did, CACHED_NONCE,
+};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValueStore {
     pub uuid: Did,
     pub name: String,
@@ -33,6 +35,12 @@ impl ValueStore {
         self.inputs = inputs.clone();
         self
     }
+
+    pub fn append_inputs(mut self, new_inputs: &ValueMap) -> Self {
+        self.inputs = self.inputs.append_store(&new_inputs.store);
+        self
+    }
+
     pub fn with_defaults(mut self, defaults: &ValueMap) -> Self {
         self.defaults = defaults.clone();
         self
@@ -56,16 +64,41 @@ impl ValueStore {
         spec_inputs: &Vec<CommandInput>,
     ) -> Result<Self, Diagnostic> {
         for input in spec_inputs.iter() {
-            match self.inputs.get_value(&input.name) {
-                Some(_) => {}
-                None => match input.optional {
-                    true => continue,
-                    false => {
-                        return Err(Diagnostic::error_from_string(format!(
-                            "Could not execute command '{}': Required input '{}' missing",
-                            instance_name, input.name
-                        )));
-                    }
+            match input.optional {
+                true => continue,
+                false => match self.inputs.get_value(&input.name) {
+                    // Uncomment for strict type-checking on all values:
+                    // Some(value) => match input.check_value(value) {
+                    //     Ok(_) => continue,
+                    //     Err(e) => return Err(e),
+                    // },
+                    Some(value) => match input.as_object() {
+                        Some(_) => match input.check_value(value) {
+                            Ok(_) => continue,
+                            Err(e) => return Err(e),
+                        },
+                        None => continue,
+                    },
+                    None => match self.defaults.get_value(&input.name) {
+                        // Uncomment for strict type-checking on all values:
+                        // Some(value) => match input.check_value(value) {
+                        //     Ok(_) => continue,
+                        //     Err(e) => return Err(e),
+                        // },
+                        Some(value) => match input.as_object() {
+                            Some(_) => match input.check_value(value) {
+                                Ok(_) => continue,
+                                Err(e) => return Err(e),
+                            },
+                            None => continue,
+                        },
+                        None => {
+                            return Err(Diagnostic::error_from_string(format!(
+                                "Could not execute command '{}': Required input '{}' missing",
+                                instance_name, input.name
+                            )));
+                        }
+                    },
                 },
             };
         }
@@ -77,6 +110,14 @@ impl ValueStore {
         match self.inputs.get_expected_value(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_value(key).or(Err(e)),
+        }
+        .map_err(|e| e)
+    }
+
+    pub fn get_expected_construct_did(&self, key: &str) -> Result<ConstructDid, Diagnostic> {
+        match self.inputs.get_expected_construct_did(key) {
+            Ok(val) => Ok(val),
+            Err(e) => self.defaults.get_expected_construct_did(key).or(Err(e)),
         }
         .map_err(|e| e)
     }
@@ -120,6 +161,14 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
+    pub fn get_expected_map(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
+        match self.inputs.get_expected_map(key) {
+            Ok(val) => Ok(val),
+            Err(e) => self.defaults.get_expected_map(key).or(Err(e)),
+        }
+        .map_err(|e| e)
+    }
+
     pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
         match self.inputs.get_expected_object(key) {
             Ok(val) => Ok(val),
@@ -155,13 +204,37 @@ impl ValueStore {
         self.inputs.get_bool(key).or(self.defaults.get_bool(key))
     }
 
+    pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.inputs.get_array(key).or(self.defaults.get_array(key))
+    }
+
+    pub fn get_map(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.inputs.get_map(key).or(self.defaults.get_map(key))
+    }
+
+    pub fn get_object(&self, key: &str) -> Option<&IndexMap<String, Value>> {
+        self.inputs.get_object(key).or(self.defaults.get_object(key))
+    }
+
     // Scoped values
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
         self.inputs.insert(&format!("{}:{}", scope, key), value);
     }
 
+    pub fn clear_scoped_value(&mut self, scope: &str, key: &str) {
+        self.inputs.store.swap_remove(&format!("{}:{}", scope, key));
+    }
+
+    pub fn remove_scoped_value(&mut self, scope: &str, key: &str) -> Option<Value> {
+        self.inputs.store.shift_remove(&format!("{}:{}", scope, key))
+    }
+
     pub fn get_scoped_value(&self, scope: &str, key: &str) -> Option<&Value> {
         self.inputs.get_value(&format!("{}:{}", scope, key))
+    }
+
+    pub fn get_scoped_integer(&self, scope: &str, key: &str) -> Option<i128> {
+        self.inputs.get_integer(&format!("{}:{}", scope, key))
     }
 
     pub fn get_scoped_bool(&self, scope: &str, key: &str) -> Option<bool> {
@@ -170,6 +243,28 @@ impl ValueStore {
         } else {
             None
         }
+    }
+
+    pub fn get_expected_scoped_value(&self, scope: &str, key: &str) -> Result<&Value, Diagnostic> {
+        match self.inputs.get_expected_value(&format!("{}:{}", scope, key)) {
+            Ok(val) => Ok(val),
+            Err(e) => self.defaults.get_expected_value(&format!("{}:{}", scope, key)).or(Err(e)),
+        }
+        .map_err(|e| e)
+    }
+
+    pub fn get_expected_scoped_buffer_bytes(
+        &self,
+        scope: &str,
+        key: &str,
+    ) -> Result<Vec<u8>, Diagnostic> {
+        match self.inputs.get_expected_buffer_bytes(&format!("{}:{}", scope, key)) {
+            Ok(val) => Ok(val),
+            Err(e) => {
+                self.defaults.get_expected_buffer_bytes(&format!("{}:{}", scope, key)).or(Err(e))
+            }
+        }
+        .map_err(|e| e)
     }
 
     // Nonce helpers
@@ -227,6 +322,9 @@ impl AddonDefaults {
     pub fn iter(&self) -> indexmap::map::Iter<String, Value> {
         self.store.iter()
     }
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.store.contains_key(key)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,19 +335,35 @@ impl ValueMap {
     pub fn new() -> ValueMap {
         Self { store: IndexMap::new() }
     }
+    pub fn with_store(mut self, store: &IndexMap<String, Value>) -> Self {
+        self.store = store.clone();
+        self
+    }
+    pub fn append_store(mut self, new_store: &IndexMap<String, Value>) -> Self {
+        for (k, v) in new_store.into_iter() {
+            if !self.store.contains_key(k) {
+                self.store.insert(k.to_string(), v.clone());
+            }
+        }
+        self
+    }
 
     pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(format!("unable to retrieve key '{}'", key)));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve value '{}'",
+                key
+            )));
         };
         Ok(value)
     }
 
     pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve bool '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_bool() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -260,11 +374,18 @@ impl ValueMap {
         Ok(value)
     }
 
+    pub fn get_expected_construct_did(&self, key: &str) -> Result<ConstructDid, Diagnostic> {
+        let value = self.get_expected_string(key)?;
+        let construct_did = ConstructDid::from_hex_string(value);
+        Ok(construct_did)
+    }
+
     pub fn get_expected_string(&self, key: &str) -> Result<&str, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve string '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_string() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -277,9 +398,10 @@ impl ValueMap {
 
     pub fn get_expected_array(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve array '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_array() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -290,11 +412,27 @@ impl ValueMap {
         Ok(value)
     }
 
-    pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
+    pub fn get_expected_map(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
+                format!("unable to retrieve map '{}'", key,),
             ));
+        };
+        let Some(value) = value.as_array() else {
+            return Err(Diagnostic::error_from_string(format!(
+                "value associated with '{}' type mismatch: expected map",
+                key
+            )));
+        };
+        Ok(value)
+    }
+
+    pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
+        let Some(value) = self.store.get(key) else {
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve object '{}'",
+                key,
+            )));
         };
         let Some(result) = value.as_object() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -307,9 +445,10 @@ impl ValueMap {
 
     pub fn get_expected_integer(&self, key: &str) -> Result<i128, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve integer '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_integer() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -322,9 +461,10 @@ impl ValueMap {
 
     pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve uint '{}'",
+                key,
+            )));
         };
         let Some(value) = value.as_uint() else {
             return Err(Diagnostic::error_from_string(format!(
@@ -342,9 +482,10 @@ impl ValueMap {
 
     pub fn get_expected_buffer_bytes(&self, key: &str) -> Result<Vec<u8>, Diagnostic> {
         let Some(value) = self.store.get(key) else {
-            return Err(Diagnostic::error_from_string(
-                format!("unable to retrieve key '{}'", key,),
-            ));
+            return Err(Diagnostic::error_from_string(format!(
+                "unable to retrieve buffer '{}'",
+                key,
+            )));
         };
 
         let bytes = match value {
@@ -425,12 +566,28 @@ impl ValueMap {
         self.store.get(key).map(|v| v.expect_uint()).transpose()
     }
 
+    pub fn get_integer(&self, key: &str) -> Option<i128> {
+        self.store.get(key).and_then(|v| v.as_integer())
+    }
+
     pub fn get_string(&self, key: &str) -> Option<&str> {
         self.store.get(key).and_then(|v| v.as_string())
     }
 
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         self.store.get(key).and_then(|v| v.as_bool())
+    }
+
+    pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.store.get(key).and_then(|v| v.as_array())
+    }
+
+    pub fn get_map(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+        self.store.get(key).and_then(|v| v.as_array())
+    }
+
+    pub fn get_object(&self, key: &str) -> Option<&IndexMap<String, Value>> {
+        self.store.get(key).and_then(|v| v.as_object())
     }
 
     pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
@@ -449,5 +606,8 @@ impl ValueMap {
     }
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
         self.store.get_mut(key)
+    }
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.store.contains_key(key)
     }
 }

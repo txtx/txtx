@@ -1,6 +1,7 @@
-use crate::codec::codec::TransactionPayload;
+use crate::codec::codec::{StacksTransaction, TransactionPayload};
 use async_recursion::async_recursion;
 use clarity::util::hash::bytes_to_hex;
+use clarity::vm::types::QualifiedContractIdentifier;
 use clarity_repl::clarity::codec::StacksMessageCodec;
 use clarity_repl::clarity::util::hash::{hex_bytes, to_hex};
 use clarity_repl::clarity::vm::types::Value;
@@ -17,14 +18,24 @@ pub enum RpcError {
     Generic,
     StatusCode(u16),
     Message(String),
-    ContractAlreadyExists(Option<String>),
+    ContractAlreadyDeployed(String),
+    ContractIdAlreadyUsed(String),
 }
 
 impl std::fmt::Display for RpcError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             RpcError::Message(e) => write!(f, "{}", e),
-            RpcError::ContractAlreadyExists(e) => write!(f, "contract already exists {:?}", e),
+            RpcError::ContractAlreadyDeployed(e) => {
+                write!(f, "contract already deployed {:?}", e)
+            }
+            RpcError::ContractIdAlreadyUsed(e) => {
+                write!(
+                    f,
+                    "a different contract with the same contract identifier already exists {:?}",
+                    e
+                )
+            }
             RpcError::StatusCode(e) => write!(f, "error status code {}", e),
             RpcError::Generic => write!(f, "unknown error"),
         }
@@ -260,12 +271,50 @@ impl StacksRpc {
                     Some(r) if r.eq("ContractAlreadyExists") => {
                         let contract_identifier = error
                             .reason_data
+                            .clone()
                             .map(|ref d| {
                                 d.get("contract_identifier")
                                     .map(|c| c.as_str().unwrap().to_string())
                             })
                             .unwrap();
-                        RpcError::ContractAlreadyExists(contract_identifier)
+                        // Get Contract
+                        if let Some(contract_identifier_src) = contract_identifier {
+                            let contract_identifier =
+                                QualifiedContractIdentifier::parse(&contract_identifier_src)
+                                    .expect("unable to parse contract_identifier");
+                            let res = self
+                                .get_contract_source(
+                                    &contract_identifier.issuer.to_address(),
+                                    &contract_identifier.name.to_string(),
+                                )
+                                .await
+                                .map_err(|e| RpcError::Message(e.to_string()))?;
+
+                            // Retrieve the transaction sent
+                            let transaction_bytes = transaction.clone();
+                            let transaction = StacksTransaction::consensus_deserialize(
+                                &mut &transaction_bytes[..],
+                            )
+                            .unwrap();
+
+                            let TransactionPayload::SmartContract(source, _) = transaction.payload
+                            else {
+                                unreachable!()
+                            };
+
+                            // Compare
+                            if res.source.eq(&source.code_body.clone().to_string()) {
+                                RpcError::ContractAlreadyDeployed(contract_identifier_src)
+                            } else {
+                                RpcError::ContractIdAlreadyUsed(contract_identifier_src)
+                            }
+                        } else {
+                            RpcError::Message(format!(
+                                "{}: {}",
+                                r.clone(),
+                                error.reason_data.unwrap().to_string()
+                            ))
+                        }
                     }
                     Some(r) if error.reason_data.is_some() => RpcError::Message(format!(
                         "{}: {}",

@@ -1,15 +1,16 @@
 use indexmap::IndexMap;
 use jaq_interpret::Val;
-use serde::de::{self, Error, MapAccess, Visitor};
+use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::{Map, Value as JsonValue};
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 
 use super::diagnostics::Diagnostic;
 use super::Did;
 
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type", content = "value", rename_all = "lowercase")]
 pub enum Value {
     Bool(bool),
@@ -25,6 +26,52 @@ pub enum Value {
     #[serde(serialize_with = "addon_serializer")]
     #[serde(untagged)]
     Addon(AddonData),
+}
+
+impl PartialEq<Value> for Value {
+    fn eq(&self, other: &Value) -> bool {
+        match (self, other) {
+            (Value::Bool(lhs), Value::Bool(rhs)) => lhs == rhs,
+            (Value::Null, Value::Null) => true,
+            (Value::Integer(lhs), Value::Integer(rhs)) => lhs == rhs,
+            (Value::Float(lhs), Value::Float(rhs)) => lhs == rhs,
+            (Value::String(lhs), Value::String(rhs)) => lhs == rhs,
+            (Value::Buffer(lhs), Value::Buffer(rhs)) => lhs == rhs,
+            (Value::Object(lhs), Value::Object(rhs)) => {
+                if lhs.len() != rhs.len() {
+                    return false;
+                }
+                for (k, v) in lhs.iter() {
+                    if let Some(r) = rhs.get(k) {
+                        if v != r {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Value::Array(lhs), Value::Array(rhs)) => {
+                if lhs.len() != rhs.len() {
+                    return false;
+                }
+                for (l, r) in lhs.iter().zip(rhs.iter()) {
+                    if l != r {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Value::Addon(lhs), Value::Addon(rhs)) => {
+                if lhs.id != rhs.id {
+                    return false;
+                }
+                lhs.bytes == rhs.bytes
+            }
+            _ => false,
+        }
+    }
 }
 
 fn i128_serializer<S>(value: &i128, ser: S) -> Result<S::Ok, S::Error>
@@ -243,8 +290,14 @@ impl Value {
             _ => unreachable!(),
         }
     }
+
+    #[deprecated(note = "use `get_buffer_bytes_result` instead")]
     pub fn expect_buffer_bytes(&self) -> Vec<u8> {
         self.try_get_buffer_bytes().expect("unable to retrieve bytes")
+    }
+
+    pub fn get_buffer_bytes_result(&self) -> Result<Vec<u8>, String> {
+        self.try_get_buffer_bytes_result()?.ok_or("unable to retrieve bytes".into())
     }
     pub fn try_get_buffer_bytes(&self) -> Option<Vec<u8>> {
         let bytes = match &self {
@@ -275,7 +328,24 @@ impl Value {
                 })?;
                 bytes
             }
-            Value::Array(values) => values.iter().flat_map(|v| v.expect_buffer_bytes()).collect(),
+            Value::Array(values) => {
+                let mut bytes = vec![];
+                for v in values.iter() {
+                    let Some(Ok(byte)) = v.as_uint() else {
+                        return Err(format!("unable to infer sequence of bytes"));
+                    };
+                    match u8::try_from(byte) {
+                        Ok(byte) => bytes.push(byte),
+                        Err(e) => {
+                            return Err(format!(
+                                "unable to infer sequence of bytes ({})",
+                                e.to_string()
+                            ))
+                        }
+                    }
+                }
+                bytes
+            }
             Value::Addon(addon_value) => addon_value.bytes.clone(),
             _ => return Ok(None),
         };
@@ -341,7 +411,7 @@ impl Value {
     pub fn as_addon_data(&self) -> Option<&AddonData> {
         match &self {
             Value::Addon(value) => Some(&value),
-            _ => unreachable!(),
+            _ => None,
         }
     }
     pub fn as_array(&self) -> Option<&Box<Vec<Value>>> {
@@ -351,8 +421,22 @@ impl Value {
         }
     }
 
+    pub fn as_map(&self) -> Option<&Box<Vec<Value>>> {
+        match &self {
+            Value::Array(value) => Some(value),
+            _ => None,
+        }
+    }
+
     pub fn as_object(&self) -> Option<&IndexMap<String, Value>> {
         match &self {
+            Value::Object(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn as_object_mut(&mut self) -> Option<&mut IndexMap<String, Value>> {
+        match self {
             Value::Object(value) => Some(value),
             _ => None,
         }
@@ -466,6 +550,28 @@ impl Value {
         let bytes = self.to_bytes();
         Did::from_components(vec![bytes])
     }
+
+    pub fn to_json(&self) -> JsonValue {
+        let json = match self {
+            Value::Bool(b) => JsonValue::Bool(*b),
+            Value::Null => JsonValue::Null,
+            Value::Integer(i) => JsonValue::Number(serde_json::Number::from(*i as i64)),
+            Value::Float(f) => JsonValue::Number(serde_json::Number::from_f64(*f).unwrap()),
+            Value::String(s) => JsonValue::String(s.to_string()),
+            Value::Array(vec) => {
+                JsonValue::Array(vec.iter().map(|v| v.to_json()).collect::<Vec<JsonValue>>())
+            }
+            Value::Object(index_map) => JsonValue::Object(
+                index_map
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_json()))
+                    .collect::<Map<String, JsonValue>>(),
+            ),
+            Value::Buffer(vec) => JsonValue::String(format!("0x{}", hex::encode(&vec))),
+            Value::Addon(addon_data) => JsonValue::String(addon_data.to_string()),
+        };
+        json
+    }
 }
 
 fn i128_to_u64(i128: i128) -> Result<u64, String> {
@@ -487,7 +593,7 @@ impl Value {
                 let len = obj.len();
                 for (i, (k, v)) in obj.iter().enumerate() {
                     res.push_str(&format!(
-                        "\n\t{}: {}{}",
+                        r#""{}": {}{}"#,
                         k,
                         v.to_string(),
                         if i == (len - 1) { "" } else { "," }
@@ -503,29 +609,74 @@ impl Value {
         }
     }
 
-    pub fn from_jaq_value(value: Val) -> Value {
-        match value {
-            Val::Null => Value::null(),
-            Val::Bool(val) => Value::bool(val),
-            Val::Num(val) => Value::integer(val.parse::<i128>().unwrap()),
-            Val::Int(val) => Value::integer(i128::try_from(val).unwrap()),
-            Val::Float(val) => Value::float(val),
-            Val::Str(val) => Value::string(val.to_string()),
-            Val::Arr(val) => {
-                let mut arr = vec![];
-                val.iter().for_each(|v| {
-                    arr.push(Value::from_jaq_value(v.clone()));
-                });
-                Value::array(arr)
+    /// The same as [Value::to_string], but strings are wrapped in double quotes.
+    /// This is useful for generating JSON-formatted strings.
+    /// I don't know if there are side effects to the [Value::to_string] method having
+    /// the double quoted strings, so I'm keeping this separate for now.
+    pub fn encode_to_string(&self) -> String {
+        match self {
+            Value::String(val) => format!(r#""{val}""#),
+            Value::Bool(val) => val.to_string(),
+            Value::Integer(val) => val.to_string(),
+            Value::Float(val) => val.to_string(),
+            Value::Null => "null".to_string(),
+            Value::Buffer(bytes) => {
+                format!(r#""0x{}""#, hex::encode(&bytes))
             }
-            Val::Obj(val) => {
-                let mut obj = IndexMap::new();
-                val.iter().for_each(|(k, v)| {
-                    obj.insert(k.to_string(), Value::from_jaq_value(v.clone()));
-                });
-                Value::Object(obj)
+            Value::Object(obj) => {
+                let mut res = "{".to_string();
+                let len = obj.len();
+                for (i, (k, v)) in obj.iter().enumerate() {
+                    res.push_str(&format!(
+                        r#"
+    "{}": {}{}"#,
+                        k,
+                        v.encode_to_string(),
+                        if i == (len - 1) { "" } else { "," }
+                    ));
+                }
+                res.push_str(&format!(
+                    r#"
+}}"#
+                ));
+                res
             }
+            Value::Array(array) => {
+                format!(
+                    "[{}]",
+                    array.iter().map(|e| e.encode_to_string()).collect::<Vec<_>>().join(", ")
+                )
+            }
+            Value::Addon(addon_value) => addon_value.encode_to_string(),
         }
+    }
+
+    pub fn from_jaq_value(value: &Val) -> Result<Value, String> {
+        let res = match value {
+            Val::Null => Value::null(),
+            Val::Bool(val) => Value::bool(*val),
+            Val::Num(val) => val
+                .parse::<i128>()
+                .map(Value::integer)
+                .map_err(|e| format!("Failed to parse number: {}", e))?,
+            Val::Int(val) => i128::try_from(*val)
+                .map(Value::integer)
+                .map_err(|e| format!("Failed to convert integer: {}", e))?,
+            Val::Float(val) => Value::float(*val),
+            Val::Str(val) => Value::string(val.to_string()),
+            Val::Arr(val) => Value::array(
+                val.iter()
+                    .map(|v| Value::from_jaq_value(v))
+                    .collect::<Result<Vec<Value>, String>>()?,
+            ),
+            Val::Obj(val) => ObjectType::from(
+                val.iter()
+                    .map(|(k, v)| Value::from_jaq_value(v).map(|v| (k.as_str(), v)))
+                    .collect::<Result<Vec<(&str, Value)>, String>>()?,
+            )
+            .to_value(),
+        };
+        Ok(res)
     }
     pub fn get_type(&self) -> Type {
         match self {
@@ -535,7 +686,7 @@ impl Value {
             Value::Float(_) => Type::Float,
             Value::String(_) => Type::String,
             Value::Buffer(_) => Type::Buffer,
-            Value::Object(_) => todo!(),
+            Value::Object(_) => Type::Object(vec![]),
             Value::Array(t) => {
                 Type::Array(Box::new(t.first().unwrap_or(&Value::null()).get_type()))
             }
@@ -571,12 +722,17 @@ impl Value {
 //     }
 // }
 
+#[derive(Clone, Debug)]
 pub struct ObjectType {
     map: IndexMap<String, Value>,
 }
 impl ObjectType {
     pub fn new() -> Self {
         ObjectType { map: IndexMap::new() }
+    }
+
+    pub fn from_map(map: IndexMap<String, Value>) -> Self {
+        ObjectType { map }
     }
 
     pub fn from(default: Vec<(&str, Value)>) -> Self {
@@ -595,6 +751,9 @@ impl ObjectType {
     pub fn inner(&self) -> IndexMap<String, Value> {
         self.map.clone()
     }
+    pub fn to_value(&self) -> Value {
+        Value::object(self.map.clone())
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
@@ -605,6 +764,9 @@ pub struct AddonData {
 impl AddonData {
     pub fn to_string(&self) -> String {
         format!("0x{}", hex::encode(&self.bytes))
+    }
+    pub fn encode_to_string(&self) -> String {
+        format!(r#""0x{}""#, hex::encode(&self.bytes))
     }
 }
 
@@ -626,6 +788,7 @@ pub enum Type {
     Object(Vec<ObjectProperty>),
     Addon(String),
     Array(Box<Type>),
+    Map(Vec<ObjectProperty>),
 }
 
 impl Type {
@@ -647,6 +810,9 @@ impl Type {
     pub fn object(props: Vec<ObjectProperty>) -> Type {
         Type::Object(props)
     }
+    pub fn map(props: Vec<ObjectProperty>) -> Type {
+        Type::Map(props)
+    }
     pub fn buffer() -> Type {
         Type::Buffer
     }
@@ -655,6 +821,87 @@ impl Type {
     }
     pub fn array(array_item_type: Type) -> Type {
         Type::Array(Box::new(array_item_type))
+    }
+
+    pub fn check_value(&self, value: &Value) -> Result<(), Diagnostic> {
+        let mismatch_err = |expected: &str| {
+            Diagnostic::error_from_string(format!(
+                "expected {}, got {}",
+                expected,
+                value.get_type().to_string()
+            ))
+        };
+
+        match &self {
+            Type::Bool => value.as_bool().map(|_| ()).ok_or_else(|| mismatch_err("bool"))?,
+            Type::Null => value.as_null().map(|_| ()).ok_or_else(|| mismatch_err("null"))?,
+            Type::Integer => {
+                value.as_integer().map(|_| ()).ok_or_else(|| mismatch_err("integer"))?
+            }
+            Type::Float => value.as_float().map(|_| ()).ok_or_else(|| mismatch_err("float"))?,
+            Type::String => value.as_string().map(|_| ()).ok_or_else(|| mismatch_err("string"))?,
+            Type::Buffer => {
+                value.as_buffer_data().map(|_| ()).ok_or_else(|| mismatch_err("buffer"))?
+            }
+            Type::Addon(addon_type) => value
+                .as_addon_data()
+                .map(|_| ())
+                .ok_or_else(|| mismatch_err(&format!("addon type '{}'", addon_type)))?,
+            Type::Array(array_type) => value
+                .as_array()
+                .map(|_| ())
+                .ok_or_else(|| mismatch_err(&format!("array<{}>", array_type.to_string())))?,
+            Type::Object(expected_props) | Type::Map(expected_props) => {
+                let object = value.as_object().ok_or_else(|| mismatch_err("object"))?;
+                for expected_prop in expected_props.iter() {
+                    let prop_value = object.get(&expected_prop.name);
+                    if expected_prop.optional && prop_value.is_none() {
+                        continue;
+                    }
+                    let prop_value = prop_value.ok_or_else(|| {
+                        Diagnostic::error_from_string(format!(
+                            "missing required property '{}'",
+                            expected_prop.name,
+                        ))
+                    })?;
+                    expected_prop.typing.check_value(prop_value).map_err(|e| {
+                        Diagnostic::error_from_string(format!(
+                            "object property '{}': {}",
+                            expected_prop.name, e.message
+                        ))
+                    })?;
+                }
+            } //  => todo!(),
+        };
+        Ok(())
+    }
+
+    pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+        match self {
+            Type::Object(props) => Some(props),
+            _ => None,
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&Box<Type>> {
+        match self {
+            Type::Array(typing) => Some(typing),
+            _ => None,
+        }
+    }
+
+    pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+        match self {
+            Type::Map(props) => Some(props),
+            _ => None,
+        }
+    }
+
+    pub fn as_action(&self) -> Option<&String> {
+        match self {
+            Type::Addon(action) => Some(action),
+            _ => None,
+        }
     }
 }
 
@@ -670,6 +917,7 @@ impl Type {
             Type::Object(_) => "object".into(),
             Type::Addon(addon) => format!("addon({})", addon),
             Type::Array(typing) => format!("array[{}]", typing.to_string()),
+            Type::Map(_) => "map".into(),
         }
     }
 }
@@ -691,12 +939,14 @@ impl TryFrom<String> for Type {
             "buffer" => Type::Buffer,
             "object" => Type::Object(vec![]),
             other => {
-                if other.starts_with("array<") && other.ends_with(">") {
-                    let mut inner = other.replace("array<", "");
-                    inner = inner.replace(">", "");
+                if other.starts_with("array[") && other.ends_with("]") {
+                    let mut inner = other.replace("array[", "");
+                    inner = inner.replace("]", "");
                     return Type::try_from(inner);
-                } else if other.contains("::") {
-                    Type::addon(other)
+                } else if other.starts_with("addon(") {
+                    let mut inner = other.replace("addon(", "");
+                    inner = inner.replace(")", "");
+                    Type::addon(&inner)
                 } else {
                     return Err(format!("invalid type: {}", other));
                 }
@@ -711,17 +961,7 @@ impl Serialize for Type {
     where
         S: Serializer,
     {
-        match self {
-            Type::String => serializer.serialize_str("string"),
-            Type::Integer => serializer.serialize_str("integer"),
-            Type::Float => serializer.serialize_str("float"),
-            Type::Bool => serializer.serialize_str("bool"),
-            Type::Null => serializer.serialize_str("null"),
-            Type::Buffer => serializer.serialize_str("buffer"),
-            Type::Object(_) => serializer.serialize_str("object"), // todo: add properties
-            Type::Addon(a) => serializer.serialize_newtype_variant("Type", 3, "Addon", a),
-            Type::Array(v) => serializer.serialize_newtype_variant("Type", 4, "Array", v),
-        }
+        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -731,23 +971,7 @@ impl<'de> Deserialize<'de> for Type {
         D: Deserializer<'de>,
     {
         let type_str: String = serde::Deserialize::deserialize(deserializer)?;
-        let t = match type_str.as_str() {
-            "string" => Type::string(),
-            "integer" => Type::integer(),
-            "float" => Type::float(),
-            "bool" => Type::bool(),
-            "null" => Type::null(),
-            "buffer" => Type::buffer(),
-            "object" => Type::object(vec![]), //todo: add properties
-            "array" => todo!(),
-            other => {
-                if other.contains("::") {
-                    Type::Addon(other.to_string())
-                } else {
-                    return Err(D::Error::custom("unsupported type"));
-                }
-            }
-        };
+        let t = Type::try_from(type_str).map_err(serde::de::Error::custom)?;
         Ok(t)
     }
 }

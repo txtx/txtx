@@ -3,41 +3,17 @@ use clarity::codec::StacksMessageCodec;
 use clarity::types::chainstate::StacksAddress;
 use clarity::types::PrivateKey;
 use clarity::util::secp256k1::{Secp256k1PrivateKey, Secp256k1PublicKey};
-use hmac::Hmac;
-use libsecp256k1::{PublicKey, SecretKey};
-use pbkdf2::pbkdf2;
-use tiny_hderive::bip32::ExtendedPrivKey;
+use txtx_addon_kit::hmac::Hmac;
+use txtx_addon_kit::pbkdf2::pbkdf2;
+use txtx_addon_kit::secp256k1::{PublicKey, SecretKey};
 use txtx_addon_kit::sha2::Sha512;
 use txtx_addon_kit::types::types::Value;
 
-use crate::signers::DEFAULT_DERIVATION_PATH;
 use crate::typing::StacksValue;
 
 use super::codec::{
     StacksTransaction, StacksTransactionSigner, TransactionSpendingCondition, Txid,
 };
-
-pub fn secret_key_from_mnemonic(
-    mnemonic: &str,
-    derivation_path: Option<&str>,
-    is_encrypted: bool,
-    password: Option<&str>,
-) -> Result<SecretKey, String> {
-    if is_encrypted {
-        return Err(format!("encrypted secret keys not yet supported"));
-    }
-    let bip39_seed = get_bip39_seed_from_mnemonic(mnemonic, password.unwrap_or(""))?;
-    let derivation_path = derivation_path.unwrap_or(DEFAULT_DERIVATION_PATH);
-
-    let ext = ExtendedPrivKey::derive(&bip39_seed[..], derivation_path)
-        .map_err(|e| format!("failed to derive private key: {:?}", e))?;
-    SecretKey::parse_slice(&ext.secret()).map_err(|e| format!("failed to derive secret key: {e}"))
-}
-
-pub fn secret_key_from_bytes(secret_key_bytes: &Vec<u8>) -> Result<SecretKey, String> {
-    SecretKey::parse_slice(&secret_key_bytes)
-        .map_err(|e| format!("failed to parse secret key: {e}"))
-}
 
 pub fn version_from_network_id(network_id: &str) -> u8 {
     match network_id {

@@ -1,20 +1,34 @@
-use txtx_addon_kit::types::{
-    frontend::{
-        ActionItemRequestType, ActionItemResponse, ActionItemResponseType, ActionItemStatus,
-        ProvidePublicKeyResponse, ProvideSignedTransactionResponse, ReviewedInputResponse,
+use txtx_addon_kit::{
+    types::{
+        frontend::{
+            ActionItemRequestType, ActionItemResponse, ActionItemResponseType, ActionItemStatus,
+            ProvidePublicKeyResponse, ProvideSignedTransactionResponse, ReviewedInputResponse,
+        },
+        types::{ObjectType, Value},
     },
-    types::Value,
+    Addon,
 };
-use txtx_test_utils::test_harness::setup_test;
+use txtx_test_utils::{test_harness::setup_test, StdAddon};
 
 use crate::StacksNetworkAddon;
+
+pub fn get_addon_by_namespace(namespace: &str) -> Option<Box<dyn Addon>> {
+    let available_addons: Vec<Box<dyn Addon>> =
+        vec![Box::new(StdAddon::new()), Box::new(StacksNetworkAddon::new())];
+    for addon in available_addons.into_iter() {
+        if namespace.starts_with(&format!("{}", addon.get_namespace())) {
+            return Some(addon);
+        }
+    }
+    None
+}
 
 #[test]
 fn test_signer_runbook_no_env() {
     // Load Runbook signer.tx
     let var_name = include_str!("./fixtures/signer.tx");
     let signer_tx = var_name;
-    let harness = setup_test("signer.tx", signer_tx, vec![Box::new(StacksNetworkAddon::new())]);
+    let harness = setup_test("signer.tx", signer_tx, get_addon_by_namespace);
 
     let action_panel_data =
         harness.expect_action_panel(None, "runbook checklist", vec![vec![3, 1]]);
@@ -83,7 +97,7 @@ fn test_signer_runbook_no_env() {
     let signed_transaction_bytes = "808000000004004484198ea20f526ac9643690ef9243fbbe94f832000000000000000000000000000000c3000182509cd88a51120bde26719ce8299779eaed0047d2253ef4b5bff19ac1559818639fa00bff96b0178870bf5352c85f1c47d6ad011838a699623b0ca64f8dd100030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     // sign tx
     {
-        let _ = harness.send_and_expect_action_item_update(
+        let _ = harness.send_and_expect_progress_bar_visibility_update(
             ActionItemResponse {
                 action_item_id: provide_signature_action.id.clone(),
                 payload: ActionItemResponseType::ProvideSignedTransaction(
@@ -99,22 +113,23 @@ fn test_signer_runbook_no_env() {
                     },
                 ),
             },
+            false,
+        );
+        let _ = harness.expect_action_item_update(
+            None,
             vec![(&provide_signature_action.id, Some(ActionItemStatus::Success(None)))],
         );
     }
     // validate nonce input
     {
+        let nonce_review_input = nonce_action.action_type.as_review_input().unwrap();
         let _ = harness.send_and_expect_action_item_update(
             ActionItemResponse {
                 action_item_id: nonce_action.id.clone(),
                 payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                    input_name: nonce_action
-                        .action_type
-                        .as_review_input()
-                        .unwrap()
-                        .input_name
-                        .clone(),
+                    input_name: nonce_review_input.input_name.clone(),
                     value_checked: true,
+                    force_execution: nonce_review_input.force_execution,
                 }),
             },
             vec![(&nonce_action.id, Some(ActionItemStatus::Success(None)))],
@@ -122,17 +137,14 @@ fn test_signer_runbook_no_env() {
     }
     // validate fee input
     {
+        let fee_review_input = fee_action.action_type.as_review_input().unwrap();
         let _ = harness.send_and_expect_action_item_update(
             ActionItemResponse {
                 action_item_id: fee_action.id.clone(),
                 payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                    input_name: fee_action
-                        .action_type
-                        .as_review_input()
-                        .unwrap()
-                        .input_name
-                        .clone(),
+                    input_name: fee_review_input.input_name.clone(),
                     value_checked: true,
+                    force_execution: fee_review_input.force_execution,
                 }),
             },
             vec![(&fee_action.id, Some(ActionItemStatus::Success(None)))],
@@ -159,13 +171,14 @@ fn test_signer_runbook_no_env() {
         Some(&Value::string(signed_transaction_bytes.to_string()))
     );
 
+    harness.expect_progress_bar_visibility_update(None, false);
     harness.expect_runbook_complete();
 }
 
 #[test]
 fn test_multisig_runbook_no_env() {
     let multisig_tx = include_str!("./fixtures/multisig.tx");
-    let harness = setup_test("multisig.tx", multisig_tx, vec![Box::new(StacksNetworkAddon::new())]);
+    let harness = setup_test("multisig.tx", multisig_tx, get_addon_by_namespace);
 
     let modal_panel_data = harness.expect_modal(
         None,
@@ -186,14 +199,14 @@ fn test_multisig_runbook_no_env() {
         else {
             panic!("expected provide public key request");
         };
-        assert_eq!(&get_public_key_alice.title.to_uppercase(), "CONNECT WALLET ALICE");
+        assert_eq!(&get_public_key_alice.title.to_uppercase(), "CONNECT WALLET 'ALICE'");
 
         assert_eq!(get_public_key_bob.action_status, ActionItemStatus::Todo);
         let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_bob.action_type
         else {
             panic!("expected provide public key request");
         };
-        assert_eq!(&get_public_key_bob.title.to_uppercase(), "CONNECT WALLET BOB");
+        assert_eq!(&get_public_key_bob.title.to_uppercase(), "CONNECT WALLET 'BOB'");
     }
 
     let verify_address_alice = &action_panel_data.groups[1].sub_groups[0].action_items[0];
@@ -280,10 +293,61 @@ fn test_multisig_runbook_no_env() {
     );
 
     let sign_tx_alice = &sign_tx_modal.groups[0].sub_groups[0].action_items[0];
-    harness.assert_provide_signature_formatted_payload(sign_tx_alice, Some("{\n  \"version\": \"testnet\",\n  \"chain_id\": \"2147483648\",\n  \"payload\": {\n    \"type\": \"Contract Call\",\n    \"contract_address\": \"ST000000000000000000002AMW42H\",\n    \"contract_name\": \"bns\",\n    \"function_name\": \"name-register\",\n    \"function_args\": [\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\"\n    ]\n  },\n  \"post_condition_mode\": \"Deny\",\n  \"post_conditions\": [],\n  \"auth\": {\n    \"spending_condition\": \"multisig\",\n    \"signer\": \"8c3decaa8e4a5bed247ace0e19b2ad9da4678f2f\",\n    \"nonce\": 0,\n    \"tx_fee\": 195,\n    \"signatures_required\": 2,\n    \"fields\": []\n  }\n}".into()));
+    let payload = ObjectType::from(vec![
+        ("version", Value::string("testnet".to_string())),
+        ("chain_id", Value::string("2147483648".to_string())),
+        (
+            "payload",
+            ObjectType::from(vec![
+                ("type", Value::string("Contract Call".to_string())),
+                ("contract_address", Value::string("ST000000000000000000002AMW42H".to_string())),
+                ("contract_name", Value::string("bns".to_string())),
+                ("function_name", Value::string("name-register".to_string())),
+                (
+                    "function_args",
+                    Value::array(vec![
+                        Value::string("0x74657374".to_string()),
+                        Value::string("0x74657374".to_string()),
+                        Value::string("0x74657374".to_string()),
+                        Value::string("0x74657374".to_string()),
+                    ]),
+                ),
+            ])
+            .to_value(),
+        ),
+        ("post_condition_mode", Value::string("Deny".to_string())),
+        ("post_conditions", Value::array(vec![]).to_value()),
+        (
+            "auth",
+            ObjectType::from(vec![
+                ("spending_condition", Value::string("multisig".to_string())),
+                ("signer", Value::string("8c3decaa8e4a5bed247ace0e19b2ad9da4678f2f".to_string())),
+                ("nonce", Value::integer(0)),
+                ("tx_fee", Value::integer(195)),
+                ("signatures_required", Value::integer(2)),
+                ("fields", Value::array(vec![])),
+            ])
+            .to_value(),
+        ),
+    ])
+    .to_value();
+
+    harness.assert_provide_signature_formatted_payload(sign_tx_alice, Some(payload));
 
     let sign_tx_bob = &sign_tx_modal.groups[0].sub_groups[1].action_items[0];
-    harness.assert_provide_signature_formatted_payload(sign_tx_bob, Some("{\n  \"version\": \"testnet\",\n  \"chain_id\": \"2147483648\",\n  \"payload\": {\n    \"type\": \"Contract Call\",\n    \"contract_address\": \"ST000000000000000000002AMW42H\",\n    \"contract_name\": \"bns\",\n    \"function_name\": \"name-register\",\n    \"function_args\": [\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\",\n      \"0x74657374\"\n    ]\n  },\n  \"post_condition_mode\": \"Deny\",\n  \"post_conditions\": [],\n  \"auth\": {\n    \"spending_condition\": \"multisig\",\n    \"signer\": \"8c3decaa8e4a5bed247ace0e19b2ad9da4678f2f\",\n    \"nonce\": 0,\n    \"tx_fee\": 195,\n    \"signatures_required\": 2,\n    \"fields\": [\n      \"02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33\"\n    ]\n  }\n}".into()));
+
+    let mut obj = payload.expect_object();
+    let mut auth = obj.get("auth").unwrap().expect_object().clone();
+    auth.insert(
+        "fields".to_string(),
+        Value::array(vec![Value::string(
+            "02c4b5eacb71a27be633ed970dcbc41c00440364bc04ba38ae4683ac24e708bf33".to_string(),
+        )]),
+    );
+    obj.insert("auth".to_string(), auth.to_value());
+
+    harness
+        .assert_provide_signature_formatted_payload(sign_tx_bob, Some(ObjectType::from_map(obj)));
 
     // I don't know why this update is sent here, this feels extraneous
     harness.expect_action_item_update(
@@ -305,7 +369,8 @@ fn test_multisig_runbook_no_env() {
 
     // alice signature
     let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c300000001020037489e7cde9f22a6dd9ba1012b3f98ef983ace0cf111628de2ee314206330dc32aa52a2f0389246c0839370a12c6843c8ffffca637bef78d63f45fe4a5a59fbc0002030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
-    harness.send_and_expect_action_item_update(
+
+    harness.send_and_expect_progress_bar_visibility_update(
         ActionItemResponse {
             action_item_id: sign_tx_alice.id.clone(),
             payload: ActionItemResponseType::ProvideSignedTransaction(
@@ -321,12 +386,15 @@ fn test_multisig_runbook_no_env() {
                 },
             ),
         },
+        false,
+    );
+    harness.expect_action_item_update(
+        None,
         vec![
             (&sign_tx_alice.id, Some(ActionItemStatus::Success(None))),
             (&sign_tx_bob.id, Some(ActionItemStatus::Todo)),
         ],
     );
-
     // bob signature
     let signed_transaction_bytes = "808000000004018c3decaa8e4a5bed247ace0e19b2ad9da4678f2f000000000000000000000000000000c300000002020037489e7cde9f22a6dd9ba1012b3f98ef983ace0cf111628de2ee314206330dc32aa52a2f0389246c0839370a12c6843c8ffffca637bef78d63f45fe4a5a59fbc02003b4784204e1a01ea1e359862bd42d3654f3b4d72a938a1fe511f7acc91fb1e89740c469a7e39d344c5ffe7f52099517d6dedd701b152c7d804cffe49eafe10390002030200000000021a000000000000000000000000000000000000000003626e730d6e616d652d726567697374657200000004020000000474657374020000000474657374020000000474657374020000000474657374";
     harness.send_and_expect_action_item_update(
@@ -356,24 +424,28 @@ fn test_multisig_runbook_no_env() {
     );
 
     // validate nonce
+    let nonce_review_input = nonce_action.action_type.as_review_input().unwrap();
     harness.send_and_expect_action_item_update(
         ActionItemResponse {
             action_item_id: nonce_action.id.clone(),
             payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                input_name: nonce_action.action_type.as_review_input().unwrap().input_name.clone(),
+                input_name: nonce_review_input.input_name.clone(),
                 value_checked: true,
+                force_execution: nonce_review_input.force_execution,
             }),
         },
         vec![(&nonce_action.id, Some(ActionItemStatus::Success(None)))],
     );
 
     // validate fee
+    let fee_review_input = fee_action.action_type.as_review_input().unwrap();
     harness.send_and_expect_action_item_update(
         ActionItemResponse {
             action_item_id: fee_action.id.clone(),
             payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                input_name: fee_action.action_type.as_review_input().unwrap().input_name.clone(),
+                input_name: fee_review_input.input_name.clone(),
                 value_checked: true,
+                force_execution: fee_review_input.force_execution,
             }),
         },
         vec![(&fee_action.id, Some(ActionItemStatus::Success(None)))],
@@ -387,7 +459,6 @@ fn test_multisig_runbook_no_env() {
         },
         vec![(&validate_signature.id, Some(ActionItemStatus::Success(None)))],
     );
-
     let outputs_panel_data = harness.expect_action_panel(None, "output review", vec![vec![1]]);
 
     assert_eq!(
@@ -397,7 +468,7 @@ fn test_multisig_runbook_no_env() {
             .map(|v| &v.value),
         Some(&Value::string(signed_transaction_bytes.to_string()))
     );
-
+    harness.expect_progress_bar_visibility_update(None, false);
     harness.expect_runbook_complete();
 }
 

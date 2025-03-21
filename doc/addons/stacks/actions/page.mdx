@@ -1,15 +1,15 @@
 export const metadata = {
-    title: "Stacks Blockchain (beta) Actions",
-    description: "Actions for Stacks Blockchain (beta)",
+    title: "Stacks Blockchain (rc1) Actions",
+    description: "Actions for Stacks Blockchain (rc1)",
 };
 
-# Stacks Blockchain (beta) Actions {{ id: "stacks-actions" }}
+# Stacks Blockchain (rc1) Actions {{ id: "stacks-actions" }}
 
 
 
 ## sign_transaction {{ tag: 'action' }}
 
-The `stacks::sign_transaction` action signs an encoded transaction payload with the supplied signer data.
+The `stacks::sign_transaction` action signs an encoded transaction payload with the specified signer.
 
 ### Inputs
 
@@ -26,8 +26,8 @@ The `stacks::sign_transaction` action signs an encoded transaction payload with 
   </Property>
 
 
-  <Property name="network_id" type="optional">
-    The network id, which is used to set the transaction version. Can be `"mainnet"`, `"testnet"` and `"devnet"`.
+  <Property name="network_id" type="required">
+    The network id, which is used to set the transaction version. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
 
@@ -107,90 +107,9 @@ output "signed_bytes" {
 ---
 
 
-## decode_call_contract {{ tag: 'action' }}
-
-Coming soon
-
-### Inputs
-
-<Properties>
-
-
-  <Property name="bytes" type="required">
-    The contract call transaction bytes to decode.
-  </Property>
-
-
-</Properties>
-
-### Outputs
-
-<Note>
-
-When the `decode_call_contract` action is successfully executed, the following outputs are attached to the action
-
-</Note>
-
-<Properties>
-
-
-  <Property name="contract_id">
-    The contract identifier.
-  </Property>
-
-
-  <Property name="function_name">
-    The function name.
-  </Property>
-
-
-  <Property name="function_args">
-    The function arguments.
-  </Property>
-
-
-  <Property name="nonce">
-    The transaction nonce.
-  </Property>
-
-
-  <Property name="signer">
-    The transaction signer.
-  </Property>
-
-
-  <Property name="fee">
-    The transaction fee.
-  </Property>
-
-
-</Properties>
-
-<CodeGroup title="Example using decode_call_contract">
-
-
-```hcl {{ title: 'main.tx' }}
-// Coming soon
-
-```
-
-
-```json {{ title: 'main.json' }}
-// Coming soon
-```
-
-```yaml {{ title: 'main.yaml' }}
-# Coming soon
-```
-
-</CodeGroup>
-
----
-
-
 ## deploy_contract {{ tag: 'action' }}
 
-The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.
+The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using the specified signer, and broadcasts the signed transaction to the network.
 
 ### Inputs
 
@@ -207,12 +126,12 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
   </Property>
 
 
-  <Property name="network_id" type="optional">
-    The network id used to validate the transaction version.
+  <Property name="network_id" type="required">
+    The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" type="required">
     The URL to use when making API requests.
   </Property>
 
@@ -257,18 +176,23 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
   </Property>
 
 
-  <Property name="contracts_ids_dependencies" type="optional">
+  <Property name="dependency_contract_ids" type="optional">
     Contracts that are depending on this contract at their deployment.
   </Property>
 
 
-  <Property name="contracts_ids_lazy_dependencies" type="optional">
+  <Property name="lazy_dependency_contract_ids" type="optional">
     Contracts that are depending on this contract after their deployment.
   </Property>
 
 
   <Property name="fee_strategy" type="optional">
     The strategy to use for automatically estimating fee ('low', 'medium', 'high'). Default to 'medium'.
+  </Property>
+
+
+  <Property name="contract_instance_name" type="optional">
+    The name to use for deploying the contract. Will automatically update contract dependencies.
   </Property>
 
 
@@ -338,9 +262,9 @@ value = action.counter_deployment.tx_id
 ---
 
 
-## deploy_contract_requirement {{ tag: 'action' }}
+## deploy_requirement {{ tag: 'action' }}
 
-The `deploy_contract` action encodes a contract deployment transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.
+The `stacks::deploy_requirement` action retrieves a deployed contract along with its dependencies, signs the transactions using the specified signer, and broadcasts the signed transactions to the network.
 
 ### Inputs
 
@@ -353,12 +277,22 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
 
 
   <Property name="contract_id" type="required">
-    The contract id deployed on Mainnet that needs to mirrored.
+    The contract id, deployed on Mainnet, that needs to mirrored.
   </Property>
 
 
-  <Property name="network_id" type="optional">
-    The network id used to validate the transaction version.
+  <Property name="network_id" type="required">
+    The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
+  </Property>
+
+
+  <Property name="rpc_api_url_source" type="required">
+    The URL to use when pulling the source contract.
+  </Property>
+
+
+  <Property name="rpc_api_url" type="optional">
+    The URL to use when deploying the required contract.
   </Property>
 
 
@@ -368,7 +302,7 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
 
 
   <Property name="confirmations" type="optional">
-    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.
+    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
   </Property>
 
 
@@ -387,12 +321,17 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
   </Property>
 
 
-  <Property name="contracts_ids_dependencies" type="optional">
+  <Property name="transforms" type="optional">
+    An array of transform operations to perform on the contract source, before being its signature.
+  </Property>
+
+
+  <Property name="dependency_contract_ids" type="optional">
     Contracts that are depending on this contract at their deployment.
   </Property>
 
 
-  <Property name="contracts_ids_lazy_dependencies" type="optional">
+  <Property name="lazy_dependency_contract_ids" type="optional">
     Contracts that are depending on this contract after their deployment.
   </Property>
 
@@ -403,7 +342,7 @@ The `deploy_contract` action encodes a contract deployment transaction, signs th
 
 <Note>
 
-When the `deploy_contract_requirement` action is successfully executed, the following outputs are attached to the action
+When the `deploy_requirement` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -427,18 +366,18 @@ When the `deploy_contract_requirement` action is successfully executed, the foll
 
 </Properties>
 
-<CodeGroup title="Example using deploy_contract_requirement">
+<CodeGroup title="Example using deploy_requirement">
 
 
 ```hcl {{ title: 'main.tx' }}
-action "counter_deployment" "stacks::deploy_contract" {
+action "counter_deployment" "stacks::deploy_requirement" {
     description = "Deploy counter contract."
     source_code = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
     contract_name = "verify-and-update-price-feeds"
     signer = signer.alice
 }
 output "contract_tx_id" {
-value = action.counter_deployment.tx_id
+    value = action.counter_deployment.tx_id
 }
 // > contract_tx_id: 0x1020321039120390239103193012909424854753848509019302931023849320
 
@@ -458,9 +397,9 @@ value = action.counter_deployment.tx_id
 ---
 
 
-## call_contract {{ tag: 'action' }}
+## encode_contract_call {{ tag: 'action' }}
 
-The `call_contract` action encodes a valid contract call payload and serializes it as a hex string.
+The `stacks::call_contract` action encodes a valid contract call payload and serializes it as a hex string.
 
 ### Inputs
 
@@ -482,8 +421,8 @@ The `call_contract` action encodes a valid contract call payload and serializes 
   </Property>
 
 
-  <Property name="network_id" type="optional">
-    The network id used to validate the transaction version.
+  <Property name="network_id" type="required">
+    The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
 
@@ -493,7 +432,7 @@ The `call_contract` action encodes a valid contract call payload and serializes 
 
 <Note>
 
-When the `call_contract` action is successfully executed, the following outputs are attached to the action
+When the `encode_contract_call` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -512,28 +451,28 @@ When the `call_contract` action is successfully executed, the following outputs 
 
 </Properties>
 
-<CodeGroup title="Example using call_contract">
+<CodeGroup title="Example using encode_contract_call">
 
 
 ```hcl {{ title: 'main.tx' }}
-action "my_ref" "stacks::call_contract" {
+action "my_ref" "stacks::encode_contract_call" {
     description = "Encodes the contract call transaction."
     contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.pyth-oracle-v1"
     function_name = "verify-and-update-price-feeds"
     function_args = [
-        stacks::cv_buff(output.bitcoin_price_feed),
+        stacks::cv_buff(variable.bitcoin_price_feed),
         stacks::cv_tuple({
-            "pyth-storage-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-store-v1"),
-            "pyth-decoder-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-            "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
+            "pyth-storage-contract": stacks::cv_principal("${input.pyth_deployer}.pyth-store-v1"),
+            "pyth-decoder-contract": stacks::cv_principal("${input.pyth_deployer}.pyth-pnau-decoder-v1"),
+            "wormhole-core-contract": stacks::cv_principal("${input.pyth_deployer}.wormhole-core-v1")
         })
     ]
 }
 output "bytes" {
-  value = action.my_ref.bytes
+value = action.my_ref.bytes
 }
 output "network_id" {
-  value = action.my_ref.network_id
+value = action.my_ref.network_id
 }
 // > bytes: 0x021A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0E707974682D6F7261636C652D76311D7665726966792D616E642D7570646174652D70726963652D66656564730000000202000000030102030C0000000315707974682D6465636F6465722D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE14707974682D706E61752D6465636F6465722D763115707974682D73746F726167652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE0D707974682D73746F72652D763116776F726D686F6C652D636F72652D636F6E7472616374061A6D78DE7B0625DFBFC16C3A8A5735F6DC3DC3F2CE10776F726D686F6C652D636F72652D7631
 // > network_id: testnet
@@ -556,7 +495,7 @@ output "network_id" {
 
 ## broadcast_transaction {{ tag: 'action' }}
 
-The `broadcast_transaction` action sends a signed transaction payload to the specified network.
+The `stacks::broadcast_transaction` action sends a signed transaction payload to the specified network.
 
 ### Inputs
 
@@ -568,12 +507,12 @@ The `broadcast_transaction` action sends a signed transaction payload to the spe
   </Property>
 
 
-  <Property name="network_id" type="optional">
-    The network id used to validate the transaction version.
+  <Property name="network_id" type="required">
+    The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" type="required">
     The URL to use when making API requests.
   </Property>
 
@@ -584,7 +523,7 @@ The `broadcast_transaction` action sends a signed transaction payload to the spe
 
 
   <Property name="confirmations" type="optional">
-    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.
+    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
   </Property>
 
 
@@ -658,7 +597,7 @@ output "result" {
 
 ## call_readonly_fn {{ tag: 'action' }}
 
-The `call_readonly_fn` action queries a public readonly function.
+The `stacks::call_readonly_fn` action queries a public readonly function.
 
 ### Inputs
 
@@ -680,12 +619,12 @@ The `call_readonly_fn` action queries a public readonly function.
   </Property>
 
 
-  <Property name="network_id" type="optional">
-    The network id used to validate the transaction version.
+  <Property name="network_id" type="required">
+    The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" type="required">
     The URL to use when making API requests.
   </Property>
 
@@ -696,7 +635,7 @@ The `call_readonly_fn` action queries a public readonly function.
 
 
   <Property name="sender" type="optional">
-    The simulated tx-sender to use.
+    The simulated tx-sender address to use.
   </Property>
 
 
@@ -729,7 +668,21 @@ When the `call_readonly_fn` action is successfully executed, the following outpu
 
 
 ```hcl {{ title: 'main.tx' }}
-        
+action "get_name_price" "stacks::call_readonly_fn" {
+    description = "Get price for bns name"
+    contract_id = "ST000000000000000000002AMW42H.bns"
+    function_name = "get-name-price"
+    function_args = [
+        stacks::cv_buff(encode_hex("btc")), // namespace
+        stacks::cv_buff(encode_hex("test")) // name
+    ]
+    sender = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+}
+output "name_price" {
+    value = action.get_name_price
+}
+// > name_price: 100
+
 ```
 
 
@@ -748,7 +701,7 @@ When the `call_readonly_fn` action is successfully executed, the following outpu
 
 ## call_contract {{ tag: 'action' }}
 
-The `call_contract` action encodes a contract call transaction, signs the transaction using an in-browser signer, and broadcasts the signed transaction to the network.
+The `stacks::call_contract` action encodes a contract call transaction, signs the transaction using the specified signer, and broadcasts the signed transaction to the network.
 
 ### Inputs
 
@@ -775,12 +728,12 @@ The `call_contract` action encodes a contract call transaction, signs the transa
   </Property>
 
 
-  <Property name="network_id" type="optional">
-    The network id used to validate the transaction version.
+  <Property name="network_id" type="required">
+    The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" type="required">
     The URL to use when making API requests.
   </Property>
 
@@ -796,7 +749,7 @@ The `call_contract` action encodes a contract call transaction, signs the transa
 
 
   <Property name="confirmations" type="optional">
-    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.
+    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
   </Property>
 
 
@@ -821,7 +774,7 @@ The `call_contract` action encodes a contract call transaction, signs the transa
 
 
   <Property name="post_condition_mode" type="optional">
-    The post condition mode ('allow', 'deny'). In Allow mode other asset transfers not covered by the post-conditions are permitted. In Deny mode no other asset transfers are permitted besides those named in the post-conditions.
+    The post condition mode ('allow', 'deny'). In Allow mode other asset transfers not covered by the post-conditions are permitted. In Deny mode no other asset transfers are permitted besides those named in the post-conditions. The default is Deny mode.
   </Property>
 
 
@@ -871,18 +824,18 @@ action "my_ref" "stacks::call_contract" {
     function_args = [
         stacks::cv_buff(output.bitcoin_price_feed),
         stacks::cv_tuple({
-            "pyth-storage-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-store-v1"),
-            "pyth-decoder-contract": stacks::cv_principal("${env.pyth_deployer}.pyth-pnau-decoder-v1"),
-            "wormhole-core-contract": stacks::cv_principal("${env.pyth_deployer}.wormhole-core-v1")
+            "pyth-storage-contract": stacks::cv_principal("${input.pyth_deployer}.pyth-store-v1"),
+            "pyth-decoder-contract": stacks::cv_principal("${input.pyth_deployer}.pyth-pnau-decoder-v1"),
+            "wormhole-core-contract": stacks::cv_principal("${input.pyth_deployer}.wormhole-core-v1")
         })
     ]
     signer = signer.alice
 }            
 output "tx_id" {
-value = action.my_ref.tx_id
+    value = action.my_ref.tx_id
 }
 output "result" {
-value = action.my_ref.result
+    value = action.my_ref.result
 }
 // > tx_id: 0x...
 // > result: success
@@ -905,7 +858,7 @@ value = action.my_ref.result
 
 ## send_stx {{ tag: 'action' }}
 
-The `send_stx` action encodes a STX transfer transaction, signs the transaction using a signer, and broadcasts the signed transaction to the network.
+The `stacks::send_stx` action encodes a STX transfer transaction, signs the transaction using the specified signer, and broadcasts the signed transaction to the network.
 
 ### Inputs
 
@@ -922,12 +875,12 @@ The `send_stx` action encodes a STX transfer transaction, signs the transaction 
   </Property>
 
 
-  <Property name="network_id" type="optional">
-    The network id used to validate the transaction version.
+  <Property name="network_id" type="required">
+    The network id. Valid values are `"mainnet"`, `"testnet"` or `"devnet"`.
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" type="required">
     The URL to use when making API requests.
   </Property>
 
@@ -943,7 +896,7 @@ The `send_stx` action encodes a STX transfer transaction, signs the transaction 
 
 
   <Property name="confirmations" type="optional">
-    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues.
+    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
   </Property>
 
 

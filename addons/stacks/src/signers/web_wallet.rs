@@ -15,7 +15,6 @@ use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerActivateFutureResult, SignerImplementation, SignerInstance,
     SignerSignFutureResult, SignerSpecification, SignersState,
 };
-use txtx_addon_kit::types::signers::{signer_diag_with_ctx, signer_err_fn};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
@@ -32,7 +31,7 @@ use crate::constants::{
     IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL,
 };
 
-use super::{get_addition_actions_for_address, namespaced_err_fn};
+use super::get_addition_actions_for_address;
 
 lazy_static! {
     pub static ref STACKS_WEB_WALLET: SignerSpecification = {
@@ -40,7 +39,7 @@ lazy_static! {
             StacksWebWallet => {
                 name: "Stacks Web Wallet",
                 matcher: "web_wallet",
-                documentation:txtx_addon_kit::indoc! {r#"The `web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
+                documentation:txtx_addon_kit::indoc! {r#"The `stacks::web_wallet` signer will route the transaction signing process through [Stacks.js connect](https://www.hiro.so/stacks-js).
                 This allows a Runbook operator to sign the transaction with the browser signer of their choice."#},
                 inputs: [
                     expected_address: {
@@ -89,18 +88,19 @@ impl SignerImplementation for StacksWebWallet {
     fn check_activability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use txtx_addon_kit::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
+
         use crate::constants::RPC_API_AUTH_TOKEN;
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let _requested_startup_data =
@@ -123,7 +123,7 @@ impl SignerImplementation for StacksWebWallet {
         let signer_did = construct_did.clone();
         let rpc_api_url = values
             .get_expected_string(RPC_API_URL)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
 
         let rpc_api_auth_token =
@@ -131,10 +131,12 @@ impl SignerImplementation for StacksWebWallet {
 
         let network_id = values
             .get_expected_string(NETWORK_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
 
-        if let Ok(public_key_bytes) = values.get_expected_buffer_bytes("public_key") {
+        if let Ok(public_key_bytes) =
+            values.get_expected_buffer_bytes(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
+        {
             let version = if network_id.eq("mainnet") {
                 clarity_repl::clarity::address::C32_ADDRESS_VERSION_MAINNET_SINGLESIG
             } else {
@@ -223,18 +225,13 @@ impl SignerImplementation for StacksWebWallet {
 
     fn activate(
         _construct_id: &ConstructDid,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
-        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
-        let signer_did = ConstructDid(signer_state.uuid.clone());
-        let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
-
         let mut result = CommandExecutionResult::new();
         let public_key = match signer_state.get_expected_value(CHECKED_PUBLIC_KEY) {
             Ok(value) => value,
@@ -244,7 +241,7 @@ impl SignerImplementation for StacksWebWallet {
         };
         let network_id = values
             .get_expected_string(NETWORK_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
         signer_state.insert(PUBLIC_KEYS, Value::array(vec![public_key.clone()]));
 
         let version = match network_id {
@@ -267,18 +264,13 @@ impl SignerImplementation for StacksWebWallet {
         title: &str,
         description: &Option<String>,
         payload: &Value,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
-        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
-        let signer_did = ConstructDid(signer_state.uuid.clone());
-        let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
-
         let construct_did_str = &construct_did.to_string();
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
         {
@@ -287,7 +279,7 @@ impl SignerImplementation for StacksWebWallet {
 
         let network_id = values
             .get_expected_string(NETWORK_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
         let signable = signer_state
             .get_scoped_value(&construct_did_str, IS_SIGNABLE)
@@ -305,10 +297,8 @@ impl SignerImplementation for StacksWebWallet {
             .unwrap_or(false);
         let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);
 
-        let formatted_payload = signer_state
-            .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
-            .and_then(|v| v.as_string())
-            .and_then(|v| Some(v.to_string()));
+        let formatted_payload =
+            signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
 
         let request = ActionItemRequest::new(
             &Some(construct_did.clone()),

@@ -1,12 +1,14 @@
 pub mod actions;
 
-use kit::types::frontend::{Actions, BlockEvent, DisplayOutputRequest, ReviewInputRequest};
-use kit::types::stores::ValueStore;
-use kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::commands::return_synchronous_result;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
 };
+use txtx_addon_kit::types::frontend::{
+    Actions, BlockEvent, DisplayOutputRequest, ReviewInputRequest,
+};
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::{
     define_command,
     types::{
@@ -76,7 +78,7 @@ impl CommandImplementation for Module {
     }
 }
 
-pub fn new_input_specification() -> CommandSpecification {
+pub fn new_variable_specification() -> CommandSpecification {
     let command: PreCommandSpecification = define_command! {
         Variable => {
             name: "Variable",
@@ -189,10 +191,7 @@ impl CommandImplementation for Variable {
                     &title,
                     description,
                     ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                        input_name: "value".to_string(),
-                        value: value.clone(),
-                    }),
+                    ReviewInputRequest::new("value", &value).to_action_type(),
                     "check_input",
                 );
                 action

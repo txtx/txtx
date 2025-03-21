@@ -14,7 +14,7 @@ use txtx_addon_kit::types::{
 };
 
 use crate::constants::RPC_API_URL;
-use crate::rpc::EVMRpc;
+use crate::rpc::EvmRpc;
 use crate::typing::EVM_ADDRESS;
 
 lazy_static! {
@@ -83,21 +83,21 @@ lazy_static! {
                 internal: false
             },
             type: {
-                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+                documentation: "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'. This value will be retrieved from the network if omitted.",
                 typing: Type::string(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             max_fee_per_gas: {
-                documentation: "Sets the max fee per gas of an EIP1559 transaction.",
+                documentation: "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             max_priority_fee_per_gas: {
-                documentation: "Sets the max priority fee per gas of an EIP1559 transaction.",
+                documentation: "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
@@ -118,14 +118,14 @@ lazy_static! {
                 internal: false
             },
             gas_limit: {
-                documentation: "Sets the maximum amount of gas that should be used to execute this transaction.",
+                documentation: "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
                 internal: false
             },
             gas_price: {
-                documentation: "Sets the gas price for Legacy transactions.",
+                documentation: "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
                 typing: Type::integer(),
                 optional: true,
                 tainting: false,
@@ -140,10 +140,10 @@ lazy_static! {
           ],
           example: txtx_addon_kit::indoc! {r#"
             action "call_some_contract" "evm::eth_call" {
-                contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
+                contract_address = input.contract_address
                 function_name = "myFunction"
                 function_args = [evm::bytes("0x1234")]
-                from = evm::address(env.MY_ADDRESS)
+                signer = signer.operator.address
             }
       "#},
       }
@@ -195,14 +195,16 @@ async fn build_eth_call(
     _spec: &CommandSpecification,
     values: &ValueStore,
 ) -> Result<Value, Diagnostic> {
+    use alloy::json_abi::JsonAbi;
+
     use crate::{
         codec::{
-            build_unsigned_transaction, value_to_sol_value, CommonTransactionFields,
-            TransactionType,
+            build_unsigned_transaction, value_to_abi_function_args, value_to_sol_value,
+            CommonTransactionFields, TransactionType,
         },
         commands::actions::{
             call_contract::{
-                encode_contract_call_inputs_from_abi, encode_contract_call_inputs_from_selector,
+                encode_contract_call_inputs_from_abi_str, encode_contract_call_inputs_from_selector,
             },
             get_common_tx_params_from_args,
         },
@@ -222,32 +224,40 @@ async fn build_eth_call(
     let function_name = values.get_string(CONTRACT_FUNCTION_NAME);
     let function_args = values.get_value(CONTRACT_FUNCTION_ARGS);
 
-    let (amount, gas_limit, nonce) = get_common_tx_params_from_args(values)
-        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
+    let (amount, gas_limit, nonce) =
+        get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{e}"))?;
     let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))?;
 
-    let rpc = EVMRpc::new(&rpc_api_url)
-        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
+    let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{e}"))?;
 
     let input = if let Some(function_name) = function_name {
-        let function_args: Vec<DynSolValue> = function_args
-            .map(|v| {
-                v.expect_array()
-                    .iter()
-                    .map(|v| {
-                        value_to_sol_value(&v)
-                            .map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))
-                    })
-                    .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
-            })
-            .unwrap_or(Ok(vec![]))?;
+        let function_args = if let Some(abi_str) = contract_abi {
+            values
+                .get_value(CONTRACT_FUNCTION_ARGS)
+                .map(|v| {
+                    let abi: JsonAbi = serde_json::from_str(&abi_str)
+                        .map_err(|e| diagnosed_error!("invalid contract abi: {}", e))?;
+                    value_to_abi_function_args(&function_name, &v, &abi)
+                })
+                .unwrap_or(Ok(vec![]))?
+        } else {
+            values
+                .get_value(CONTRACT_FUNCTION_ARGS)
+                .map(|v| {
+                    v.expect_array()
+                        .iter()
+                        .map(|v| value_to_sol_value(&v).map_err(|e| diagnosed_error!("{}", e)))
+                        .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
+                })
+                .unwrap_or(Ok(vec![]))?
+        };
 
         if let Some(abi_str) = contract_abi {
-            encode_contract_call_inputs_from_abi(abi_str, function_name, &function_args)
-                .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+            encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
+                .map_err(|e| diagnosed_error!("{e}"))?
         } else {
             encode_contract_call_inputs_from_selector(function_name, &function_args)
-                .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?
+                .map_err(|e| diagnosed_error!("{e}"))?
         }
     } else {
         // todo(hack): assume yul contract if no function name
@@ -265,12 +275,9 @@ async fn build_eth_call(
         input: Some(input),
         deploy_code: None,
     };
-    let tx = build_unsigned_transaction(rpc.clone(), values, common)
+    let (_, _, call_result) = build_unsigned_transaction(rpc.clone(), values, common)
         .await
-        .map_err(|e| diagnosed_error!("command 'evm::eth_call': {e}"))?;
-
-    let call_result =
-        rpc.call(&tx).await.map_err(|e| diagnosed_error!("command 'evm::eth_call': {}", e))?;
+        .map_err(|e| diagnosed_error!("{e}"))?;
 
     Ok(Value::string(call_result))
 }

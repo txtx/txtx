@@ -1,6 +1,10 @@
-use kit::types::stores::AddonDefaults;
-use kit::types::stores::ValueStore;
-use kit::{
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::collections::VecDeque;
+use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
+use txtx_addon_kit::types::stores::AddonDefaults;
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::{
     hcl::structure::{Block, BlockLabel},
     helpers::fs::FileLocation,
     types::{
@@ -17,8 +21,6 @@ use kit::{
     },
     Addon,
 };
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::{
     eval::{self, ExpressionEvaluationStatus},
@@ -35,8 +37,6 @@ pub struct RuntimeContext {
     pub functions: HashMap<String, FunctionSpecification>,
     /// Addons instantiated by runtime
     pub addons_context: AddonsContext,
-    /// Addons available for runtime
-    pub available_addons: Vec<Box<dyn Addon>>,
     /// Number of threads allowed to work on the inputs_sets concurrently
     pub concurrency: u64,
     /// Authorizations settings to propagate to function execution
@@ -45,25 +45,15 @@ pub struct RuntimeContext {
 
 impl RuntimeContext {
     pub fn new(
-        available_addons: Vec<Box<dyn Addon>>,
         authorization_context: AuthorizationContext,
+        get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>,
     ) -> RuntimeContext {
         RuntimeContext {
             functions: HashMap::new(),
-            addons_context: AddonsContext::new(),
-            available_addons,
+            addons_context: AddonsContext::new(get_addon_by_namespace),
             concurrency: 1,
             authorization_context,
         }
-    }
-
-    pub fn collect_available_addons(&mut self) -> Vec<Box<dyn Addon>> {
-        let mut addons = vec![];
-        addons.append(&mut self.available_addons);
-        for (_, (addon, _)) in self.addons_context.registered_addons.drain() {
-            addons.push(addon);
-        }
-        addons
     }
 
     pub fn generate_initial_input_sets(
@@ -86,7 +76,7 @@ impl RuntimeContext {
     pub fn perform_addon_processing(
         &self,
         runbook_execution_context: &mut RunbookExecutionContext,
-    ) -> Result<HashMap<ConstructDid, Vec<ConstructDid>>, Diagnostic> {
+    ) -> Result<HashMap<ConstructDid, Vec<ConstructDid>>, (Diagnostic, ConstructDid)> {
         let mut consolidated_dependencies = HashMap::new();
         let mut grouped_commands: HashMap<
             String,
@@ -156,34 +146,15 @@ impl RuntimeContext {
     }
 
     /// Checks if the provided `addon_id` matches the namespace of a supported addon
-    /// that is available in the `available_addons` of the [RuntimeContext].
+    /// that is available in the `get_addon_by_namespace` fn of the [RuntimeContext].
     /// If there is no match, returns [Vec<Diagnostic>].
-    /// If there is a match, the addon is
-    ///  1. Registered to the `addons_context`, storing the [PackageDid] as additional context.
-    ///  2. Removed from the set of `available_addons`
-    pub fn register_addon_and_remove_from_available(
+    /// If there is a match, the addon is registered to the `addons_context`, storing the [PackageDid] as additional context.
+    pub fn register_addon(
         &mut self,
         addon_id: &str,
         package_did: &PackageDid,
     ) -> Result<(), Vec<Diagnostic>> {
-        if self.addons_context.is_addon_registered(addon_id) {
-            return Ok(());
-        }
-        let mut index = None;
-        for (i, addon) in self.available_addons.iter().enumerate() {
-            if addon.get_namespace().eq(addon_id) {
-                index = Some(i);
-                break;
-            }
-        }
-        let Some(index) = index else {
-            return Err(vec![diagnosed_error!("unable to find addon {}", addon_id)]);
-        };
-
-        let addon = self.available_addons.remove(index);
-
-        self.addons_context.register(package_did, addon, true);
-        Ok(())
+        self.addons_context.register(package_did, addon_id, true).map_err(|e| vec![e])
     }
 
     pub fn register_standard_functions(&mut self) {
@@ -206,8 +177,6 @@ impl RuntimeContext {
 
             let mut sources = runbook_sources.to_vec_dequeue();
 
-            let dependencies_execution_results = HashMap::new();
-
             // Register standard functions at the root level
             self.register_standard_functions();
 
@@ -215,54 +184,22 @@ impl RuntimeContext {
                 let package_id = PackageId::from_file(&location, &runbook_id, &package_name)
                     .map_err(|e| vec![e])?;
 
-                self.addons_context.register(&package_id.did(), Box::new(StdAddon::new()), false);
+                self.addons_context.register(&package_id.did(), "std", false).unwrap();
 
-                let mut blocks =
+                let blocks =
                     raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
 
-                while let Some(block) = blocks.pop_front() {
-                    // parse addon blocks to load that addon
-                    match block.ident.value().as_str() {
-                        "addon" => {
-                            let Some(BlockLabel::String(name)) = block.labels.first() else {
-                                diagnostics.push(
-                                    Diagnostic::error_from_string("addon name missing".into())
-                                        .location(&location),
-                                );
-                                continue;
-                            };
-                            let addon_id = name.to_string();
-                            self.register_addon_and_remove_from_available(
-                                &addon_id,
-                                &package_id.did(),
-                            )?;
-
-                            let mut addon_defaults = AddonDefaults::new(&addon_id);
-                            for attribute in block.body.attributes() {
-                                let eval_result = eval::eval_expression(
-                                    &attribute.value,
-                                    &dependencies_execution_results,
-                                    &package_id,
-                                    runbook_workspace_context,
-                                    runbook_execution_context,
-                                    self,
-                                );
-                                let key = attribute.key.to_string();
-                                let value = match eval_result {
-                                    Ok(ExpressionEvaluationStatus::CompleteOk(value)) => value,
-                                    Err(diag) => return Err(vec![diag]),
-                                    w => unimplemented!("{:?}", w),
-                                };
-                                addon_defaults.insert(&key, value);
-                            }
-
-                            runbook_workspace_context
-                                .addons_defaults
-                                .insert((package_id.did(), addon_id.clone()), addon_defaults);
-                        }
-                        _ => {}
-                    }
-                }
+                let _ = self
+                    .register_addons_from_blocks(
+                        blocks,
+                        &package_id,
+                        &location,
+                        runbook_workspace_context,
+                        runbook_execution_context,
+                    )
+                    .map_err(|diags| {
+                        diagnostics.extend(diags);
+                    });
             }
 
             if diagnostics.is_empty() {
@@ -271,6 +208,98 @@ impl RuntimeContext {
                 return Err(diagnostics);
             }
         }
+    }
+
+    pub fn register_addons_from_blocks(
+        &mut self,
+        mut blocks: VecDeque<Block>,
+        package_id: &PackageId,
+        location: &FileLocation,
+        runbook_workspace_context: &mut RunbookWorkspaceContext,
+        runbook_execution_context: &RunbookExecutionContext,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut diagnostics = vec![];
+        let dependencies_execution_results = DependencyExecutionResultCache::new();
+        while let Some(block) = blocks.pop_front() {
+            // parse addon blocks to load that addon
+            match block.ident.value().as_str() {
+                "addon" => {
+                    let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        diagnostics.push(
+                            Diagnostic::error_from_string("addon name missing".into())
+                                .location(&location),
+                        );
+                        continue;
+                    };
+                    let addon_id = name.to_string();
+                    self.register_addon(&addon_id, &package_id.did())?;
+
+                    let existing_addon_defaults = runbook_workspace_context
+                        .addons_defaults
+                        .get(&(package_id.did(), addon_id.clone()))
+                        .cloned();
+                    let addon_defaults = self
+                        .generate_addon_defaults_from_block(
+                            existing_addon_defaults,
+                            &block,
+                            &addon_id,
+                            &package_id,
+                            &dependencies_execution_results,
+                            runbook_workspace_context,
+                            runbook_execution_context,
+                        )
+                        .map_err(|diag| vec![diag.location(&location)])?;
+
+                    runbook_workspace_context
+                        .addons_defaults
+                        .insert((package_id.did(), addon_id.clone()), addon_defaults);
+                }
+                _ => {}
+            }
+        }
+        if diagnostics.is_empty() {
+            return Ok(());
+        } else {
+            return Err(diagnostics);
+        }
+    }
+
+    pub fn generate_addon_defaults_from_block(
+        &self,
+        existing_addon_defaults: Option<AddonDefaults>,
+        block: &Block,
+        addon_id: &str,
+        package_id: &PackageId,
+        dependencies_execution_results: &DependencyExecutionResultCache,
+        runbook_workspace_context: &mut RunbookWorkspaceContext,
+        runbook_execution_context: &RunbookExecutionContext,
+    ) -> Result<AddonDefaults, Diagnostic> {
+        let mut addon_defaults = existing_addon_defaults.unwrap_or(AddonDefaults::new(addon_id));
+        for attribute in block.body.attributes() {
+            let eval_result: Result<ExpressionEvaluationStatus, Diagnostic> = eval::eval_expression(
+                &attribute.value,
+                &dependencies_execution_results,
+                &package_id,
+                runbook_workspace_context,
+                runbook_execution_context,
+                self,
+            );
+            let key = attribute.key.to_string();
+            let value = match eval_result {
+                Ok(ExpressionEvaluationStatus::CompleteOk(value)) => value,
+                Err(diag) => return Err(diag),
+                w => unimplemented!("{:?}", w),
+            };
+            if addon_defaults.contains_key(&key) {
+                return Err(diagnosed_error!(
+                    "duplicate key '{}' in '{}' addon defaults",
+                    key,
+                    addon_id
+                ));
+            }
+            addon_defaults.insert(&key, value);
+        }
+        Ok(addon_defaults)
     }
 
     pub fn execute_function(
@@ -313,21 +342,51 @@ impl RuntimeContext {
 pub struct AddonsContext {
     pub registered_addons: HashMap<String, (Box<dyn Addon>, bool)>,
     pub addon_construct_factories: HashMap<(PackageDid, String), AddonConstructFactory>,
+    /// Function to get an available addon by namespace
+    pub get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>,
 }
 
 impl AddonsContext {
-    pub fn new() -> Self {
-        Self { registered_addons: HashMap::new(), addon_construct_factories: HashMap::new() }
+    pub fn new(get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>) -> Self {
+        Self {
+            registered_addons: HashMap::new(),
+            addon_construct_factories: HashMap::new(),
+            get_addon_by_namespace,
+        }
     }
 
     pub fn is_addon_registered(&self, addon_id: &str) -> bool {
         self.registered_addons.get(addon_id).is_some()
     }
 
-    pub fn register(&mut self, package_did: &PackageDid, addon: Box<dyn Addon>, scope: bool) {
-        let key = addon.get_namespace().to_string();
-        if self.is_addon_registered(&key) {
-            return;
+    /// Registers an addon with this new package if the addon has already been registered
+    /// by a different package.
+    pub fn register_if_already_registered(
+        &mut self,
+        package_did: &PackageDid,
+        addon_id: &str,
+        scope: bool,
+    ) -> Result<(), Diagnostic> {
+        if self.is_addon_registered(&addon_id) {
+            self.register(package_did, addon_id, scope)?;
+            Ok(())
+        } else {
+            Err(diagnosed_error!("addon '{}' not registered", addon_id))
+        }
+    }
+
+    pub fn register(
+        &mut self,
+        package_did: &PackageDid,
+        addon_id: &str,
+        scope: bool,
+    ) -> Result<(), Diagnostic> {
+        let key = (package_did.clone(), addon_id.to_string());
+        let Some(addon) = (self.get_addon_by_namespace)(addon_id) else {
+            return Err(diagnosed_error!("unable to find addon {}", addon_id));
+        };
+        if self.addon_construct_factories.contains_key(&key) {
+            return Ok(());
         }
 
         // Build and register factory
@@ -336,8 +395,9 @@ impl AddonsContext {
             commands: addon.build_command_lookup(),
             signers: addon.build_signer_lookup(),
         };
-        self.registered_addons.insert(addon.get_namespace().to_string(), (addon, scope));
-        self.addon_construct_factories.insert((package_did.clone(), key.clone()), factory);
+        self.registered_addons.insert(addon_id.to_string(), (addon, scope));
+        self.addon_construct_factories.insert(key, factory);
+        Ok(())
     }
 
     fn get_factory(
@@ -362,9 +422,11 @@ impl AddonsContext {
         command_name: &str,
         package_id: &PackageId,
         block: &Block,
-        _location: &FileLocation,
+        location: &FileLocation,
     ) -> Result<CommandInstance, Diagnostic> {
-        let factory = self.get_factory(namespace, &package_id.did())?;
+        let factory = self
+            .get_factory(namespace, &package_id.did())
+            .map_err(|diag| diag.location(location))?;
         let command_id = CommandId::Action(command_id.to_string());
         factory.create_command_instance(&command_id, namespace, command_name, block, package_id)
     }
@@ -375,12 +437,14 @@ impl AddonsContext {
         signer_name: &str,
         package_id: &PackageId,
         block: &Block,
-        _location: &FileLocation,
+        location: &FileLocation,
     ) -> Result<SignerInstance, Diagnostic> {
         let Some((namespace, signer_id)) = namespaced_action.split_once("::") else {
             todo!("return diagnostic")
         };
-        let ctx = self.get_factory(namespace, &package_id.did())?;
+        let ctx = self
+            .get_factory(namespace, &package_id.did())
+            .map_err(|diag| diag.location(location))?;
         ctx.create_signer_instance(signer_id, namespace, signer_name, block, package_id)
     }
 }
@@ -413,7 +477,7 @@ impl AddonConstructFactory {
             ));
         };
         let typing = match command_id {
-            CommandId::Action(_) => CommandInstanceType::Action,
+            CommandId::Action(command_id) => CommandInstanceType::Action(command_id.clone()),
         };
         match pre_command_spec {
             PreCommandSpecification::Atomic(command_spec) => {

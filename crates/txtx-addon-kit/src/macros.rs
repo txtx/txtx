@@ -53,7 +53,7 @@ macro_rules! define_command {
         implements_signing_capability: $implements_signing_capability:expr,
         implements_background_task_capability: $implements_background_task_capability:expr,
         // todo: add key field and use the input_name as the key, so the user can also provide a web-ui facing name
-        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, tainting: $tainting:expr, internal: $internal:expr }),*],
+        inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, tainting: $tainting:expr, internal: $internal:expr $(, sensitive: $sensitive:expr)? }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
         example: $example:expr,
     }) => {
@@ -81,7 +81,13 @@ macro_rules! define_command {
                 internal: $internal,
                 check_required: false,
                 check_performed: false,
-                sensitive: false
+                sensitive: {
+                    let mut is_sensitive = false;
+                    $(
+                        is_sensitive = $sensitive;
+                    )?
+                    is_sensitive
+                },
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {
@@ -90,12 +96,15 @@ macro_rules! define_command {
                 typing: $output_ts,
             }),*],
             inputs_post_processing_closure: $func_key::post_process_evaluated_inputs,
+            prepare_nested_execution: $func_key::prepare_nested_execution,
             check_instantiability: $func_key::check_instantiability,
             check_executability: $func_key::check_executability,
             run_execution: Box::new($func_key::run_execution),
             check_signed_executability: $func_key::check_signed_executability,
+            prepare_signed_nested_execution: $func_key::prepare_signed_nested_execution,
             run_signed_execution: Box::new($func_key::run_signed_execution),
             build_background_task: Box::new($func_key::build_background_task),
+            aggregate_nested_execution_results: $func_key::aggregate_nested_execution_results,
             example: String::from($example),
         }
       )
@@ -142,6 +151,27 @@ macro_rules! define_object_type {
         }),*
     ] => {
         Type::object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+            name: String::from(stringify!($input_name)),
+            documentation: String::from($input_doc),
+            typing: $input_ts,
+            optional: $optional,
+            tainting: $tainting,
+            internal: false,
+        }),*])
+    };
+}
+
+#[macro_export]
+macro_rules! define_map_type {
+    [
+        $($input_name:ident: {
+            documentation: $input_doc:expr,
+            typing: $input_ts:expr,
+            optional: $optional:expr,
+            tainting: $tainting:expr
+        }),*
+    ] => {
+        Type::map(vec![$(txtx_addon_kit::types::types::ObjectProperty {
             name: String::from(stringify!($input_name)),
             documentation: String::from($input_doc),
             typing: $input_ts,

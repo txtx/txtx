@@ -1,10 +1,9 @@
-use kit::hcl::structure::Attribute;
-use kit::indexmap::IndexMap;
-use kit::types::commands::CommandExecutionResult;
-use kit::types::stores::ValueStore;
-use kit::types::{diagnostics::Diagnostic, types::Value};
-use kit::types::{ConstructDid, Did, PackageId, RunbookId};
-use std::collections::HashMap;
+use txtx_addon_kit::hcl::structure::Attribute;
+use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
+use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
+use txtx_addon_kit::types::{Did, PackageId, RunbookId};
 
 use crate::eval::{self, ExpressionEvaluationStatus};
 
@@ -17,6 +16,8 @@ use super::{
 pub struct FlowContext {
     /// The name of the flow
     pub name: String,
+    /// The description of the flow
+    pub description: Option<String>,
     /// The resolution context contains all the data related to source code analysis and DAG construction
     pub graph_context: RunbookGraphContext,
     /// The execution context contains all the data related to the execution of the runbook
@@ -36,6 +37,7 @@ impl FlowContext {
         let execution_context = RunbookExecutionContext::new();
         let mut running_context = Self {
             name: name.to_string(),
+            description: None,
             workspace_context,
             graph_context,
             execution_context,
@@ -65,10 +67,7 @@ impl FlowContext {
     pub fn index_flow_inputs_from_attributes(
         &mut self,
         attributes: &Vec<Attribute>,
-        dependencies_execution_results: &HashMap<
-            ConstructDid,
-            Result<&CommandExecutionResult, &Diagnostic>,
-        >,
+        dependencies_execution_results: &DependencyExecutionResultCache,
         package_id: &PackageId,
         workspace_context: &RunbookWorkspaceContext,
         execution_context: &RunbookExecutionContext,
@@ -84,9 +83,14 @@ impl FlowContext {
                 &runtime_context,
             )
             .map_err(|e| e)?;
+
             match res {
                 ExpressionEvaluationStatus::CompleteOk(value) => {
-                    self.index_flow_input(&attr.key, value, &package_id);
+                    if attr.key.to_string().eq("description") {
+                        self.description = Some(value.to_string());
+                    } else {
+                        self.index_flow_input(&attr.key, value, &package_id);
+                    }
                 }
                 ExpressionEvaluationStatus::DependencyNotComputed => {
                     return Err(Diagnostic::error_from_string(format!(

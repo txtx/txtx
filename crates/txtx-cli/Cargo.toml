@@ -13,8 +13,12 @@ path = "src/main.rs"
 
 [dependencies]
 txtx-core = { workspace = true }
-txtx-addon-network-stacks = { workspace = true }
+txtx-supervisor-ui = { workspace = true, optional = true }
+txtx-serve = { workspace = true, optional = true }
+txtx-addon-network-svm = { workspace = true }
+txtx-addon-network-stacks = { workspace = true, optional = true }
 txtx-addon-network-evm = { workspace = true }
+txtx-addon-network-ovm = { workspace = true, optional = true }
 txtx-addon-network-bitcoin = { workspace = true }
 txtx-addon-telegram = { workspace = true }
 txtx-addon-sp1 = { workspace = true, optional = true }
@@ -27,48 +31,45 @@ ctrlc = { version = "3.2.2", optional = true }
 serde = "1"
 serde_json = "1"
 serde_derive = "1"
-crossterm = "0.27.0"
-ratatui = { version = "0.27.0", features = ["crossterm"] }
+crossterm = "0.28.1"
+ratatui = { version = "0.28.1", features = ["crossterm"] }
 ascii_table = "4.0.3"
 itertools = "0.12.0"
-unicode-width = "0.1"
-rust-embed="8.2.0"
-juniper_actix = {version = "0.5.0", features = ["subscriptions"] }
-juniper_graphql_ws = { version = "0.4.0", features = ["graphql-transport-ws"] }
-actix-web = "4"
-actix-cors = "0.7.0"
+unicode-width = "0.2.0"
 ansi_term = "0.12.1"
 atty = "0.2.14"
-mustache = "0.9.0"
 tokio = "1.37.0"
-mime_guess = "2.0.4"
-serde_yml = "0.0.10"
 dotenvy_macro = "0.15.7"
-tokio-tungstenite = { version = "0.23.1", features = ["native-tls"] }
-native-tls = "0.2.11"
 openssl = { version = "*", features = ["vendored"] }
 openssl-sys = { version = "*", features = ["vendored"] }
-totp-rs = "^5.0"
-base58 = "0.2.0"
 dialoguer = "0.11.0"
 console = "0.15.8"
 convert_case = "0.6.0"
 rusqlite = "0.31.0"
 txtx-lsp = { path = "../txtx-lsp" }
 tower-lsp = { version = "0.20.0" }
+open = "5.3.1"
+dirs = "5.0.1"
+graphql_client = "0.14.0"
+serde_urlencoded = "0.7.1"
+base64 = "0.22.1"
+chrono = "0.4.38"
+actix-web = "4"
+actix-cors = "0.7.0"
 
 [features]
 default = ["cli"]
 cli = ["clap", "clap_generate", "toml", "ctrlc", "hiro-system-kit/log"]
-web_ui = []
+supervisor_ui = ["txtx-supervisor-ui"]
+txtx_serve = ["txtx-serve"]
 debug = ["hiro-system-kit/debug"]
 release = ["hiro-system-kit/release"]
 # Sp1 is pulling dependencies degrading our WASM compatibility
 # This issue needs to be figured out.
 sp1 = ["txtx-addon-sp1"]
+ovm = ["txtx-addon-network-ovm"]
+stacks = ["txtx-addon-network-stacks"]
 
-[build-dependencies]
-npm_rs="1.0.0"
 
 [dev-dependencies]
 test-case = "*"

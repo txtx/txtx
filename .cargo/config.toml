@@ -1,5 +1,5 @@
 [alias]
-txtx-install = "install --path crates/txtx-cli --locked --force"
+txtx-install = "install --path crates/txtx-cli --features supervisor_ui --features ovm --locked --force"
 
 [build]
 rustflags = ["--cfg", "tokio_unstable"]

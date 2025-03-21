@@ -1,9 +1,9 @@
 export const metadata = {
-    title: "Ethereum and EVM Compatible Blockchains (alpha) Functions",
-    description: "Functions for Ethereum and EVM Compatible Blockchains (alpha)",
+    title: "Ethereum and EVM Compatible Blockchains (beta) Functions",
+    description: "Functions for Ethereum and EVM Compatible Blockchains (beta)",
 };
 
-# Ethereum and EVM Compatible Blockchains (alpha) Functions {{ id: "evm-functions" }}
+# Ethereum and EVM Compatible Blockchains (beta) Functions {{ id: "evm-functions" }}
 
 
 ## address {{ tag: 'function' }}
@@ -228,15 +228,30 @@ output "chain_id" {
 <Row>
   <Col>
 
-Coming soon
+`evm::get_contract_from_foundry_project` retrieves the deployment artifacts for a contract in a Foundry project.
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="input">
-    Coming Soon
+  <Property name="contract_name">
+    The name of the contract being deployed.
+  </Property>
+
+
+  <Property name="contract_filename">
+    The `.sol` file that the contract is located in. Defaults to `<ContractName>.sol`.
+  </Property>
+
+
+  <Property name="foundry_manifest_path">
+    The location of the Foundry.toml. Defaults to `./foundry.toml`.
+  </Property>
+
+
+  <Property name="foundry_profile">
+    The foundry profile that should be used to find the compiled output. Defaults to `default`.
   </Property>
 
 
@@ -255,7 +270,79 @@ Coming soon
 
 
 ```hcl {{ title: 'main.tx' }}
-// Coming Soon
+variable "contract" {
+    value = evm::get_contract_from_foundry_project("MyContract")
+}
+output "abi" {
+    value = variable.contract.abi
+}        
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_contract_from_hardhat_project {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::get_contract_from_hardhat_project` retrieves the deployment artifacts for a contract in a Hardhat project.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="contract_name">
+    The name of the contract being deployed.
+  </Property>
+
+
+  <Property name="contract_source_path">
+    The path, relative to the Hardhat project root, to the contract source file. Defaults to `./contracts/<ContractName>.sol`.
+  </Property>
+
+
+  <Property name="artifacts_path">
+    The path to the Hardhat artifacts directory. Defaults to `./artifacts`.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_contract_from_hardhat_project">
+
+
+```hcl {{ title: 'main.tx' }}
+variable "contract" {
+    value = evm::get_contract_from_hardhat_project("MyContract")
+}
+output "abi" {
+    value = variable.contract.abi
+} 
 
 ```
 

@@ -6,20 +6,19 @@ use lsp_types::{
 use std::borrow::BorrowMut;
 use std::collections::{HashMap, HashSet};
 use std::vec;
-use txtx_addon_network_evm::EVMNetworkAddon;
-use txtx_addon_network_stacks::StacksNetworkAddon;
+use txtx_addon_kit::helpers::fs::{FileAccessor, FileLocation};
+use txtx_addon_kit::types::diagnostics::{Diagnostic as TxtxDiagnostic, DiagnosticLevel};
+use txtx_addon_kit::types::RunbookId;
+use txtx_addon_kit::Addon;
+use txtx_addon_network_evm::EvmNetworkAddon;
 use txtx_addon_telegram::TelegramAddon;
-use txtx_core::kit::helpers::fs::{FileAccessor, FileLocation};
-use txtx_core::kit::types::diagnostics::{Diagnostic as TxtxDiagnostic, DiagnosticLevel};
-use txtx_core::kit::types::RunbookId;
-use txtx_core::kit::Addon;
 use txtx_core::std::StdAddon;
 
 use super::requests::capabilities::InitializationOptions;
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EVMNetworkAddon::new()), Box::new(StacksNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new()), Box::new(TelegramAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for func in addon.get_functions() {
@@ -112,7 +111,7 @@ lazy_static! {
     };
 
     pub static ref ACTIONS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EVMNetworkAddon::new()), Box::new(StacksNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new()), Box::new(TelegramAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for action in addon.get_actions() {
@@ -204,7 +203,7 @@ lazy_static! {
 
 
     pub static ref WALLETS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EVMNetworkAddon::new()), Box::new(StacksNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new()), Box::new(TelegramAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for signer in addon.get_signers() {

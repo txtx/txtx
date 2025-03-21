@@ -1,0 +1,16 @@
+---
+name: {{ workspace_name }}
+id: {{ workspace_id }}
+runbooks:
+{{# runbooks }}
+  - name: {{ name }}
+    description: {{ description }}
+    location: {{ location }}
+{{/ runbooks }}
+environments:
+{{# environments }}
+  {{ name }}:
+    {{# values }}
+      {{.}}
+    {{/ values }}
+{{/ environments }}

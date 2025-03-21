@@ -5,7 +5,7 @@ edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
-txtx-addon-kit = { workspace = true, default-features = false}
+txtx-addon-kit = { workspace = true, default-features = false }
 lazy_static = "1.4.0"
 hmac = "0.12.0"
 pbkdf2 = { version = "0.12.2", features = ["simple"], default-features = false }

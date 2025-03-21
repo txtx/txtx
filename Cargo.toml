@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.1.3"
+version = "0.2.10"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/txtx/txtx"
@@ -12,9 +12,13 @@ members = [
     "crates/txtx-core",
     "crates/txtx-addon-kit",
     "crates/txtx-lsp",
+    "crates/txtx-supervisor-ui",
+    "crates/txtx-serve",
     "addons/bitcoin",
     "addons/evm",
+    "addons/ovm",
     "addons/stacks",
+    "addons/svm/core",
     "addons/telegram",
     "addons/sp1", 
 ]
@@ -25,8 +29,13 @@ resolver = "2"
 txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
 txtx-core = { path = "crates/txtx-core", default-features = false }
 txtx-gql = { path = "crates/txtx-gql" }
+txtx-supervisor-ui = { path = "crates/txtx-supervisor-ui" }
+txtx-serve = { path = "crates/txtx-serve" }
 txtx-addon-network-evm = { path = "addons/evm" }
+txtx-addon-network-ovm = { path = "addons/ovm" }
 txtx-addon-network-bitcoin = { path = "addons/bitcoin" }
 txtx-addon-network-stacks = { path = "addons/stacks" }
+txtx-addon-network-svm = { path = "addons/svm/core" }
 txtx-addon-telegram = { path = "addons/telegram" }
 txtx-addon-sp1 = { path = "addons/sp1" }
+uuid = { version = "1.15.1", features = ["v4", "serde", "js"] }

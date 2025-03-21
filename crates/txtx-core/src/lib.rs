@@ -4,6 +4,8 @@ extern crate lazy_static;
 #[macro_use]
 pub extern crate txtx_addon_kit as kit;
 
+pub extern crate mustache;
+
 mod constants;
 pub mod errors;
 pub mod eval;
@@ -11,47 +13,54 @@ pub mod manifest;
 // pub mod snapshot;
 pub mod runbook;
 pub mod std;
+pub mod templates;
 pub mod types;
 
 #[cfg(test)]
 mod tests;
+pub mod utils;
 
 use ::std::collections::BTreeMap;
+use ::std::future::Future;
+use ::std::pin::Pin;
 use ::std::thread::sleep;
-use ::std::time;
 use ::std::time::Duration;
 
+use crate::runbook::flow_context::FlowContext;
 use constants::ACTION_ITEM_ENV;
 use constants::ACTION_ITEM_GENESIS;
 use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::run_constructs_evaluation;
 use eval::run_signers_evaluation;
-use kit::hcl::Span;
-use kit::types::block_id::BlockId;
-use kit::types::commands::CommandExecutionResult;
-use kit::types::frontend::ActionItemRequestType;
-use kit::types::frontend::ActionItemRequestUpdate;
-use kit::types::frontend::ActionItemResponse;
-use kit::types::frontend::ActionItemResponseType;
-use kit::types::frontend::Actions;
-use kit::types::frontend::Block;
-use kit::types::frontend::BlockEvent;
-use kit::types::frontend::ErrorPanelData;
-use kit::types::frontend::NormalizedActionItemRequestUpdate;
-use kit::types::frontend::Panel;
-use kit::types::frontend::PickInputOptionRequest;
-use kit::types::frontend::ProgressBarVisibilityUpdate;
-use kit::types::frontend::ReviewedInputResponse;
-use kit::types::frontend::ValidateBlockData;
-use kit::types::types::RunbookSupervisionContext;
-use kit::types::ConstructDid;
-use kit::uuid::Uuid;
+use kit::constants::ACTION_ITEM_CHECK_BALANCE;
 use runbook::get_source_context_for_diagnostic;
-use txtx_addon_kit::channel::{Receiver, Sender, TryRecvError};
+use tokio::sync::broadcast::error::TryRecvError;
+use txtx_addon_kit::channel::Sender;
+use txtx_addon_kit::constants::ACTION_ITEM_CHECK_ADDRESS;
+use txtx_addon_kit::hcl::Span;
+use txtx_addon_kit::types::block_id::BlockId;
+use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
+use txtx_addon_kit::types::frontend::ActionItemRequestType;
+use txtx_addon_kit::types::frontend::ActionItemRequestUpdate;
+use txtx_addon_kit::types::frontend::ActionItemResponse;
+use txtx_addon_kit::types::frontend::ActionItemResponseType;
 use txtx_addon_kit::types::frontend::ActionItemStatus;
+use txtx_addon_kit::types::frontend::Actions;
+use txtx_addon_kit::types::frontend::Block;
+use txtx_addon_kit::types::frontend::BlockEvent;
+use txtx_addon_kit::types::frontend::ErrorPanelData;
 use txtx_addon_kit::types::frontend::InputOption;
+use txtx_addon_kit::types::frontend::NormalizedActionItemRequestUpdate;
+use txtx_addon_kit::types::frontend::Panel;
+use txtx_addon_kit::types::frontend::PickInputOptionRequest;
+use txtx_addon_kit::types::frontend::ProgressBarVisibilityUpdate;
+use txtx_addon_kit::types::frontend::ReviewedInputResponse;
+use txtx_addon_kit::types::frontend::ValidateBlockData;
+use txtx_addon_kit::types::types::RunbookSupervisionContext;
+use txtx_addon_kit::types::ConstructDid;
+use txtx_addon_kit::uuid::Uuid;
 use types::Runbook;
 
 lazy_static! {
@@ -78,6 +87,7 @@ pub async fn start_unsupervised_runbook_runloop(
         review_input_values: false,
         is_supervised: false,
     };
+
     for flow_context in runbook.flow_contexts.iter_mut() {
         if !flow_context.is_enabled() {
             continue;
@@ -144,34 +154,17 @@ pub async fn start_unsupervised_runbook_runloop(
             if background_tasks_futures.is_empty() {
                 // sleep(time::Duration::from_secs(3));
             } else {
-                let results = kit::futures::future::join_all(background_tasks_futures).await;
-                for (construct_did, result) in
-                    background_tasks_contructs_dids.into_iter().zip(results)
-                {
-                    match result {
-                        Ok(result) => {
-                            flow_context
-                                .execution_context
-                                .commands_execution_results
-                                .insert(construct_did, result);
-                        }
-                        Err(mut diag) => {
-                            let construct_id =
-                                flow_context.workspace_context.expect_construct_id(&construct_did);
-                            diag = diag.location(&construct_id.construct_location);
-                            if let Some(command_instance) = flow_context
-                                .execution_context
-                                .commands_instances
-                                .get_mut(&construct_did)
-                            {
-                                diag = diag.set_span_range(command_instance.block.span());
-                                diag.span =
-                                    get_source_context_for_diagnostic(&diag, &runbook.sources);
-                            };
-                            return Err(vec![diag]);
-                        }
-                    }
-                }
+                process_background_tasks(
+                    None,
+                    background_tasks_contructs_dids,
+                    background_tasks_futures,
+                    flow_context,
+                )
+                .await
+                .map_err(|mut diag| {
+                    diag.span = get_source_context_for_diagnostic(&diag, &runbook.sources);
+                    vec![diag]
+                })?;
                 background_tasks_futures = vec![];
                 background_tasks_contructs_dids = vec![];
             }
@@ -189,12 +182,11 @@ pub async fn start_unsupervised_runbook_runloop(
 pub async fn start_supervised_runbook_runloop(
     runbook: &mut Runbook,
     block_tx: Sender<BlockEvent>,
-    _action_item_request_tx: Sender<ActionItemRequest>,
-    action_item_responses_rx: Receiver<ActionItemResponse>,
+    mut action_item_responses_rx: tokio::sync::broadcast::Receiver<ActionItemResponse>,
 ) -> Result<(), Vec<Diagnostic>> {
     // let mut runbook_state = BTreeMap::new();
 
-    let mut runbook_initialized = false;
+    let mut intialized_flow_index: i16 = -1;
     runbook.supervision_context = RunbookSupervisionContext {
         review_input_default_values: true,
         review_input_values: true,
@@ -204,36 +196,54 @@ pub async fn start_supervised_runbook_runloop(
     // Compute number of steps
     // A step is
 
-    // store of action_item_ids and the associated action_item_request
-    let mut action_item_requests: BTreeMap<BlockId, ActionItemRequest> = BTreeMap::new();
-    // store of construct_dids and its associated action_item_response_types
-    let mut action_item_responses = BTreeMap::new();
+    // store of action_item_ids and the associated action_item_request, grouped by the flow index
+    let mut flow_action_item_requests: BTreeMap<usize, BTreeMap<BlockId, ActionItemRequest>> =
+        BTreeMap::new();
+    // store of construct_dids and its associated action_item_response_types, grouped by the flow index
+    let mut flow_action_item_responses = BTreeMap::new();
 
     let mut background_tasks_futures = vec![];
     let mut background_tasks_contructs_dids = vec![];
     let mut background_tasks_handle_uuid = Uuid::new_v4();
     let mut validated_blocks = 0;
+    let total_flows_count = runbook.flow_contexts.len();
+    let mut current_flow_index: usize = 0;
     loop {
         let event_opt = match action_item_responses_rx.try_recv() {
             Ok(action) => Some(action),
-            Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => return Ok(()),
+            Err(TryRecvError::Empty) | Err(TryRecvError::Lagged(_)) => None,
+            Err(TryRecvError::Closed) => return Ok(()),
         };
 
-        if !runbook_initialized {
-            runbook_initialized = true;
+        if intialized_flow_index != current_flow_index as i16 {
+            intialized_flow_index = current_flow_index as i16;
+
+            flow_action_item_responses.insert(current_flow_index, BTreeMap::new());
+            flow_action_item_requests.insert(current_flow_index, BTreeMap::new());
+
+            let action_item_responses =
+                flow_action_item_responses.get_mut(&current_flow_index).unwrap();
+            let mut action_item_requests =
+                flow_action_item_requests.get_mut(&current_flow_index).unwrap();
 
             let genesis_events = build_genesis_panel(
                 runbook,
                 &mut action_item_requests,
                 &action_item_responses,
                 &block_tx.clone(),
+                validated_blocks,
+                current_flow_index,
+                total_flows_count,
             )
             .await?;
             for event in genesis_events {
                 let _ = block_tx.send(event).unwrap();
             }
         }
+        let action_item_responses =
+            flow_action_item_responses.get_mut(&current_flow_index).unwrap();
+        let mut action_item_requests =
+            flow_action_item_requests.get_mut(&current_flow_index).unwrap();
 
         // Cooldown
         let Some(action_item_response) = event_opt else {
@@ -249,6 +259,8 @@ pub async fn start_supervised_runbook_runloop(
                 &mut action_item_requests,
                 &action_item_responses,
                 &block_tx.clone(),
+                current_flow_index,
+                total_flows_count,
             )
             .await
             {
@@ -276,150 +288,161 @@ pub async fn start_supervised_runbook_runloop(
         match &payload {
             ActionItemResponseType::ValidateModal => {}
             ActionItemResponseType::ValidateBlock => {
-                // Handle background tasks
-                if !background_tasks_futures.is_empty() {
-                    let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
-                        NormalizedActionItemRequestUpdate {
-                            id: action_item_id.clone(),
-                            action_status: Some(ActionItemStatus::Success(None)),
-                            action_type: None,
-                        },
-                    ]));
-                    let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
-                        &background_tasks_handle_uuid,
-                        Panel::ProgressBar(vec![]),
-                    )));
+                // Keep track of whether we've initialized this bg uuid to avoid sending more updates
+                // for this action item than necessary
+                let mut bg_uuid_initialized = false;
 
-                    let results: Vec<Result<CommandExecutionResult, Diagnostic>> =
-                        kit::futures::future::join_all(background_tasks_futures).await;
-                    for (construct_did, result) in
-                        background_tasks_contructs_dids.into_iter().zip(results)
-                    {
-                        match result {
-                            Ok(result) => {
-                                let running_context = runbook.flow_contexts.first_mut().unwrap();
-                                running_context
-                                    .execution_context
-                                    .commands_execution_results
-                                    .insert(construct_did, result);
-                            }
-                            Err(mut diag) => {
-                                let running_context = runbook.flow_contexts.first_mut().unwrap();
-                                let construct_id = running_context
-                                    .workspace_context
-                                    .expect_construct_id(&construct_did);
-                                diag = diag.location(&construct_id.construct_location);
-                                if let Some(command_instance) = running_context
-                                    .execution_context
-                                    .commands_instances
-                                    .get_mut(&construct_did)
-                                {
-                                    diag = diag.set_span_range(command_instance.block.span());
-                                    diag.span =
-                                        get_source_context_for_diagnostic(&diag, &runbook.sources);
-                                };
-                                let diags = vec![diag];
-                                let _ = block_tx.send(BlockEvent::Error(Block {
-                                    uuid: Uuid::new_v4(),
-                                    visible: true,
-                                    panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(
-                                        &diags,
-                                    )),
-                                }));
-                                let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
-                                    ProgressBarVisibilityUpdate::new(
-                                        &background_tasks_handle_uuid,
-                                        false,
-                                    ),
-                                ));
-                                return Err(diags);
-                            }
+                // When a block is validated, the pass could have some set of nested constructs. Each of these constructs
+                // needs to have their background tasks awaited before continuing to the next.
+                // So in this loop we:
+                // 1. Await background tasks, if we have any
+                // 2. Evaluate the graph to get new actions
+                //   a. If there are no new actions or new pending background tasks, mark the runbook as completed
+                //   b. If the runbook isn't completed yet, and there were background tasks at the start of the loop, and we have new background tasks,
+                //      we need to loop again to flush out the background tasks
+                //   c. If there are new actions and there are no background tasks to await, add the actions to the action item requests and send them to the block processor
+                //      to be processed by the frontend
+                loop {
+                    let start_of_loop_had_bg_tasks = !background_tasks_futures.is_empty();
+                    // Handle background tasks
+                    if start_of_loop_had_bg_tasks {
+                        let flow_context =
+                            runbook.flow_contexts.get_mut(current_flow_index).unwrap();
+                        let supervised_bg_context = if bg_uuid_initialized {
+                            None
+                        } else {
+                            Some(SupervisedBackgroundTaskContext::new(
+                                &block_tx,
+                                &background_tasks_handle_uuid,
+                                &action_item_id,
+                            ))
+                        };
+                        process_background_tasks(
+                            supervised_bg_context,
+                            background_tasks_contructs_dids,
+                            background_tasks_futures,
+                            flow_context,
+                        )
+                        .await
+                        .map_err(|mut diag| {
+                            diag.span = get_source_context_for_diagnostic(&diag, &runbook.sources);
+                            vec![diag]
+                        })?;
+                        bg_uuid_initialized = true;
+                        background_tasks_futures = vec![];
+                        background_tasks_contructs_dids = vec![];
+                    }
+
+                    // Retrieve the previous requests sent and update their statuses.
+                    let mut flow_execution_completed = false;
+                    let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
+                    let flow_context = runbook.flow_contexts.get_mut(current_flow_index).unwrap();
+                    let mut pass_results = run_constructs_evaluation(
+                        &background_tasks_handle_uuid,
+                        &flow_context.workspace_context,
+                        &mut flow_context.execution_context,
+                        &mut runbook.runtime_context,
+                        &runbook.supervision_context,
+                        &mut map,
+                        &action_item_responses,
+                        &block_tx.clone(),
+                    )
+                    .await;
+
+                    // if there were errors, return them to complete execution
+                    if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                        let _ = block_tx.send(BlockEvent::Error(error_event));
+                        return Err(pass_results.with_spans_filled(&runbook.sources));
+                    }
+
+                    let pass_has_pending_bg_tasks =
+                        !pass_results.pending_background_tasks_constructs_uuids.is_empty();
+                    let pass_has_pending_actions = pass_results.actions.has_pending_actions();
+
+                    if !pass_has_pending_actions && !pass_has_pending_bg_tasks {
+                        let flow_context =
+                            runbook.flow_contexts.get_mut(current_flow_index).unwrap();
+                        let grouped_actions_items =
+                            flow_context.execution_context.collect_outputs_constructs_results();
+                        let mut actions = Actions::new_panel("output review", "");
+                        for (key, action_items) in grouped_actions_items.into_iter() {
+                            actions.push_group(key.as_str(), action_items);
+                        }
+                        pass_results.actions.append(&mut actions);
+
+                        flow_execution_completed = true;
+                    } else if !pass_results.actions.store.is_empty() {
+                        validated_blocks = validated_blocks + 1;
+                        pass_results.actions.push_sub_group(
+                            None,
+                            vec![ActionItemRequest::new(
+                                &None,
+                                "Validate",
+                                None,
+                                ActionItemStatus::Todo,
+                                ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
+                                    validated_blocks,
+                                )),
+                                ACTION_ITEM_VALIDATE_BLOCK,
+                            )],
+                        );
+                    }
+
+                    if pass_has_pending_bg_tasks {
+                        background_tasks_futures
+                            .append(&mut pass_results.pending_background_tasks_futures);
+                        background_tasks_contructs_dids
+                            .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                    }
+
+                    if !pass_has_pending_bg_tasks && !start_of_loop_had_bg_tasks {
+                        let update = ActionItemRequestUpdate::from_id(&action_item_id)
+                            .set_status(ActionItemStatus::Success(None));
+                        pass_results.actions.push_action_item_update(update);
+                        for new_request in
+                            pass_results.actions.get_new_action_item_requests().into_iter()
+                        {
+                            action_item_requests
+                                .insert(new_request.id.clone(), new_request.clone());
+                        }
+                        let block_events = pass_results
+                            .actions
+                            .compile_actions_to_block_events(&action_item_requests);
+
+                        for event in block_events.into_iter() {
+                            let _ = block_tx.send(event);
                         }
                     }
-
-                    let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
-                        ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, false),
-                    ));
-                    background_tasks_futures = vec![];
-                    background_tasks_contructs_dids = vec![];
-                }
-
-                background_tasks_handle_uuid = Uuid::new_v4();
-
-                // Retrieve the previous requests sent and update their statuses.
-                let mut runbook_completed = false;
-                let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
-                let running_context = runbook.flow_contexts.first_mut().unwrap();
-                let mut pass_results = run_constructs_evaluation(
-                    &background_tasks_handle_uuid,
-                    &running_context.workspace_context,
-                    &mut running_context.execution_context,
-                    &mut runbook.runtime_context,
-                    &runbook.supervision_context,
-                    &mut map,
-                    &action_item_responses,
-                    &block_tx.clone(),
-                )
-                .await;
-
-                if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
-                    let _ = block_tx.send(BlockEvent::Error(error_event));
-                    return Err(pass_results.with_spans_filled(&runbook.sources));
-                } else if !pass_results.actions.has_pending_actions()
-                    && background_tasks_contructs_dids.is_empty()
-                {
-                    runbook_completed = true;
-                    let grouped_actions_items =
-                        running_context.execution_context.collect_outputs_constructs_results();
-                    let mut actions = Actions::new_panel("output review", "");
-                    for (key, action_items) in grouped_actions_items.into_iter() {
-                        actions.push_group(key.as_str(), action_items);
+                    if flow_execution_completed && !start_of_loop_had_bg_tasks {
+                        set_progress_bar_visibility(
+                            &block_tx,
+                            &background_tasks_handle_uuid,
+                            false,
+                        );
+                        if current_flow_index == total_flows_count - 1 {
+                            let _ = block_tx.send(BlockEvent::RunbookCompleted);
+                            return Ok(());
+                        } else {
+                            current_flow_index += 1;
+                        }
                     }
-                    pass_results.actions.append(&mut actions);
-                } else if !pass_results.actions.store.is_empty() {
-                    validated_blocks = validated_blocks + 1;
-                    pass_results.actions.push_sub_group(
-                        None,
-                        vec![ActionItemRequest::new(
-                            &None,
-                            "Validate",
-                            None,
-                            ActionItemStatus::Todo,
-                            ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
-                                validated_blocks,
-                            )),
-                            ACTION_ITEM_VALIDATE_BLOCK,
-                        )],
-                    );
-                }
-
-                if !pass_results.pending_background_tasks_constructs_uuids.is_empty() {
-                    background_tasks_futures
-                        .append(&mut pass_results.pending_background_tasks_futures);
-                    background_tasks_contructs_dids
-                        .append(&mut pass_results.pending_background_tasks_constructs_uuids);
-                }
-
-                let update = ActionItemRequestUpdate::from_id(&action_item_id)
-                    .set_status(ActionItemStatus::Success(None));
-                pass_results.actions.push_action_item_update(update);
-                for new_request in pass_results.actions.get_new_action_item_requests().into_iter() {
-                    action_item_requests.insert(new_request.id.clone(), new_request.clone());
-                }
-                let block_events =
-                    pass_results.actions.compile_actions_to_block_events(&action_item_requests);
-
-                for event in block_events.into_iter() {
-                    let _ = block_tx.send(event);
-                }
-                if runbook_completed {
-                    let _ = block_tx.send(BlockEvent::RunbookCompleted);
+                    if !pass_has_pending_bg_tasks && !start_of_loop_had_bg_tasks {
+                        set_progress_bar_visibility(
+                            &block_tx,
+                            &background_tasks_handle_uuid,
+                            false,
+                        );
+                        background_tasks_handle_uuid = Uuid::new_v4();
+                        break;
+                    }
                 }
             }
             ActionItemResponseType::PickInputOption(_) => {}
             ActionItemResponseType::ProvideInput(_) => {}
             ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                value_checked, ..
+                value_checked,
+                force_execution,
+                ..
             }) => {
                 let new_status = match value_checked {
                     true => ActionItemStatus::Success(None),
@@ -431,46 +454,77 @@ pub async fn start_supervised_runbook_runloop(
                         .normalize(&action_item_requests)
                         .unwrap(),
                 ]));
-            }
-            ActionItemResponseType::ProvidePublicKey(_response) => {
-                // Retrieve the previous requests sent and update their statuses.
-                let Some((signer_construct_did, scoped_requests)) =
-                    retrieve_related_action_items_requests(
-                        &action_item_id,
-                        &mut action_item_requests,
+                // Some signers do not actually need the user to provide the address/pubkey,
+                // but they need to confirm it in the supervisor. when it is confirmed, we need to
+                // reprocess the signers
+                if let Some(request) = action_item_requests.get(&action_item_id) {
+                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS
+                        || request.internal_key == ACTION_ITEM_CHECK_BALANCE
+                    {
+                        process_signers_action_item_response(
+                            runbook,
+                            &block_tx,
+                            &action_item_id,
+                            &mut action_item_requests,
+                            &action_item_responses,
+                            current_flow_index,
+                        )
+                        .await;
+                    }
+                }
+
+                if *force_execution {
+                    let running_context =
+                        runbook.flow_contexts.get_mut(current_flow_index).unwrap();
+                    let mut pass_results = run_constructs_evaluation(
+                        &background_tasks_handle_uuid,
+                        &running_context.workspace_context,
+                        &mut running_context.execution_context,
+                        &mut runbook.runtime_context,
+                        &runbook.supervision_context,
+                        &mut BTreeMap::new(),
+                        &action_item_responses,
+                        &block_tx.clone(),
                     )
-                else {
-                    continue;
-                };
-
-                let mut map = BTreeMap::new();
-                map.insert(signer_construct_did, scoped_requests);
-
-                let running_context = runbook.flow_contexts.first_mut().unwrap();
-                let pass_result = run_signers_evaluation(
-                    &running_context.workspace_context,
-                    &mut running_context.execution_context,
-                    &mut runbook.runtime_context,
-                    &runbook.supervision_context,
-                    &mut map,
-                    &action_item_responses,
-                    &block_tx.clone(),
-                )
-                .await;
-
-                if let Some(error_event) = pass_result.compile_diagnostics_to_block() {
-                    let _ = block_tx.send(BlockEvent::Error(error_event));
-                } else {
-                    let updated_actions = pass_result
+                    .await;
+                    let mut updated_actions = vec![];
+                    for action in pass_results
                         .actions
                         .compile_actions_to_item_updates(&action_item_requests)
                         .into_iter()
-                        .map(|u| u.normalize(&action_item_requests).unwrap())
-                        .collect();
+                    {
+                        updated_actions.push(action.normalize(&action_item_requests).unwrap())
+                    }
                     let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+
+                    if !pass_results.pending_background_tasks_constructs_uuids.is_empty() {
+                        background_tasks_futures
+                            .append(&mut pass_results.pending_background_tasks_futures);
+                        background_tasks_contructs_dids
+                            .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                    }
+
+                    if pass_results.has_diagnostics() {
+                        pass_results.fill_diagnostic_span(&runbook.sources);
+                    }
+                    if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
+                        let _ = block_tx.send(BlockEvent::Error(error_event));
+                    }
                 }
             }
+            ActionItemResponseType::ProvidePublicKey(_response) => {
+                process_signers_action_item_response(
+                    runbook,
+                    &block_tx,
+                    &action_item_id,
+                    &mut action_item_requests,
+                    &action_item_responses,
+                    current_flow_index,
+                )
+                .await;
+            }
             ActionItemResponseType::ProvideSignedTransaction(_)
+            | ActionItemResponseType::SendTransaction(_)
             | ActionItemResponseType::ProvideSignedMessage(_) => {
                 // Retrieve the previous requests sent and update their statuses.
                 let Some((signing_action_construct_did, scoped_requests)) =
@@ -484,7 +538,7 @@ pub async fn start_supervised_runbook_runloop(
                 let mut map: BTreeMap<ConstructDid, _> = BTreeMap::new();
                 map.insert(signing_action_construct_did, scoped_requests);
 
-                let running_context = runbook.flow_contexts.first_mut().unwrap();
+                let running_context = runbook.flow_contexts.get_mut(current_flow_index).unwrap();
                 let mut pass_results = run_constructs_evaluation(
                     &background_tasks_handle_uuid,
                     &running_context.workspace_context,
@@ -505,6 +559,7 @@ pub async fn start_supervised_runbook_runloop(
                 {
                     updated_actions.push(action.normalize(&action_item_requests).unwrap())
                 }
+
                 let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
 
                 if !pass_results.pending_background_tasks_constructs_uuids.is_empty() {
@@ -512,6 +567,9 @@ pub async fn start_supervised_runbook_runloop(
                         .append(&mut pass_results.pending_background_tasks_futures);
                     background_tasks_contructs_dids
                         .append(&mut pass_results.pending_background_tasks_constructs_uuids);
+                }
+                if pass_results.has_diagnostics() {
+                    pass_results.fill_diagnostic_span(&runbook.sources);
                 }
                 if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                     let _ = block_tx.send(BlockEvent::Error(error_event));
@@ -561,6 +619,8 @@ pub async fn reset_runbook_execution(
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
+    current_flow_index: usize,
+    total_flows_count: usize,
 ) -> Result<(), Vec<Diagnostic>> {
     let ActionItemResponseType::PickInputOption(environment_key) = payload else {
         unreachable!(
@@ -576,9 +636,16 @@ pub async fn reset_runbook_execution(
     }
 
     let _ = progress_tx.send(BlockEvent::Clear);
-    let genesis_events =
-        build_genesis_panel(runbook, action_item_requests, action_item_responses, &progress_tx)
-            .await?;
+    let genesis_events = build_genesis_panel(
+        runbook,
+        action_item_requests,
+        action_item_responses,
+        &progress_tx,
+        0,
+        current_flow_index,
+        total_flows_count,
+    )
+    .await?;
     for event in genesis_events {
         let _ = progress_tx.send(event).unwrap();
     }
@@ -590,10 +657,30 @@ pub async fn build_genesis_panel(
     action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
     action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
     progress_tx: &Sender<BlockEvent>,
+    validated_blocks: usize,
+    current_flow_index: usize,
+    total_flows_count: usize,
 ) -> Result<Vec<BlockEvent>, Vec<Diagnostic>> {
-    let mut actions = Actions::new_panel("runbook checklist", "");
+    let mut actions = Actions::none();
+
     let environments = runbook.get_inputs_selectors();
     let selector = runbook.get_active_inputs_selector();
+
+    let Some(flow_context) = runbook.flow_contexts.get_mut(current_flow_index) else {
+        return Err(vec![diagnosed_error!(
+            "internal error: attempted to access a flow that does not exist"
+        )]);
+    };
+
+    if total_flows_count > 1 {
+        actions.push_begin_flow_panel(
+            current_flow_index,
+            &flow_context.name,
+            &flow_context.description,
+        );
+    } else {
+    }
+    actions.push_panel("runbook checklist", "");
 
     if environments.len() > 0 {
         let input_options: Vec<InputOption> = environments
@@ -620,10 +707,10 @@ pub async fn build_genesis_panel(
         );
         actions.push_sub_group(None, vec![action_request]);
     }
-    let running_context = runbook.flow_contexts.first_mut().unwrap();
-    let mut pass_result = run_signers_evaluation(
-        &running_context.workspace_context,
-        &mut running_context.execution_context,
+
+    let mut pass_result: eval::EvaluationPassResult = run_signers_evaluation(
+        &flow_context.workspace_context,
+        &mut flow_context.execution_context,
         &runbook.runtime_context,
         &runbook.supervision_context,
         &mut BTreeMap::new(),
@@ -633,10 +720,7 @@ pub async fn build_genesis_panel(
     .await;
 
     if pass_result.has_diagnostics() {
-        println!("Diagnostics");
-        for diag in pass_result.diagnostics().iter() {
-            println!("- {}", diag);
-        }
+        return Err(pass_result.with_spans_filled(&runbook.sources));
     }
 
     actions.append(&mut pass_result.actions);
@@ -646,7 +730,7 @@ pub async fn build_genesis_panel(
         "start runbook".into(),
         None,
         ActionItemStatus::Todo,
-        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(0)),
+        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(validated_blocks)),
         ACTION_ITEM_GENESIS,
     );
     actions.push_sub_group(None, vec![validate_action]);
@@ -666,4 +750,150 @@ pub async fn build_genesis_panel(
     // assert_eq!(panels.len(), 1);
 
     Ok(panels)
+}
+
+#[derive(Debug, Clone)]
+pub struct SupervisedBackgroundTaskContext {
+    block_tx: Sender<BlockEvent>,
+    background_tasks_handle_uuid: Uuid,
+    action_item_id: BlockId,
+}
+impl SupervisedBackgroundTaskContext {
+    pub fn new(
+        block_tx: &Sender<BlockEvent>,
+        background_tasks_handle_uuid: &Uuid,
+        action_item_id: &BlockId,
+    ) -> Self {
+        SupervisedBackgroundTaskContext {
+            block_tx: block_tx.clone(),
+            background_tasks_handle_uuid: background_tasks_handle_uuid.clone(),
+            action_item_id: action_item_id.clone(),
+        }
+    }
+}
+
+pub async fn process_background_tasks(
+    supervised_context: Option<SupervisedBackgroundTaskContext>,
+    background_tasks_contructs_dids: Vec<(ConstructDid, ConstructDid)>,
+    background_tasks_futures: Vec<
+        Pin<Box<dyn Future<Output = Result<CommandExecutionResult, Diagnostic>> + Send>>,
+    >,
+    flow_context: &mut FlowContext,
+) -> Result<(), Diagnostic> {
+    if let Some(SupervisedBackgroundTaskContext {
+        block_tx,
+        background_tasks_handle_uuid,
+        action_item_id,
+    }) = supervised_context.as_ref()
+    {
+        let _ =
+            block_tx.send(BlockEvent::UpdateActionItems(vec![NormalizedActionItemRequestUpdate {
+                id: action_item_id.clone(),
+                action_status: Some(ActionItemStatus::Success(None)),
+                action_type: None,
+            }]));
+        let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
+            &background_tasks_handle_uuid,
+            Panel::ProgressBar(vec![]),
+        )));
+    }
+
+    let results: Vec<Result<CommandExecutionResult, Diagnostic>> =
+        txtx_addon_kit::futures::future::join_all(background_tasks_futures).await;
+    for ((nested_construct_did, construct_did), result) in
+        background_tasks_contructs_dids.into_iter().zip(results)
+    {
+        match result {
+            Ok(result) => {
+                flow_context
+                    .execution_context
+                    .append_commands_execution_result(&nested_construct_did, &result);
+            }
+            Err(mut diag) => {
+                let construct_id =
+                    flow_context.workspace_context.expect_construct_id(&construct_did);
+                diag = diag.location(&construct_id.construct_location);
+                if let Some(command_instance) =
+                    flow_context.execution_context.commands_instances.get_mut(&construct_did)
+                {
+                    diag = diag.set_span_range(command_instance.block.span());
+                };
+                if let Some(SupervisedBackgroundTaskContext {
+                    block_tx,
+                    background_tasks_handle_uuid,
+                    ..
+                }) = supervised_context.as_ref()
+                {
+                    let _ = block_tx.send(BlockEvent::Error(Block {
+                        uuid: Uuid::new_v4(),
+                        visible: true,
+                        panel: Panel::ErrorPanel(ErrorPanelData::from_diagnostics(&vec![
+                            diag.clone()
+                        ])),
+                    }));
+                    set_progress_bar_visibility(block_tx, background_tasks_handle_uuid, false);
+                }
+                return Err(diag);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn set_progress_bar_visibility(
+    block_tx: &Sender<BlockEvent>,
+    background_tasks_handle_uuid: &Uuid,
+    visibility: bool,
+) {
+    let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
+        ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, visibility),
+    ));
+}
+
+pub async fn process_signers_action_item_response(
+    runbook: &mut Runbook,
+    block_tx: &Sender<BlockEvent>,
+    action_item_id: &BlockId,
+    action_item_requests: &mut BTreeMap<BlockId, ActionItemRequest>,
+    action_item_responses: &BTreeMap<ConstructDid, Vec<ActionItemResponse>>,
+    current_flow_index: usize,
+) {
+    // Retrieve the previous requests sent and update their statuses.
+    let Some((signer_construct_did, scoped_requests)) =
+        retrieve_related_action_items_requests(&action_item_id, action_item_requests)
+    else {
+        return;
+    };
+
+    let mut map = BTreeMap::new();
+    map.insert(signer_construct_did, scoped_requests);
+
+    let flow_context = runbook.flow_contexts.get_mut(current_flow_index).unwrap();
+    let mut pass_result = run_signers_evaluation(
+        &flow_context.workspace_context,
+        &mut flow_context.execution_context,
+        &mut runbook.runtime_context,
+        &runbook.supervision_context,
+        &mut map,
+        &action_item_responses,
+        &block_tx.clone(),
+    )
+    .await;
+
+    if pass_result.has_diagnostics() {
+        pass_result.fill_diagnostic_span(&runbook.sources);
+    }
+
+    if let Some(error_event) = pass_result.compile_diagnostics_to_block() {
+        let _ = block_tx.send(BlockEvent::Error(error_event));
+    } else {
+        let updated_actions = pass_result
+            .actions
+            .compile_actions_to_item_updates(&action_item_requests)
+            .into_iter()
+            .map(|u| u.normalize(&action_item_requests).unwrap())
+            .collect();
+        let _ = block_tx.send(BlockEvent::UpdateActionItems(updated_actions));
+    }
 }

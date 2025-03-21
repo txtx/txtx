@@ -1,3 +1,7 @@
+use crate::constants::{
+    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, CHECKED_ADDRESS, IS_BALANCE_CHECKED,
+    PROVIDE_PUBLIC_KEY_ACTION_RESULT,
+};
 use crate::helpers::hcl::{
     collect_constructs_references_from_expression, visit_optional_untyped_attribute,
 };
@@ -6,7 +10,6 @@ use futures::future;
 use hcl_edit::{expr::Expression, structure::Block, Span};
 use std::{collections::HashMap, future::Future, pin::Pin};
 
-use super::Did;
 use super::{
     commands::{
         CommandExecutionResult, CommandInput, CommandInputsEvaluationResult, CommandOutput,
@@ -18,6 +21,7 @@ use super::{
     types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
     ConstructDid, PackageId,
 };
+use super::{AuthorizationContext, Did};
 
 #[derive(Debug, Clone)]
 pub struct SignersState {
@@ -27,6 +31,10 @@ pub struct SignersState {
 impl SignersState {
     pub fn new() -> SignersState {
         SignersState { store: HashMap::new() }
+    }
+
+    pub fn get_first_signer(&self) -> Option<ValueStore> {
+        self.store.values().next().cloned()
     }
 
     pub fn get_signer_state_mut(&mut self, signer_did: &ConstructDid) -> Option<&mut ValueStore> {
@@ -77,6 +85,7 @@ pub type SignerActivateFutureResult = Result<
 
 pub fn consolidate_signer_activate_result(
     res: Result<SignerActionOk, SignerActionErr>,
+    block_span: Option<std::ops::Range<usize>>,
 ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
     match res {
         Ok((mut signers, signer_state, result)) => {
@@ -85,21 +94,22 @@ pub fn consolidate_signer_activate_result(
         }
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
-            Err((signers, diag))
+            Err((signers, diag.set_span_range(block_span)))
         }
     }
 }
 pub async fn consolidate_signer_activate_future_result(
     future: SignerActivateFutureResult,
+    block_span: Option<std::ops::Range<usize>>,
 ) -> Result<
     Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)>,
     (SignersState, Diagnostic),
 > {
     match future {
-        Ok(res) => Ok(consolidate_signer_activate_result(res.await)),
+        Ok(res) => Ok(consolidate_signer_activate_result(res.await, block_span)),
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
-            Err((signers, diag))
+            Err((signers, diag.set_span_range(block_span)))
         }
     }
 }
@@ -143,6 +153,7 @@ pub type SignerCheckActivabilityClosure = fn(
     SignersState,
     &HashMap<ConstructDid, SignerInstance>,
     &RunbookSupervisionContext,
+    &AuthorizationContext,
     bool,
     bool,
 ) -> SignerActionsFutureResult;
@@ -151,6 +162,12 @@ pub type SignerActionsFutureResult = Result<
     Pin<Box<dyn Future<Output = Result<CheckSignabilityOk, SignerActionErr>> + Send>>,
     SignerActionErr,
 >;
+
+pub type PrepareSignedNestedExecutionResult = Result<
+    Pin<Box<dyn Future<Output = Result<PrepareNestedExecutionOk, SignerActionErr>> + Send>>,
+    SignerActionErr,
+>;
+pub type PrepareNestedExecutionOk = (SignersState, ValueStore, Vec<(ConstructDid, ValueStore)>);
 
 pub type SignerCheckInstantiabilityClosure =
     fn(&SignerSpecification, Vec<Type>) -> Result<Type, Diagnostic>;
@@ -174,6 +191,15 @@ pub type SignerOperationFutureResult = Result<
     Pin<Box<dyn Future<Output = Result<SignerActionOk, SignerActionErr>> + Send>>,
     SignerActionErr,
 >;
+
+pub fn return_synchronous<T>(
+    res: T,
+) -> Result<Pin<Box<dyn Future<Output = Result<T, SignerActionErr>> + Send>>, SignerActionErr>
+where
+    T: std::marker::Send + 'static,
+{
+    Ok(Box::pin(future::ready(Ok(res))))
+}
 
 pub fn return_synchronous_actions(
     res: Result<CheckSignabilityOk, SignerActionErr>,
@@ -205,6 +231,7 @@ pub fn return_synchronous_err(
 
 pub fn consolidate_signer_result(
     res: Result<CheckSignabilityOk, SignerActionErr>,
+    block_span: Option<std::ops::Range<usize>>,
 ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
     match res {
         Ok((mut signers, signer_state, actions)) => {
@@ -213,19 +240,50 @@ pub fn consolidate_signer_result(
         }
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
-            Err((signers, diag))
+            Err((signers, diag.set_span_range(block_span)))
         }
     }
 }
 pub async fn consolidate_signer_future_result(
     future: SignerActionsFutureResult,
-) -> Result<Result<(SignersState, Actions), (SignersState, Diagnostic)>, (SignersState, Diagnostic)>
-{
+    block_span: Option<std::ops::Range<usize>>,
+) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
     match future {
-        Ok(res) => Ok(consolidate_signer_result(res.await)),
+        Ok(res) => match res.await {
+            Ok((mut signers, signer_state, actions)) => {
+                signers.push_signer_state(signer_state);
+                Ok((signers, actions))
+            }
+            Err((mut signers, signer_state, diag)) => {
+                signers.push_signer_state(signer_state);
+                Err((signers, diag.set_span_range(block_span)))
+            }
+        },
         Err((mut signers, signer_state, diag)) => {
             signers.push_signer_state(signer_state);
-            Err((signers, diag))
+            Err((signers, diag.set_span_range(block_span)))
+        }
+    }
+}
+
+pub async fn consolidate_nested_execution_result(
+    future: PrepareSignedNestedExecutionResult,
+    block_span: Option<std::ops::Range<usize>>,
+) -> Result<(SignersState, Vec<(ConstructDid, ValueStore)>), (SignersState, Diagnostic)> {
+    match future {
+        Ok(res) => match res.await {
+            Ok((mut signers, signer_state, res)) => {
+                signers.push_signer_state(signer_state);
+                Ok((signers, res))
+            }
+            Err((mut signers, signer_state, diag)) => {
+                signers.push_signer_state(signer_state);
+                Err((signers, diag.set_span_range(block_span)))
+            }
+        },
+        Err((mut signers, signer_state, diag)) => {
+            signers.push_signer_state(signer_state);
+            Err((signers, diag.set_span_range(block_span)))
         }
     }
 }
@@ -278,8 +336,7 @@ impl SignerInstance {
                     for prop in props.iter() {
                         let mut blocks_iter = self.block.body.get_blocks(&input.name);
                         while let Some(block) = blocks_iter.next() {
-                            let res = visit_optional_untyped_attribute(&prop.name, &block)
-                                .map_err(|e| format!("{:?}", e))?;
+                            let res = visit_optional_untyped_attribute(&prop.name, &block);
                             if let Some(expr) = res {
                                 let mut references = vec![];
                                 collect_constructs_references_from_expression(
@@ -293,8 +350,7 @@ impl SignerInstance {
                     }
                 }
                 _ => {
-                    let res = visit_optional_untyped_attribute(&input.name, &self.block)
-                        .map_err(|e| format!("{:?}", e))?;
+                    let res = visit_optional_untyped_attribute(&input.name, &self.block);
                     if let Some(expr) = res {
                         let mut references = vec![];
                         collect_constructs_references_from_expression(
@@ -311,22 +367,8 @@ impl SignerInstance {
     }
 
     /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
-    pub fn get_expression_from_input(
-        &self,
-        input: &CommandInput,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
-        let res = match &input.typing {
-            Type::Object(_) => unreachable!(),
-            _ => visit_optional_untyped_attribute(&input.name, &self.block)?,
-        };
-        match (res, input.optional) {
-            (Some(res), _) => Ok(Some(res)),
-            (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing value for field '{}'",
-                self.name, self.specification.matcher, input.name
-            ))]),
-        }
+    pub fn get_expression_from_input(&self, input: &CommandInput) -> Option<Expression> {
+        visit_optional_untyped_attribute(&input.name, &self.block)
     }
 
     pub fn get_group(&self) -> String {
@@ -340,25 +382,17 @@ impl SignerInstance {
         &self,
         input: &CommandInput,
         prop: &ObjectProperty,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
+    ) -> Option<Expression> {
         let object = self.block.body.get_blocks(&input.name).next();
-        match (object, input.optional) {
-            (Some(block), _) => {
-                let expr_res = visit_optional_untyped_attribute(&prop.name, &block)?;
-                match (expr_res, prop.optional) {
-                    (Some(expression), _) => Ok(Some(expression)),
-                    (None, true) => Ok(None),
-                    (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                        "command '{}' (type '{}') is missing property '{}' for object '{}'",
-                        self.name, self.specification.matcher, prop.name, input.name
-                    ))]),
+        match object {
+            Some(block) => {
+                let expr_res = visit_optional_untyped_attribute(&prop.name, &block);
+                match expr_res {
+                    Some(expression) => Some(expression),
+                    None => None,
                 }
             }
-            (None, true) => Ok(None),
-            (None, false) => Err(vec![Diagnostic::error_from_string(format!(
-                "command '{}' (type '{}') is missing object '{}'",
-                self.name, self.specification.matcher, input.name
-            ))]),
+            None => None,
         }
     }
 
@@ -368,9 +402,10 @@ impl SignerInstance {
         evaluated_inputs: &CommandInputsEvaluationResult,
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        _action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
+        action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         action_item_responses: &Option<&Vec<ActionItemResponse>>,
         supervision_context: &RunbookSupervisionContext,
+        authorization_context: &AuthorizationContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
@@ -382,50 +417,39 @@ impl SignerInstance {
 
         match action_item_responses {
             Some(responses) => {
-                for ActionItemResponse { payload, .. } in responses.iter() {
+                for ActionItemResponse { payload, action_item_id } in responses.iter() {
                     match payload {
                         ActionItemResponseType::ProvidePublicKey(update) => {
-                            values.insert("public_key", Value::string(update.public_key.clone()));
-
-                            let signer_state = signers.pop_signer_state(construct_did).unwrap();
-                            let res = ((&self.specification).check_activability)(
-                                &construct_did,
-                                &self.name,
-                                &self.specification,
-                                &values,
-                                signer_state,
-                                signers,
-                                signers_instances,
-                                &supervision_context,
-                                is_balance_check_required,
-                                is_public_key_required,
+                            values.insert(
+                                PROVIDE_PUBLIC_KEY_ACTION_RESULT,
+                                Value::string(update.public_key.clone()),
                             );
-                            return consolidate_signer_future_result(res).await?.map_err(
-                                |(state, diag)| (state, diag.set_span_range(self.block.span())),
-                            );
-                            // WIP
-                            // let (status, success) = match &res {
-                            //     Ok((_, actions)) => {
-
-                            //         (ActionItemStatus::Success(message.clone()), true)
-                            //     }
-                            //     Err(diag) => (ActionItemStatus::Error(diag.clone()), false),
-                            // };
-
-                            // match request.action_type {
-                            //     ActionItemRequestType::ReviewInput => {
-                            //         request.action_status = status.clone();
-                            //     }
-                            //     ActionItemRequestType::ProvidePublicKey(_) => {
-                            //         if success {
-                            //             request.action_status = status.clone();
-                            //         }
-                            //     }
-                            //     _ => unreachable!(),
-                            // }
-
-                            // for request in action_item_requests.iter() {}
                         }
+                        ActionItemResponseType::ReviewInput(response) => {
+                            let request = action_item_requests
+                                .map(|requests| requests.iter().find(|r| r.id.eq(&action_item_id)));
+
+                            if let Some(Some(request)) = request {
+                                if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
+                                    if response.value_checked {
+                                        let data = request
+                                            .action_type
+                                            .as_review_input()
+                                            .expect("review input action item");
+                                        values.insert(
+                                            CHECKED_ADDRESS,
+                                            Value::string(data.value.to_string()),
+                                        );
+                                    }
+                                } else if request.internal_key == ACTION_ITEM_CHECK_BALANCE {
+                                    values.insert(
+                                        IS_BALANCE_CHECKED,
+                                        Value::bool(response.value_checked),
+                                    );
+                                }
+                            }
+                        }
+
                         _ => {}
                     }
                 }
@@ -444,13 +468,12 @@ impl SignerInstance {
             signers,
             signers_instances,
             &supervision_context,
+            &authorization_context,
             is_balance_check_required,
             is_public_key_required,
         );
 
-        consolidate_signer_future_result(res)
-            .await?
-            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())))
+        consolidate_signer_future_result(res, self.block.span()).await
     }
 
     pub async fn perform_activation(
@@ -475,11 +498,7 @@ impl SignerInstance {
             signers_instances,
             progress_tx,
         );
-        let res = consolidate_signer_activate_future_result(future)
-            .await?
-            .map_err(|(state, diag)| (state, diag.set_span_range(self.block.span())));
-
-        res
+        consolidate_signer_activate_future_result(future, self.block.span()).await?
     }
 
     pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
@@ -532,6 +551,7 @@ pub trait SignerImplementation {
         _signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
+        _authorization_context: &AuthorizationContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
@@ -577,46 +597,4 @@ pub trait SignerImplementation {
     ) -> SignerSignFutureResult {
         unimplemented!()
     }
-}
-
-pub fn signer_diag_with_namespace_ctx(
-    namespace: String,
-) -> impl Fn(&SignerSpecification, &str, String) -> Diagnostic {
-    let signer_diag_with_ctx = move |signer_spec: &SignerSpecification,
-                                     signer_instance_name: &str,
-                                     e: String|
-          -> Diagnostic {
-        Diagnostic::error_from_string(format!(
-            "'{}:{}' signer '{}': {}",
-            namespace, signer_spec.matcher, signer_instance_name, e
-        ))
-    };
-    return signer_diag_with_ctx;
-}
-
-pub fn signer_diag_with_ctx<'a>(
-    signer_spec: &'a SignerSpecification,
-    signer_instance_name: &'a str,
-    signer_diag_with_ctx: impl Fn(&SignerSpecification, &str, String) -> Diagnostic + 'a,
-) -> impl Fn(String) -> Diagnostic + 'a {
-    let signer_diag_with_ctx = move |e: String| -> Diagnostic {
-        signer_diag_with_ctx(signer_spec, signer_instance_name, e)
-    };
-    return signer_diag_with_ctx;
-}
-
-pub fn signer_err_fn(
-    signer_diag_with_ctx: impl Fn(String) -> Diagnostic,
-) -> impl for<'a, 'b> Fn(
-    &'a SignersState,
-    &'b ValueStore,
-    String,
-) -> (SignersState, ValueStore, Diagnostic) {
-    let error_fn = move |signers: &SignersState,
-                         signer_state: &ValueStore,
-                         e: String|
-          -> (SignersState, ValueStore, Diagnostic) {
-        return (signers.clone(), signer_state.clone(), signer_diag_with_ctx(e));
-    };
-    error_fn
 }

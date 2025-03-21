@@ -1,0 +1,14 @@
+---
+name: Embeddable Runbook
+id: embeddable-runbook
+environments:
+  devnet:
+    chain_id: 11155111
+    rpc_api_url: http://localhost:8545
+    secret_key: 708c8e68f7cfc670783d848790a5503fb0a83580911760ca5762536bc0628969
+runbooks:
+- name: embeddable
+  description:
+  location: ./main.tx
+  state:
+    location: state

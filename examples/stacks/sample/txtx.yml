@@ -1,0 +1,32 @@
+---
+name: sample
+id: sample
+runbooks:
+  - name: deploy-abcde
+    id: deploy-abcde
+    description: 
+    location: runbooks/deployments/deploy-abcde.tx
+    state:
+      location: abcde.devnet.json
+  - name: deploy-token
+    id: deploy-token
+    description: 
+    location: runbooks/deployments/deploy-token.tx
+    state:
+      location: token.devnet.json
+environments:
+  devnet:
+    stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
+    clarinet_manifest_path: "./Clarinet.toml"
+    stacks_network_id: "devnet"
+    stacks_api_url: "http://localhost:3999"
+  testnet:
+    stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
+    clarinet_manifest_path: "./Clarinet.toml"
+    stacks_network_id: "devnet"
+    stacks_api_url: "http://localhost:3999"
+  mainnet:
+    stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
+    clarinet_manifest_path: "./Clarinet.toml"
+    stacks_network_id: "devnet"
+    stacks_api_url: "http://localhost:3999"

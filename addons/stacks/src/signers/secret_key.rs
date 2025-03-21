@@ -1,23 +1,20 @@
 use std::collections::HashMap;
 
-use crate::codec::crypto::{
-    compute_keypair, secret_key_from_bytes, sign_message, sign_transaction,
-};
+use crate::codec::crypto::{compute_keypair, sign_message, sign_transaction};
 
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
     SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
 };
+use txtx_addon_kit::crypto::secret_key_from_bytes;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvideSignedTransactionRequest,
-    ReviewInputRequest,
+    ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
-    return_synchronous_result, signer_diag_with_ctx, signer_err_fn, CheckSignabilityOk,
-    SignerActionErr, SignerActionsFutureResult, SignerActivateFutureResult, SignerInstance,
-    SignerSignFutureResult, SignersState,
+    return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
+    SignerActivateFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
 use txtx_addon_kit::types::stores::ValueStore;
@@ -38,8 +35,6 @@ use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use crate::constants::{NETWORK_ID, PUBLIC_KEYS};
 use crate::typing::StacksValue;
 use crate::typing::STACKS_TRANSACTION;
-
-use super::namespaced_err_fn;
 
 lazy_static! {
     pub static ref STACKS_SECRET_KEY: SignerSpecification = define_signer! {
@@ -91,9 +86,14 @@ lazy_static! {
               }
           ],
           example: txtx_addon_kit::indoc! {r#"
+        // we can create a secret key signer by providing a mnemonic and computing the secret key
         signer "bob" "stacks::secret_key" {
             mnemonic = "board list obtain sugar hour worth raven scout denial thunder horse logic fury scorpion fold genuine phrase wealth news aim below celery when cabin"
             derivation_path = "m/44'/5757'/0'/0/0"
+        }
+        // or we can create one by providing the secret key directly
+        signer "bob_again" "stacks::secret_key" {
+            secret_key = "03b3e0a76b292b2c83fc0ac14ae6160d0438ebe94e14bbb5b7755153628886e08e"
         }
     "#},
       }
@@ -113,25 +113,23 @@ impl SignerImplementation for StacksSecretKey {
     fn check_activability(
         _construct_id: &ConstructDid,
         instance_name: &str,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use txtx_addon_kit::crypto::{secret_key_bytes_from_mnemonic, secret_key_from_bytes};
+
         use crate::codec::crypto::version_from_network_id;
         use crate::constants::CHECKED_ADDRESS;
-        use crate::{
-            codec::crypto::{secret_key_from_bytes, secret_key_from_mnemonic},
-            constants::CHECKED_PUBLIC_KEY,
-            signers::namespaced_err_fn,
-        };
+        use crate::constants::CHECKED_PUBLIC_KEY;
+        use crate::signers::DEFAULT_DERIVATION_PATH;
 
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, instance_name, namespaced_err_fn()));
         let mut actions = Actions::none();
 
         if signer_state.get_value(PUBLIC_KEYS).is_some() {
@@ -139,26 +137,30 @@ impl SignerImplementation for StacksSecretKey {
         }
         let network_id = values
             .get_expected_string(NETWORK_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
         let version = version_from_network_id(&network_id);
 
-        let secret_key =
-            if let Ok(secret_key_bytes) = values.get_expected_buffer_bytes("secret_key") {
-                secret_key_from_bytes(&secret_key_bytes)
-                    .map_err(|e| signer_err(&signers, &signer_state, e))?
-            } else {
+        let secret_key_bytes = match values.get_expected_buffer_bytes("secret_key") {
+            Ok(value) => value,
+            Err(_) => {
                 let mnemonic = values
                     .get_expected_string("mnemonic")
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
-                let derivation_path = values.get_string("derivation_path");
+                let derivation_path =
+                    values.get_string("derivation_path").unwrap_or(DEFAULT_DERIVATION_PATH);
                 let is_encrypted = values.get_bool("is_encrypted").unwrap_or(false);
                 let password = values.get_string("password");
-                secret_key_from_mnemonic(mnemonic, derivation_path, is_encrypted, password)
-                    .map_err(|e| signer_err(&signers, &signer_state, e))?
-            };
+                secret_key_bytes_from_mnemonic(mnemonic, derivation_path, is_encrypted, password)
+                    .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?
+                    .to_vec()
+            }
+        };
+
+        let secret_key = secret_key_from_bytes(&secret_key_bytes)
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
 
         let (secret_key, public_key, expected_address) = compute_keypair(secret_key, network_id)
-            .map_err(|e| signer_err(&signers, &signer_state, e))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
 
         signer_state.insert("hash_flag", Value::integer(version.into()));
         signer_state.insert("multi_sig", Value::bool(false));
@@ -175,10 +177,8 @@ impl SignerImplementation for StacksSecretKey {
                     &format!("Check {} expected address", instance_name),
                     None,
                     ActionItemStatus::Todo,
-                    ActionItemRequestType::ReviewInput(ReviewInputRequest {
-                        input_name: "".into(),
-                        value: Value::string(expected_address.to_string()),
-                    }),
+                    ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                        .to_action_type(),
                     ACTION_ITEM_CHECK_ADDRESS,
                 )],
             );
@@ -207,18 +207,13 @@ impl SignerImplementation for StacksSecretKey {
         title: &str,
         description: &Option<String>,
         payload: &Value,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
-        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
-        let signer_did = ConstructDid(signer_state.uuid.clone());
-        let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
-
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
             if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNATURE_APPROVED) {
@@ -227,7 +222,7 @@ impl SignerImplementation for StacksSecretKey {
 
             let network_id = values
                 .get_expected_string(NETWORK_ID)
-                .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
             let signable = signer_state
                 .get_scoped_value(&construct_did_str, IS_SIGNABLE)
@@ -243,10 +238,8 @@ impl SignerImplementation for StacksSecretKey {
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
-            let formatted_payload = signer_state
-                .get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION)
-                .and_then(|v| v.as_string())
-                .and_then(|v| Some(v.to_string()));
+            let formatted_payload =
+                signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
 
             let request = ActionItemRequest::new(
                 &Some(construct_did.clone()),
@@ -281,36 +274,33 @@ impl SignerImplementation for StacksSecretKey {
         _caller_uuid: &ConstructDid,
         _title: &str,
         payload: &Value,
-        spec: &SignerSpecification,
+        _spec: &SignerSpecification,
         values: &ValueStore,
         signer_state: ValueStore,
         signers: SignersState,
-        signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> SignerSignFutureResult {
-        let signer_did = ConstructDid(signer_state.uuid.clone());
-        let signer_instance = signers_instances.get(&signer_did).unwrap();
-        let signer_err =
-            signer_err_fn(signer_diag_with_ctx(spec, &signer_instance.name, namespaced_err_fn()));
         let mut result = CommandExecutionResult::new();
 
         let network_id = values
             .get_expected_string(NETWORK_ID)
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
         let secret_key_bytes = signer_state
             .get_expected_buffer_bytes("secret_key")
-            .map_err(|e| signer_err(&signers, &signer_state, e.message))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
         let secret_key = secret_key_from_bytes(&secret_key_bytes)
-            .map_err(|e| signer_err(&signers, &signer_state, e))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
 
         let (_, public_key_value, _) = compute_keypair(secret_key, network_id)
-            .map_err(|e| signer_err(&signers, &signer_state, e))?;
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
 
         let payload_buffer = payload.expect_addon_data();
         if payload_buffer.id.eq(&STACKS_TRANSACTION) {
             let signed_transaction_bytes =
-                sign_transaction(&payload_buffer.bytes, secret_key_bytes)
-                    .map_err(|e| signer_err(&signers, &signer_state, e))?;
+                sign_transaction(&payload_buffer.bytes, secret_key_bytes).map_err(|e| {
+                    (signers.clone(), signer_state.clone(), diagnosed_error!("{e}"))
+                })?;
 
             result.outputs.insert(
                 SIGNED_TRANSACTION_BYTES.into(),
@@ -319,7 +309,9 @@ impl SignerImplementation for StacksSecretKey {
         } else {
             let (message_bytes, signature_bytes) =
                 sign_message(&payload_buffer.bytes, secret_key_bytes, public_key_value.to_bytes())
-                    .map_err(|e| signer_err(&signers, &signer_state, e))?;
+                    .map_err(|e| {
+                        (signers.clone(), signer_state.clone(), diagnosed_error!("{e}"))
+                    })?;
 
             let message = StacksValue::signature(message_bytes);
             let signature = StacksValue::signature(signature_bytes);

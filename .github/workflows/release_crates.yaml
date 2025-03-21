@@ -1,0 +1,127 @@
+name: Publish Rust Crates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - ci/release
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: txtx
+
+      - name: Build .env file
+        uses: ./txtx/.github/actions/setup_env
+        with:
+          infura_api_key: ${{ secrets.INFURA_API_KEY }}
+          nhost_region: ${{ secrets.NHOST_REGION }}
+          nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
+          working_directory: "txtx"
+
+      - name: Checkout Supervisor UI
+        uses: actions/checkout@v4
+        with:
+          repository: txtx/txtx-supervisor-ui
+          token: ${{ secrets.TXTX_ACCESS_TOKEN }} 
+          path: txtx-supervisor-ui 
+
+      - name: Build .env file for Supervisor UI
+        uses: ./txtx/.github/actions/setup_supervisor_env
+        with:
+          txtx_dev_npm_read_token: ${{ secrets.TXTX_DEV_NPM_READ_TOKEN }}
+          nhost_region: ${{ secrets.NHOST_REGION }}
+          nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
+          working_directory: "txtx-supervisor-ui"
+      
+      - name: Build Supervisor UI
+        run: |
+          cd txtx-supervisor-ui
+          npm run i
+          npm run build
+          cp -r dist ../txtx/crates/txtx-supervisor-ui/supervisor-dist
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+          
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install cargo-binstall
+        run: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
+      - name: Install tq
+        run: cargo binstall -y tomlq
+
+      - name: Cache Cargo registry and index
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Login to crates.io
+        if: github.event_name == 'push'
+        run: cargo login ${{ secrets.CRATES_API_TOKEN }}
+
+      - name: Write resolved versions to file
+        run: | 
+          cd txtx
+          jq -r '.packages[] | select(.source == null) | "\(.name) \(.version)"' < <(cargo metadata --format-version=1) > resolved_versions.txt
+
+
+      - name: Publish Crates
+        run: |
+          cd txtx
+          for manifest in crates/txtx-addon-kit/Cargo.toml crates/txtx-core/Cargo.toml crates/txtx-gql/Cargo.toml crates/txtx-supervisor-ui/Cargo.toml addons/evm/Cargo.toml addons/svm/Cargo.toml; do
+            if [ -f "$manifest" ]; then
+              echo "Checking $manifest for changes..."
+              
+              CRATE_NAME=$(tq -f "$manifest" .package.name | sed 's/"//g') # remove quotes around package name
+              VERSION=$(tq -f "$manifest" .package.version)
+
+              if cargo search -q "$CRATE_NAME" | grep "$VERSION"; then
+                echo "$CRATE_NAME ($manifest) is already published with version $VERSION, skipping..."
+                continue
+              fi
+
+              # Resolve dependencies
+              while IFS= read -r dep; do
+                DEP_NAME=$(echo "$dep" | awk '{print $1}')
+                RESOLVED_VERSION=$(echo "$dep" | awk '{print $2}')
+
+                # Check if resolved version exists on crates.io
+                if cargo search -q "$DEP_NAME" | grep -q "$RESOLVED_VERSION"; then
+                  FINAL_VERSION="$RESOLVED_VERSION"
+                else
+                  # Get the latest published version from crates.io
+                  FINAL_VERSION=$(cargo search -q "$DEP_NAME" | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+                  echo "Resolved version $RESOLVED_VERSION for $DEP_NAME is not published. Using latest published version $FINAL_VERSION instead."
+                fi
+
+                # Replace workspace dependencies with the determined version
+                sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$FINAL_VERSION\"/" "$manifest"
+                sed -i "s/${DEP_NAME} = { workspace = true, default-features = false }/${DEP_NAME} = \"$FINAL_VERSION\"/" "$manifest"
+
+              done < resolved_versions.txt
+
+              echo "Publishing $CRATE_NAME from $manifest..."
+              if [ "${{ github.event_name }}" = "pull_request" ]; then
+                cargo publish --package $CRATE_NAME --dry-run --allow-dirty
+              else
+                cargo publish --package $CRATE_NAME --allow-dirty
+              fi
+            else
+              echo "Skipping $manifest, Cargo.toml not found."
+            fi
+          done
+        env:
+          CRATES_API_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
+
