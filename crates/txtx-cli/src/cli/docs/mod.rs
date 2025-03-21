@@ -109,7 +109,9 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         ];
         for (path, title, fns) in map.into_iter() {
             let mut page_path = addon_path.clone();
-            page_path.push(format!("functions/{}/page.mdx", path));
+            page_path.push("functions");
+            page_path.push(path);
+            page_path.push("page.mdx");
             let mut doc_file = File::create(page_path).expect("creation failed");
             let doc_data = build_addon_function_group_doc_data(&addon, title, fns);
             let template = mustache::compile_str(&DEFAULT_ADDON_FUNCTIONS_TEMPLATE)
@@ -122,7 +124,9 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
         let map = vec![("http", "HTTP", vec![http::SEND_HTTP_REQUEST.clone()])];
         for (path, title, actions) in map.into_iter() {
             let mut page_path = addon_path.clone();
-            page_path.push(format!("actions/{}/page.mdx", path));
+            page_path.push("actions");
+            page_path.push(path);
+            page_path.push("page.mdx");
             let mut doc_file = File::create(page_path).expect("creation failed");
             let doc_data = build_addon_action_group_doc_data(&addon, title, actions);
             let template = mustache::compile_str(&DEFAULT_ADDON_ACTIONS_TEMPLATE)

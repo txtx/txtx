@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - main
-      - rearrange-crates
+      - ci/windows
   workflow_dispatch:
 
 concurrency:
@@ -57,10 +57,10 @@ jobs:
             platform: linux
             target: x86_64-unknown-linux-gnu
             architecture: x64
-          # - os: windows-latest
-          #   platform: windows
-          #   target: x86_64-pc-windows-msvc
-          #   architecture: x64
+          - os: windows-latest
+            platform: windows
+            target: x86_64-pc-windows-msvc
+            architecture: x64
           - os: macos-latest
             platform: darwin
             target: x86_64-apple-darwin
@@ -107,6 +107,14 @@ jobs:
           nhost_region: ${{ secrets.NHOST_REGION }}
           nhost_subdomain: ${{ secrets.NHOST_SUBDOMAIN }}
           working_directory: "txtx-supervisor-ui"
+
+      # install supervisor dependencies (windows)
+      - name: "Install dotenv-cli (windows)"
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd txtx-supervisor-ui
+          npm i -g dotenv-cli
+          cd ..
 
       - name: Build Supervisor UI
         run: |
@@ -167,6 +175,12 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: tar -C txtx/target/${{ matrix.target }}/release -zcvf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz txtx
 
+      - name: Compress artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run:
+          tar -czf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz -C txtx/target/${{ matrix.target }}/release txtx.exe
+
       - name: Store SHA256 Hash of Tar (Linux x64)
         if: matrix.os == 'ubuntu-20.04'
         id: linux_x64_sha
@@ -193,6 +207,12 @@ jobs:
           name: txtx-${{ env.SHORT_TARGET_NAME }}
           path: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
 
+      - name: Upload tar archive (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: txtx-${{ env.SHORT_TARGET_NAME }}
+          path: txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz
   release:
     name: Release
     runs-on: ubuntu-latest

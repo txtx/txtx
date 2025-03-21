@@ -1,3 +1,5 @@
+use std::{fs, path::PathBuf, str::FromStr};
+
 fn main() {
     // evm contract builds
     {
@@ -5,11 +7,12 @@ fn main() {
         let out_dir =
             std::path::Path::new(&format!("{}", out_dir.to_str().unwrap())).join("contracts");
         use std::process::Command;
-        let src_contracts_dir = "./src/contracts/.";
+        let mut src_contracts_dir = PathBuf::from_str("src").unwrap();
+        src_contracts_dir.push("contracts");
 
         println!("cargo:warning=------------ EVM Build Script ------------");
         println!("cargo:rerun-if-changed=build.rs");
-        println!("cargo:rerun-if-changed={}", src_contracts_dir);
+        println!("cargo:rerun-if-changed={}", src_contracts_dir.display());
 
         println!("cargo:warning=Build script evm contracts dir: {:?}", src_contracts_dir);
         println!("cargo:warning=Build script evm output dir: {:?}", out_dir);
@@ -18,11 +21,10 @@ fn main() {
             std::fs::create_dir_all(&out_dir).expect("Failed to create output directory");
         }
 
-        let cp_status = Command::new("cp")
-            .args(&["-a", src_contracts_dir, out_dir.to_str().unwrap()])
-            .status()
+        copy_dir_recursive(src_contracts_dir.as_path(), out_dir.as_path())
             .expect("Failed to copy contracts directory");
-        println!("cargo:warning=Copied contracts directory to output directory: {:?}", cp_status);
+
+        println!("cargo:warning=Copied contracts directory to output directory: ok");
 
         let exit_status = Command::new("forge")
             .args(&["build"])
@@ -33,4 +35,25 @@ fn main() {
         println!("cargo:info={}", exit_status);
         println!("cargo:warning=------------ EVM Build Script Complete ------------");
     }
+}
+
+use std::path::Path;
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
 }
