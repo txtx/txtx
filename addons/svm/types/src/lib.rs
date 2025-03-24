@@ -241,6 +241,14 @@ lazy_static! {
             internal: false,
         },
         ObjectProperty {
+            name: "value".into(),
+            documentation: "The serialized instruction bytes.".into(),
+            typing: Type::addon(SVM_INSTRUCTION),
+            optional: true,
+            tainting: false,
+            internal: false,
+        },
+        ObjectProperty {
             name: "program_id".into(),
             documentation: "The SVM address of the program being invoked.".into(),
             typing: Type::string(),
