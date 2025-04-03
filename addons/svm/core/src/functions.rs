@@ -150,9 +150,19 @@ lazy_static! {
                         typing: vec![Type::string()],
                         optional: false
                     },
-                    target_path: {
-                        documentation: "The target path to the compiled anchor project artifacts. Defaults to `./target`.",
-                        typing: vec![Type::string()],
+                    keypair_path: {
+                        documentation: "The location of the program keypair file. Defaults to `./target/deploy/<program_name>-keypair.json`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
+                    },
+                    idl_path: {
+                        documentation: "The location of the program IDL file. Defaults to `./target/idl/<program_name>.json`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
+                    },
+                    bin_path: {
+                        documentation: "The location of the program binary file. Defaults to `./target/deploy/<program_name>.so`.",
+                        typing: vec![Type::string(), Type::null()],
                         optional: true
                     }
                 ],
@@ -478,16 +488,48 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let program_name = args.get(0).unwrap().as_string().unwrap();
-        let target_path_str =
-            args.get(1).and_then(|v| v.as_string()).unwrap_or(DEFAULT_ANCHOR_TARGET_PATH);
+        let keypair_path_str = match args.get(1) {
+            Some(Value::Null) | None => {
+                format!("{}/deploy/{}-keypair.json", DEFAULT_ANCHOR_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
 
-        let target_path = auth_ctx
-            .get_path_from_str(target_path_str)
-            .map_err(|e| to_diag(fn_spec, format!("failed to get anchor target path: {e}")))?;
+        let keypair_path = auth_ctx.get_path_from_str(&keypair_path_str).map_err(|e| {
+            to_diag(fn_spec, format!("failed to get anchor program keypair path: {e}"))
+        })?;
 
-        let anchor_program_artifacts =
-            AnchorProgramArtifacts::new(target_path.expect_path_buf(), &program_name)
-                .map_err(|e| to_diag(fn_spec, e))?;
+        let idl_path_str = match args.get(2) {
+            Some(Value::Null) | None => {
+                format!("{}/idl/{}.json", DEFAULT_ANCHOR_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
+
+        let idl_path = auth_ctx
+            .get_path_from_str(&idl_path_str)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get anchor program idl path: {e}")))?;
+
+        let bin_path_str = match args.get(3) {
+            Some(Value::Null) | None => {
+                format!("{}/deploy/{}.so", DEFAULT_ANCHOR_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
+
+        let bin_path = auth_ctx.get_path_from_str(&bin_path_str).map_err(|e| {
+            to_diag(fn_spec, format!("failed to get anchor program binary path: {e}"))
+        })?;
+
+        let anchor_program_artifacts = AnchorProgramArtifacts::new(
+            keypair_path.expect_path_buf(),
+            idl_path.expect_path_buf(),
+            bin_path.expect_path_buf(),
+        )
+        .map_err(|e| to_diag(fn_spec, e))?;
 
         let value = anchor_program_artifacts.to_value().map_err(|e| to_diag(fn_spec, e))?;
         Ok(value)
