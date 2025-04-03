@@ -26,11 +26,11 @@ pub struct AnchorProgramArtifacts {
 }
 
 impl AnchorProgramArtifacts {
-    pub fn new(target_path: PathBuf, program_name: &str) -> Result<Self, String> {
-        let mut idl_path = target_path.clone();
-        idl_path.push("idl");
-        idl_path.push(format!("{}.json", program_name));
-
+    pub fn new(
+        keypair_path: PathBuf,
+        idl_path: PathBuf,
+        bin_path: PathBuf,
+    ) -> Result<Self, String> {
         let idl_bytes = std::fs::read(&idl_path).map_err(|e| {
             format!("invalid anchor idl location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
@@ -38,10 +38,6 @@ impl AnchorProgramArtifacts {
         let idl = anchor_convert_idl(&idl_bytes).map_err(|e| {
             format!("invalid anchor idl at location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
-
-        let mut bin_path = target_path.clone();
-        bin_path.push("deploy");
-        bin_path.push(format!("{}.so", program_name));
 
         let bin = std::fs::read(&bin_path).map_err(|e| {
             format!(
@@ -51,8 +47,6 @@ impl AnchorProgramArtifacts {
             )
         })?;
 
-        let mut keypair_path = target_path.clone();
-        keypair_path.push(format!("deploy/{}-keypair.json", program_name));
         let keypair_file = std::fs::read(&keypair_path).map_err(|e| {
             format!(
                 "invalid anchor program keypair location {}: {}",
