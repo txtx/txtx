@@ -476,6 +476,12 @@ lazy_static! {
             typing: Type::string(),
             optional: false,
             tainting: true
+        },
+        throw_on_error: {
+            documentation: "Dictates if the verification process should throw an error if the contract is not verified. The default is false.",
+            typing: Type::bool(),
+            optional: true,
+            tainting: true
         }
     };
     pub static ref VERIFICATION_RESULT_TYPE: Type = define_object_type! {

@@ -345,12 +345,22 @@ impl ContractVerificationOpts {
                 })
                 .transpose()?;
 
+            let throw_on_error = object
+                .get("throw_on_error")
+                .map(|v| {
+                    v.as_bool().ok_or(diagnosed_error!(
+                        "'throw_on_error' in verifier options must be a boolean"
+                    ))
+                })
+                .transpose()?
+                .unwrap_or(false);
+
             opts.push(ContractVerificationOpts {
                 provider_api_url,
                 api_key,
                 provider_url,
                 provider,
-                throw_on_error: true, // todo
+                throw_on_error,
             });
         }
 
