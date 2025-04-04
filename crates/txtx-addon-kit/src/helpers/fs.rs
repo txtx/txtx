@@ -455,3 +455,11 @@ pub fn get_txtx_files_paths(
 
     Ok(files_paths)
 }
+
+pub fn get_path_from_components(comps: Vec<&str>) -> String {
+    let mut path = PathBuf::new();
+    for comp in comps {
+        path.push(comp);
+    }
+    path.display().to_string()
+}

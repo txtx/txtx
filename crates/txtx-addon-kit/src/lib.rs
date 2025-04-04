@@ -26,7 +26,6 @@ pub use libsecp256k1 as secp256k1;
 pub use pbkdf2;
 pub use tiny_hderive;
 
-pub use dotenvy_macro::dotenv;
 pub use hcl_edit as hcl;
 use std::{collections::HashMap, fmt::Debug};
 use types::{

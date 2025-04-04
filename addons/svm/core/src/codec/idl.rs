@@ -225,7 +225,7 @@ pub fn encode_value_to_idl_type(
             .ok_or(mismatch_err("i128")),
         IdlType::U256 => return Err("IDL type U256 is not yet supported".to_string()),
         IdlType::I256 => return Err("IDL type I256 is not yet supported".to_string()),
-        IdlType::Bytes => value.as_buffer_data().cloned().ok_or(mismatch_err("bytes")),
+        IdlType::Bytes => Ok(value.to_bytes().clone()),
         IdlType::String => value
             .as_string()
             .and_then(|s| Some(borsh::to_vec(&s).map_err(|e| encode_err("string", e))))

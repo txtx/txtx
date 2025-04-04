@@ -16,6 +16,13 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
         .collect::<Result<Vec<_>, _>>()?;
 
     for instruction_data in instructions_data.iter() {
+        // if the value key was provided, treat it as a serialized instruction
+        if let Some(value) = instruction_data.get("value") {
+            let instruction = serde_json::from_slice(&value.to_bytes())
+                .map_err(|e| diagnosed_error!("failed to deserialize instruction: {e}"))?;
+            instructions.push(instruction);
+            continue;
+        }
         let program_id = instruction_data
             .get(PROGRAM_ID)
             .map(|p| SvmValue::to_pubkey(p))

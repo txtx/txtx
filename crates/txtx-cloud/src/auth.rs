@@ -1,10 +1,11 @@
 use std::io::{Read, Write};
 
-use dotenvy_macro::dotenv;
 use serde::{Deserialize, Serialize};
 use txtx_core::kit::reqwest;
 
-pub const AUTH_SERVICE_URL: &str = dotenv!("AUTH_SERVICE_URL");
+use crate::get_env_var;
+
+pub const AUTH_SERVICE_URL: &str = "AUTH_SERVICE_URL";
 pub const AUTH_CALLBACK_PORT: u16 = 8081;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -67,7 +68,7 @@ impl AuthConfig {
     pub async fn refresh_session(&self) -> Result<AuthConfig, String> {
         let client = reqwest::Client::new();
         let res = client
-            .post(&format!("{}/refresh", AUTH_SERVICE_URL))
+            .post(&format!("{}/refresh", get_env_var(AUTH_SERVICE_URL)))
             .json(&serde_json::json!({
                 "refreshToken": &self.refresh_token,
             }))

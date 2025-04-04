@@ -80,7 +80,7 @@ jobs:
       - name: Publish Crates
         run: |
           cd txtx
-          for manifest in crates/txtx-addon-kit/Cargo.toml crates/txtx-core/Cargo.toml crates/txtx-gql/Cargo.toml crates/txtx-supervisor-ui/Cargo.toml addons/evm/Cargo.toml addons/svm/Cargo.toml; do
+          for manifest in crates/txtx-addon-kit/Cargo.toml crates/txtx-core/Cargo.toml crates/txtx-cloud/Cargo.toml crates/txtx-gql/Cargo.toml crates/txtx-supervisor-ui/Cargo.toml addons/evm/Cargo.toml addons/svm/types/Cargo.toml addons/svm/core/Cargo.toml; do
             if [ -f "$manifest" ]; then
               echo "Checking $manifest for changes..."
               
@@ -98,7 +98,7 @@ jobs:
                 RESOLVED_VERSION=$(echo "$dep" | awk '{print $2}')
 
                 # Check if resolved version exists on crates.io
-                if cargo search -q "$DEP_NAME" | grep -q "$RESOLVED_VERSION"; then
+                if cargo search -q "$DEP_NAME" --limit 1 | grep -q "$RESOLVED_VERSION"; then
                   FINAL_VERSION="$RESOLVED_VERSION"
                 else
                   # Get the latest published version from crates.io
@@ -107,8 +107,9 @@ jobs:
                 fi
 
                 # Replace workspace dependencies with the determined version
-                sed -i "s/${DEP_NAME} = { workspace = true }/${DEP_NAME} = \"$FINAL_VERSION\"/" "$manifest"
-                sed -i "s/${DEP_NAME} = { workspace = true, default-features = false }/${DEP_NAME} = \"$FINAL_VERSION\"/" "$manifest"
+                  sed -i "s|${DEP_NAME} = { workspace = true }|${DEP_NAME} = \"$FINAL_VERSION\"|" "$manifest"
+                  sed -i "s|${DEP_NAME} = { workspace = true, default-features = false }|${DEP_NAME} = \"$FINAL_VERSION\"|" "$manifest"
+                  sed -i "s|${DEP_NAME} = { path = \"../types\" }|${DEP_NAME} = \"$FINAL_VERSION\"|" "$manifest"
 
               done < resolved_versions.txt
 

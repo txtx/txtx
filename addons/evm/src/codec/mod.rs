@@ -83,9 +83,9 @@ pub async fn build_unsigned_transaction(
     fields: CommonTransactionFields,
 ) -> Result<(TransactionRequest, i128, String), String> {
     let from = get_expected_address(&fields.from)
-        .map_err(|e| format!("failed to parse to address: {e}"))?;
+        .map_err(|e| format!("failed to parse 'from' address: {e}"))?;
     let to = if let Some(to) = fields.to {
-        Some(get_expected_address(&to).map_err(|e| format!("failed to parse to address: {e}"))?)
+        Some(get_expected_address(&to).map_err(|e| format!("failed to parse 'to' address: {e}"))?)
     } else {
         None
     };

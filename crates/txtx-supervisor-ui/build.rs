@@ -18,11 +18,8 @@ fn main() {
 
             fs::create_dir_all(&out_dir).unwrap();
 
-            let cp_status = Command::new("cp")
-                .args(&["-a", local_dist_dir.to_str().unwrap(), out_dir.to_str().unwrap()])
-                .status()
+            copy_dir_recursive(&local_dist_dir, &out_dir)
                 .expect("Failed to copy supervisor dist directory");
-            println!("cargo:info={}", cp_status);
         } else {
             println!("cargo:warning=Running npm build in txtx-supervisor-ui");
 
@@ -43,16 +40,30 @@ fn main() {
                 .unwrap();
             println!("cargo:warning=Supervisor 'npm build' completed: {:?}", exit_status);
 
-            let cp_status = Command::new("cp")
-                .args(&["-a", dist_dir.to_str().unwrap(), out_dir.to_str().unwrap()])
-                .status()
+            copy_dir_recursive(&dist_dir, &out_dir)
                 .expect("Failed to copy supervisor dist directory");
-            println!(
-                "cargo:warning=Copied supervisor dist directory to output directory: {:?}",
-                cp_status
-            );
+
+            println!("cargo:warning=Copied supervisor dist directory to output directory: ok");
             println!("cargo:info={}", exit_status);
-            println!("cargo:info={}", cp_status);
         }
     }
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
 }

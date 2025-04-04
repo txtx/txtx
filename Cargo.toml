@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.2.10"
+version = "0.2.11"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/txtx/txtx"
@@ -11,6 +11,7 @@ members = [
     "crates/txtx-cli",
     "crates/txtx-core",
     "crates/txtx-addon-kit",
+    "crates/txtx-cloud",
     "crates/txtx-lsp",
     "crates/txtx-supervisor-ui",
     "crates/txtx-serve",
@@ -26,8 +27,9 @@ default-members = ["crates/txtx-cli"]
 resolver = "2"
 
 [workspace.dependencies]
-txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
 txtx-core = { path = "crates/txtx-core", default-features = false }
+txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
+txtx-cloud = { path = "crates/txtx-cloud" }
 txtx-gql = { path = "crates/txtx-gql" }
 txtx-supervisor-ui = { path = "crates/txtx-supervisor-ui" }
 txtx-serve = { path = "crates/txtx-serve" }

@@ -62,8 +62,14 @@ impl FunctionImplementation for JsonQuery {
         arg_checker(fn_spec, args)?;
         let input_str = args.get(0).unwrap().encode_to_string();
         let filter = args.get(1).unwrap().as_string().unwrap();
-        let input: JsonValue = serde_json::from_str(&input_str)
-            .map_err(|e| to_diag(fn_spec, format!("failed to decode input as json: {e}")))?;
+
+        // try to deserialize the string as is
+        let input: JsonValue = match serde_json::from_str(&input_str) {
+            Ok(json) => json,
+            // if it fails, trim quotes and try again
+            Err(e) => serde_json::from_str(&input_str.trim_matches('"'))
+                .map_err(|_| to_diag(fn_spec, format!("failed to decode input as json: {e}")))?,
+        };
 
         let mut defs = ParseCtx::new(Vec::new());
 

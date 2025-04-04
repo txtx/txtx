@@ -9,6 +9,7 @@ use base64::Engine;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::Confirm;
 
+use hiro_system_kit::{green, yellow};
 use serde::de::Error;
 use txtx_core::kit::channel::{Receiver, Sender};
 
@@ -16,8 +17,8 @@ use serde::{Deserialize, Serialize};
 use txtx_core::kit::futures::future::{ready, Ready};
 use txtx_core::kit::{channel, reqwest};
 
-use crate::cli::cloud::auth::AuthUser;
-use crate::cli::{Context, LoginCommand};
+use crate::auth::AuthUser;
+use crate::{get_env_var, LoginCommand};
 
 use super::auth::AuthConfig;
 use super::auth::AUTH_CALLBACK_PORT;
@@ -130,7 +131,7 @@ impl LoginCallbackServerContext {
     }
 }
 
-pub async fn handle_login_command(cmd: &LoginCommand, _ctx: &Context) -> Result<(), String> {
+pub async fn handle_login_command(cmd: &LoginCommand) -> Result<(), String> {
     let auth_config = AuthConfig::read_from_system_config()?;
 
     if let Some(auth_config) = auth_config {
@@ -173,7 +174,8 @@ async fn id_service_login() -> Result<Option<LoginCallbackResult>, String> {
 
     let auth_service_url = reqwest::Url::parse(&format!(
         "{}?redirectUrl=http://{}/api/v1/auth",
-        AUTH_SERVICE_URL, redirect_url
+        get_env_var(AUTH_SERVICE_URL),
+        redirect_url
     ))
     .map_err(|e| format!("Invalid auth service URL: {e}"))?;
 

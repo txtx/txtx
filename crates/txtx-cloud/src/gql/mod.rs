@@ -1,15 +1,16 @@
 pub mod get_orgs_for_user;
 pub mod insert_runbook;
 
-use dotenvy_macro::dotenv;
 use graphql_client::GraphQLQuery;
 use graphql_client::Response;
 use txtx_core::kit::reqwest;
 
+use crate::get_env_var;
+
 use super::auth::AuthConfig;
 
-pub const NHOST_REGION: &str = dotenv!("NHOST_REGION");
-pub const NHOST_SUBDOMAIN: &str = dotenv!("NHOST_SUBDOMAIN");
+pub const NHOST_REGION: &str = "NHOST_REGION";
+pub const NHOST_SUBDOMAIN: &str = "NHOST_SUBDOMAIN";
 
 pub struct GqlClient {
     client: reqwest::Client,
@@ -21,7 +22,11 @@ impl GqlClient {
     pub fn new(auth_config: &AuthConfig) -> Self {
         Self {
             client: reqwest::Client::new(),
-            endpoint: format!("https://{NHOST_SUBDOMAIN}.graphql.{NHOST_REGION}.nhost.run/v1"),
+            endpoint: format!(
+                "https://{}.graphql.{}.nhost.run/v1",
+                get_env_var(NHOST_SUBDOMAIN),
+                get_env_var(NHOST_REGION)
+            ),
             auth_config: auth_config.clone(),
         }
     }

@@ -28,7 +28,8 @@ pub struct AnchorProgramArtifacts {
 impl AnchorProgramArtifacts {
     pub fn new(target_path: PathBuf, program_name: &str) -> Result<Self, String> {
         let mut idl_path = target_path.clone();
-        idl_path.push(format!("idl/{}.json", program_name));
+        idl_path.push("idl");
+        idl_path.push(format!("{}.json", program_name));
 
         let idl_bytes = std::fs::read(&idl_path).map_err(|e| {
             format!("invalid anchor idl location {}: {}", &idl_path.to_str().unwrap_or(""), e)
@@ -39,7 +40,9 @@ impl AnchorProgramArtifacts {
         })?;
 
         let mut bin_path = target_path.clone();
-        bin_path.push(format!("deploy/{}.so", program_name));
+        bin_path.push("deploy");
+        bin_path.push(format!("{}.so", program_name));
+
         let bin = std::fs::read(&bin_path).map_err(|e| {
             format!(
                 "invalid anchor program binary location {}: {}",

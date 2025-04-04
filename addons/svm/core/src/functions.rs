@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use crate::typing::anchor::types::Idl;
 use solana_sdk::{pubkey::Pubkey, system_program};
+use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
 use txtx_addon_kit::{
     indexmap::indexmap,
     types::{
@@ -324,6 +325,79 @@ lazy_static! {
                 output: {
                     documentation: "An object containing the PDA address and associated bump seed.",
                     typing: PDA_RESULT.clone()
+                },
+            }
+        },
+        define_function! {
+            GetAssociatedTokenAccount => {
+                name: "get_associated_token_account",
+                documentation: "`svm::get_associated_token_account` computes the address of the associated token account for the provided wallet and token mint addresses.",
+                example: indoc! {r#"
+                    variable "token_account" {
+                        value = svm::get_associated_token_account(signer.caller.address, "So11111111111111111111111111111111111111112")
+                    }
+                "#},
+                inputs: [
+                    wallet_address: {
+                        documentation: "The address of the wallet to compute the associated token account for.",
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        optional: false
+                    },
+                    token_mint_address: {
+                        documentation: "The address of the token mint used to compute the token account.",
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        optional: true
+                    }
+                ],
+                output: {
+                    documentation: "The address of the associated token account.",
+                    typing: Type::addon(SVM_PUBKEY.into())
+                },
+            }
+        },
+        define_function! {
+            CreateTokenAccountInstruction => {
+                name: "create_token_account_instruction",
+                documentation: "`svm::create_token_account_instruction` creates an instruction to create an associated token account.",
+                example: indoc! {r#"
+                    action "call" "svm::process_instructions" {
+                        signers = [signer.caller]
+
+                        instruction { 
+                            value = svm::create_token_account_instruction(
+                                signer.caller.address, // funding address
+                                signer.caller.address, // wallet address
+                                variable.token_mint, // token mint address
+                                variable.token_program // token program id
+                            )
+                        }
+                    }
+                "#},
+                inputs: [
+                    funding_address: {
+                        documentation: "The address of the funding account.",
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        optional: false
+                    },
+                    wallet_address: {
+                        documentation: "The address of the wallet to compute the associated token account for.",
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        optional: false
+                    },
+                    token_mint_address: {
+                        documentation: "The address of the token mint used to compute the token account.",
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        optional: true
+                    },
+                    token_program_id: {
+                        documentation: "The address of the token program used to compute the token account.",
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        optional: true
+                    }
+                ],
+                output: {
+                    documentation: "The serialized instruction bytes.",
+                    typing: Type::addon(SVM_PUBKEY.into())
                 },
             }
         }
@@ -668,5 +742,91 @@ impl FunctionImplementation for FindPda {
         ])
         .to_value();
         Ok(obj)
+    }
+}
+
+pub struct GetAssociatedTokenAccount;
+impl FunctionImplementation for GetAssociatedTokenAccount {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let wallet_address = SvmValue::to_pubkey(args.get(0).unwrap()).map_err(|e| {
+            to_diag(
+                fn_spec,
+                format!("invalid wallet address for getting associated token account: {e}"),
+            )
+        })?;
+
+        let token_mint_address = SvmValue::to_pubkey(args.get(1).unwrap()).map_err(|e| {
+            to_diag(
+                fn_spec,
+                format!("invalid token mint address for getting associated token account: {e}"),
+            )
+        })?;
+
+        let spl_associated_token_account =
+            spl_associated_token_account::get_associated_token_address(
+                &wallet_address,
+                &token_mint_address,
+            );
+
+        Ok(SvmValue::pubkey(spl_associated_token_account.to_bytes().to_vec()))
+    }
+}
+
+pub struct CreateTokenAccountInstruction;
+impl FunctionImplementation for CreateTokenAccountInstruction {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let funding_address = SvmValue::to_pubkey(args.get(0).unwrap()).map_err(|e| {
+            to_diag(fn_spec, format!("invalid funding address for creating token account: {e}"))
+        })?;
+
+        let wallet_address = SvmValue::to_pubkey(args.get(1).unwrap()).map_err(|e| {
+            to_diag(fn_spec, format!("invalid wallet address for creating token account: {e}"))
+        })?;
+
+        let token_mint_address = SvmValue::to_pubkey(args.get(2).unwrap()).map_err(|e| {
+            to_diag(fn_spec, format!("invalid token mint address for creating token account: {e}"))
+        })?;
+
+        let token_program_id = SvmValue::to_pubkey(args.get(3).unwrap()).map_err(|e| {
+            to_diag(fn_spec, format!("invalid token program id for creating token account: {e}"))
+        })?;
+
+        let instruction = create_associated_token_account_idempotent(
+            &funding_address,
+            &wallet_address,
+            &token_mint_address,
+            &token_program_id,
+        );
+        let bytes = serde_json::to_vec(&instruction).map_err(|e| {
+            to_diag(fn_spec, format!("failed to serialize create token account instruction: {e}"))
+        })?;
+
+        Ok(SvmValue::instruction(bytes))
     }
 }

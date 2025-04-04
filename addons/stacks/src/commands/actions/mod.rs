@@ -218,7 +218,11 @@ pub fn encode_stx_transfer(
         ));
     }
 
-    let memo = match memo.map(|m| m.try_get_buffer_bytes()) {
+    let memo = match memo.map(|m| {
+        m.try_get_buffer_bytes_result().map_err(|e| {
+            diagnosed_error!("command {}: memo should be encoded as bytes: {e}", spec.matcher)
+        })?
+    }) {
         Some(Some(memo)) if memo.len() <= 34 => TokenTransferMemo::from_vec(&memo).unwrap(),
         Some(Some(memo)) => {
             return Err(diagnosed_error!(

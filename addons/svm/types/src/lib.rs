@@ -43,6 +43,9 @@ pub const SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS: &str =
 pub const SVM_PAYER_SIGNED_TRANSACTION: &str = "svm::payer_signed_transaction";
 pub const SVM_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::authority_signed_transaction";
 pub const SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::temp_authority_signed_transaction";
+pub const SVM_U128: &str = "svm::u128";
+pub const SVM_U256: &str = "svm::u256";
+pub const SVM_I256: &str = "svm::i256";
 
 pub struct SvmValue {}
 
@@ -67,6 +70,18 @@ impl SvmValue {
 
     pub fn bytes32(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_BYTES32)
+    }
+
+    pub fn u128(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_U128)
+    }
+
+    pub fn u256(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_U256)
+    }
+
+    pub fn i256(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_I256)
     }
 
     pub fn transaction_from_bytes(bytes: Vec<u8>) -> Value {
@@ -221,6 +236,14 @@ lazy_static! {
             name: "description".into(),
             documentation: "A description of the instruction.".into(),
             typing: Type::string(),
+            optional: true,
+            tainting: false,
+            internal: false,
+        },
+        ObjectProperty {
+            name: "value".into(),
+            documentation: "The serialized instruction bytes.".into(),
+            typing: Type::addon(SVM_INSTRUCTION),
             optional: true,
             tainting: false,
             internal: false,
