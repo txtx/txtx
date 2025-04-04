@@ -20,6 +20,8 @@ use txtx_addon_kit::types::types::{ObjectType, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
+use super::value_to_abi_constructor_args;
+
 pub mod providers;
 
 const VERIFIED: &str = "verified";
@@ -54,18 +56,25 @@ pub async fn verify_contracts(
 
     let constructor_args = if let Some(function_args) = inputs.get_value(CONTRACT_CONSTRUCTOR_ARGS)
     {
-        let sol_args = function_args
-            .expect_array()
-            .iter()
-            .map(|v| {
-                value_to_sol_value(&v)
-                    .map_err(|e| diagnosed_error!("failed to encode constructor args: {}", e))
-            })
-            .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?
-            .iter()
-            .flat_map(|s| s.abi_encode())
-            .collect::<Vec<u8>>();
-        Some(hex::encode(&sol_args))
+        let sol_args = if let Some(abi) = &artifacts.abi {
+            if let Some(constructor) = &abi.constructor {
+                value_to_abi_constructor_args(&function_args, &constructor)?
+            } else {
+                return Err(diagnosed_error!(
+                    "constructor args provided, but no constructor found in abi"
+                ));
+            }
+        } else {
+            function_args
+                .expect_array()
+                .iter()
+                .map(|v| {
+                    value_to_sol_value(&v)
+                        .map_err(|e| diagnosed_error!("failed to encode constructor args: {}", e))
+                })
+                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?
+        };
+        Some(hex::encode(&sol_args.iter().flat_map(|s| s.abi_encode()).collect::<Vec<u8>>()))
     } else {
         None
     };
