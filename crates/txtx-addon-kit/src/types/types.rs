@@ -735,7 +735,7 @@ impl ObjectType {
         ObjectType { map }
     }
 
-    pub fn from(default: Vec<(&str, Value)>) -> Self {
+    pub fn from<S: ToString, T: IntoIterator<Item = (S, Value)>>(default: T) -> Self {
         let mut map = IndexMap::new();
         for (key, value) in default {
             map.insert(key.to_string(), value);
