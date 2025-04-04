@@ -1,9 +1,10 @@
 use alloy::json_abi::JsonAbi;
-use forge_verify::Config as FoundryConfig;
+use foundry_compilers_artifacts_solc::Metadata;
 use foundry_config::figment::{
     providers::{Format, Toml},
     Figment,
 };
+pub use foundry_config::Config as FoundryConfig;
 use serde_json::Value as JsonValue;
 use std::{collections::HashMap, path::PathBuf, str::FromStr};
 use txtx_addon_kit::helpers::fs::FileLocation;
@@ -18,7 +19,7 @@ pub struct FoundryCompiledOutputJson {
     pub deployed_bytecode: ContractBytecode,
     pub method_identifiers: JsonValue,
     pub raw_metadata: String,
-    pub metadata: ContractMetadataJson,
+    pub metadata: Metadata,
     pub id: u16,
 }
 
@@ -55,20 +56,6 @@ impl FoundryCompiledOutputJson {
         })?;
         Ok(source)
     }
-
-    #[allow(dead_code)]
-    pub async fn get_from_path(path: &str) -> Result<Self, String> {
-        if path.starts_with("http") {
-            todo!()
-        } else {
-            let artifact = std::fs::read(path)
-                .map_err(|e| format!("invalid contract abi location {}: {}", path, e))?;
-
-            let json: Self = serde_json::from_slice(&artifact)
-                .map_err(|e| format!("invalid contract abi at location {}: {}", path, e))?;
-            Ok(json)
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -79,21 +66,11 @@ pub struct ContractBytecode {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ContractMetadataJson {
-    pub compiler: ContractCompilerVersion,
-    pub language: String,
-    pub output: JsonValue,
-    pub settings: ContractSettings,
-    pub sources: JsonValue,
-    pub version: u16,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ContractSettings {
     pub compilation_target: HashMap<String, String>,
     pub optimizer: ContractOptimizerSettings,
     pub evm_version: String,
+    pub remappings: Vec<String>,
     #[serde(rename = "viaIR")]
     pub via_ir: Option<bool>,
 }
@@ -145,10 +122,7 @@ impl FoundryToml {
 
         let mut path = PathBuf::from_str(&self.toml_path).unwrap();
         path.pop();
-        path.push(&format!(
-            "{}",
-            profile.out.clone().unwrap_or(DEFAULT_FOUNDRY_OUT_DIR.to_string())
-        ));
+        path.push(&format!("{}", foundry_config.out.to_str().unwrap_or(DEFAULT_FOUNDRY_OUT_DIR)));
         path.push(contract_filename);
         path.push(&format!("{}.json", contract_name));
 

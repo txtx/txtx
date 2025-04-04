@@ -51,7 +51,6 @@ pub const CONTRACT_ABI: &str = "contract_abi";
 pub const CONTRACT_FUNCTION_NAME: &str = "function_name";
 pub const CONTRACT_FUNCTION_ARGS: &str = "function_args";
 pub const CONTRACT_CONSTRUCTOR_ARGS: &str = "constructor_args";
-pub const ARTIFACTS: &str = "artifacts";
 pub const TX_HASH: &str = "tx_hash";
 pub const FACTORY_ADDRESS: &str = "factory_address";
 pub const FACTORY_ABI: &str = "factory_abi";
@@ -59,7 +58,7 @@ pub const FACTORY_FUNCTION_NAME: &str = "factory_function_name";
 pub const FACTORY_FUNCTION_ARGS: &str = "factory_function_args";
 pub const EXPECTED_CONTRACT_ADDRESS: &str = "expected_contract_address";
 pub const DO_VERIFY_CONTRACT: &str = "verify";
-pub const EXPLORER_VERIFICATION_OPTS: &str = "explorer_verification_opts";
+pub const CONTRACT_VERIFICATION_OPTS: &str = "verifier";
 pub const CONTRACT: &str = "contract";
 pub const SALT: &str = "salt";
 pub const ALREADY_DEPLOYED: &str = "already_deployed";
@@ -70,6 +69,7 @@ pub const RESULT: &str = "result";
 pub const ABI_ENCODED_RESULT: &str = "abi_encoded_result";
 pub const LOGS: &str = "logs";
 pub const RAW_LOGS: &str = "raw_logs";
+pub const VERIFICATION_RESULTS: &str = "verification_results";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
