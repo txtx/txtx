@@ -1,4 +1,6 @@
-use serde::{Deserialize, Serialize};
+use kit::indexmap::IndexMap;
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
@@ -22,6 +24,7 @@ use txtx_addon_kit::{
     Addon,
 };
 
+use crate::eval::eval_expression;
 use crate::{
     eval::{self, ExpressionEvaluationStatus},
     std::StdAddon,
@@ -275,6 +278,20 @@ impl RuntimeContext {
         runbook_execution_context: &RunbookExecutionContext,
     ) -> Result<AddonDefaults, Diagnostic> {
         let mut addon_defaults = existing_addon_defaults.unwrap_or(AddonDefaults::new(addon_id));
+
+        let map_entries = self.evaluate_hcl_map_blocks(
+            block.body.blocks().collect(),
+            dependencies_execution_results,
+            package_id,
+            runbook_workspace_context,
+            runbook_execution_context,
+        )?;
+
+        for (key, value) in map_entries {
+            // don't check for duplicate keys in map evaluation
+            addon_defaults.insert(&key, Value::array(value));
+        }
+
         for attribute in block.body.attributes() {
             let eval_result: Result<ExpressionEvaluationStatus, Diagnostic> = eval::eval_expression(
                 &attribute.value,
@@ -300,6 +317,107 @@ impl RuntimeContext {
             addon_defaults.insert(&key, value);
         }
         Ok(addon_defaults)
+    }
+
+    /// Evaluates a list of map blocks, returning a map of the evaluated values.
+    /// The following hcl:
+    /// ```hcl
+    /// my_map_key {
+    ///     val1 = "test"
+    ///     nested_map {
+    ///         val2 = "test2"
+    ///     }
+    ///     nested_map {
+    ///         val2 = "test3"
+    ///     }
+    /// }
+    /// ```
+    /// will return:
+    /// ```rust
+    /// IndexMap::from_iter([
+    ///     (
+    ///         "my_map_key".to_string(),
+    ///         vec![
+    ///             Value::object(IndexMap::from_iter([
+    ///                 (
+    ///                     "val1".to_string(),
+    ///                     Value::string("test".to_string())
+    ///                 ),
+    ///                 (
+    ///                     "nested_map".to_string(),
+    ///                     Value::array(
+    ///                         Value::object(IndexMap::from_iter([("val2".to_string(), Value::string("test2".to_string()))])),
+    ///                         Value::object(IndexMap::from_iter([("val2".to_string(), Value::string("test3".to_string()))]))
+    ///                     )
+    ///                 ),
+    ///             ]
+    ///         ]
+    /// ])
+    /// ```
+    ///
+    fn evaluate_hcl_map_blocks(
+        &self,
+        blocks: Vec<&Block>,
+        dependencies_execution_results: &DependencyExecutionResultCache,
+        package_id: &PackageId,
+        runbook_workspace_context: &RunbookWorkspaceContext,
+        runbook_execution_context: &RunbookExecutionContext,
+    ) -> Result<IndexMap<String, Vec<Value>>, Diagnostic> {
+        let mut entries: IndexMap<String, Vec<Value>> = IndexMap::new();
+
+        for block in blocks.iter() {
+            // We'll store up all map entries as an Object
+            let mut object_values = IndexMap::new();
+
+            // Check if this map has nested maps within, and evaluate them
+            let sub_entries = self.evaluate_hcl_map_blocks(
+                block.body.blocks().collect(),
+                dependencies_execution_results,
+                package_id,
+                runbook_workspace_context,
+                runbook_execution_context,
+            )?;
+
+            for (sub_key, sub_values) in sub_entries {
+                object_values.insert(sub_key, Value::array(sub_values));
+            }
+
+            for attribute in block.body.attributes() {
+                let value = match eval_expression(
+                    &attribute.value,
+                    dependencies_execution_results,
+                    package_id,
+                    runbook_workspace_context,
+                    runbook_execution_context,
+                    &self,
+                ) {
+                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                    Err(diag) => return Err(diag),
+                    w => unimplemented!("{:?}", w),
+                };
+                match value.clone() {
+                    Value::Object(obj) => {
+                        for (k, v) in obj.into_iter() {
+                            object_values.insert(k, v);
+                        }
+                    }
+                    v => {
+                        object_values.insert(attribute.key.to_string(), v);
+                    }
+                };
+            }
+            let block_ident = block.ident.to_string();
+            match entries.get_mut(&block_ident) {
+                Some(vals) => {
+                    vals.push(Value::object(object_values));
+                }
+                None => {
+                    entries.insert(block_ident, vec![Value::object(object_values)]);
+                }
+            }
+        }
+
+        Ok(entries)
     }
 
     pub fn execute_function(
