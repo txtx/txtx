@@ -7,117 +7,6 @@ export const metadata = {
 
 
 
-## sign_transfer {{ tag: 'action' }}
-
-The `evm::sign_transfer` action encodes an ETH transfer transaction, signs it with the provided signer data, and broadcasts it to the network.
-
-### Inputs
-
-<Properties>
-
-
-  <Property name="description" type="optional">
-    A description of the transaction
-  </Property>
-
-
-  <Property name="signer" type="required">
-    A reference to a signer construct, which will be used to sign the transaction.
-  </Property>
-
-
-  <Property name="to" type="required">
-    The address of the recipient of the transfer.
-  </Property>
-
-
-  <Property name="amount" type="required">
-    The amount, in WEI, to transfer.
-  </Property>
-
-
-  <Property name="type" type="optional">
-    The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.
-  </Property>
-
-
-  <Property name="max_fee_per_gas" type="optional">
-    Sets the max fee per gas of an EIP1559 transaction.
-  </Property>
-
-
-  <Property name="max_priority_fee_per_gas" type="optional">
-    Sets the max priority fee per gas of an EIP1559 transaction.
-  </Property>
-
-
-  <Property name="chain_id" type="optional">
-    The chain id.
-  </Property>
-
-
-  <Property name="nonce" type="optional">
-    The account nonce of the signer. This value will be retrieved from the network if omitted.
-  </Property>
-
-
-  <Property name="gas_limit" type="optional">
-    Sets the maximum amount of gas that should be used to execute this transaction.
-  </Property>
-
-
-  <Property name="gas_price" type="optional">
-    Sets the gas price for Legacy transactions.
-  </Property>
-
-
-  <Property name="rpc_api_url" type="optional">
-    The URL of the EVM API used to fetch and fill transaction data and to broadcast it to the network.
-  </Property>
-
-
-</Properties>
-
-### Outputs
-
-<Note>
-
-When the `sign_transfer` action is successfully executed, the following outputs are attached to the action
-
-</Note>
-
-<Properties>
-
-
-  <Property name="tx_hash">
-    The transaction hash
-  </Property>
-
-
-</Properties>
-
-<CodeGroup title="Example using sign_transfer">
-
-
-```hcl {{ title: 'main.tx' }}
-// Coming soon
-
-```
-
-
-```json {{ title: 'main.json' }}
-// Coming soon
-```
-
-```yaml {{ title: 'main.yaml' }}
-# Coming soon
-```
-
-</CodeGroup>
-
----
-
-
 ## call_contract {{ tag: 'action' }}
 
 The `evm::call_contract` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.
@@ -202,6 +91,11 @@ The `evm::call_contract` action encodes a contract call transaction, signs it wi
   </Property>
 
 
+  <Property name="confirmations" type="optional">
+    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
+  </Property>
+
+
 </Properties>
 
 ### Outputs
@@ -217,6 +111,26 @@ When the `call_contract` action is successfully executed, the following outputs 
 
   <Property name="tx_hash">
     The hash of the transaction.
+  </Property>
+
+
+  <Property name="logs">
+    The logs of the transaction, decoded via any ABI provided by the contract call.
+  </Property>
+
+
+  <Property name="raw_logs">
+    The raw logs of the transaction.
+  </Property>
+
+
+  <Property name="result">
+    The result of simulating the execution of the transaction directly before its execution.
+  </Property>
+
+
+  <Property name="abi_encoded_result">
+    The simulation result with ABI context for using in other function calls.
   </Property>
 
 
@@ -380,225 +294,6 @@ action "call_some_contract" "evm::eth_call" {
 ---
 
 
-## deploy_contract {{ tag: 'action' }}
-
-The `evm::deploy_contract` action encodes a contract deployment transaction, signs it with the provided signer data, and broadcasts it to the network.
-
-### Inputs
-
-<Properties>
-
-
-  <Property name="description" type="optional">
-    A description of the transaction
-  </Property>
-
-
-  <Property name="rpc_api_url" type="optional">
-    The URL of the EVM API used to broadcast the transaction.
-  </Property>
-
-
-  <Property name="signer" type="required">
-    A reference to a signer construct, which will be used to sign the transaction.
-  </Property>
-
-
-  <Property name="amount" type="optional">
-    The amount, in WEI, to send with the deployment.
-  </Property>
-
-
-  <Property name="type" type="optional">
-    The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'. This value will be retrieved from the network if omitted.
-  </Property>
-
-
-  <Property name="max_fee_per_gas" type="optional">
-    Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
-  </Property>
-
-
-  <Property name="max_priority_fee_per_gas" type="optional">
-    Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
-  </Property>
-
-
-  <Property name="chain_id" type="optional">
-    The chain id.
-  </Property>
-
-
-  <Property name="nonce" type="optional">
-    The account nonce of the signer. This value will be retrieved from the network if omitted.
-  </Property>
-
-
-  <Property name="gas_limit" type="optional">
-    Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.
-  </Property>
-
-
-  <Property name="gas_price" type="optional">
-    Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.
-  </Property>
-
-
-  <Property name="contract" type="required">
-    The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
-The abi field can also be provided to add type checking for the constructor arguments.
-The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
-
-  </Property>
-
-
-  <Property name="constructor_args" type="optional">
-    The optional constructor arguments for the deployed contract.
-  </Property>
-
-
-  <Property name="confirmations" type="optional">
-    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
-  </Property>
-
-
-  <Property name="verify" type="optional">
-    Coming soon.
-  </Property>
-
-
-  <Property name="block_explorer_api_key" type="optional">
-    Coming soon.
-  </Property>
-
-
-</Properties>
-
-### Outputs
-
-<Note>
-
-When the `deploy_contract` action is successfully executed, the following outputs are attached to the action
-
-</Note>
-
-<Properties>
-
-
-  <Property name="tx_hash">
-    The hash of the transaction.
-  </Property>
-
-
-</Properties>
-
-<CodeGroup title="Example using deploy_contract">
-
-
-```hcl {{ title: 'main.tx' }}
-action "my_contract" "evm::deploy_contract" {
-    contract = evm::get_contract_from_foundry_project("MyContract")
-    signer = signer.deployer
-}
-
-```
-
-
-```json {{ title: 'main.json' }}
-// Coming soon
-```
-
-```yaml {{ title: 'main.yaml' }}
-# Coming soon
-```
-
-</CodeGroup>
-
----
-
-
-## verify_contract {{ tag: 'action' }}
-
-The `evm::verify_contract` is coming soon. This action sends the required contract deployment artifacts to a block explorer to verify the contract with the explorer.
-
-### Inputs
-
-<Properties>
-
-
-  <Property name="block_explorer_api_key" type="required">
-    The URL of the block explorer used to verify the contract.
-  </Property>
-
-
-  <Property name="contract_address" type="required">
-    The contract address to verify.
-  </Property>
-
-
-  <Property name="artifacts" type="required">
-    An object containing the deployment artifacts. Schema:
-```json
-    {
-        "abi": String,
-        "bytecode": String,
-        "source": String,
-        "compiler_version": String,
-        "contract_name": String,
-        "optimizer_enabled": Bool,
-        "optimizer_runs": UInt,
-        "evn_version": String
-    }
-```
-
-  </Property>
-
-
-</Properties>
-
-### Outputs
-
-<Note>
-
-When the `verify_contract` action is successfully executed, the following outputs are attached to the action
-
-</Note>
-
-<Properties>
-
-
-  <Property name="result">
-    The contract verification result.
-  </Property>
-
-
-</Properties>
-
-<CodeGroup title="Example using verify_contract">
-
-
-```hcl {{ title: 'main.tx' }}
-action "verify_contract" "evm::verify_contract" {
-    contract_address = evm::address(env.MY_CONTRACT_ADDRESS)
-    artifacts = action.artifacts
-}
-
-```
-
-
-```json {{ title: 'main.json' }}
-// Coming soon
-```
-
-```yaml {{ title: 'main.yaml' }}
-# Coming soon
-```
-
-</CodeGroup>
-
----
-
-
 ## check_confirmations {{ tag: 'action' }}
 
 The `evm::check_confirmations` action polls the network until the provided `tx_hash` has been confirmed by `confirmations` blocks.
@@ -643,6 +338,11 @@ When the `check_confirmations` action is successfully executed, the following ou
 
   <Property name="contract_address">
     The contract address from the transaction receipt.
+  </Property>
+
+
+  <Property name="logs">
+    The decoded contract logs from the transaction receipt.
   </Property>
 
 
@@ -742,13 +442,9 @@ action "signed_tx" "evm::sign_transaction" {
 ---
 
 
-## deploy_contract_create2 {{ tag: 'action' }}
+## send_eth {{ tag: 'action' }}
 
-The `evm::deploy_contract_create2` action deploys an EVM contract using a Create2 proxy contract. 
-The Create2 proxy contract is used to deploy the contract at a deterministic address based on the contract's bytecode and the salt value. 
-If the contract has already been deployed, the action will not deploy it again. 
-By default, Foundry's factory contract (`0x4e59b44847b379578588920cA78FbF26c0B4956C`) is used.
-
+The `evm::send_eth` is coming soon.
 
 ### Inputs
 
@@ -756,7 +452,7 @@ By default, Foundry's factory contract (`0x4e59b44847b379578588920cA78FbF26c0B49
 
 
   <Property name="description" type="optional">
-    A description of the transaction
+    A description of the transaction.
   </Property>
 
 
@@ -770,28 +466,13 @@ By default, Foundry's factory contract (`0x4e59b44847b379578588920cA78FbF26c0B49
   </Property>
 
 
-  <Property name="create2_factory_address" type="optional">
-    To deploy the contract with an alternative factory, provide the address of the factory contract.
-  </Property>
-
-
-  <Property name="create2_factory_abi" type="optional">
-    The ABI of the alternative create2 factory contract, optionally used to check input arguments before sending the transaction to the chain.
-  </Property>
-
-
-  <Property name="create2_factory_function_name" type="optional">
-    If an alternative create2 factory is used, the name of the function to call.
-  </Property>
-
-
-  <Property name="create2_factory_function_args" type="optional">
-    If an alternative create2 factory is used, the arguments to pass to the function.
+  <Property name="recipient_address" type="required">
+    The EVM address of the recipient.
   </Property>
 
 
   <Property name="amount" type="optional">
-    The amount, in WEI, to send with the deployment.
+    The amount to send, in WEI (1 ETH = 10^18 WEI).
   </Property>
 
 
@@ -830,41 +511,8 @@ By default, Foundry's factory contract (`0x4e59b44847b379578588920cA78FbF26c0B49
   </Property>
 
 
-  <Property name="contract" type="required">
-    The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
-The abi field can also be provided to add type checking for the constructor arguments.
-The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
-
-  </Property>
-
-
-  <Property name="constructor_args" type="optional">
-    The optional constructor arguments for the deployed contract.
-  </Property>
-
-
-  <Property name="expected_contract_address" type="optional">
-    The contract address that the deployment should yield. If the deployment does not yield this address, the action will fail. If this field is omitted, the any deployed address will be accepted.
-  </Property>
-
-
-  <Property name="salt" type="optional">
-    The salt value used to calculate the contract address. This value must be a 32-byte hex string.
-  </Property>
-
-
   <Property name="confirmations" type="optional">
     Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
-  </Property>
-
-
-  <Property name="verify" type="optional">
-    Coming soon.
-  </Property>
-
-
-  <Property name="block_explorer_api_key" type="optional">
-    Coming soon.
   </Property>
 
 
@@ -874,7 +522,7 @@ The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat
 
 <Note>
 
-When the `deploy_contract_create2` action is successfully executed, the following outputs are attached to the action
+When the `send_eth` action is successfully executed, the following outputs are attached to the action
 
 </Note>
 
@@ -886,21 +534,208 @@ When the `deploy_contract_create2` action is successfully executed, the followin
   </Property>
 
 
-  <Property name="contract_address">
-    The address of the deployed transaction.
+</Properties>
+
+<CodeGroup title="Example using send_eth">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## deploy_contract {{ tag: 'action' }}
+
+The `evm::deploy_contract` is coming soon.
+
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" type="optional">
+    A description of the transaction
+  </Property>
+
+
+  <Property name="rpc_api_url" type="optional">
+    The URL of the EVM API used to broadcast the transaction.
+  </Property>
+
+
+  <Property name="chain_id" type="optional">
+    The chain id.
+  </Property>
+
+
+  <Property name="signer" type="required">
+    A reference to a signer construct, which will be used to sign the transaction.
+  </Property>
+
+
+  <Property name="contract" type="required">
+    The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
+The abi field can also be provided to add type checking for the constructor arguments.
+The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
+
+  </Property>
+
+
+  <Property name="initializer" type="optional">
+    An optional array of initializer functions + arguments to call on the contract that is deployed to the proxy contract.
+  </Property>
+
+
+  <Property name="constructor_args" type="optional">
+    The optional constructor arguments for the deployed contract.
+  </Property>
+
+
+  <Property name="create_opcode" type="optional">
+    The create opcode to use for deployment. Options are 'create' and 'create2'. The default is 'create2'.
+  </Property>
+
+
+  <Property name="create2" type="optional">
+    Options for deploying the contract with the CREATE2 opcode, overwriting txtx default options.
+  </Property>
+
+
+  <Property name="proxied" type="optional">
+    Deploys the contract via a proxy contract. The default is false.
+  </Property>
+
+
+  <Property name="proxy" type="optional">
+    Options for deploying the contract via a proxy contract, overwriting txtx default options.
+  </Property>
+
+
+  <Property name="amount" type="optional">
+    The amount, in WEI, to send with the deployment.
+  </Property>
+
+
+  <Property name="type" type="optional">
+    The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.
+  </Property>
+
+
+  <Property name="max_fee_per_gas" type="optional">
+    Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="max_priority_fee_per_gas" type="optional">
+    Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="nonce" type="optional">
+    The account nonce of the signer. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="gas_limit" type="optional">
+    Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="gas_price" type="optional">
+    Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.
+  </Property>
+
+
+  <Property name="expected_contract_address" type="optional">
+    The contract address that the deployment should yield. If the deployment does not yield this address, the action will fail. If this field is omitted, the any deployed address will be accepted.
+  </Property>
+
+
+  <Property name="confirmations" type="optional">
+    Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
+  </Property>
+
+
+  <Property name="verify" type="optional">
+    Indicates whether the contract should be verified after deployment. The default is `true`. Set this value to `false` to prevent verification event when `verifier` args are provided.
+  </Property>
+
+
+  <Property name="verifier" type="optional">
+    Specifies the verifier options for contract verifications.
   </Property>
 
 
 </Properties>
 
-<CodeGroup title="Example using deploy_contract_create2">
+### Outputs
+
+<Note>
+
+When the `deploy_contract` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="tx_hash">
+    The hash of the transaction.
+  </Property>
+
+
+  <Property name="abi">
+    The deployed contract ABI, if it was provided as a contract input.
+  </Property>
+
+
+  <Property name="contract_address">
+    The address of the deployed transaction.
+  </Property>
+
+
+  <Property name="logs">
+    The logs of the transaction, decoded via any ABI provided by the contract call.
+  </Property>
+
+
+  <Property name="raw_logs">
+    The raw logs of the transaction.
+  </Property>
+
+
+  <Property name="verification_results">
+    The contract verification results, if the action was configured to verify the contract.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using deploy_contract">
 
 
 ```hcl {{ title: 'main.tx' }}
-action "my_contract" "evm::deploy_contract_create2" {
+action "my_contract" "evm::deploy_contract" {
     contract = evm::get_contract_from_foundry_project("MyContract")
-    salt = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
     signer = signer.deployer
+    create2 {
+        salt = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    }
 }
 
 ```

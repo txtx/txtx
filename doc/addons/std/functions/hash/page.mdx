@@ -115,3 +115,58 @@ output "hashed_data" {
 
 ---
 
+
+## keccak256 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`std::keccak256` computes the keccak256 hash of a value.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="value">
+    The string value to hash.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The hashed result.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using keccak256">
+
+
+```hcl {{ title: 'main.tx' }}
+output "hashed_data" {
+    value = keccak256("hello, world")
+}
+// > hashed_data: 0x09ca7e4eaa6e8ae9c7d261167129184883644d07dfba7cbfbc4c8a2e08360d5b
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
