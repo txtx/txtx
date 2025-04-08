@@ -333,7 +333,7 @@ impl RuntimeContext {
     /// }
     /// ```
     /// will return:
-    /// ```rust
+    /// ```no_run
     /// IndexMap::from_iter([
     ///     (
     ///         "my_map_key".to_string(),
