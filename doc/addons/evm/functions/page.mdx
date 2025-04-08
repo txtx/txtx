@@ -60,6 +60,169 @@ output "address" {
 ---
 
 
+## zero_address {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::zero_address` is a constant representing the zero address.
+
+### Inputs
+
+<Properties>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The zero address, `0x0000000000000000000000000000000000000000`.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using zero_address">
+
+
+```hcl {{ title: 'main.tx' }}
+output "address" { 
+    value = evm::zero_address()
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## to_abi_type {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::to_abi_type` is coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="value">
+    Coming soon.
+  </Property>
+
+
+  <Property name="abi">
+    Coming soon.
+  </Property>
+
+
+  <Property name="typing">
+    Coming soon.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using to_abi_type">
+
+
+```hcl {{ title: 'main.tx' }}
+                        
+                
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## abi_encode {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::abi_encode` is coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    Coming soon.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using abi_encode">
+
+
+```hcl {{ title: 'main.tx' }}
+                        
+                
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
 ## bytes32 {{ tag: 'function' }}
 
 <Row>
@@ -168,6 +331,168 @@ output "bytes" {
 ---
 
 
+## uint256 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::uint256` encodes a number as a Solidity uint256 value.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    The number to encode.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The number encoded as a Solidity uint256.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using uint256">
+
+
+```hcl {{ title: 'main.tx' }}
+output "uint256" {
+    value = evm::uint256(1)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## uint32 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::uint32` encodes a number as a Solidity uint32 value.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    The number to encode.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The number encoded as a Solidity uint32.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using uint32">
+
+
+```hcl {{ title: 'main.tx' }}
+output "uint32" {
+    value = evm::uint32(1)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## uint8 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`evm::uint8` encodes a number as a Solidity uint8 value.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="input">
+    The number to encode.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The number encoded as a Solidity uint8.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using uint8">
+
+
+```hcl {{ title: 'main.tx' }}
+output "uint8" {
+    value = evm::uint8(1)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
 ## chain {{ tag: 'function' }}
 
 <Row>
@@ -181,7 +506,7 @@ output "bytes" {
 
 
   <Property name="input">
-    A EVM-compatible chain name. See https://chainlist.org for a list of supported chains.
+    An EVM-compatible chain name. See https://chainlist.org for a list of supported chains.
   </Property>
 
 
@@ -228,7 +553,7 @@ output "chain_id" {
 <Row>
   <Col>
 
-`evm::get_contract_from_foundry_project` retrieves the deployment artifacts for a contract in a Foundry project.
+`evm::get_contract_from_foundry_project` retrieves the compiled contract artifacts for a contract in a Foundry project.
 
 ### Inputs
 
@@ -300,7 +625,7 @@ output "abi" {
 <Row>
   <Col>
 
-`evm::get_contract_from_hardhat_project` retrieves the deployment artifacts for a contract in a Hardhat project.
+`evm::get_contract_from_hardhat_project` retrieves the compiled contract artifacts for a contract in a Hardhat project.
 
 ### Inputs
 
@@ -396,6 +721,68 @@ Coming soon
 
 
 <CodeGroup title="Example using create_init_code">
+
+
+```hcl {{ title: 'main.tx' }}
+// Coming Soon
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## encode_function_call {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+Coming soon
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="function_name">
+    Coming Soon
+  </Property>
+
+
+  <Property name="function_args">
+    Coming Soon
+  </Property>
+
+
+  <Property name="abi">
+    Coming Soon
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    Coming Soon
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using encode_function_call">
 
 
 ```hcl {{ title: 'main.tx' }}

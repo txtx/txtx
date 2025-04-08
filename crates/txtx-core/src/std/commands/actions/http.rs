@@ -29,8 +29,8 @@ lazy_static! {
                     tainting: true,
                     internal: false
                 },
-                request_body: {
-                  documentation: "The request body as a string.",
+                body: {
+                  documentation: "The request body as a string or json object.",
                   typing: Type::string(),
                   optional: true,
                   tainting: true,
@@ -46,14 +46,14 @@ lazy_static! {
                   tainting: true,
                   internal: false
                 },
-                request_timeout_ms: {
+                timeout_ms: {
                   documentation: "The request timeout in milliseconds.",
                   typing: Type::integer(),
                   optional: true,
                   tainting: true,
                   internal: false
                 },
-                request_headers: {
+                headers: {
                     documentation: "A map of request header field names and values.",
                     typing: Type::object(vec![ObjectProperty {
                         name: "Content-Type".into(),
@@ -120,16 +120,14 @@ impl CommandImplementation for SendHttpRequest {
         let mut result = CommandExecutionResult::new();
         let values = values.clone();
         let url = values.get_expected_string("url")?.to_string();
-        let request_body = values.get_string("request_body").map(|v| v.to_string());
+        let request_body = values.get_value("body").cloned();
         let method = {
             let value = values.get_string("method").unwrap_or("GET");
             Method::try_from(value).unwrap()
         };
-        let request_headers = values
-            .get_value("request_headers")
-            .and_then(|value| Some(value.expect_object().clone()));
+        let request_headers =
+            values.get_value("headers").and_then(|value| Some(value.expect_object().clone()));
 
-        #[cfg(not(feature = "wasm"))]
         let future = async move {
             let client = reqwest::Client::new();
             let mut req_builder = client.request(method, url);
@@ -143,7 +141,12 @@ impl CommandImplementation for SendHttpRequest {
             }
 
             if let Some(request_body) = request_body {
-                req_builder = req_builder.body(request_body);
+                println!("request body: {:?}", request_body);
+                if request_body.as_object().is_some() {
+                    req_builder = req_builder.json(&request_body.to_json());
+                } else {
+                    req_builder = req_builder.body(request_body.encode_to_string());
+                }
             }
 
             let res = req_builder.send().await.map_err(|e| {

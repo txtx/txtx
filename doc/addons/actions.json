@@ -1,0 +1,1042 @@
+{
+  "std": [
+    {
+      "id": "send_http_request",
+      "name": "Send an HTTP request",
+      "documentation": "`send_http_request` command makes an HTTP request to the given URL and exports the response.",
+      "inputs": [
+        {
+          "name": "url",
+          "documentation": "The URL for the request. Supported schemes are http and https.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "request_body",
+          "documentation": "The request body as a string.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "method",
+          "documentation": "The HTTP Method for the request. \nAllowed methods are a subset of methods defined in RFC7231: GET, HEAD, and POST. \nPOST support is only intended for read-only URLs, such as submitting a search.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "request_timeout_ms",
+          "documentation": "The request timeout in milliseconds.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "request_headers",
+          "documentation": "A map of request header field names and values.",
+          "typing": "object",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "response_body",
+          "documentation": "The response body returned as a string.",
+          "typing": "string"
+        },
+        {
+          "name": "status_code",
+          "documentation": "The HTTP response status code.",
+          "typing": "integer"
+        }
+      ],
+      "example": "action \"example\" \"std::send_http_request\" {\n  url = \"https://example.com\"\n}\n\noutput \"status\" {\n  value = action.example.status_code\n}\n// > status: 200\n"
+    }
+  ],
+  "evm": [
+    {
+      "id": "call_contract",
+      "name": "Sign EVM Contract Call Transaction",
+      "documentation": "The `evm::call_contract` action encodes a contract call transaction, signs it with the provided signer data, and broadcasts it to the network.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the transaction.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL of the EVM API used to broadcast the transaction.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "signer",
+          "documentation": "A reference to a signer construct, which will be used to sign the transaction.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "contract_address",
+          "documentation": "The address of the contract being called.",
+          "typing": "addon(evm::address)",
+          "optional": false
+        },
+        {
+          "name": "contract_abi",
+          "documentation": "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
+          "typing": "addon(evm::address)",
+          "optional": true
+        },
+        {
+          "name": "function_name",
+          "documentation": "The contract function to invoke.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "function_args",
+          "documentation": "The contract function arguments",
+          "typing": "array[buffer]",
+          "optional": true
+        },
+        {
+          "name": "amount",
+          "documentation": "The amount, in WEI, to transfer.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "type",
+          "documentation": "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "max_fee_per_gas",
+          "documentation": "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "max_priority_fee_per_gas",
+          "documentation": "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "chain_id",
+          "documentation": "The chain id.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "nonce",
+          "documentation": "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "gas_limit",
+          "documentation": "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "gas_price",
+          "documentation": "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "confirmations",
+          "documentation": "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
+          "typing": "integer",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "tx_hash",
+          "documentation": "The hash of the transaction.",
+          "typing": "string"
+        },
+        {
+          "name": "logs",
+          "documentation": "The logs of the transaction, decoded via any ABI provided by the contract call.",
+          "typing": "object"
+        },
+        {
+          "name": "raw_logs",
+          "documentation": "The raw logs of the transaction.",
+          "typing": "object"
+        },
+        {
+          "name": "result",
+          "documentation": "The result of simulating the execution of the transaction directly before its execution.",
+          "typing": "string"
+        },
+        {
+          "name": "abi_encoded_result",
+          "documentation": "The simulation result with ABI context for using in other function calls.",
+          "typing": "addon(evm::sim_result)"
+        }
+      ],
+      "example": "action \"call_some_contract\" \"evm::call_contract\" {\n    contract_address = input.contract_address\n    function_name = \"myFunction\"\n    function_args = [evm::bytes(\"0x1234\")]\n    signer = signer.operator\n}\n"
+    },
+    {
+      "id": "eth_call",
+      "name": "Eth Call",
+      "documentation": "The `evm::eth_call` command simulates an Ethereum transaction using the `eth_call` RPC endpoint.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the call.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL of the EVM API used to send the RPC request.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "contract_address",
+          "documentation": "The address of the contract being called.",
+          "typing": "addon(evm::address)",
+          "optional": false
+        },
+        {
+          "name": "contract_abi",
+          "documentation": "The contract ABI, optionally used to check input arguments before sending the transaction to the chain.",
+          "typing": "addon(evm::address)",
+          "optional": true
+        },
+        {
+          "name": "signer",
+          "documentation": "The address that will be used as the sender of this contract call.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "function_name",
+          "documentation": "The contract function to call.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "function_args",
+          "documentation": "The contract function arguments.",
+          "typing": "array[buffer]",
+          "optional": true
+        },
+        {
+          "name": "amount",
+          "documentation": "The amount, in Wei, to send in the transaction.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "type",
+          "documentation": "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'. This value will be retrieved from the network if omitted.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "max_fee_per_gas",
+          "documentation": "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "max_priority_fee_per_gas",
+          "documentation": "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "chain_id",
+          "documentation": "The chain id.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "nonce",
+          "documentation": "The account nonce of the sender. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "gas_limit",
+          "documentation": "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "gas_price",
+          "documentation": "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "documentation": "The contract call result.",
+          "typing": "string"
+        }
+      ],
+      "example": "action \"call_some_contract\" \"evm::eth_call\" {\n    contract_address = input.contract_address\n    function_name = \"myFunction\"\n    function_args = [evm::bytes(\"0x1234\")]\n    signer = signer.operator.address\n}\n"
+    },
+    {
+      "id": "check_confirmations",
+      "name": "Check Transaction Confirmations",
+      "documentation": "The `evm::check_confirmations` action polls the network until the provided `tx_hash` has been confirmed by `confirmations` blocks.",
+      "inputs": [
+        {
+          "name": "tx_hash",
+          "documentation": "The transaction hash to check.",
+          "typing": "buffer",
+          "optional": false
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL of the EVM API used to poll for the transaction's inclusion in a block.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "chain_id",
+          "documentation": "The chain ID of the network to check the transaction on.",
+          "typing": "integer",
+          "optional": false
+        },
+        {
+          "name": "confirmations",
+          "documentation": "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
+          "typing": "integer",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "contract_address",
+          "documentation": "The contract address from the transaction receipt.",
+          "typing": "buffer"
+        },
+        {
+          "name": "logs",
+          "documentation": "The decoded contract logs from the transaction receipt.",
+          "typing": "array[array[string]]"
+        }
+      ],
+      "example": "action \"confirm_deployment\" \"evm::check_confirmations\" {\n    tx_hash = action.some_deploying_action.tx_hash\n}\n"
+    },
+    {
+      "id": "sign_transaction",
+      "name": "Sign EVM Transaction",
+      "documentation": "The `evm::sign_transaction` command signs an EVM transaction.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the transaction",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "transaction_payload_bytes",
+          "documentation": "The unsigned transaction payload bytes.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "signer",
+          "documentation": "A reference to a signer construct, which will be used to sign the transaction payload.",
+          "typing": "string",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "tx_hash",
+          "documentation": "The hash of the transaction.",
+          "typing": "string"
+        }
+      ],
+      "example": "action \"signed_tx\" \"evm::sign_transaction\" {\n    description = \"Deploy a new contract\"\n    transaction_payload_bytes = \"0x1234567890abcdef\"\n    signer = signer.operator\n}\n"
+    },
+    {
+      "id": "send_eth",
+      "name": "Coming soon",
+      "documentation": "The `evm::send_eth` is coming soon.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the transaction.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL of the EVM API used to broadcast the transaction.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "signer",
+          "documentation": "A reference to a signer construct, which will be used to sign the transaction.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "recipient_address",
+          "documentation": "The EVM address of the recipient.",
+          "typing": "addon(evm::address)",
+          "optional": false
+        },
+        {
+          "name": "amount",
+          "documentation": "The amount to send, in WEI (1 ETH = 10^18 WEI).",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "type",
+          "documentation": "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "max_fee_per_gas",
+          "documentation": "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "max_priority_fee_per_gas",
+          "documentation": "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "chain_id",
+          "documentation": "The chain id.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "nonce",
+          "documentation": "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "gas_limit",
+          "documentation": "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "gas_price",
+          "documentation": "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "confirmations",
+          "documentation": "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
+          "typing": "integer",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "tx_hash",
+          "documentation": "The hash of the transaction.",
+          "typing": "string"
+        }
+      ],
+      "example": "// Coming soon\n"
+    },
+    {
+      "id": "deploy_contract",
+      "name": "Coming soon",
+      "documentation": "The `evm::deploy_contract` is coming soon.\n",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the transaction",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL of the EVM API used to broadcast the transaction.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "chain_id",
+          "documentation": "The chain id.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "signer",
+          "documentation": "A reference to a signer construct, which will be used to sign the transaction.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "contract",
+          "documentation": "The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.\nThe abi field can also be provided to add type checking for the constructor arguments.\nThe `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.\n",
+          "typing": "object",
+          "optional": false
+        },
+        {
+          "name": "initializer",
+          "documentation": "An optional array of initializer functions + arguments to call on the contract that is deployed to the proxy contract.",
+          "typing": "map",
+          "optional": true
+        },
+        {
+          "name": "constructor_args",
+          "documentation": "The optional constructor arguments for the deployed contract.",
+          "typing": "array[string]",
+          "optional": true
+        },
+        {
+          "name": "create_opcode",
+          "documentation": "The create opcode to use for deployment. Options are 'create' and 'create2'. The default is 'create2'.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "create2",
+          "documentation": "Options for deploying the contract with the CREATE2 opcode, overwriting txtx default options.",
+          "typing": "map",
+          "optional": true
+        },
+        {
+          "name": "proxied",
+          "documentation": "Deploys the contract via a proxy contract. The default is false.",
+          "typing": "bool",
+          "optional": true
+        },
+        {
+          "name": "proxy",
+          "documentation": "Options for deploying the contract via a proxy contract, overwriting txtx default options.",
+          "typing": "map",
+          "optional": true
+        },
+        {
+          "name": "amount",
+          "documentation": "The amount, in WEI, to send with the deployment.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "type",
+          "documentation": "The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "max_fee_per_gas",
+          "documentation": "Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "max_priority_fee_per_gas",
+          "documentation": "Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "nonce",
+          "documentation": "The account nonce of the signer. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "gas_limit",
+          "documentation": "Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "gas_price",
+          "documentation": "Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "expected_contract_address",
+          "documentation": "The contract address that the deployment should yield. If the deployment does not yield this address, the action will fail. If this field is omitted, the any deployed address will be accepted.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "confirmations",
+          "documentation": "Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "verify",
+          "documentation": "Indicates whether the contract should be verified after deployment. The default is `true`. Set this value to `false` to prevent verification event when `verifier` args are provided.",
+          "typing": "bool",
+          "optional": true
+        },
+        {
+          "name": "verifier",
+          "documentation": "Specifies the verifier options for contract verifications.",
+          "typing": "map",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "tx_hash",
+          "documentation": "The hash of the transaction.",
+          "typing": "string"
+        },
+        {
+          "name": "abi",
+          "documentation": "The deployed contract ABI, if it was provided as a contract input.",
+          "typing": "string"
+        },
+        {
+          "name": "contract_address",
+          "documentation": "The address of the deployed transaction.",
+          "typing": "string"
+        },
+        {
+          "name": "logs",
+          "documentation": "The logs of the transaction, decoded via any ABI provided by the contract call.",
+          "typing": "object"
+        },
+        {
+          "name": "raw_logs",
+          "documentation": "The raw logs of the transaction.",
+          "typing": "object"
+        },
+        {
+          "name": "verification_results",
+          "documentation": "The contract verification results, if the action was configured to verify the contract.",
+          "typing": "array[object]"
+        }
+      ],
+      "example": "action \"my_contract\" \"evm::deploy_contract\" {\n    contract = evm::get_contract_from_foundry_project(\"MyContract\")\n    signer = signer.deployer\n    create2 {\n        salt = \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\"\n    }\n}\n"
+    }
+  ],
+  "svm": [
+    {
+      "id": "sign_transaction",
+      "name": "Sign SVM Transaction",
+      "documentation": "The `svm::send_transaction` is used to sign a transaction and broadcast it to the specified SVM-compatible network.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the transaction.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "transaction_bytes",
+          "documentation": "The transaction bytes to sign.",
+          "typing": "addon(svm::transaction)",
+          "optional": false
+        },
+        {
+          "name": "signers",
+          "documentation": "A set of references to a signer construct, which will be used to sign the transaction.",
+          "typing": "array[string]",
+          "optional": true
+        },
+        {
+          "name": "signer",
+          "documentation": "A reference to a signer construct, which will be used to sign the transaction.",
+          "typing": "array[string]",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "signed_transaction_bytes",
+          "documentation": "The signed transaction bytes.",
+          "typing": "addon(svm::transaction)"
+        }
+      ],
+      "example": "// Coming soon\n"
+    },
+    {
+      "id": "process_instructions",
+      "name": "Process SVM Instructions",
+      "documentation": "The `svm::process_instructions` action encodes instructions that are added to a transaction that is signed and broadcasted to the network.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the transaction.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "instruction",
+          "documentation": "The instructions to add to the transaction.",
+          "typing": "map",
+          "optional": false
+        },
+        {
+          "name": "signers",
+          "documentation": "A set of references to a signer construct, which will be used to sign the transaction.",
+          "typing": "array[string]",
+          "optional": false
+        },
+        {
+          "name": "commitment_level",
+          "documentation": "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL to use when making API requests.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "rpc_api_auth_token",
+          "documentation": "The HTTP authentication token to include in the headers when making API requests.",
+          "typing": "string",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "signature",
+          "documentation": "The transaction computed signature.",
+          "typing": "string"
+        }
+      ],
+      "example": "\naction \"program_call\" \"svm::process_instructions\" {\n    description = \"Invoke instructions\"\n    instruction {\n        program_id = variable.program\n        account {\n            public_key = signer.caller.address\n            is_signer = true\n            is_writable = true\n    }\n        data = svm::get_instruction_data_from_idl(variable.program.idl, \"my_instruction\", [\"arg1\", \"arg2\"])\n    }\n    signers = [signer.caller]\n}\n"
+    },
+    {
+      "id": "deploy_program",
+      "name": "Deploy SVM Program",
+      "documentation": "`svm::deploy_program` deploys an anchor program to the specified SVM-compatible network.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the deployment action.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "program",
+          "documentation": "The Solana program artifacts to deploy.",
+          "typing": "object",
+          "optional": false
+        },
+        {
+          "name": "payer",
+          "documentation": "A reference to a signer construct, which will be used to sign transactions that pay for the program deployment. If omitted, the `authority` will be used.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "authority",
+          "documentation": "A reference to a signer construct, which will be the final authority for the deployed program.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "commitment_level",
+          "documentation": "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "auto_extend",
+          "documentation": "Whether to auto extend the program account for program upgrades. Defaults to `true`.",
+          "typing": "bool",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "signatures",
+          "documentation": "The computed transaction signatures, grouped by transaction type.",
+          "typing": "object"
+        },
+        {
+          "name": "program_id",
+          "documentation": "The program ID of the deployed program.",
+          "typing": "string"
+        }
+      ],
+      "example": "action \"deploy\" \"svm::deploy_program\" {\n    description = \"Deploy hello world program\"\n    program = svm::get_program_from_anchor_project(\"hello_world\") \n    authority = signer.authority\n    payer = signer.payer  # Optional, defaults to authority\n}\n"
+    },
+    {
+      "id": "send_sol",
+      "name": "Send SOL",
+      "documentation": "The `svm::send_sol` action encodes a transaction which sends SOL, signs it, and broadcasts it to the network.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the transaction.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "amount",
+          "documentation": "The amount to send, in lamports (1 SOL = 10^9 lamports).",
+          "typing": "integer",
+          "optional": false
+        },
+        {
+          "name": "recipient",
+          "documentation": "The SVM address of the recipient.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "signer",
+          "documentation": "A reference to a signer construct, which will be used to sign the transaction.",
+          "typing": "array[string]",
+          "optional": false
+        },
+        {
+          "name": "commitment_level",
+          "documentation": "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL to use when making API requests.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "rpc_api_auth_token",
+          "documentation": "The HTTP authentication token to include in the headers when making API requests.",
+          "typing": "string",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "signature",
+          "documentation": "The transaction computed signature.",
+          "typing": "string"
+        }
+      ],
+      "example": "action \"send_sol\" \"svm::send_sol\" {\n    description = \"Send some SOL\"\n    amount = svm::sol_to_lamports(1)\n    signer = signer.caller\n    recipient = \"zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV\"\n}"
+    },
+    {
+      "id": "send_token",
+      "name": "Send Token",
+      "documentation": "The `svm::send_token` action encodes a transaction which sends the specified token, signs it, and broadcasts it to the network.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the transaction.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "amount",
+          "documentation": "The amount of tokens to send, in base unit.",
+          "typing": "integer",
+          "optional": false
+        },
+        {
+          "name": "token",
+          "documentation": "The program address for the token being sent. This is also known as the 'token mint account'.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "recipient",
+          "documentation": "The SVM address of the recipient. The associated token account will be computed from this address and the token address.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "authority",
+          "documentation": "The pubkey of the authority account for the token source. If omitted, the first signer will be used.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "fund_recipient",
+          "documentation": "If set to `true` and the recipient token account does not exist, the action will create the account and fund it, using the signer to fund the account. The default is `false`.",
+          "typing": "bool",
+          "optional": true
+        },
+        {
+          "name": "signers",
+          "documentation": "A set of references to a signer construct, which will be used to sign the transaction.",
+          "typing": "array[string]",
+          "optional": false
+        },
+        {
+          "name": "commitment_level",
+          "documentation": "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL to use when making API requests.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "rpc_api_auth_token",
+          "documentation": "The HTTP authentication token to include in the headers when making API requests.",
+          "typing": "string",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "signature",
+          "documentation": "The transaction computed signature.",
+          "typing": "string"
+        },
+        {
+          "name": "recipient_token_address",
+          "documentation": "The recipient token account address.",
+          "typing": "addon(svm::pubkey)"
+        },
+        {
+          "name": "source_token_address",
+          "documentation": "The source token account address.",
+          "typing": "addon(svm::pubkey)"
+        },
+        {
+          "name": "token_mint_address",
+          "documentation": "The token mint address.",
+          "typing": "addon(svm::pubkey)"
+        }
+      ],
+      "example": "action \"send_sol\" \"svm::send_token\" {\n    description = \"Send some SOL\"\n    amount = svm::sol_to_lamports(1)\n    signers = [signer.caller]\n    recipient = \"zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV\"\n    token = \"3bv3j4GvMPjvvBX9QdoX27pVoWhDSXpwKZipFF1QiVr6\"\n    fund_recipient = true\n}"
+    },
+    {
+      "id": "deploy_subgraph",
+      "name": "Deploy SVM Program Subgraph",
+      "documentation": "`svm::deploy_subgraph` deploys allows specifying a schema for a subgraph for your program, \n    which will automatically be registered and return an endpoint to see live chain data.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the subgraph.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "subgraph_name",
+          "documentation": "The name of the subgraph. This defaults to the command instance name.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "program_id",
+          "documentation": "The ID of the program to index as a subgraph.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "program_idl",
+          "documentation": "The IDL of the program, used to decode subgraph types.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "block_height",
+          "documentation": "The block height to start indexing from.",
+          "typing": "integer",
+          "optional": false
+        },
+        {
+          "name": "event",
+          "documentation": "A map of events to index in the subgraph.",
+          "typing": "map",
+          "optional": false
+        }
+      ],
+      "outputs": [],
+      "example": "action \"transfer_event_subgraph\" \"svm::deploy_subgraph\" {\n    program_id = action.deploy.program_id\n    program_idl = action.deploy.program_idl\n    block_height = action.deploy.block_height\n    event {\n        name = \"TransferEvent\"\n    }\n"
+    }
+  ],
+  "telegram": [
+    {
+      "id": "send_message",
+      "name": "Send Telegram Message",
+      "documentation": "The `telegram::send_message` ...",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the call.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "telegram_bot_api_token",
+          "documentation": "Coming soon",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "telegram_chat_id",
+          "documentation": "Coming soon",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "message",
+          "documentation": "Message to send.",
+          "typing": "string",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "documentation": "The contract call result.",
+          "typing": "string"
+        }
+      ],
+      "example": "action \"notify_team\" \"telegram::send_message\" {\n    description = \"Notify team\"\n    message = \"myFunction\"\n    telegram_bot_api_token = env.telegram_bot_api_token\n}\n"
+    },
+    {
+      "id": "setup_chat",
+      "name": "Setup Telegram Chat",
+      "documentation": "The `telegram::setup_chat` ...",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the call.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "telegram_bot_api_token",
+          "documentation": "Coming soon",
+          "typing": "string",
+          "optional": false
+        }
+      ],
+      "outputs": [
+        {
+          "name": "result",
+          "documentation": "The chat_id.",
+          "typing": "string"
+        }
+      ],
+      "example": "action \"setup_bot_chat\" \"telegram::setup_chat\" {\n    description = \"Handshake\"\n    telegram_bot_api_token = env.telegram_bot_api_token\n}\n"
+    }
+  ]
+}

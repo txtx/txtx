@@ -60,6 +60,14 @@ impl CommandExecutionResult {
         Self { outputs: HashMap::new() }
     }
 
+    pub fn from<S: ToString, T: IntoIterator<Item = (S, Value)>>(default: T) -> Self {
+        let mut outputs = HashMap::new();
+        for (key, value) in default {
+            outputs.insert(key.to_string(), value);
+        }
+        Self { outputs }
+    }
+
     pub fn append(&mut self, other: &mut CommandExecutionResult) {
         for (key, value) in other.outputs.drain() {
             self.outputs.insert(key, value);

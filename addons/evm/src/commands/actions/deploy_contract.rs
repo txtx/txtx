@@ -22,24 +22,26 @@ use txtx_addon_kit::types::{
 };
 use txtx_addon_kit::uuid::Uuid;
 
+use crate::codec::contract_deployment::compiled_artifacts::CompiledContractArtifacts;
 use crate::codec::contract_deployment::create_opts::ContractCreationOpts;
 use crate::codec::contract_deployment::{
     create_init_code, AddressAbiMap, ContractDeploymentTransaction,
 };
+use crate::codec::verify::verify_contracts;
 use crate::codec::{
     get_typed_transaction_bytes, value_to_abi_constructor_args, value_to_sol_value, TransactionType,
 };
 
 use crate::constants::{
-    ADDRESS_ABI_MAP, ALREADY_DEPLOYED, ARTIFACTS, CONTRACT, CONTRACT_ADDRESS,
-    CONTRACT_CONSTRUCTOR_ARGS, DO_VERIFY_CONTRACT, IMPL_CONTRACT_ADDRESS, IS_PROXIED,
-    PROXY_CONTRACT_ADDRESS, RPC_API_URL, TRANSACTION_TYPE,
+    ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS,
+    CONTRACT_VERIFICATION_OPTS, DO_VERIFY_CONTRACT, IMPL_CONTRACT_ADDRESS, IS_PROXIED,
+    PROXY_CONTRACT_ADDRESS, RPC_API_URL, TRANSACTION_TYPE, VERIFICATION_RESULTS,
 };
 use crate::rpc::EvmRpc;
 use crate::signers::common::get_signer_nonce;
 use crate::typing::{
-    EvmValue, CONTRACT_METADATA, CREATE2_OPTS, DECODED_LOG_OUTPUT, PROXIED_CONTRACT_INITIALIZER,
-    PROXY_CONTRACT_OPTS, RAW_LOG_OUTPUT,
+    EvmValue, CONTRACT_METADATA, CONTRACT_VERIFICATION_OPTS_TYPE, CREATE2_OPTS, DECODED_LOG_OUTPUT,
+    PROXIED_CONTRACT_INITIALIZER, PROXY_CONTRACT_OPTS, RAW_LOG_OUTPUT, VERIFICATION_RESULT_TYPE,
 };
 
 use super::call_contract::{
@@ -47,7 +49,7 @@ use super::call_contract::{
 };
 use super::check_confirmations::CheckEvmConfirmations;
 use super::sign_transaction::SignEvmTransaction;
-use super::verify_contract::VerifyEvmContract;
+
 use super::{get_common_tx_params_from_args, get_expected_address, get_signer_did};
 use txtx_addon_kit::constants::TX_HASH;
 
@@ -211,15 +213,15 @@ lazy_static! {
                         internal: false
                     },
                     verify: {
-                        documentation: "Coming soon.",
+                        documentation: "Indicates whether the contract should be verified after deployment. The default is `true`. Set this value to `false` to prevent verification event when `verifier` args are provided.",
                         typing: Type::bool(),
                         optional: true,
                         tainting: true,
                         internal: false
                     },
-                    block_explorer_api_key: {
-                        documentation: "Coming soon.",
-                        typing: Type::string(),
+                    verifier: {
+                        documentation: "Specifies the verifier options for contract verifications.",
+                        typing: CONTRACT_VERIFICATION_OPTS_TYPE.clone(),
                         optional: true,
                         tainting: false,
                         internal: false
@@ -245,6 +247,10 @@ lazy_static! {
                     raw_logs: {
                           documentation: "The raw logs of the transaction.",
                           typing: RAW_LOG_OUTPUT.clone()
+                    },
+                    verification_results: {
+                        documentation: "The contract verification results, if the action was configured to verify the contract.",
+                        typing: Type::array(VERIFICATION_RESULT_TYPE.clone())
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
@@ -549,24 +555,6 @@ impl CommandImplementation for DeployContract {
             };
             result.append(&mut res);
 
-            let do_verify = values.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
-            if do_verify {
-                let mut res = match VerifyEvmContract::run_execution(
-                    &construct_did,
-                    &spec,
-                    &values,
-                    &progress_tx,
-                ) {
-                    Ok(future) => match future.await {
-                        Ok(res) => res,
-                        Err(diag) => return Err((signers, signer_state, diag)),
-                    },
-                    Err(data) => return Err((signers, signer_state, data)),
-                };
-
-                result.append(&mut res);
-            }
-
             Ok((signers, signer_state, result))
         };
 
@@ -618,27 +606,23 @@ impl CommandImplementation for DeployContract {
 
             result.append(&mut res);
 
-            let do_verify = inputs.get_bool(DO_VERIFY_CONTRACT).unwrap_or(false);
-            if do_verify {
-                let contract_artifacts = inputs.get_expected_value(CONTRACT)?;
-                inputs.insert(ARTIFACTS, contract_artifacts.clone());
-
+            let do_verify = inputs.get_bool(DO_VERIFY_CONTRACT).unwrap_or(true);
+            let has_opts = inputs.get_value(CONTRACT_VERIFICATION_OPTS).is_some();
+            if do_verify && has_opts {
                 // insert pre-calculated contract address into outputs to be used by verify contract bg task
                 if let Some(contract_address) = result.outputs.get(CONTRACT_ADDRESS) {
                     inputs.insert(CONTRACT_ADDRESS, contract_address.clone());
                 }
 
-                let mut res = VerifyEvmContract::build_background_task(
-                    &construct_did,
-                    &spec,
-                    &inputs,
-                    &outputs,
-                    &progress_tx,
-                    &background_tasks_uuid,
-                    &supervision_context,
-                )?
-                .await?;
-                result.append(&mut res);
+                let verification_result =
+                    verify_contracts(&construct_did, &inputs, &progress_tx, &background_tasks_uuid)
+                        .await
+                        .map_err(|e| {
+                            diagnosed_error!("failed to perform all contract verifications: {}", e)
+                        })?;
+                result.insert(VERIFICATION_RESULTS, verification_result);
+            } else {
+                result.insert(VERIFICATION_RESULTS, Value::null());
             }
             Ok(result)
         };
@@ -672,16 +656,10 @@ impl ContractDeploymentTransactionRequestBuilder {
         let is_proxy_contract =
             values.get_bool("proxied").unwrap_or(false) || values.get_value("proxy").is_some();
 
-        let contract = values.get_expected_object("contract").map_err(|e| e.to_string())?;
-
-        let json_abi: Option<JsonAbi> = match contract.get("abi") {
-            Some(abi_string) => {
-                let abi = serde_json::from_str(&abi_string.expect_string())
-                    .map_err(|e| format!("failed to decode contract abi: {e}"))?;
-                Some(abi)
-            }
-            None => None,
-        };
+        let compiled_contract_artifacts = CompiledContractArtifacts::from_map(
+            &values.get_expected_object("contract").map_err(|e| e.to_string())?,
+        )
+        .map_err(|d| d.to_string())?;
 
         let constructor_args = if let Some(function_args) =
             values.get_value(CONTRACT_CONSTRUCTOR_ARGS)
@@ -691,7 +669,7 @@ impl ContractDeploymentTransactionRequestBuilder {
                     "invalid arguments: constructor arguments provided, but contract is a proxy contract"
                 ));
             }
-            if let Some(abi) = &json_abi {
+            if let Some(abi) = &compiled_contract_artifacts.abi {
                 if let Some(constructor) = &abi.constructor {
                     Some(
                         value_to_abi_constructor_args(&function_args, &constructor)
@@ -714,13 +692,11 @@ impl ContractDeploymentTransactionRequestBuilder {
             None
         };
 
-        let Some(bytecode) =
-            contract.get("bytecode").and_then(|code| Some(code.expect_string().to_string()))
-        else {
-            return Err(format!("contract missing required bytecode"));
-        };
-
-        let init_code = create_init_code(bytecode, constructor_args, &json_abi)?;
+        let init_code = create_init_code(
+            compiled_contract_artifacts.bytecode,
+            constructor_args,
+            &compiled_contract_artifacts.abi,
+        )?;
 
         let (amount, gas_limit, nonce) = get_common_tx_params_from_args(values)?;
         let signer_starting_nonce = match nonce {
@@ -754,7 +730,7 @@ impl ContractDeploymentTransactionRequestBuilder {
             signer_starting_nonce,
             tx_type,
             contract_creation_opts,
-            abi: json_abi,
+            abi: compiled_contract_artifacts.abi.clone(),
         })
     }
 

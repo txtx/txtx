@@ -835,10 +835,8 @@ impl RunbookExecutionContext {
                 continue;
             };
 
-            let value = ObjectType::from(
-                source_result.outputs.iter().map(|(k, v)| (k.as_ref(), v.clone())).collect(),
-            )
-            .to_value();
+            let value = ObjectType::from(source_result.outputs.iter().map(|(k, v)| (k, v.clone())))
+                .to_value();
 
             self.commands_execution_results
                 // try to get execution results for this embedded runbook id

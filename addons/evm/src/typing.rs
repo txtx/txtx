@@ -5,6 +5,7 @@ use alloy::{
     primitives::Address,
 };
 use alloy_rpc_types::Log;
+use foundry_compilers_artifacts_solc::Metadata;
 use txtx_addon_kit::{
     hex,
     types::{
@@ -26,6 +27,7 @@ pub const EVM_UINT8: &str = "evm::uint8";
 pub const EVM_FUNCTION_CALL: &str = "evm::function_call";
 pub const EVM_SIM_RESULT: &str = "evm::sim_result";
 pub const EVM_KNOWN_SOL_PARAM: &str = "evm::known_sol_param";
+pub const EVM_FOUNDRY_COMPILED_METADATA: &str = "evm::foundry_compiled_metadata";
 
 pub struct EvmValue {}
 
@@ -167,6 +169,28 @@ impl EvmValue {
         let (value, ty): (Value, Param) = serde_json::from_slice(&addon_data.bytes)
             .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
         Ok((value, ty))
+    }
+
+    pub fn foundry_compiled_metadata(value: &Metadata) -> Result<Value, Diagnostic> {
+        let bytes = serde_json::to_vec(value)
+            .map_err(|e| diagnosed_error!("could not serialize foundry metadata: {e}"))?;
+        Ok(Value::addon(bytes, EVM_FOUNDRY_COMPILED_METADATA))
+    }
+
+    pub fn to_foundry_compiled_metadata(value: &Value) -> Result<Metadata, Diagnostic> {
+        let err_msg = "could not convert value to foundry metadata";
+        let addon_data = value
+            .as_addon_data()
+            .ok_or_else(|| diagnosed_error!("{err_msg}: not an addon data type"))?;
+        if addon_data.id != EVM_FOUNDRY_COMPILED_METADATA {
+            return Err(diagnosed_error!(
+                "{err_msg}: expected type {EVM_FOUNDRY_COMPILED_METADATA}, got {}",
+                addon_data.id
+            ));
+        }
+        let metadata: Metadata = serde_json::from_slice(&addon_data.bytes)
+            .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
+        Ok(metadata)
     }
 }
 
@@ -423,6 +447,70 @@ lazy_static! {
         },
         data: {
             documentation: "The raw data of the event.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        }
+    };
+    pub static ref CONTRACT_VERIFICATION_OPTS_TYPE: Type = define_map_type! {
+        provider_api_url: {
+            documentation: "The verification provider API url.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        provider_url: {
+            documentation: "The verification provider url, used to display a link to the verified contract.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        provider: {
+            documentation: "The provider to use for contract verification; either 'etherscan', 'blockscout', or 'sourcify'.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        api_key: {
+            documentation: "The verification provider API key.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        throw_on_error: {
+            documentation: "Dictates if the verification process should throw an error if the contract is not verified. The default is `false`.",
+            typing: Type::bool(),
+            optional: true,
+            tainting: true
+        }
+    };
+    pub static ref VERIFICATION_RESULT_TYPE: Type = define_object_type! {
+        provider: {
+            documentation: "The verification provider.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        url: {
+            documentation: "The URL of the verified contract on the associated provider's explorer.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        contract_address: {
+            documentation: "The address of the contract that was verified.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        verified: {
+            documentation: "Whether the contract was verified successfully.",
+            typing: Type::bool(),
+            optional: false,
+            tainting: true
+        },
+        error: {
+            documentation: "The error message, if the contract was not verified successfully.",
             typing: Type::string(),
             optional: false,
             tainting: true

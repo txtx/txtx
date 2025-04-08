@@ -9,7 +9,6 @@ use alloy::{
 use alloy_chains::ChainKind;
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
-    indexmap,
     types::functions::{arg_checker_with_ctx, fn_diag_with_ctx},
 };
 use txtx_addon_kit::{
@@ -25,7 +24,7 @@ use txtx_addon_kit::{
 use crate::{
     codec::{
         contract_deployment::{create_init_code, create_opts::generate_create2_address},
-        foundry::FoundryConfig,
+        foundry::FoundryToml,
         hardhat::HardhatBuildArtifacts,
         string_to_address, value_to_abi_function_args, value_to_sol_value,
     },
@@ -267,7 +266,7 @@ lazy_static! {
         define_function! {
             GetFoundryDeploymentArtifacts => {
                 name: "get_contract_from_foundry_project",
-                documentation: "`evm::get_contract_from_foundry_project` retrieves the deployment artifacts for a contract in a Foundry project.",
+                documentation: "`evm::get_contract_from_foundry_project` retrieves the compiled contract artifacts for a contract in a Foundry project.",
                 example: indoc! {r#"
                 variable "contract" {
                     value = evm::get_contract_from_foundry_project("MyContract")
@@ -307,7 +306,7 @@ lazy_static! {
         define_function! {
             GetHardhatDeploymentArtifacts => {
                 name: "get_contract_from_hardhat_project",
-                documentation: "`evm::get_contract_from_hardhat_project` retrieves the deployment artifacts for a contract in a Hardhat project.",
+                documentation: "`evm::get_contract_from_hardhat_project` retrieves the compiled contract artifacts for a contract in a Hardhat project.",
                 example: indoc! {r#"
                 variable "contract" {
                     value = evm::get_contract_from_hardhat_project("MyContract")
@@ -819,10 +818,13 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
             workspace_loc
         };
 
-        let foundry_config =
-            FoundryConfig::get_from_path(&manifest_path).map_err(|e| to_diag(fn_spec, e))?;
+        let foundry_toml = FoundryToml::new(&manifest_path).map_err(|e| to_diag(fn_spec, e))?;
 
-        let compiled_output = foundry_config
+        let foundry_config = foundry_toml
+            .get_foundry_config(Some(&foundry_profile))
+            .map_err(|e| to_diag(fn_spec, format!("failed to get foundry config: {}", e)))?;
+
+        let compiled_output = foundry_toml
             .get_compiled_output(&contract_name, &contract_filename, Some(&foundry_profile))
             .map_err(|e| to_diag(fn_spec, e))?;
 
@@ -833,32 +835,46 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
             .get_contract_source(&manifest_path, &contract_name)
             .map_err(|e| to_diag(fn_spec, e))?;
 
+        let target_path = compiled_output
+            .get_contract_path(&manifest_path, &contract_name)
+            .map_err(|e| to_diag(fn_spec, e))
+            .map(|path| FileLocation::from_path(path))?
+            .get_absolute_path()
+            .map_err(|e| {
+                to_diag(fn_spec, format!("could not find compilation target path: {e}"))
+            })?;
+        let target_path = target_path.to_str().ok_or_else(|| {
+            to_diag(
+                fn_spec,
+                format!("invalid compilation target path for contract {}", contract_name),
+            )
+        })?;
+        let bytecode = Value::string(compiled_output.bytecode.object);
         let abi = Value::string(abi_string);
-        let bytecode = Value::string(compiled_output.bytecode.object.clone());
         let source = Value::string(source);
-        let compiler_version =
-            Value::string(format!("v{}", compiled_output.metadata.compiler.version));
         let contract_name = Value::string(contract_name.to_string());
-        let optimizer_enabled = Value::bool(compiled_output.metadata.settings.optimizer.enabled);
-        let optimizer_runs =
-            Value::integer(compiled_output.metadata.settings.optimizer.runs as i128);
-        let evm_version = Value::string(compiled_output.metadata.settings.evm_version);
+        let contract_target_path = Value::string(target_path.to_string());
 
-        let mut obj_props = indexmap::indexmap! {
-            "abi".to_string() => abi,
-            "bytecode".to_string() => bytecode,
-            "source".to_string() => source,
-            "compiler_version".to_string() => compiler_version,
-            "contract_name".to_string() => contract_name,
-            "optimizer_enabled".to_string() => optimizer_enabled,
-            "optimizer_runs".to_string() => optimizer_runs,
-            "evm_version".to_string() => evm_version,
-        };
-        if let Some(via_ir) = compiled_output.metadata.settings.via_ir {
-            let via_ir = Value::bool(via_ir);
-            obj_props.insert("via_ir".to_string(), via_ir);
-        }
-        Ok(Value::object(obj_props))
+        let metadata = EvmValue::foundry_compiled_metadata(&compiled_output.metadata)
+            .map_err(|e| to_diag(fn_spec, e.message))?;
+
+        let foundry_config =
+            Value::buffer(serde_json::to_vec(&foundry_config).map_err(|e| {
+                to_diag(fn_spec, format!("failed to serialize foundry config: {}", e))
+            })?);
+
+        let obj_props = ObjectType::from([
+            ("bytecode", bytecode),
+            ("abi", abi),
+            ("source", source),
+            ("contract_name", contract_name),
+            ("contract_filename", Value::string(contract_filename.to_string())),
+            ("contract_target_path", contract_target_path),
+            ("foundry_config", foundry_config),
+            ("metadata", metadata),
+        ]);
+
+        Ok(Value::object(obj_props.inner()))
     }
 }
 
@@ -912,13 +928,15 @@ impl FunctionImplementation for GetHardhatDeploymentArtifacts {
         let abi_string = serde_json::to_string(&artifacts.abi)
             .map_err(|e| to_diag(fn_spec, format!("failed to serialize abi: {}", e)))?;
 
-        let source = build_info.input.sources.get(&artifacts.source_name).ok_or(to_diag(
-            fn_spec,
-            format!(
-                "hardhat project output missing contract source for {}",
-                contract_source_path_str
-            ),
-        ))?;
+        let source = build_info.input.sources.get(&artifacts.source_name).ok_or_else(|| {
+            to_diag(
+                fn_spec,
+                format!(
+                    "hardhat project output missing contract source for {}",
+                    contract_source_path_str
+                ),
+            )
+        })?;
 
         let bytecode = Value::string(artifacts.bytecode);
         let abi = Value::string(abi_string);
@@ -1016,10 +1034,9 @@ impl FunctionImplementation for EncodeFunctionCall {
         let abi = args
             .get(2)
             .map(|abi| {
-                abi.as_string().ok_or(to_diag(
-                    fn_spec,
-                    format!("argument #3 (abi) should be of type (string)"),
-                ))
+                abi.as_string().ok_or_else(|| {
+                    to_diag(fn_spec, format!("argument #3 (abi) should be of type (string)"))
+                })
             })
             .transpose()?;
 
@@ -1030,7 +1047,7 @@ impl FunctionImplementation for EncodeFunctionCall {
             let function_args = value_to_abi_function_args(&function_name, &function_args, &abi)
                 .map_err(|e| to_diag(fn_spec, e.message))?;
 
-            encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
+            encode_contract_call_inputs_from_abi_str(abi_str, &function_name, &function_args)
                 .map_err(|e| to_diag(fn_spec, e))?
         } else {
             let function_args = function_args
@@ -1040,7 +1057,7 @@ impl FunctionImplementation for EncodeFunctionCall {
                 .map(|v| value_to_sol_value(&v).map_err(|e| to_diag(fn_spec, e)))
                 .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?;
 
-            encode_contract_call_inputs_from_selector(function_name, &function_args)
+            encode_contract_call_inputs_from_selector(&function_name, &function_args)
                 .map_err(|e| to_diag(fn_spec, e))?
         };
         Ok(EvmValue::function_call(input))

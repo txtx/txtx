@@ -12,6 +12,7 @@ use crate::{
     typing::EvmValue,
 };
 
+pub mod compiled_artifacts;
 pub mod create_opts;
 pub mod proxy_opts;
 
