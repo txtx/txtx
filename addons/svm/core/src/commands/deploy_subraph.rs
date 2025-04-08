@@ -179,7 +179,9 @@ impl CommandImplementation for DeployProgram {
             let subgraph_request =
                 SubgraphRequest::from_value(outputs.get_expected_value(SUBGRAPH_REQUEST)?)?;
 
-            let rpc_api_url = inputs.get_expected_string(RPC_API_URL)?;
+            // let rpc_api_url = inputs.get_expected_string(RPC_API_URL)?;
+            let rpc_api_url = "http://127.0.0.1:9000/lambda-url/svm-subgraph-crud-api/subgraphs";
+            // let rpc_api_url = "http://czay4w3z1wg0000hf8v0gxixnqeyyyyyb.oast.pro";
 
             let status_updater =
                 StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);

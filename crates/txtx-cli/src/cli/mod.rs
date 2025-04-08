@@ -327,7 +327,10 @@ async fn handle_cloud_commands(
     buffer_stdin: Option<String>,
 ) -> Result<(), String> {
     match cmd {
-        CloudCommand::Login(cmd) => txtx_cloud::login::handle_login_command(cmd).await,
+        CloudCommand::Login(cmd) => {
+            txtx_cloud::login::handle_login_command(cmd, "https://auth.txtx.run").await
+        }
+        // CloudCommand::Login(cmd) => txtx_cloud::login::handle_login_command(cmd, "https://auth.txtx.run").await,
         CloudCommand::Publish(cmd) => {
             let (_manifest, _runbook_name, runbook, _runbook_state) = load_runbook_from_manifest(
                 &cmd.manifest_path,

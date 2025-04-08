@@ -12,7 +12,7 @@ use txtx_addon_kit::{
     },
 };
 
-use super::{arg_checker, to_diag};
+use super::arg_checker;
 use crate::std::typing::StdValue;
 
 lazy_static! {

@@ -5,22 +5,20 @@ use txtx_core::kit::reqwest;
 
 use crate::get_env_var;
 
-pub const AUTH_SERVICE_URL: &str = "AUTH_SERVICE_URL";
-pub const AUTH_CALLBACK_PORT: u16 = 8081;
+pub const AUTH_SERVICE_URL: &str = "https://auth.txtx.run";
+pub const AUTH_CALLBACK_PORT: u16 = 8488;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthConfig {
-    pub access_token: String,
-    pub refresh_token: String,
+    pub pat: String,
     pub user: AuthUser,
-    pub exp: u64,
 }
 
 impl AuthConfig {
-    pub fn new(access_token: String, refresh_token: String, user: AuthUser, exp: u64) -> Self {
+    pub fn new(pat: String, user: AuthUser) -> Self {
         // let user: AuthUser = serde_json::from_str(&user).unwrap();
-        Self { access_token, refresh_token, user, exp }
+        Self { pat, user }
     }
 
     /// Write auth config to system data directory.
@@ -61,42 +59,6 @@ impl AuthConfig {
         let config =
             toml::from_str(&buf).map_err(|e| format!("Failed to parse auth config file: {}", e))?;
         Ok(Some(config))
-    }
-
-    /// Refresh the session by sending a POST request to the auth service with the refresh token.
-    /// If the request is successful, the new auth config is written to the system config.
-    pub async fn refresh_session(&self) -> Result<AuthConfig, String> {
-        let client = reqwest::Client::new();
-        let res = client
-            .post(&format!("{}/refresh", get_env_var(AUTH_SERVICE_URL)))
-            .json(&serde_json::json!({
-                "refreshToken": &self.refresh_token,
-            }))
-            .send()
-            .await
-            .map_err(|e| format!("Failed to send request to refresh session: {}", e))?;
-
-        if res.status().is_success() {
-            let res = res
-                .json::<AuthConfig>()
-                .await
-                .map_err(|e| format!("Failed to parse response: {}", e))?;
-            res.write_to_system_config()
-                .map_err(|e| format!("Failed to write refreshed session to config: {}", e))?;
-            return Ok(res);
-        } else {
-            let err = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(format!("Failed to refresh session: {}", err));
-        }
-    }
-
-    pub fn is_expired(&self) -> bool {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("SystemTime before UNIX EPOCH")
-            .as_secs() as i64;
-
-        self.exp < now as u64
     }
 }
 

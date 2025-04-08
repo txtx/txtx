@@ -5,12 +5,7 @@ use graphql_client::GraphQLQuery;
 use graphql_client::Response;
 use txtx_core::kit::reqwest;
 
-use crate::get_env_var;
-
 use super::auth::AuthConfig;
-
-pub const NHOST_REGION: &str = "NHOST_REGION";
-pub const NHOST_SUBDOMAIN: &str = "NHOST_SUBDOMAIN";
 
 pub struct GqlClient {
     client: reqwest::Client,
@@ -22,11 +17,7 @@ impl GqlClient {
     pub fn new(auth_config: &AuthConfig) -> Self {
         Self {
             client: reqwest::Client::new(),
-            endpoint: format!(
-                "https://{}.graphql.{}.nhost.run/v1",
-                get_env_var(NHOST_SUBDOMAIN),
-                get_env_var(NHOST_REGION)
-            ),
+            endpoint: "https://id.gql.txtx.run/v1".into(),
             auth_config: auth_config.clone(),
         }
     }
@@ -39,16 +30,11 @@ impl GqlClient {
         T: GraphQLQuery,
     {
         let request_body = T::build_query(variables);
-        if self.auth_config.is_expired() {
-            self.auth_config = self.auth_config.refresh_session().await.map_err(|e| {
-                format!("Failed to refresh session: {}. Run `txtx cloud login` to log in again.", e)
-            })?;
-        }
 
         let response = self
             .client
             .post(&self.endpoint)
-            .bearer_auth(&self.auth_config.access_token)
+            .bearer_auth(&self.auth_config.pat)
             .json(&request_body)
             .send()
             .await

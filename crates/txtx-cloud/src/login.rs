@@ -27,10 +27,8 @@ use super::auth::AUTH_SERVICE_URL;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginCallbackResult {
-    access_token: String,
-    refresh_token: String,
+    pat: String,
     user: AuthUser,
-    exp: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -97,16 +95,8 @@ impl FromRequest for LoginCallbackServerEvent {
             };
 
             // Reconstruct `LoginCallbackServerEvent` with the parsed `user`
-            if params.contains_key("accessToken")
-                && params.contains_key("refreshToken")
-                && params.contains_key("exp")
-            {
-                let result = LoginCallbackResult {
-                    access_token: params.remove("accessToken").unwrap(),
-                    refresh_token: params.remove("refreshToken").unwrap(),
-                    exp: params.remove("exp").unwrap().parse().unwrap_or_default(),
-                    user,
-                };
+            if params.contains_key("pat") {
+                let result = LoginCallbackResult { pat: params.remove("pat").unwrap(), user };
 
                 return ready(Ok(LoginCallbackServerEvent::AuthCallback(result)));
             }
@@ -131,34 +121,37 @@ impl LoginCallbackServerContext {
     }
 }
 
-pub async fn handle_login_command(cmd: &LoginCommand) -> Result<(), String> {
+pub async fn handle_login_command(
+    cmd: &LoginCommand,
+    auth_service_url: &str,
+) -> Result<(), String> {
     let auth_config = AuthConfig::read_from_system_config()?;
 
-    if let Some(auth_config) = auth_config {
-        match auth_config.refresh_session().await {
-            Ok(auth_config) => {
-                println!(
-                    "{} User {} already logged in.",
-                    green!("✓"),
-                    auth_config.user.display_name
-                );
-                return Ok(());
-            }
-            Err(e) => {
-                println!("{} Auth data already found for user, but failed to refresh session: {}; attempting login.", yellow!("-"), e);
-            }
-        }
-    }
+    // if let Some(auth_config) = auth_config {
+    //     match auth_config.refresh_session().await {
+    //         Ok(auth_config) => {
+    //             println!(
+    //                 "{} User {} already logged in.",
+    //                 green!("✓"),
+    //                 auth_config.user.display_name
+    //             );
+    //             return Ok(());
+    //         }
+    //         Err(e) => {
+    //             println!("{} Auth data already found for user, but failed to refresh session; attempting login.", yellow!("-"));
+    //         }
+    //     }
+    // }
 
     let auth_config = if let Some(email) = &cmd.email {
         let password =
             cmd.password.as_ref().ok_or("Password is required when email is provided")?;
-        user_pass_login(email, password).await?
+        user_pass_login(auth_service_url, email, password).await?
     } else if let Some(pat) = &cmd.pat {
-        pat_login(pat)?
+        pat_login(auth_service_url, pat)?
     } else {
-        let Some(res) = id_service_login().await? else { return Ok(()) };
-        let auth_config = AuthConfig::new(res.access_token, res.refresh_token, res.user, res.exp);
+        let Some(res) = id_service_login(auth_service_url).await? else { return Ok(()) };
+        let auth_config = AuthConfig::new(res.pat, res.user);
         auth_config
     };
 
@@ -169,13 +162,12 @@ pub async fn handle_login_command(cmd: &LoginCommand) -> Result<(), String> {
 /// Starts a server that will only receive a POST request from the ID service with the user's auth data.
 /// Directs the user to the ID service login page.
 /// Upon login, the ID service will send a POST request to the server with the user's auth data.
-async fn id_service_login() -> Result<Option<LoginCallbackResult>, String> {
+async fn id_service_login(auth_service_url: &str) -> Result<Option<LoginCallbackResult>, String> {
     let redirect_url = format!("localhost:{AUTH_CALLBACK_PORT}");
 
     let auth_service_url = reqwest::Url::parse(&format!(
         "{}?redirectUrl=http://{}/api/v1/auth",
-        get_env_var(AUTH_SERVICE_URL),
-        redirect_url
+        auth_service_url, redirect_url
     ))
     .map_err(|e| format!("Invalid auth service URL: {e}"))?;
 
@@ -206,7 +198,7 @@ async fn id_service_login() -> Result<Option<LoginCallbackResult>, String> {
     tokio::spawn(server);
 
     let confirm = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt("Open id.txtx.run in your browser to log in?")
+        .with_prompt(format!("Open {} in your browser to log in?", auth_service_url))
         .default(true)
         .interact();
 
@@ -240,39 +232,25 @@ async fn auth_callback(
     ctx: Data<LoginCallbackServerContext>,
     payload: LoginCallbackServerEvent,
 ) -> actix_web::Result<impl Responder> {
-    let msg = match &payload {
-        LoginCallbackServerEvent::AuthCallback(_) => {
-            "Authentication successful. You can close this tab.".into()
-        }
+    let body = match &payload {
+        LoginCallbackServerEvent::AuthCallback(_) => include_str!("./callback.html").to_string(),
         LoginCallbackServerEvent::AuthError(e) => format!("Authentication failed: {}", e.message),
     };
     ctx.tx.send(payload).map_err(|_| {
         actix_web::error::ErrorInternalServerError("Failed to send auth callback event")
     })?;
-    let body = format!(
-        r#"
-        <!DOCTYPE html>
-        <html>
-            <head>
-                <title>Txtx</title>
-                <script defer>
-                    window.location.replace("{AUTH_SERVICE_URL}");
-                </script>
-            </head>
-            <body style="background-color: rgba(6, 15, 17, 1)" >
-                <h1 style="color: rgba(255, 255, 255, 1)">{msg}</h1>
-            </body>
-        </html>
-    "#
-    );
     Ok(HttpResponse::Ok().body(body))
 }
 
 /// Sends a POST request to the auth service to log in with an email and password.
-async fn user_pass_login(email: &str, password: &str) -> Result<AuthConfig, String> {
+async fn user_pass_login(
+    auth_service_url: &str,
+    email: &str,
+    password: &str,
+) -> Result<AuthConfig, String> {
     let client = reqwest::Client::new();
     let res = client
-        .post(&format!("{}/signin/email-password", AUTH_SERVICE_URL))
+        .post(&format!("{}/signin/email-password", auth_service_url))
         .json(&serde_json::json!({
             "email": email,
             "password": password,
@@ -293,6 +271,6 @@ async fn user_pass_login(email: &str, password: &str) -> Result<AuthConfig, Stri
     }
 }
 
-fn pat_login(_pat: &str) -> Result<AuthConfig, String> {
+fn pat_login(_auth_service_url: &str, _pat: &str) -> Result<AuthConfig, String> {
     todo!()
 }
