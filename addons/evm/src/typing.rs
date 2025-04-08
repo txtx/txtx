@@ -454,13 +454,13 @@ lazy_static! {
     };
     pub static ref CONTRACT_VERIFICATION_OPTS_TYPE: Type = define_map_type! {
         provider_api_url: {
-            documentation: "The provider API url.",
+            documentation: "The verification provider API url.",
             typing: Type::string(),
             optional: true,
             tainting: true
         },
         provider_url: {
-            documentation: "The provider url.",
+            documentation: "The verification provider url, used to display a link to the verified contract.",
             typing: Type::string(),
             optional: true,
             tainting: true
@@ -472,13 +472,13 @@ lazy_static! {
             tainting: true
         },
         api_key: {
-            documentation: "The provider API key.",
+            documentation: "The verification provider API key.",
             typing: Type::string(),
-            optional: false,
+            optional: true,
             tainting: true
         },
         throw_on_error: {
-            documentation: "Dictates if the verification process should throw an error if the contract is not verified. The default is false.",
+            documentation: "Dictates if the verification process should throw an error if the contract is not verified. The default is `false`.",
             typing: Type::bool(),
             optional: true,
             tainting: true
@@ -492,9 +492,15 @@ lazy_static! {
             tainting: true
         },
         url: {
-            documentation: "The URL of the verified contract, on the associated provider's explorer.",
+            documentation: "The URL of the verified contract on the associated provider's explorer.",
             typing: Type::string(),
             optional: true,
+            tainting: true
+        },
+        contract_address: {
+            documentation: "The address of the contract that was verified.",
+            typing: Type::string(),
+            optional: false,
             tainting: true
         },
         verified: {

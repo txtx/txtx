@@ -213,14 +213,14 @@ lazy_static! {
                         internal: false
                     },
                     verify: {
-                        documentation: "Coming soon.",
+                        documentation: "Indicates whether the contract should be verified after deployment. The default is `true`. Set this value to `false` to prevent verification event when `verifier` args are provided.",
                         typing: Type::bool(),
                         optional: true,
                         tainting: true,
                         internal: false
                     },
                     verifier: {
-                        documentation: "Coming soon.",
+                        documentation: "Specifies the verifier options for contract verifications.",
                         typing: CONTRACT_VERIFICATION_OPTS_TYPE.clone(),
                         optional: true,
                         tainting: false,
