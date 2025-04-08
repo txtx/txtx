@@ -8,33 +8,40 @@ use semver::Version;
 use txtx_addon_kit::{reqwest::Url, types::diagnostics::Diagnostic};
 
 use crate::codec::contract_deployment::compiled_artifacts::CompiledContractArtifacts;
+use crate::codec::verify::Provider;
 
 use super::{CheckVerificationStatusResult, SubmitVerificationResult, Verifier};
 
 pub struct EtherscanVerificationClient {
     pub client: EtherscanClient,
     pub address: Address,
+    pub chain: Chain,
 }
 
 impl Verifier for EtherscanVerificationClient {
     fn new(
         api_key: &str,
         provider_api_url: &Url,
-        provider_url: &Url,
+        provider_url: &Option<Url>,
         chain: Chain,
         address: &Address,
     ) -> Result<Self, Diagnostic> {
-        let client = EtherscanClient::builder()
-            .with_api_key(api_key)
-            .with_chain_id(chain)
-            .with_url(provider_url.clone())
-            .map_err(|e| diagnosed_error!("invalid explorer url: {}", e))?
+        let mut client_builder =
+            EtherscanClient::builder().with_api_key(api_key).with_chain_id(chain.clone());
+
+        if let Some(provider_url) = provider_url {
+            client_builder = client_builder
+                .with_url(provider_url.clone())
+                .map_err(|e| diagnosed_error!("invalid explorer url: {}", e))?;
+        }
+
+        let client = client_builder
             .with_api_url(provider_api_url.clone())
             .map_err(|e| diagnosed_error!("invalid explorer api url: {}", e))?
             .build()
             .map_err(|e| diagnosed_error!("failed to build explorer client: {}", e))?;
 
-        Ok(Self { client, address: address.clone() })
+        Ok(Self { client, address: address.clone(), chain })
     }
 
     async fn submit_contract_verification(
@@ -100,8 +107,11 @@ impl Verifier for EtherscanVerificationClient {
         }
     }
 
-    fn get_address_url(&self) -> String {
-        self.client.address_url(self.address)
+    fn get_address_url(&self) -> Option<String> {
+        if Provider::is_default_etherscan_url(&self.client.etherscan_url(), self.chain) {
+            return Some(format!("{}#code", self.client.address_url(self.address)));
+        }
+        None
     }
 }
 

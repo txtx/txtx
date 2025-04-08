@@ -8,7 +8,9 @@ use txtx_addon_kit::{
     types::diagnostics::Diagnostic,
 };
 
-use crate::codec::contract_deployment::compiled_artifacts::CompiledContractArtifacts;
+use crate::codec::{
+    contract_deployment::compiled_artifacts::CompiledContractArtifacts, verify::Provider,
+};
 
 use super::{CheckVerificationStatusResult, SubmitVerificationResult, Verifier};
 
@@ -16,15 +18,37 @@ pub struct SourcifyVerificationClient {
     pub client: Client,
     pub chain: Chain,
     pub provider_api_url: Url,
-    pub provider_url: Url,
+    pub provider_url: Option<Url>,
     pub address: Address,
+}
+impl SourcifyVerificationClient {
+    fn submit_verification_url(&self) -> String {
+        if Provider::is_default_sourcify_api_url(&self.provider_api_url) {
+            format!("{}/server/verify", self.provider_api_url)
+        } else {
+            self.provider_api_url.to_string()
+        }
+    }
+
+    fn check_verification_status_url(&self) -> String {
+        if Provider::is_default_sourcify_api_url(&self.provider_api_url) {
+            format!(
+                "{}/server/v2/contract/{}/{}",
+                self.provider_api_url.to_string(),
+                self.chain.id(),
+                self.address
+            )
+        } else {
+            self.provider_api_url.to_string()
+        }
+    }
 }
 
 impl Verifier for SourcifyVerificationClient {
     fn new(
         _api_key: &str,
         provider_api_url: &Url,
-        provider_url: &Url,
+        provider_url: &Option<Url>,
         chain: Chain,
         address: &Address,
     ) -> Result<Self, Diagnostic>
@@ -57,7 +81,7 @@ impl Verifier for SourcifyVerificationClient {
 
         let res = self
             .client
-            .post(format!("{}/server/verify", self.provider_api_url.to_string()))
+            .post(self.submit_verification_url())
             .header("Content-Type", "application/json")
             .body(args)
             .send()
@@ -66,13 +90,23 @@ impl Verifier for SourcifyVerificationClient {
 
         let status = res.status();
         if !status.is_success() {
-            let err = res.json::<serde_json::Value>().await.map_err(|e| {
-                diagnosed_error!("failed to parse sourcify verification response: {}", e)
+            let err = res.json::<SourcifyVerificationError>().await.map_err(|e| {
+                diagnosed_error!(
+                    "failed to parse response when checking sourcify verification status: {}",
+                    e
+                )
             })?;
-            return Err(diagnosed_error!(
-                "'sourcify' verification provider returned error: {}",
-                err.to_string()
-            ));
+
+            if err.message.eq(format!(
+                "The contract {} on chainId {} is already being verified, please wait",
+                self.address,
+                self.chain.id()
+            )
+            .as_str())
+            {
+                return Ok(SubmitVerificationResult::CheckVerification(String::new()));
+            }
+            return Ok(SubmitVerificationResult::NotVerified(err.message));
         }
 
         let text = res.text().await.map_err(|e| {
@@ -109,11 +143,47 @@ impl Verifier for SourcifyVerificationClient {
         &self,
         _guid: &str,
     ) -> Result<CheckVerificationStatusResult, Diagnostic> {
-        unreachable!("Sourcify does not support checking verification status");
+        let res =
+            self.client.get(self.check_verification_status_url()).send().await.map_err(|e| {
+                diagnosed_error!(
+                    "failed to send request to verify contract verification status: {}",
+                    e
+                )
+            })?;
+        let status = res.status();
+        if !status.is_success() {
+            let err = res.json::<SourcifyVerificationError>().await.map_err(|e| {
+                diagnosed_error!(
+                    "failed to parse response when checking sourcify verification status: {}",
+                    e
+                )
+            })?;
+            return Ok(CheckVerificationStatusResult::NotVerified(err.message));
+        }
+
+        let text = res.text().await.map_err(|e| {
+            diagnosed_error!("failed to read sourcify verification status check response: {}", e)
+        })?;
+
+        let response =
+            serde_json::from_str::<SourcifyCheckContractResponse>(&text).map_err(|e| {
+                diagnosed_error!(
+                    "failed to parse sourcify verification status check response: {}",
+                    e
+                )
+            })?;
+
+        match response.match_state {
+            SourcifyMatchState::Match => Ok(CheckVerificationStatusResult::Verified),
+            SourcifyMatchState::ExactMatch => Ok(CheckVerificationStatusResult::Verified),
+        }
     }
 
-    fn get_address_url(&self) -> String {
-        format!("{}{}/{}", self.provider_url, self.chain.id(), self.address.to_string())
+    fn get_address_url(&self) -> Option<String> {
+        if let Some(provider_url) = self.provider_url.as_ref() {
+            return Some(provider_url.to_string());
+        }
+        None
     }
 }
 
@@ -212,4 +282,20 @@ pub struct SourcifyVerificationResponse {
 #[derive(Debug, Deserialize)]
 pub struct SourcifyResponseElement {
     pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SourcifyVerificationError {
+    message: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SourcifyCheckContractResponse {
+    #[serde(rename = "match")]
+    match_state: SourcifyMatchState,
+}
+#[derive(Debug, Deserialize)]
+pub enum SourcifyMatchState {
+    Match,
+    ExactMatch,
 }

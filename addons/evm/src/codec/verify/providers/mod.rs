@@ -41,16 +41,24 @@ impl SubmitVerificationResult {
                 }
             }
             SubmitVerificationResult::AlreadyVerified => {
-                status_updater.propagate_success_status(
-                    "Verified",
-                    &format!("Contract already verified at {}", client.address_url()),
-                );
+                propagate_contract_already_verified(status_updater, client, &client.address_url());
             }
             SubmitVerificationResult::PartiallyVerified => {
-                status_updater.propagate_success_status(
-                    "Partially Verified",
-                    &format!("Contract partially verified at {}", client.address_url()),
-                );
+                if let Some(address_url) = &client.address_url() {
+                    status_updater.propagate_success_status(
+                        "Partially Verified",
+                        &format!("Contract partially verified at {}", address_url),
+                    );
+                } else {
+                    status_updater.propagate_success_status(
+                        "Verified",
+                        &format!(
+                            "Contract '{}' partially verified with '{}' provider",
+                            client.address(),
+                            client.provider()
+                        ),
+                    );
+                }
             }
             SubmitVerificationResult::CheckVerification(_) => {
                 status_updater.propagate_pending_status(&format!(
@@ -87,12 +95,53 @@ impl CheckVerificationStatusResult {
                 }
             }
             CheckVerificationStatusResult::AlreadyVerified => {
-                status_updater.propagate_success_status(
-                    "Verified",
-                    &format!("Contract already verified at {}", client.address_url()),
-                );
+                propagate_contract_already_verified(status_updater, client, &client.address_url());
             }
         }
+    }
+}
+
+fn propagate_contract_verified(
+    status_updater: &mut StatusUpdater,
+    client: &VerificationClient,
+    some_address_url: &Option<String>,
+) {
+    if let Some(address_url) = some_address_url {
+        status_updater.propagate_success_status(
+            "Verified",
+            &format!("Contract successfully verified at {}", address_url),
+        );
+    } else {
+        status_updater.propagate_success_status(
+            "Verified",
+            &format!(
+                "Contract '{}' successfully verified with '{}' provider",
+                client.address(),
+                client.provider()
+            ),
+        );
+    }
+}
+
+fn propagate_contract_already_verified(
+    status_updater: &mut StatusUpdater,
+    client: &VerificationClient,
+    some_address_url: &Option<String>,
+) {
+    if let Some(address_url) = some_address_url {
+        status_updater.propagate_success_status(
+            "Already Verified",
+            &format!("Contract already verified at {}", address_url),
+        );
+    } else {
+        status_updater.propagate_success_status(
+            "Already Verified",
+            &format!(
+                "Contract '{}' already verified with '{}' provider",
+                client.address(),
+                client.provider()
+            ),
+        );
     }
 }
 
@@ -172,10 +221,10 @@ impl VerificationClient {
         }
     }
 
-    pub fn address_url(&self) -> String {
+    pub fn address_url(&self) -> Option<String> {
         match self {
             VerificationClient::Etherscan(client) => client.get_address_url(),
-            VerificationClient::Blockscout => "".to_string(),
+            VerificationClient::Blockscout => None,
             VerificationClient::Sourcify(client) => client.get_address_url(),
         }
     }
@@ -201,7 +250,7 @@ trait Verifier {
     fn new(
         api_key: &str,
         provider_api_url: &Url,
-        provider_url: &Url,
+        provider_url: &Option<Url>,
         chain: Chain,
         contract_address: &Address,
     ) -> Result<Self, Diagnostic>
@@ -219,5 +268,5 @@ trait Verifier {
         guid: &str,
     ) -> Result<CheckVerificationStatusResult, Diagnostic>;
 
-    fn get_address_url(&self) -> String;
+    fn get_address_url(&self) -> Option<String>;
 }

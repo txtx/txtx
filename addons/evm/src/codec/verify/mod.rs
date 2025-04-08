@@ -166,8 +166,12 @@ pub async fn verify_contracts(
                     }
                 }
                 _ => {
-                    result_for_explorer.insert(URL, Value::string(client.address_url()));
                     result_for_explorer.insert(VERIFIED, Value::bool(true));
+                    if let Some(address_url) = client.address_url() {
+                        result_for_explorer.insert(URL, Value::string(address_url));
+                    }
+                    result_for_explorer
+                        .insert(CONTRACT_ADDRESS, Value::string(contract_address_str.clone()));
                     contract_verification_results.push(result_for_explorer.to_value());
                     break None;
                 }
@@ -225,7 +229,11 @@ pub async fn verify_contracts(
                 }
                 _ => {
                     result_for_explorer.insert(VERIFIED, Value::bool(true));
-                    result_for_explorer.insert(URL, Value::string(client.address_url()));
+                    if let Some(address_url) = client.address_url() {
+                        result_for_explorer.insert(URL, Value::string(address_url));
+                    }
+                    result_for_explorer
+                        .insert(CONTRACT_ADDRESS, Value::string(contract_address_str.clone()));
                     contract_verification_results.push(result_for_explorer.to_value());
                     break;
                 }
@@ -295,7 +303,7 @@ fn checking_status(status_updater: &mut StatusUpdater, address: &str, provider: 
 
 pub struct ContractVerificationOpts {
     pub provider_api_url: Url,
-    pub provider_url: Url,
+    pub provider_url: Option<Url>,
     pub api_key: Option<String>,
     pub provider: Provider,
     pub throw_on_error: bool,
@@ -344,10 +352,17 @@ impl ContractVerificationOpts {
                 .transpose()?;
 
             let provider_url = if let Some(provider_url) = provider_url {
-                Url::parse(provider_url)
-                    .map_err(|e| diagnosed_error!("failed to parse provider_url: {e}"))?
+                Some(
+                    Url::parse(provider_url)
+                        .map_err(|e| diagnosed_error!("failed to parse provider_url: {e}"))?,
+                )
             } else {
-                provider.url(chain_id)?
+                let chain = Chain::from(chain_id);
+                if Provider::is_default_api_url(&provider_api_url, chain) {
+                    Some(provider.url(chain_id)?)
+                } else {
+                    None
+                }
             };
 
             let api_key = object
@@ -469,12 +484,29 @@ impl Provider {
         chain.etherscan_urls().map(|(api, _)| api.to_string())
     }
 
+    fn is_default_etherscan_url(url: &Url, chain: Chain) -> bool {
+        Self::etherscan_url(chain).map_or(false, |u| url.to_string().trim_end_matches("/").eq(&u))
+    }
+
+    fn is_default_etherscan_api_url(url: &Url, chain: Chain) -> bool {
+        Self::etherscan_api_url(chain)
+            .map_or(false, |u| url.to_string().trim_end_matches("/").eq(&u))
+    }
+
     fn sourcify_url() -> String {
         "https://repo.sourcify.dev".into()
     }
 
     fn sourcify_api_url() -> String {
         "https://sourcify.dev".into()
+    }
+
+    fn is_default_sourcify_api_url(url: &Url) -> bool {
+        url.to_string().trim_end_matches("/").eq(&Self::sourcify_api_url())
+    }
+
+    fn is_default_api_url(url: &Url, chain: Chain) -> bool {
+        Self::is_default_etherscan_api_url(url, chain) && Self::is_default_sourcify_api_url(url)
     }
 }
 
