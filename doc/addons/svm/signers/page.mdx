@@ -1,9 +1,9 @@
 export const metadata = {
-    title: "Solana and SVM Compatible Blockchains (alpha) Signers",
-    description: "Signers for Solana and SVM Compatible Blockchains (alpha)",
+    title: "Solana and SVM Compatible Blockchains (beta) Signers",
+    description: "Signers for Solana and SVM Compatible Blockchains (beta)",
 };
 
-# Solana and SVM Compatible Blockchains (alpha) Signers {{ id: "svm-signers" }}
+# Solana and SVM Compatible Blockchains (beta) Signers {{ id: "svm-signers" }}
 
 
 
@@ -31,6 +31,11 @@ The `svm::secret_key` signer can be used to synchronously sign a transaction.
   </Property>
 
 
+  <Property name="keypair_json" type="">
+    A path to a keypair.json file containing the secret key. This input will not be used if the `secret_key` or `mnemonic` inputs are provided.
+  </Property>
+
+
   <Property name="is_encrypted" type="">
     Coming soon
   </Property>
@@ -55,12 +60,12 @@ When the `secret_key` action is successfully executed, the following outputs are
 
 
   <Property name="public_key">
-    The public key of the account generated from the secret key.
+    The public key of the account generated from the secret key, mnemonic, or keypair file.
   </Property>
 
 
   <Property name="address">
-    The address generated from the secret key.
+    The SVM address generated from the secret key, mnemonic, or keypair file. This is an alias for the `public_key` output.
   </Property>
 
 
@@ -130,6 +135,69 @@ When the `web_wallet` action is successfully executed, the following outputs are
 ```hcl {{ title: 'main.tx' }}
 signer "alice" "svm::web_wallet" {
     expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## squads {{ tag: 'signer' }}
+
+The `svm::squads` signer can be used to synchronously sign a transaction.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="address" type="">
+    The squad vault address.
+  </Property>
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `squads` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="public_key">
+    The public key of the squad vault.
+  </Property>
+
+
+  <Property name="address">
+    The SVM address generated from the secret key, mnemonic, or keypair file. This is an alias for the `public_key` output.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using squads">
+
+
+```hcl {{ title: 'main.tx' }}
+signer "deployer" "svm::squads" {
+    address = input.address
 }
 
 ```

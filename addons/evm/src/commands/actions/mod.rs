@@ -11,14 +11,12 @@ pub mod deploy_contract;
 pub mod eth_call;
 pub mod send_eth;
 pub mod sign_transaction;
-pub mod verify_contract;
 
 use call_contract::SIGN_EVM_CONTRACT_CALL;
 use deploy_contract::DEPLOY_CONTRACT;
 use eth_call::ETH_CALL;
 use send_eth::SEND_ETH;
 use sign_transaction::SIGN_TRANSACTION;
-use verify_contract::VERIFY_CONTRACT;
 
 use crate::constants::{GAS_LIMIT, NONCE, SIGNER, TRANSACTION_AMOUNT};
 use crate::typing::EvmValue;
@@ -27,7 +25,6 @@ lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
         SIGN_EVM_CONTRACT_CALL.clone(),
         ETH_CALL.clone(),
-        VERIFY_CONTRACT.clone(),
         CHECK_CONFIRMATIONS.clone(),
         SIGN_TRANSACTION.clone(),
         SEND_ETH.clone(),

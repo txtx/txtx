@@ -2,6 +2,7 @@ pub mod contract_deployment;
 pub mod crypto;
 pub mod foundry;
 pub mod hardhat;
+pub mod verify;
 
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
@@ -729,7 +730,7 @@ pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, Stri
                     Ok(value) => value,
                     Err(e) => return Some(Err(e.message)),
                 };
-                entries.push((event.name.as_ref(), value));
+                entries.push((&event.name, value));
             }
 
             return Some(Ok(DecodedLog::to_value(

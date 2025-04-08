@@ -20,14 +20,17 @@ serde_json = { version = "1.0.113", features = ["arbitrary_precision"] }
 serde = "1"
 serde_derive = "1"
 async-recursion = "1"
-alloy = { version = "0.12", features = ["full", "rlp", "eip712"] }
-alloy-provider = { version = "0.12", features = ["debug-api"] }
-alloy-rpc-types = { version = "0.12", features = ["trace"] }
-alloy-signer-local = { version = "0.12", features = ["mnemonic"] }
+alloy = { version = "0.13", features = ["full", "rlp", "eip712"] }
+alloy-provider = { version = "0.13", features = ["debug-api"] }
+alloy-rpc-types = { version = "0.13", features = ["trace"] }
+alloy-signer-local = { version = "0.13", features = ["mnemonic"] }
 thiserror = "1.0.62"
 toml = "0.5"
-foundry-block-explorers = "0.11.0"
-alloy-chains = "0.1.23"
+foundry-block-explorers = "0.12.0"
+foundry-compilers-artifacts-solc = "0.13.5"
+alloy-chains = "0.1.27"
+foundry-config = "0.2.0"
+semver = "1.0.26"
 
 [features]
 default = ["txtx-addon-kit/default"]

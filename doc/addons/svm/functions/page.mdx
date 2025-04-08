@@ -1,9 +1,9 @@
 export const metadata = {
-    title: "Solana and SVM Compatible Blockchains (alpha) Functions",
-    description: "Functions for Solana and SVM Compatible Blockchains (alpha)",
+    title: "Solana and SVM Compatible Blockchains (beta) Functions",
+    description: "Functions for Solana and SVM Compatible Blockchains (beta)",
 };
 
-# Solana and SVM Compatible Blockchains (alpha) Functions {{ id: "svm-functions" }}
+# Solana and SVM Compatible Blockchains (beta) Functions {{ id: "svm-functions" }}
 
 
 ## system_program_id {{ tag: 'function' }}
@@ -24,7 +24,7 @@ export const metadata = {
 
 <Properties>
   <Property name="value">
-    The system program id
+    The system program id.
   </Property>
 </Properties>
 
@@ -35,6 +35,56 @@ export const metadata = {
 ```hcl {{ title: 'main.tx' }}
 output "system_program_id" { 
     value = svm::system_program_id()
+}
+// > 11111111111111111111111111111111
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## default_pubkey {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::default_pubkey` returns a default public key, `11111111111111111111111111111111`.
+
+### Inputs
+
+<Properties>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The default public key, `11111111111111111111111111111111`
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using default_pubkey">
+
+
+```hcl {{ title: 'main.tx' }}
+output "default_pubkey" { 
+    value = svm::default_pubkey()
 }
 // > 11111111111111111111111111111111
 
@@ -294,6 +344,379 @@ variable "contract" {
 output "idl" {
     value = variable.contract.idl
 }    
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_program_from_native_project {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::get_program_from_native_project` retrieves the program deployment artifacts for a program in a classic Rust project.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="binary_location">
+    The path, relative to the txtx.yml, to the compiled program binary.
+  </Property>
+
+
+  <Property name="program_keypair_path">
+    The path, relative to the txtx.yml, to the program keypair.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    An object containing the rust program artifacts.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_program_from_native_project">
+
+
+```hcl {{ title: 'main.tx' }}
+variable "contract" {
+    value = svm::get_program_from_native_project("./bin/loc", "./keypair/loc")
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## sol_to_lamports {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::sol_to_lamports` converts the provided SOL amount to lamports.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="sol_amount">
+    The amount of SOL to convert to lamports.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The amount of SOL provided, represented as lamports.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using sol_to_lamports">
+
+
+```hcl {{ title: 'main.tx' }}
+output "lamports" {
+    value = svm::sol_to_lamports(1.1)
+}
+// lamports: 1100000000
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## lamports_to_sol {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::lamports_to_sol` converts the provided number of lamports amount to SOL.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="lamports_amount">
+    The amount of lamports to convert to SOL.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The number of lamports provided, represented as SOL.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using lamports_to_sol">
+
+
+```hcl {{ title: 'main.tx' }}
+output "sol" {
+    value = svm::lamports_to_sol(1100000000)
+}
+// sol: 1.1
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## find_pda {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::find_pda` finds a valid pda using the provided program id and seeds.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="program_id">
+    The address of the program the PDA is derived from.
+  </Property>
+
+
+  <Property name="seeds">
+    An optional array of seeds that will be used to derive the PDA. A maximum of 16 seeds can be used, and each seed can have a maximum length of 32 bytes.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    An object containing the PDA address and associated bump seed.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using find_pda">
+
+
+```hcl {{ title: 'main.tx' }}
+variable "pda" {
+    value = svm::find_pda("3bv3j4GvMPjvvBX9QdoX27pVoWhDSXpwKZipFF1QiVr6", ["data"])
+}
+output "pda" {
+    value = std::encode_base58(variable.pda.pda)
+}
+output "bump" {
+    value = variable.pda.bump_seed
+}
+// > pda: 4amHoWMBgLkPfM8Nq9ZP33Liq9FCuqrLoU1feejkdsUJ
+// > bump: 252
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## get_associated_token_account {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::get_associated_token_account` computes the address of the associated token account for the provided wallet and token mint addresses.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="wallet_address">
+    The address of the wallet to compute the associated token account for.
+  </Property>
+
+
+  <Property name="token_mint_address">
+    The address of the token mint used to compute the token account.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The address of the associated token account.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using get_associated_token_account">
+
+
+```hcl {{ title: 'main.tx' }}
+variable "token_account" {
+    value = svm::get_associated_token_account(signer.caller.address, "So11111111111111111111111111111111111111112")
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## create_token_account_instruction {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::create_token_account_instruction` creates an instruction to create an associated token account.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="funding_address">
+    The address of the funding account.
+  </Property>
+
+
+  <Property name="wallet_address">
+    The address of the wallet to compute the associated token account for.
+  </Property>
+
+
+  <Property name="token_mint_address">
+    The address of the token mint used to compute the token account.
+  </Property>
+
+
+  <Property name="token_program_id">
+    The address of the token program used to compute the token account.
+  </Property>
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value">
+    The serialized instruction bytes.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using create_token_account_instruction">
+
+
+```hcl {{ title: 'main.tx' }}
+action "call" "svm::process_instructions" {
+    signers = [signer.caller]
+
+    instruction { 
+        value = svm::create_token_account_instruction(
+            signer.caller.address, // funding address
+            signer.caller.address, // wallet address
+            variable.token_mint, // token mint address
+            variable.token_program // token program id
+        )
+    }
+}
 
 ```
 
