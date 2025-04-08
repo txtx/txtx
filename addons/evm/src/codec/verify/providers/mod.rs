@@ -28,15 +28,18 @@ impl SubmitVerificationResult {
         &self,
         status_updater: &mut StatusUpdater,
         client: &VerificationClient,
+        propagate_errors: bool,
     ) {
         match &self {
             SubmitVerificationResult::Verified => {
-                status_updater.propagate_success_status(
-                    "Verified",
-                    &format!("Contract successfully verified at {}", client.address_url()),
-                );
+                propagate_contract_verified(status_updater, client, &client.address_url());
             }
-            SubmitVerificationResult::NotVerified(_) => {}
+            SubmitVerificationResult::NotVerified(err) => {
+                if propagate_errors {
+                    let diag = diagnosed_error!("failed to verify contract: {}", err);
+                    status_updater.propagate_failed_status("Contract Not Verified", &diag);
+                }
+            }
             SubmitVerificationResult::AlreadyVerified => {
                 status_updater.propagate_success_status(
                     "Verified",
@@ -71,15 +74,18 @@ impl CheckVerificationStatusResult {
         &self,
         status_updater: &mut StatusUpdater,
         client: &VerificationClient,
+        propagate_errors: bool,
     ) {
         match &self {
             CheckVerificationStatusResult::Verified => {
-                status_updater.propagate_success_status(
-                    "Verified",
-                    &format!("Contract successfully verified at {}", client.address_url()),
-                );
+                propagate_contract_verified(status_updater, client, &client.address_url());
             }
-            CheckVerificationStatusResult::NotVerified(_) => {}
+            CheckVerificationStatusResult::NotVerified(err) => {
+                if propagate_errors {
+                    let diag = diagnosed_error!("failed to verify contract: {}", err);
+                    status_updater.propagate_failed_status("Contract Not Verified", &diag);
+                }
+            }
             CheckVerificationStatusResult::AlreadyVerified => {
                 status_updater.propagate_success_status(
                     "Verified",

@@ -144,7 +144,11 @@ pub async fn verify_contracts(
                         continue;
                     }
                 };
-            verification_result.propagate_status(&mut status_updater, &client);
+            verification_result.propagate_status(
+                &mut status_updater,
+                &client,
+                max_attempts == attempts, // propagate errors if this is our last attempt
+            );
 
             match verification_result {
                 SubmitVerificationResult::CheckVerification(guid) => break Some(guid),
@@ -199,7 +203,11 @@ pub async fn verify_contracts(
                 }
             };
 
-            res.propagate_status(&mut status_updater, &client);
+            res.propagate_status(
+                &mut status_updater,
+                &client,
+                max_attempts == attempts, // propagate errors if this is our last attempt
+            );
 
             match res {
                 CheckVerificationStatusResult::NotVerified(err) => {
