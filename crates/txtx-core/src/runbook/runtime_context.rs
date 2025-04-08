@@ -333,7 +333,9 @@ impl RuntimeContext {
     /// }
     /// ```
     /// will return:
-    /// ```no_run
+    /// ```rust,compile_fail
+    /// use txtx_addon_kit::indexmap::IndexMap;
+    /// use txtx_addon_kit::types::types::Value;
     /// IndexMap::from_iter([
     ///     (
     ///         "my_map_key".to_string(),
@@ -345,14 +347,23 @@ impl RuntimeContext {
     ///                 ),
     ///                 (
     ///                     "nested_map".to_string(),
-    ///                     Value::array(
-    ///                         Value::object(IndexMap::from_iter([("val2".to_string(), Value::string("test2".to_string()))])),
-    ///                         Value::object(IndexMap::from_iter([("val2".to_string(), Value::string("test3".to_string()))]))
-    ///                     )
-    ///                 ),
-    ///             ]
+    ///                     Value::array(vec![
+    ///                         Value::object(
+    ///                             IndexMap::from_iter([
+    ///                                 ("val2".to_string(), Value::string("test2".to_string()))
+    ///                             ])
+    ///                         ),
+    ///                         Value::object(
+    ///                             IndexMap::from_iter([
+    ///                                 ("val2".to_string(), Value::string("test3".to_string()))
+    ///                             ])
+    ///                         )
+    ///                     ])
+    ///                 )
+    ///             ]))
     ///         ]
-    /// ])
+    ///     )
+    /// ]);
     /// ```
     ///
     fn evaluate_hcl_map_blocks(
