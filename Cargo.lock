@@ -14744,7 +14744,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "crossbeam-channel",
  "dirs",
@@ -14791,7 +14791,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-evm"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "alloy",
  "alloy-chains",
@@ -14986,7 +14986,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
