@@ -141,7 +141,7 @@ pub async fn verify_contracts(
                         result_for_explorer.insert(VERIFIED, Value::bool(false));
                         contract_verification_results.push(result_for_explorer.to_value());
                         failures[i] = Some(diagnosed_error!("{}: {}", err_ctx, diag));
-                        continue;
+                        break None;
                     }
                 };
             verification_result.propagate_status(
