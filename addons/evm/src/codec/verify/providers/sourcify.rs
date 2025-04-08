@@ -92,7 +92,7 @@ impl Verifier for SourcifyVerificationClient {
         if !status.is_success() {
             let err = res.json::<SourcifyVerificationError>().await.map_err(|e| {
                 diagnosed_error!(
-                    "failed to parse response when checking sourcify verification status: {}",
+                    "failed to parse response from submitting sourcify verification: {}",
                     e
                 )
             })?;
