@@ -5,6 +5,7 @@ use crate::constants::{
     CHAIN_ID, CONTRACT, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, CONTRACT_VERIFICATION_OPTS,
 };
 use crate::typing::EvmValue;
+use alloy::dyn_abi::JsonAbiExt;
 use alloy::{dyn_abi::DynSolValue, hex};
 use alloy_chains::Chain;
 use providers::{CheckVerificationStatusResult, SubmitVerificationResult, VerificationClient};
@@ -58,23 +59,28 @@ pub async fn verify_contracts(
     {
         let sol_args = if let Some(abi) = &artifacts.abi {
             if let Some(constructor) = &abi.constructor {
-                value_to_abi_constructor_args(&function_args, &constructor)?
+                let sol_args = value_to_abi_constructor_args(&function_args, &constructor)?;
+                constructor
+                    .abi_encode_input(&sol_args)
+                    .map_err(|e| diagnosed_error!("failed to encode constructor args: {}", e))?
             } else {
                 return Err(diagnosed_error!(
                     "constructor args provided, but no constructor found in abi"
                 ));
             }
         } else {
-            function_args
+            let sol_args = function_args
                 .expect_array()
                 .iter()
                 .map(|v| {
                     value_to_sol_value(&v)
                         .map_err(|e| diagnosed_error!("failed to encode constructor args: {}", e))
                 })
-                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?
+                .collect::<Result<Vec<DynSolValue>, Diagnostic>>()?;
+
+            sol_args.iter().flat_map(|s| s.abi_encode()).collect::<Vec<u8>>()
         };
-        Some(hex::encode(&sol_args.iter().flat_map(|s| s.abi_encode()).collect::<Vec<u8>>()))
+        Some(hex::encode(&sol_args))
     } else {
         None
     };
