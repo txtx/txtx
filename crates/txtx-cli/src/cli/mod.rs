@@ -1,5 +1,6 @@
 use atty::Stream;
 use clap::{ArgAction, Parser, Subcommand};
+use dotenvy::dotenv;
 use hiro_system_kit::{self, Logger};
 use runbooks::load_runbook_from_manifest;
 use std::process;
@@ -9,6 +10,18 @@ mod docs;
 mod lsp;
 mod runbooks;
 mod snapshots;
+
+pub const AUTH_SERVICE_URL_KEY: &str = "AUTH_SERVICE_URL";
+pub const AUTH_CALLBACK_PORT_KEY: &str = "AUTH_CALLBACK_PORT";
+pub const TXTX_CONSOLE_URL_KEY: &str = "TXTX_CONSOLE_URL";
+pub const TXTX_ID_SERVICE_URL_KEY: &str = "TXTX_ID_SERVICE_URL";
+pub const REGISTRY_GQL_URL_KEY: &str = "REGISTRY_GQL_URL";
+
+pub const DEFAULT_AUTH_SERVICE_URL: &str = "https://auth.txtx.run";
+pub const DEFAULT_AUTH_CALLBACK_PORT: u16 = 8488;
+pub const DEFAULT_TXTX_CONSOLE_URL: &str = "https://txtx.run";
+pub const DEFAULT_TXTX_ID_SERVICE_URL: &str = "https://id.gql.txtx.run/v1";
+pub const DEFAULT_REGISTRY_GQL_URL: &str = "https://registry.gql.txtx.run/v1";
 
 #[derive(Clone)]
 pub struct Context {
@@ -326,11 +339,22 @@ async fn handle_cloud_commands(
     cmd: &CloudCommand,
     buffer_stdin: Option<String>,
 ) -> Result<(), String> {
+    let auth_service_url = get_env_var(AUTH_SERVICE_URL_KEY, DEFAULT_AUTH_SERVICE_URL);
+    let auth_callback_port = get_env_var(AUTH_CALLBACK_PORT_KEY, DEFAULT_AUTH_CALLBACK_PORT);
+    let id_service_url = get_env_var(TXTX_ID_SERVICE_URL_KEY, DEFAULT_TXTX_ID_SERVICE_URL);
+    let txtx_cloud_url = get_env_var(TXTX_CONSOLE_URL_KEY, DEFAULT_TXTX_CONSOLE_URL);
+    let registry_gql_url = get_env_var(REGISTRY_GQL_URL_KEY, DEFAULT_REGISTRY_GQL_URL);
+
     match cmd {
         CloudCommand::Login(cmd) => {
-            txtx_cloud::login::handle_login_command(cmd, "https://auth.txtx.run").await
+            txtx_cloud::login::handle_login_command(
+                cmd,
+                &auth_service_url,
+                &auth_callback_port,
+                &id_service_url,
+            )
+            .await
         }
-        // CloudCommand::Login(cmd) => txtx_cloud::login::handle_login_command(cmd, "https://auth.txtx.run").await,
         CloudCommand::Publish(cmd) => {
             let (_manifest, _runbook_name, runbook, _runbook_state) = load_runbook_from_manifest(
                 &cmd.manifest_path,
@@ -340,9 +364,22 @@ async fn handle_cloud_commands(
                 buffer_stdin,
             )
             .await?;
-            txtx_cloud::publish::handle_publish_command(cmd, runbook).await
+
+            txtx_cloud::publish::handle_publish_command(
+                cmd,
+                runbook,
+                &id_service_url,
+                &txtx_cloud_url,
+                &registry_gql_url,
+            )
+            .await
         }
     }
+}
+
+pub fn get_env_var<T: ToString>(key: &str, default: T) -> String {
+    dotenv().ok();
+    std::env::var(key).unwrap_or(default.to_string())
 }
 
 #[cfg(test)]

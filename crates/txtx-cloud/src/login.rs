@@ -17,16 +17,18 @@ use serde::{Deserialize, Serialize};
 use txtx_core::kit::futures::future::{ready, Ready};
 use txtx_core::kit::{channel, reqwest};
 
+use crate::auth::jwt::JwtManager;
 use crate::auth::AuthUser;
-use crate::{get_env_var, LoginCommand};
+use crate::LoginCommand;
 
 use super::auth::AuthConfig;
-use super::auth::AUTH_CALLBACK_PORT;
-use super::auth::AUTH_SERVICE_URL;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginCallbackResult {
+    access_token: String,
+    exp: u64,
+    refresh_token: String,
     pat: String,
     user: AuthUser,
 }
@@ -95,8 +97,18 @@ impl FromRequest for LoginCallbackServerEvent {
             };
 
             // Reconstruct `LoginCallbackServerEvent` with the parsed `user`
-            if params.contains_key("pat") {
-                let result = LoginCallbackResult { pat: params.remove("pat").unwrap(), user };
+            if params.contains_key("accessToken")
+                && params.contains_key("exp")
+                && params.contains_key("refreshToken")
+                && params.contains_key("pat")
+            {
+                let result = LoginCallbackResult {
+                    access_token: params.remove("accessToken").unwrap(),
+                    exp: params.remove("exp").unwrap().parse().unwrap_or_default(),
+                    refresh_token: params.remove("refreshToken").unwrap(),
+                    pat: params.remove("pat").unwrap(),
+                    user,
+                };
 
                 return ready(Ok(LoginCallbackServerEvent::AuthCallback(result)));
             }
@@ -121,37 +133,69 @@ impl LoginCallbackServerContext {
     }
 }
 
+/// ## Arguments
+///
+/// * `cmd` - The login command containing user-provided credentials or options.
+/// * `auth_service_url` - The URL of the frontend service used to authenticate the user.
+/// * `auth_callback_port` - The port for the callback server used during login.
+/// * `id_service_url` - The URL of the ID service.
 pub async fn handle_login_command(
     cmd: &LoginCommand,
     auth_service_url: &str,
+    auth_callback_port: &str,
+    id_service_url: &str,
 ) -> Result<(), String> {
     let auth_config = AuthConfig::read_from_system_config()?;
 
-    // if let Some(auth_config) = auth_config {
-    //     match auth_config.refresh_session().await {
-    //         Ok(auth_config) => {
-    //             println!(
-    //                 "{} User {} already logged in.",
-    //                 green!("✓"),
-    //                 auth_config.user.display_name
-    //             );
-    //             return Ok(());
-    //         }
-    //         Err(e) => {
-    //             println!("{} Auth data already found for user, but failed to refresh session; attempting login.", yellow!("-"));
-    //         }
-    //     }
-    // }
+    let jwt_manager = crate::auth::jwt::JwtManager::initialize(id_service_url)
+        .await
+        .map_err(|e| format!("Failed to initialize JWT manager: {}", e))?;
+
+    if let Some(auth_config) = auth_config {
+        if auth_config.is_access_token_expired() {
+            match auth_config.refresh_session(id_service_url, &auth_config.pat).await {
+                Ok(auth_config) => {
+                    println!(
+                        "{} User {} already logged in.",
+                        green!("✓"),
+                        auth_config.user.display_name
+                    );
+                    return Ok(());
+                }
+                Err(_e) => {
+                    if let Some(pat) = &auth_config.pat {
+                        if let Ok(auth_config) = pat_login(id_service_url, &jwt_manager, &pat).await
+                        {
+                            auth_config.write_to_system_config()?;
+                            println!(
+                                "{} User {} already logged in.",
+                                green!("✓"),
+                                auth_config.user.display_name
+                            );
+                            return Ok(());
+                        }
+                    }
+                    println!("{} Auth data already found for user, but failed to refresh session; attempting login.", yellow!("-"));
+                }
+            }
+        } else {
+            println!("{} User {} already logged in.", green!("✓"), auth_config.user.display_name);
+            return Ok(());
+        }
+    }
 
     let auth_config = if let Some(email) = &cmd.email {
         let password =
             cmd.password.as_ref().ok_or("Password is required when email is provided")?;
-        user_pass_login(auth_service_url, email, password).await?
+        user_pass_login(id_service_url, &jwt_manager, email, password).await?
     } else if let Some(pat) = &cmd.pat {
-        pat_login(auth_service_url, pat)?
+        pat_login(id_service_url, &jwt_manager, &pat).await?
     } else {
-        let Some(res) = id_service_login(auth_service_url).await? else { return Ok(()) };
-        let auth_config = AuthConfig::new(res.pat, res.user);
+        let Some(res) = auth_service_login(auth_service_url, auth_callback_port).await? else {
+            return Ok(());
+        };
+        let auth_config =
+            AuthConfig::new(res.access_token, res.exp, res.refresh_token, Some(res.pat), res.user);
         auth_config
     };
 
@@ -162,8 +206,11 @@ pub async fn handle_login_command(
 /// Starts a server that will only receive a POST request from the ID service with the user's auth data.
 /// Directs the user to the ID service login page.
 /// Upon login, the ID service will send a POST request to the server with the user's auth data.
-async fn id_service_login(auth_service_url: &str) -> Result<Option<LoginCallbackResult>, String> {
-    let redirect_url = format!("localhost:{AUTH_CALLBACK_PORT}");
+async fn auth_service_login(
+    auth_service_url: &str,
+    auth_callback_port: &str,
+) -> Result<Option<LoginCallbackResult>, String> {
+    let redirect_url = format!("localhost:{}", auth_callback_port);
 
     let auth_service_url = reqwest::Url::parse(&format!(
         "{}?redirectUrl=http://{}/api/v1/auth",
@@ -192,7 +239,7 @@ async fn id_service_login(auth_service_url: &str) -> Result<Option<LoginCallback
     })
     .workers(1)
     .bind(redirect_url)
-    .map_err(|e| format!("Failed to start auth callback server: failed to bind to port {AUTH_CALLBACK_PORT}: {e}"))?
+    .map_err(|e| format!("Failed to start auth callback server: failed to bind to port {auth_callback_port}: {e}"))?
     .run();
     let handle = server.handle();
     tokio::spawn(server);
@@ -244,33 +291,96 @@ async fn auth_callback(
 
 /// Sends a POST request to the auth service to log in with an email and password.
 async fn user_pass_login(
-    auth_service_url: &str,
+    id_service_url: &str,
+    jwt_manager: &JwtManager,
     email: &str,
     password: &str,
 ) -> Result<AuthConfig, String> {
     let client = reqwest::Client::new();
     let res = client
-        .post(&format!("{}/signin/email-password", auth_service_url))
+        .post(&format!("{}/signin/email-password", id_service_url))
         .json(&serde_json::json!({
             "email": email,
             "password": password,
         }))
         .send()
         .await
-        .map_err(|e| format!("Failed to send login request: {}", e))?;
+        .map_err(|e| format!("Failed to send username/password login request: {}", e))?;
 
     if res.status().is_success() {
         let res = res
-            .json::<AuthConfig>()
+            .json::<LoginResponse>()
             .await
-            .map_err(|e| format!("Failed to parse response: {}", e))?;
-        return Ok(res);
+            .map_err(|e| format!("Failed to parse username/password login response: {}", e))?;
+
+        let access_token_claims =
+            jwt_manager.decode_jwt(&res.session.access_token, true).map_err(|e| {
+                format!("Failed to decode JWT from username/password login response: {}", e)
+            })?;
+
+        let auth_config = AuthConfig::new(
+            res.session.access_token,
+            access_token_claims.exp,
+            res.session.refresh_token,
+            None,
+            res.session.user,
+        );
+        return Ok(auth_config);
     } else {
         let err = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!("Failed to login: {}", err));
+        return Err(format!("Failed to login with username + password: {}", err));
     }
 }
 
-fn pat_login(_auth_service_url: &str, _pat: &str) -> Result<AuthConfig, String> {
-    todo!()
+async fn pat_login(
+    id_service_url: &str,
+    jwt_manager: &JwtManager,
+    pat: &str,
+) -> Result<AuthConfig, String> {
+    let client = reqwest::Client::new();
+    let res = client
+        .post(&format!("{}/signin/pat", id_service_url))
+        .json(&serde_json::json!({
+            "personalAccessToken": pat,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send PAT login request: {}", e))?;
+
+    if res.status().is_success() {
+        let res = res
+            .json::<LoginResponse>()
+            .await
+            .map_err(|e| format!("Failed to parse PAT login response: {}", e))?;
+
+        let access_token_claims = jwt_manager
+            .decode_jwt(&res.session.access_token, true)
+            .map_err(|e| format!("Failed to decode JWT from PAT login response: {}", e))?;
+
+        let auth_config = AuthConfig::new(
+            res.session.access_token,
+            access_token_claims.exp,
+            res.session.refresh_token,
+            Some(pat.to_string()),
+            res.session.user,
+        );
+        return Ok(auth_config);
+    } else {
+        let err = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("Failed to login with PAT: {}", err));
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginResponse {
+    pub session: Session,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Session {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub user: AuthUser,
 }

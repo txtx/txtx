@@ -9,16 +9,18 @@ use super::auth::AuthConfig;
 
 pub struct GqlClient {
     client: reqwest::Client,
-    endpoint: String,
+    registry_gql_url: String,
+    id_service_url: String,
     auth_config: AuthConfig,
 }
 
 impl GqlClient {
-    pub fn new(auth_config: &AuthConfig) -> Self {
+    pub fn new(auth_config: &AuthConfig, id_service_url: &str, registry_gql_url: &str) -> Self {
         Self {
             client: reqwest::Client::new(),
-            endpoint: "https://id.gql.txtx.run/v1".into(),
+            registry_gql_url: registry_gql_url.to_string(),
             auth_config: auth_config.clone(),
+            id_service_url: id_service_url.to_string(),
         }
     }
 
@@ -31,10 +33,23 @@ impl GqlClient {
     {
         let request_body = T::build_query(variables);
 
+        if self.auth_config.is_access_token_expired() {
+            self.auth_config = self
+                .auth_config
+                .refresh_session(&self.id_service_url, &self.auth_config.pat)
+                .await
+                .map_err(|e| {
+                    format!(
+                        "Failed to refresh session: {}. Run `txtx cloud login` to log in again.",
+                        e
+                    )
+                })?;
+        }
+
         let response = self
             .client
-            .post(&self.endpoint)
-            .bearer_auth(&self.auth_config.pat)
+            .post(&self.registry_gql_url)
+            .bearer_auth(&self.auth_config.access_token)
             .json(&request_body)
             .send()
             .await
