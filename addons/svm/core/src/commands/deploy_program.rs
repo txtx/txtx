@@ -108,6 +108,10 @@ lazy_static! {
                     program_id: {
                         documentation: "The program ID of the deployed program.",
                         typing: Type::string()
+                    },
+                    program_idl: {
+                        documentation: "The program ID of the deployed program.",
+                        typing: Type::string()
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
