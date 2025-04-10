@@ -479,6 +479,9 @@ pub async fn handle_run_command(
         }
     };
 
+    // Confirm that if the runbook is using cloud services, the user is authenticated
+    check_cloud_service_eligibility(runbook.flow_contexts.first().expect("no flow found"))?;
+
     let previous_state_opt = if let Some(state_file_location) = runbook_state_location.clone() {
         match state_file_location.load_execution_snapshot(
             true,
@@ -1047,5 +1050,21 @@ fn process_runbook_execution_output(
                 println!("{} Failed to write runbook state: {}", red!("x"), e);
             }
         };
+    }
+}
+
+fn check_cloud_service_eligibility(flow_context: &FlowContext) -> Result<(), String> {
+    let implements_cloud_svc =
+        flow_context.execution_context.get_commands_implementing_cloud_service();
+
+    if implements_cloud_svc.is_empty() {
+        return Ok(());
+    }
+
+    match AuthConfig::read_from_system_config() {
+        Ok(Some(_)) => Ok(()),
+        _ => {
+            return Err(format!("Runbook contains cloud service actions, but you are not authenticated.\nRun the command `txtx cloud login` to log in."));
+        }
     }
 }
