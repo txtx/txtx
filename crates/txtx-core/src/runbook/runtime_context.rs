@@ -1,4 +1,5 @@
 use kit::indexmap::IndexMap;
+use kit::types::cloud_interface::CloudServiceContext;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -44,18 +45,22 @@ pub struct RuntimeContext {
     pub concurrency: u64,
     /// Authorizations settings to propagate to function execution
     pub authorization_context: AuthorizationContext,
+    /// Cloud service configuration
+    pub cloud_service_context: CloudServiceContext,
 }
 
 impl RuntimeContext {
     pub fn new(
         authorization_context: AuthorizationContext,
         get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>,
+        cloud_service_context: CloudServiceContext,
     ) -> RuntimeContext {
         RuntimeContext {
             functions: HashMap::new(),
             addons_context: AddonsContext::new(get_addon_by_namespace),
             concurrency: 1,
             authorization_context,
+            cloud_service_context,
         }
     }
 

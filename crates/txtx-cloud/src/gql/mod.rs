@@ -33,18 +33,9 @@ impl GqlClient {
     {
         let request_body = T::build_query(variables);
 
-        if self.auth_config.is_access_token_expired() {
-            self.auth_config = self
-                .auth_config
-                .refresh_session(&self.id_service_url, &self.auth_config.pat)
-                .await
-                .map_err(|e| {
-                    format!(
-                        "Failed to refresh session: {}. Run `txtx cloud login` to log in again.",
-                        e
-                    )
-                })?;
-        }
+        self.auth_config
+            .refresh_session_if_needed(&self.id_service_url, &self.auth_config.pat)
+            .await?;
 
         let response = self
             .client

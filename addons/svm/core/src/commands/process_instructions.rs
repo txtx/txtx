@@ -15,6 +15,7 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
@@ -218,6 +219,7 @@ impl CommandImplementation for ProcessInstructions {
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
+        _cloud_service_context: &Option<CloudServiceContext>
     ) -> CommandExecutionFutureResult {
         send_transaction_background_task(
             &construct_did,

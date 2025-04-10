@@ -4,6 +4,7 @@ pub mod auth;
 pub mod gql;
 pub mod login;
 pub mod publish;
+pub mod router;
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct LoginCommand {

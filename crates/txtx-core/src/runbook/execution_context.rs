@@ -872,4 +872,11 @@ impl RunbookExecutionContext {
                 });
         }
     }
+
+    pub fn get_commands_implementing_cloud_service(&self) -> Vec<&CommandInstance> {
+        self.commands_instances
+            .values()
+            .filter(|instance| instance.specification.implements_cloud_service)
+            .collect::<Vec<_>>()
+    }
 }

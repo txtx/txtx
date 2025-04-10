@@ -56,6 +56,7 @@ macro_rules! define_command {
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, tainting: $tainting:expr, internal: $internal:expr $(, sensitive: $sensitive:expr)? }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
         example: $example:expr,
+        $(, implements_cloud_service: $implements_cloud_service:expr)?
     }) => {
         {
         use txtx_addon_kit::types::commands::{PreCommandSpecification, CommandSpecification, CommandInput, CommandOutput, CommandExecutionClosure};
@@ -104,6 +105,13 @@ macro_rules! define_command {
             prepare_signed_nested_execution: $func_key::prepare_signed_nested_execution,
             run_signed_execution: Box::new($func_key::run_signed_execution),
             build_background_task: Box::new($func_key::build_background_task),
+            implements_cloud_service: {
+                let mut implements_cloud_service = false;
+                $(
+                    implements_cloud_service = $implements_cloud_service;
+                )?
+                implements_cloud_service
+            },
             aggregate_nested_execution_results: $func_key::aggregate_nested_execution_results,
             example: String::from($example),
         }

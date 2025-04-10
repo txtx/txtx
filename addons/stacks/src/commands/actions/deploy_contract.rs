@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::future;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
 };
@@ -615,6 +616,7 @@ impl CommandImplementation for StacksDeployContract {
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
+        cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         BroadcastStacksTransaction::build_background_task(
             &construct_did,
@@ -624,6 +626,7 @@ impl CommandImplementation for StacksDeployContract {
             &progress_tx,
             &background_tasks_uuid,
             &supervision_context,
+            cloud_service_context,
         )
     }
 }

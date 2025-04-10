@@ -1,7 +1,10 @@
+use std::sync::Arc;
 use std::vec;
+use txtx_addon_kit::types::cloud_interface::{
+    AuthenticatedCloudServiceRouter, CloudService, CloudServiceContext,
+};
 
 use serde_json::json;
-use solana_client::{nonblocking::rpc_client::RpcClient, rpc_request::RpcRequest};
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
@@ -17,13 +20,16 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_network_svm_types::subgraph::PluginConfig;
 
-use crate::constants::{PROGRAM_ID, RPC_API_URL, SUBGRAPH_REQUEST, SUBGRAPH_URL};
+use crate::constants::{
+    DEVNET_SUBGRAPH_ENDPOINT, DO_INCLUDE_TOKEN, MAINNET_SUBGRAPH_ENDPOINT, NETWORK_ID, PROGRAM_ID,
+    RPC_API_URL, SUBGRAPH_ENDPOINT_URL, SUBGRAPH_REQUEST, SUBGRAPH_URL,
+};
 use crate::typing::subgraph::{SubgraphPluginType, SubgraphRequest};
 use crate::typing::{SvmValue, SUBGRAPH_EVENT};
 
 lazy_static! {
     pub static ref DEPLOY_SUBGRAPH: PreCommandSpecification = {
-        let command = define_command! {
+        let mut command = define_command! {
             DeployProgram => {
                 name: "Deploy SVM Program Subgraph",
                 matcher: "deploy_subgraph",
@@ -96,7 +102,9 @@ lazy_static! {
                 "#},
             }
         };
-
+        if let PreCommandSpecification::Atomic(ref mut spec) = command {
+            spec.implements_cloud_service = true;
+        }
         command
     };
 }
@@ -130,10 +138,19 @@ impl CommandImplementation for DeployProgram {
         use txtx_addon_kit::{constants::DESCRIPTION, types::commands::return_synchronous_ok};
 
         use crate::{
-            constants::{BLOCK_HEIGHT, PROGRAM_IDL, SUBGRAPH_NAME, SUBGRAPH_REQUEST},
+            constants::{
+                BLOCK_HEIGHT, PROGRAM_IDL, SUBGRAPH_ENDPOINT_URL, SUBGRAPH_NAME, SUBGRAPH_REQUEST,
+            },
             typing::subgraph::SubgraphRequest,
         };
-        let _rpc = values.get_expected_string(RPC_API_URL)?;
+
+        let network_id = values.get_expected_string(NETWORK_ID)?;
+        let (subgraph_url, do_include_token) = match network_id {
+            "mainnet" | "mainnet-beta" => (MAINNET_SUBGRAPH_ENDPOINT, true),
+            "devnet" => (DEVNET_SUBGRAPH_ENDPOINT, true),
+            "localnet" | _ => (values.get_expected_string(RPC_API_URL)?, false),
+        };
+
         let idl_str = values.get_expected_string(PROGRAM_IDL)?;
 
         let block_height = values.get_expected_uint(BLOCK_HEIGHT)?;
@@ -155,6 +172,8 @@ impl CommandImplementation for DeployProgram {
 
         let mut result = CommandExecutionResult::new();
         result.insert(SUBGRAPH_REQUEST, subgraph_request.to_value()?);
+        result.insert(SUBGRAPH_ENDPOINT_URL, Value::string(subgraph_url.to_string()));
+        result.insert(DO_INCLUDE_TOKEN, Value::bool(do_include_token));
 
         return_synchronous_ok(result)
     }
@@ -162,35 +181,40 @@ impl CommandImplementation for DeployProgram {
     fn build_background_task(
         construct_did: &ConstructDid,
         _spec: &CommandSpecification,
-        inputs: &ValueStore,
+        _inputs: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
+        cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         let construct_did = construct_did.clone();
-        let inputs = inputs.clone();
         let outputs = outputs.clone();
         let progress_tx = progress_tx.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
+        let cloud_service_context = cloud_service_context.clone();
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
             let subgraph_request =
                 SubgraphRequest::from_value(outputs.get_expected_value(SUBGRAPH_REQUEST)?)?;
 
-            // let rpc_api_url = inputs.get_expected_string(RPC_API_URL)?;
-            let rpc_api_url = "http://127.0.0.1:9000/lambda-url/svm-subgraph-crud-api/subgraphs";
-            // let rpc_api_url = "http://czay4w3z1wg0000hf8v0gxixnqeyyyyyb.oast.pro";
+            let subgraph_url = outputs.get_expected_string(SUBGRAPH_ENDPOINT_URL)?;
+            let do_include_token = outputs.get_expected_bool(DO_INCLUDE_TOKEN)?;
 
             let status_updater =
                 StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
 
             let mut client = SubgraphRequestClient::new(
-                rpc_api_url,
+                cloud_service_context
+                    .expect("cloud service context not found")
+                    .authenticated_cloud_service_router
+                    .expect("authenticated cloud service router not found"),
                 subgraph_request,
                 SubgraphPluginType::SurfpoolSubgraph,
                 status_updater,
+                subgraph_url,
+                do_include_token,
             );
 
             let url = client.deploy_subgraph().await?;
@@ -204,22 +228,28 @@ impl CommandImplementation for DeployProgram {
 }
 
 pub struct SubgraphRequestClient {
-    rpc_client: RpcClient,
+    router: Arc<dyn AuthenticatedCloudServiceRouter>,
     plugin_config: PluginConfig,
     status_updater: StatusUpdater,
+    subgraph_endpoint_url: String,
+    do_include_token: bool,
 }
 
 impl SubgraphRequestClient {
     pub fn new(
-        rpc_api_url: &str,
+        router: Arc<dyn AuthenticatedCloudServiceRouter>,
         request: SubgraphRequest,
         plugin_name: SubgraphPluginType,
         status_updater: StatusUpdater,
+        subgraph_endpoint_url: &str,
+        do_include_token: bool,
     ) -> Self {
         Self {
-            rpc_client: RpcClient::new(rpc_api_url.to_string()),
+            router,
             plugin_config: PluginConfig::new(plugin_name, request),
             status_updater,
+            subgraph_endpoint_url: subgraph_endpoint_url.to_string(),
+            do_include_token,
         }
     }
 
@@ -227,11 +257,16 @@ impl SubgraphRequestClient {
         let stringified_config = json![self.plugin_config.clone()];
         let params = serde_json::to_value(vec![stringified_config.to_string()])
             .map_err(|e| diagnosed_error!("could not serialize subgraph request: {e}"))?;
+
         let res = self
-            .rpc_client
-            .send::<String>(RpcRequest::Custom { method: "loadPlugin" }, params)
+            .router
+            .route(CloudService::svm_subgraph(
+                &self.subgraph_endpoint_url,
+                params,
+                self.do_include_token,
+            ))
             .await
-            .map_err(|e| diagnosed_error!("could not deploy subgraph: {e}"))?;
+            .map_err(|e| diagnosed_error!("failed to deploy subgraph: {e}"))?;
 
         self.status_updater.propagate_status(ProgressBarStatus::new_msg(
             ProgressBarStatusColor::Green,

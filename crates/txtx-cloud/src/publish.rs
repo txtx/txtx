@@ -32,7 +32,7 @@ pub async fn handle_publish_command(
     cmd: &PublishRunbook,
     mut runbook: Runbook,
     id_service_url: &str,
-    txtx_cloud_url: &str,
+    txtx_console_url: &str,
     registry_gql_url: &str,
 ) -> Result<(), String> {
     let auth_config = AuthConfig::read_from_system_config()
@@ -60,7 +60,7 @@ pub async fn handle_publish_command(
             format!("failed to build publishable version of runbook: {}", diag.message)
         })?;
 
-    publish_gql(cmd, publishable, &auth_config, id_service_url, txtx_cloud_url, registry_gql_url)
+    publish_gql(cmd, publishable, &auth_config, id_service_url, txtx_console_url, registry_gql_url)
         .await?;
 
     Ok(())
@@ -71,7 +71,7 @@ async fn publish_gql(
     runbook: PublishableEmbeddedRunbookSpecification,
     auth_config: &AuthConfig,
     id_service_url: &str,
-    txtx_cloud_url: &str,
+    txtx_console_url: &str,
     registry_gql_url: &str,
 ) -> Result<(), String> {
     let user_id = auth_config.user.id.clone();
@@ -157,7 +157,7 @@ async fn publish_gql(
     println!(
         "{} Runbook published to {}/runbook/{}",
         green!("✓"),
-        txtx_cloud_url,
+        txtx_console_url,
         response.insert_runbooks_one.unwrap().id
     );
 

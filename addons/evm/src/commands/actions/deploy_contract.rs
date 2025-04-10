@@ -3,6 +3,7 @@ use alloy::json_abi::JsonAbi;
 use alloy::primitives::Address;
 use std::collections::HashMap;
 use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     PreCommandSpecification,
@@ -569,6 +570,7 @@ impl CommandImplementation for DeployContract {
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
+        cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         let construct_did = construct_did.clone();
         let spec = spec.clone();
@@ -577,6 +579,7 @@ impl CommandImplementation for DeployContract {
         let progress_tx = progress_tx.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
+        let cloud_service_context = cloud_service_context.clone();
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
@@ -601,6 +604,7 @@ impl CommandImplementation for DeployContract {
                 &progress_tx,
                 &background_tasks_uuid,
                 &supervision_context,
+                &cloud_service_context,
             )?
             .await?;
 

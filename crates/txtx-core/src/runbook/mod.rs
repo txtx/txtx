@@ -1,6 +1,7 @@
 use diffing_context::ConsolidatedPlanChanges;
 use flow_context::FlowContext;
 use kit::indexmap::IndexMap;
+use kit::types::cloud_interface::CloudServiceContext;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::ConstructDid;
 use serde_json::{json, Value as JsonValue};
@@ -64,6 +65,7 @@ impl Runbook {
             runtime_context: RuntimeContext::new(
                 AuthorizationContext::empty(),
                 Runbook::get_no_addons_by_namespace,
+                CloudServiceContext::empty(),
             ),
             sources: RunbookSources::new(),
             supervision_context: RunbookSupervisionContext::new(),
@@ -177,11 +179,15 @@ impl Runbook {
         top_level_inputs_map: RunbookTopLevelInputsMap,
         authorization_context: AuthorizationContext,
         get_addon_by_namespace: fn(&str) -> Option<Box<dyn Addon>>,
+        cloud_service_context: CloudServiceContext,
     ) -> Result<bool, Vec<Diagnostic>> {
         // Re-initialize some shiny new contexts
         self.flow_contexts.clear();
-        let mut runtime_context =
-            RuntimeContext::new(authorization_context, get_addon_by_namespace);
+        let mut runtime_context = RuntimeContext::new(
+            authorization_context,
+            get_addon_by_namespace,
+            cloud_service_context,
+        );
 
         // Index our flow contexts
         let mut flow_contexts = self
@@ -209,6 +215,7 @@ impl Runbook {
                     &top_level_inputs_map.current_environment,
                 )
                 .await?;
+
             // Step 3: simulate inputs evaluation - some more edges could be hidden in there
             flow_context
                 .execution_context
@@ -298,11 +305,15 @@ impl Runbook {
         inputs_map.current_environment = selector;
         let authorization_context: AuthorizationContext =
             self.runtime_context.authorization_context.clone();
+        let cloud_service_context: CloudServiceContext =
+            self.runtime_context.cloud_service_context.clone();
+
         self.build_contexts_from_sources(
             self.sources.clone(),
             inputs_map,
             authorization_context,
             self.runtime_context.addons_context.get_addon_by_namespace,
+            cloud_service_context,
         )
         .await
     }
