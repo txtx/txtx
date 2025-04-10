@@ -1,12 +1,14 @@
 use atty::Stream;
 use clap::{ArgAction, Parser, Subcommand};
 use dotenvy::dotenv;
+use env::TxtxEnv;
 use hiro_system_kit::{self, Logger};
 use runbooks::load_runbook_from_manifest;
 use std::process;
 use txtx_cloud::{LoginCommand, PublishRunbook};
 
 mod docs;
+mod env;
 mod lsp;
 mod runbooks;
 mod snapshots;
@@ -290,12 +292,13 @@ async fn handle_command(
     ctx: &Context,
     buffer_stdin: Option<String>,
 ) -> Result<(), String> {
+    let env = TxtxEnv::load();
     match opts.command {
         Command::Check(cmd) => {
-            runbooks::handle_check_command(&cmd, buffer_stdin, ctx).await?;
+            runbooks::handle_check_command(&cmd, buffer_stdin, ctx, &env).await?;
         }
         Command::Run(cmd) => {
-            runbooks::handle_run_command(&cmd, buffer_stdin, ctx).await?;
+            runbooks::handle_run_command(&cmd, buffer_stdin, ctx, &env).await?;
         }
         Command::List(cmd) => {
             runbooks::handle_list_command(&cmd, ctx).await?;
@@ -330,7 +333,7 @@ async fn handle_command(
             // Consider making the duration configurable or running indefinitely
             thread::sleep(std::time::Duration::new(1800, 0));
         }
-        Command::Cloud(cmd) => handle_cloud_commands(&cmd, buffer_stdin).await?,
+        Command::Cloud(cmd) => handle_cloud_commands(&cmd, buffer_stdin, &env).await?,
     }
     Ok(())
 }
@@ -338,20 +341,15 @@ async fn handle_command(
 async fn handle_cloud_commands(
     cmd: &CloudCommand,
     buffer_stdin: Option<String>,
+    env: &TxtxEnv,
 ) -> Result<(), String> {
-    let auth_service_url = get_env_var(AUTH_SERVICE_URL_KEY, DEFAULT_AUTH_SERVICE_URL);
-    let auth_callback_port = get_env_var(AUTH_CALLBACK_PORT_KEY, DEFAULT_AUTH_CALLBACK_PORT);
-    let id_service_url = get_env_var(TXTX_ID_SERVICE_URL_KEY, DEFAULT_TXTX_ID_SERVICE_URL);
-    let txtx_cloud_url = get_env_var(TXTX_CONSOLE_URL_KEY, DEFAULT_TXTX_CONSOLE_URL);
-    let registry_gql_url = get_env_var(REGISTRY_GQL_URL_KEY, DEFAULT_REGISTRY_GQL_URL);
-
     match cmd {
         CloudCommand::Login(cmd) => {
             txtx_cloud::login::handle_login_command(
                 cmd,
-                &auth_service_url,
-                &auth_callback_port,
-                &id_service_url,
+                &env.auth_service_url,
+                &env.auth_callback_port,
+                &env.id_service_url,
             )
             .await
         }
@@ -362,15 +360,16 @@ async fn handle_cloud_commands(
                 &cmd.environment,
                 &cmd.inputs,
                 buffer_stdin,
+                env,
             )
             .await?;
 
             txtx_cloud::publish::handle_publish_command(
                 cmd,
                 runbook,
-                &id_service_url,
-                &txtx_cloud_url,
-                &registry_gql_url,
+                &env.id_service_url,
+                &env.txtx_console_url,
+                &env.registry_gql_url,
             )
             .await
         }
