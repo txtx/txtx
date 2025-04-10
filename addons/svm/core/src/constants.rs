@@ -64,9 +64,16 @@ pub const EVENT: &str = "event";
 pub const SUBGRAPH_NAME: &str = "subgraph_name";
 pub const SUBGRAPH_REQUEST: &str = "subgraph_request";
 pub const SUBGRAPH_URL: &str = "subgraph_url";
+pub const SUBGRAPH_ENDPOINT_URL: &str = "subgraph_endpoint_url";
+pub const DO_INCLUDE_TOKEN: &str = "do_include_token";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
 pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
 pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
 pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
+
+// Subgraph endpoints
+pub const MAINNET_SUBGRAPH_ENDPOINT: &str =
+    "http://127.0.0.1:9000/lambda-url/svm-subgraph-crud-api/subgraphs";
+pub const DEVNET_SUBGRAPH_ENDPOINT: &str = "http://localhost:3000";
