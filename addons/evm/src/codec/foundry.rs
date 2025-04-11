@@ -108,7 +108,7 @@ impl FoundryToml {
         let foundry_config: FoundryConfig = figment
             .select(profile_name)
             .extract()
-            .map_err(|e| format!("foundry.toml does not include profile {profile_name}: {}", e))?;
+            .map_err(|e| format!("invalid foundry.toml profile '{profile_name}': {}", e))?;
         Ok(foundry_config)
     }
 

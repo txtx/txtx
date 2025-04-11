@@ -311,7 +311,7 @@ pub fn value_to_abi_param(value: &Value, param: &Param) -> Result<DynSolValue, D
         if addon_data.id == EVM_SIM_RESULT {
             let (result, fn_spec) = EvmValue::to_sim_result(value)?;
             if let Some(fn_spec) = fn_spec {
-                let res = fn_spec.abi_decode_output(&result, false).map_err(|e| {
+                let res = fn_spec.abi_decode_output(&result).map_err(|e| {
                     diagnosed_error!("{msg}: failed to decode function output: {e}")
                 })?;
                 if res.len() == 1 {
@@ -513,7 +513,7 @@ pub fn value_to_sol_value(value: &Value) -> Result<DynSolValue, String> {
                     EvmValue::to_sim_result(value).map_err(|e| format!("{}", e))?;
                 if let Some(fn_spec) = fn_spec {
                     let res = fn_spec
-                        .abi_decode_output(&result, false)
+                        .abi_decode_output(&result)
                         .map_err(|e| format!("failed to decode function output: {}", e))?;
                     if res.len() == 1 {
                         res.get(0).unwrap().clone()
@@ -718,7 +718,7 @@ pub fn abi_decode_logs(abi_map: &Value, logs: &[Log]) -> Result<Vec<Value>, Stri
             };
 
             let decoded = match matching_event
-                .decode_log(&log.data(), true)
+                .decode_log(&log.data())
                 .map_err(|e| format!("failed to decode log: {e}"))
             {
                 Ok(decoded) => decoded,
