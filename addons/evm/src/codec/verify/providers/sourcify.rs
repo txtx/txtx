@@ -2,7 +2,9 @@ use std::{collections::HashMap, fs, path::PathBuf};
 
 use alloy::primitives::Address;
 use alloy_chains::Chain;
-use foundry_config::ethers_solc::{artifacts::Source, Graph};
+use foundry_compilers::{multi::MultiCompilerParsedSource, Graph};
+use foundry_compilers_artifacts_solc::Source;
+// use foundry_config::ethers_solc::{artifacts::Source, Graph};
 use txtx_addon_kit::{
     reqwest::{Client, Url},
     types::diagnostics::Diagnostic,
@@ -50,18 +52,19 @@ impl Verifier for SourcifyVerificationClient {
         provider_api_url: &Url,
         provider_url: &Option<Url>,
         chain: Chain,
-        address: &Address,
+        address_bytes: &Vec<u8>,
     ) -> Result<Self, Diagnostic>
     where
         Self: Sized,
     {
+        let address = Address::from_slice(address_bytes);
         let client = Client::new();
         Ok(Self {
             client,
             chain,
             provider_api_url: provider_api_url.clone(),
             provider_url: provider_url.clone(),
-            address: address.clone(),
+            address,
         })
     }
 
@@ -228,11 +231,12 @@ impl SourcifyVerifyRequest {
         );
 
         // traverse the dependency graph to find all imports
-        let graph = Graph::resolve_sources(&project.paths, sources)
+        let graph = Graph::<MultiCompilerParsedSource>::resolve_sources(&project.paths, sources)
             .map_err(|e| diagnosed_error!("failed to resolve sources: {}", e))?;
 
         // get the imports for the contract target path
-        let imports: Vec<PathBuf> = graph.imports(&source_path).into_iter().cloned().collect();
+        let imports: Vec<PathBuf> =
+            graph.imports(&source_path).into_iter().map(Into::into).collect();
 
         let mut files = HashMap::with_capacity(2 + imports.len());
 

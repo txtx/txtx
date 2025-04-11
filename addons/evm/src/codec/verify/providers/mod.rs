@@ -155,7 +155,7 @@ impl VerificationClient {
     pub fn new(
         opts: &ContractVerificationOpts,
         chain: Chain,
-        contract_address: &Address,
+        contract_address: &Vec<u8>,
     ) -> Result<Self, Diagnostic> {
         match opts.provider {
             Provider::Etherscan => {
@@ -231,7 +231,7 @@ impl VerificationClient {
 
     pub fn address(&self) -> Address {
         match self {
-            VerificationClient::Etherscan(client) => client.address.clone(),
+            VerificationClient::Etherscan(client) => Address::from_slice(&client.address.to_vec()),
             VerificationClient::Blockscout => Address::new([0; 20]),
             VerificationClient::Sourcify(client) => client.address.clone(),
         }
@@ -252,7 +252,7 @@ trait Verifier {
         provider_api_url: &Url,
         provider_url: &Option<Url>,
         chain: Chain,
-        contract_address: &Address,
+        contract_address_bytes: &Vec<u8>,
     ) -> Result<Self, Diagnostic>
     where
         Self: Sized;

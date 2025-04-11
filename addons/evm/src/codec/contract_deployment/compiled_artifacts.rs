@@ -1,8 +1,9 @@
 use std::{path::PathBuf, str::FromStr};
 
 use alloy::json_abi::JsonAbi;
+use foundry_compilers::Project;
 use foundry_compilers_artifacts_solc::Metadata;
-use foundry_config::{ethers_solc::Project, Config};
+use foundry_config::Config;
 use txtx_addon_kit::{
     indexmap::IndexMap,
     types::{diagnostics::Diagnostic, types::Value},
