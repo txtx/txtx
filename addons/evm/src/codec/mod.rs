@@ -554,7 +554,9 @@ pub fn sol_value_to_value(sol_value: &DynSolValue) -> Result<Value, Diagnostic> 
         DynSolValue::Function(_) => todo!(),
         DynSolValue::Bytes(_) => todo!(),
         DynSolValue::String(value) => Value::string(value.clone()),
-        DynSolValue::Array(_) => todo!(),
+        DynSolValue::Array(values) => {
+            Value::array(values.iter().map(sol_value_to_value).collect::<Result<Vec<_>, _>>()?)
+        }
         DynSolValue::FixedArray(_) => todo!(),
         DynSolValue::Tuple(_) => todo!(),
         DynSolValue::CustomStruct { name, prop_names, tuple } => ObjectType::from(vec![(
