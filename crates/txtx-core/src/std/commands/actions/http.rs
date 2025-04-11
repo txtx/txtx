@@ -168,7 +168,7 @@ impl CommandImplementation for SendHttpRequest {
 
             result.outputs.insert(format!("response_body"), Value::string(response_body));
 
-            Ok(result)
+            Ok::<CommandExecutionResult, Diagnostic>(result)
         };
         #[cfg(feature = "wasm")]
         panic!("async commands are not enabled for wasm");
