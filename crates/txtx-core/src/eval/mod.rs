@@ -1467,7 +1467,7 @@ pub fn perform_inputs_evaluation(
                 continue;
             }
         }
-        if let Some(object_props) = input.as_object() {
+        if let Some(object_def) = input.as_object() {
             // get this object expression to check if it's a traversal. if the expected
             // object type is a traversal, we should parse it as a regular field rather than
             // looking at each property of the object
@@ -1548,55 +1548,109 @@ pub fn perform_inputs_evaluation(
                 continue;
             }
             let mut object_values = IndexMap::new();
-            for prop in object_props.iter() {
-                let Some(expr) =
-                    with_evaluatable_inputs.get_expression_from_object_property(&input_name, &prop)
-                else {
-                    continue;
-                };
+            match object_def {
+                ObjectDefinition::Strict(props) => {
+                    for prop in props.iter() {
+                        let Some(expr) = with_evaluatable_inputs
+                            .get_expression_from_object_property(&input_name, &prop)
+                        else {
+                            continue;
+                        };
 
-                let value = match eval_expression(
-                    &expr,
-                    dependencies_execution_results,
-                    package_id,
-                    runbook_workspace_context,
-                    runbook_execution_context,
-                    runtime_context,
-                ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
-                        diags.push(e);
-                        continue;
-                    }
-                    Err(e) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        results.unevaluated_inputs.insert(input_name.clone(), Some(e.clone()));
-                        diags.push(e);
-                        continue;
-                    }
-                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        require_user_interaction = true;
-                        results.unevaluated_inputs.insert(input_name.clone(), None);
-                        continue;
-                    }
-                };
+                        let value = match eval_expression(
+                            &expr,
+                            dependencies_execution_results,
+                            package_id,
+                            runbook_workspace_context,
+                            runbook_execution_context,
+                            runtime_context,
+                        ) {
+                            Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                            Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                                if e.is_error() {
+                                    fatal_error = true;
+                                }
+                                results
+                                    .unevaluated_inputs
+                                    .insert(input_name.clone(), Some(e.clone()));
+                                diags.push(e);
+                                continue;
+                            }
+                            Err(e) => {
+                                if e.is_error() {
+                                    fatal_error = true;
+                                }
+                                results
+                                    .unevaluated_inputs
+                                    .insert(input_name.clone(), Some(e.clone()));
+                                diags.push(e);
+                                continue;
+                            }
+                            Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                                require_user_interaction = true;
+                                results.unevaluated_inputs.insert(input_name.clone(), None);
+                                continue;
+                            }
+                        };
 
-                match value.clone() {
-                    Value::Object(obj) => {
-                        for (k, v) in obj.into_iter() {
-                            object_values.insert(k, v);
-                        }
+                        // todo: this seems wrong. when we evaluate an object and one of its results is an object,
+                        // this looks like we're flattening it?
+                        match value.clone() {
+                            Value::Object(obj) => {
+                                for (k, v) in obj.into_iter() {
+                                    object_values.insert(k, v);
+                                }
+                            }
+                            v => {
+                                object_values.insert(prop.name.to_string(), v);
+                            }
+                        };
                     }
-                    v => {
-                        object_values.insert(prop.name.to_string(), v);
+                }
+                ObjectDefinition::Arbitrary(_) => {
+                    for attr in with_evaluatable_inputs.block().body.attributes() {
+                        let ident = attr.key.to_string();
+                        let expr = attr.value.clone();
+
+                        let value = match eval_expression(
+                            &expr,
+                            dependencies_execution_results,
+                            package_id,
+                            runbook_workspace_context,
+                            runbook_execution_context,
+                            runtime_context,
+                        ) {
+                            Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                            Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                                if e.is_error() {
+                                    fatal_error = true;
+                                }
+                                results
+                                    .unevaluated_inputs
+                                    .insert(input_name.clone(), Some(e.clone()));
+                                diags.push(e);
+                                continue;
+                            }
+                            Err(e) => {
+                                if e.is_error() {
+                                    fatal_error = true;
+                                }
+                                results
+                                    .unevaluated_inputs
+                                    .insert(input_name.clone(), Some(e.clone()));
+                                diags.push(e);
+                                continue;
+                            }
+                            Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                                require_user_interaction = true;
+                                results.unevaluated_inputs.insert(input_name.clone(), None);
+                                continue;
+                            }
+                        };
+
+                        object_values.insert(ident, value);
                     }
-                };
+                }
             }
 
             if !object_values.is_empty() {
@@ -1750,67 +1804,78 @@ pub fn perform_signer_inputs_evaluation(
             }
             None => None,
         };
-        if let Some(object_props) = input.as_object() {
+        if let Some(object_def) = input.as_object() {
             // todo(micaiah) - figure out how user-input values work for this branch
             let mut object_values = IndexMap::new();
-            for prop in object_props.iter() {
-                if let Some(value) = previously_evaluated_input {
-                    match value.clone() {
-                        Value::Object(obj) => {
-                            for (k, v) in obj.into_iter() {
-                                object_values.insert(k, v);
+            match object_def {
+                ObjectDefinition::Strict(props) => {
+                    for prop in props.iter() {
+                        if let Some(value) = previously_evaluated_input {
+                            match value.clone() {
+                                Value::Object(obj) => {
+                                    for (k, v) in obj.into_iter() {
+                                        object_values.insert(k, v);
+                                    }
+                                }
+                                v => {
+                                    object_values.insert(prop.name.to_string(), v);
+                                }
+                            };
+                        }
+
+                        let Some(expr) =
+                            signer_instance.get_expression_from_object_property(&input, &prop)
+                        else {
+                            continue;
+                        };
+                        let value = match eval_expression(
+                            &expr,
+                            dependencies_execution_results,
+                            package_id,
+                            runbook_workspace_context,
+                            runbook_execution_context,
+                            runtime_context,
+                        ) {
+                            Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                            Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                                if e.is_error() {
+                                    fatal_error = true;
+                                }
+                                diags.push(e);
+                                continue;
                             }
-                        }
-                        v => {
-                            object_values.insert(prop.name.to_string(), v);
-                        }
-                    };
+                            Err(e) => {
+                                if e.is_error() {
+                                    fatal_error = true;
+                                }
+                                diags.push(e);
+                                continue;
+                            }
+                            Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                                require_user_interaction = true;
+                                continue;
+                            }
+                        };
+
+                        match value.clone() {
+                            Value::Object(obj) => {
+                                for (k, v) in obj.into_iter() {
+                                    object_values.insert(k, v);
+                                }
+                            }
+                            v => {
+                                object_values.insert(prop.name.to_string(), v);
+                            }
+                        };
+                    }
                 }
-
-                let Some(expr) = signer_instance.get_expression_from_object_property(&input, &prop)
-                else {
-                    continue;
-                };
-                let value = match eval_expression(
-                    &expr,
-                    dependencies_execution_results,
-                    package_id,
-                    runbook_workspace_context,
-                    runbook_execution_context,
-                    runtime_context,
-                ) {
-                    Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
-                    Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        diags.push(e);
-                        continue;
-                    }
-                    Err(e) => {
-                        if e.is_error() {
-                            fatal_error = true;
-                        }
-                        diags.push(e);
-                        continue;
-                    }
-                    Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
-                        require_user_interaction = true;
-                        continue;
-                    }
-                };
-
-                match value.clone() {
-                    Value::Object(obj) => {
-                        for (k, v) in obj.into_iter() {
-                            object_values.insert(k, v);
-                        }
-                    }
-                    v => {
-                        object_values.insert(prop.name.to_string(), v);
-                    }
-                };
+                ObjectDefinition::Arbitrary(_) => {
+                    println!(
+                        "Warning: arbitrary object definition is not supported for signer inputs"
+                    );
+                }
             }
+
             if !object_values.is_empty() {
                 results.insert(&input.name, Value::Object(object_values));
             }
@@ -1950,38 +2015,152 @@ fn evaluate_map_input(
     let input_typing = input_spec.typing();
     let input_optional = input_spec.optional();
 
-    let spec_object_props = input_spec.as_map().expect("expected input to be a map");
+    let spec_object_def = input_spec.as_map().expect("expected input to be a map");
 
     let Some(blocks) =
         with_evaluatable_inputs.get_blocks_for_map(&input_name, &input_typing, input_optional)?
     else {
         return Ok(None);
     };
-    let res = EvaluateMapObjectPropResult::new();
-    match evaluate_map_object_prop(
-        &input_name,
-        res,
-        blocks,
-        spec_object_props,
-        dependencies_execution_results,
-        package_id,
-        runbook_workspace_context,
-        runbook_execution_context,
-        runtime_context,
-    ) {
-        Ok(Some(res)) => {
-            result.insert(&input_name, Value::array(res.entries));
-            result.unevaluated_inputs.merge(&res.unevaluated_inputs);
-            return Ok(Some(EvaluateMapInputResult {
-                result,
-                require_user_interaction: res.require_user_interaction,
-                diags: res.diags,
-                fatal_error: res.fatal_error,
-            }));
-        }
-        Ok(None) => return Ok(None),
-        Err(e) => return Err(e),
+
+    let res = match spec_object_def {
+        ObjectDefinition::Strict(props) => evaluate_map_object_prop(
+            &input_name,
+            EvaluateMapObjectPropResult::new(),
+            blocks,
+            &props,
+            dependencies_execution_results,
+            package_id,
+            runbook_workspace_context,
+            runbook_execution_context,
+            runtime_context,
+        )
+        .map_err(|diag| vec![diag])?,
+        ObjectDefinition::Arbitrary(_) => evaluate_arbitrary_inputs_map(
+            &input_name,
+            EvaluateMapObjectPropResult::new(),
+            blocks,
+            dependencies_execution_results,
+            package_id,
+            runbook_workspace_context,
+            runbook_execution_context,
+            runtime_context,
+        )
+        .map_err(|diag| vec![diag])?,
     };
+
+    result.insert(&input_name, Value::array(res.entries));
+    result.unevaluated_inputs.merge(&res.unevaluated_inputs);
+    Ok(Some(EvaluateMapInputResult {
+        result,
+        require_user_interaction: res.require_user_interaction,
+        diags: res.diags,
+        fatal_error: res.fatal_error,
+    }))
+}
+
+fn evaluate_arbitrary_inputs_map(
+    spec_input_name: &str,
+    mut parent_result: EvaluateMapObjectPropResult,
+    blocks: Vec<HclBlock>,
+    dependencies_execution_results: &DependencyExecutionResultCache,
+    package_id: &PackageId,
+    runbook_workspace_context: &RunbookWorkspaceContext,
+    runbook_execution_context: &RunbookExecutionContext,
+    runtime_context: &RuntimeContext,
+) -> Result<EvaluateMapObjectPropResult, Diagnostic> {
+    for block in blocks {
+        let mut object_values = IndexMap::new();
+        for attr in block.body.attributes() {
+            let expr = attr.value.clone();
+            let ident = attr.key.to_string();
+
+            let value = match eval_expression(
+                &expr,
+                dependencies_execution_results,
+                package_id,
+                runbook_workspace_context,
+                runbook_execution_context,
+                runtime_context,
+            ) {
+                Ok(ExpressionEvaluationStatus::CompleteOk(result)) => result,
+                Ok(ExpressionEvaluationStatus::CompleteErr(e)) => {
+                    if e.is_error() {
+                        parent_result.fatal_error = true;
+                    }
+                    parent_result
+                        .unevaluated_inputs
+                        .insert(spec_input_name.to_string(), Some(e.clone()));
+                    parent_result.diags.push(e);
+                    continue;
+                }
+                Err(e) => {
+                    if e.is_error() {
+                        parent_result.fatal_error = true;
+                    }
+                    parent_result
+                        .unevaluated_inputs
+                        .insert(spec_input_name.to_string(), Some(e.clone()));
+                    parent_result.diags.push(e);
+                    continue;
+                }
+                Ok(ExpressionEvaluationStatus::DependencyNotComputed) => {
+                    parent_result.require_user_interaction = true;
+                    parent_result.unevaluated_inputs.insert(spec_input_name.to_string(), None);
+                    continue;
+                }
+            };
+            match value.clone() {
+                Value::Object(obj) => {
+                    for (k, v) in obj.into_iter() {
+                        object_values.insert(k, v);
+                    }
+                }
+                v => {
+                    object_values.insert(ident, v);
+                }
+            };
+        }
+
+        let child_blocks = block.body.blocks().cloned().collect::<Vec<_>>();
+        if !child_blocks.is_empty() {
+            let mut ident_grouped_child_blocks = IndexMap::new();
+            child_blocks.iter().for_each(|child_block| {
+                ident_grouped_child_blocks
+                    .entry(child_block.ident.to_string())
+                    .or_insert_with(Vec::new)
+                    .push(child_block.clone())
+            });
+            for (ident, child_blocks) in ident_grouped_child_blocks {
+                let child_block_result = evaluate_arbitrary_inputs_map(
+                    spec_input_name,
+                    parent_result.clone(),
+                    child_blocks,
+                    dependencies_execution_results,
+                    package_id,
+                    runbook_workspace_context,
+                    runbook_execution_context,
+                    runtime_context,
+                )?;
+                parent_result.unevaluated_inputs = child_block_result.unevaluated_inputs;
+                let mut diags = parent_result.diags.clone();
+                diags.extend(child_block_result.diags);
+                parent_result.diags = diags;
+                if child_block_result.fatal_error {
+                    parent_result.fatal_error = true;
+                    continue;
+                }
+                if child_block_result.require_user_interaction {
+                    parent_result.require_user_interaction = true;
+                    continue;
+                }
+
+                object_values.insert(ident, Value::array(child_block_result.entries));
+            }
+        }
+        parent_result.entries.push(Value::object(object_values));
+    }
+    Ok(parent_result)
 }
 
 #[derive(Clone, Debug)]
@@ -2014,7 +2193,7 @@ fn evaluate_map_object_prop(
     runbook_workspace_context: &RunbookWorkspaceContext,
     runbook_execution_context: &RunbookExecutionContext,
     runtime_context: &RuntimeContext,
-) -> Result<Option<EvaluateMapObjectPropResult>, Vec<Diagnostic>> {
+) -> Result<EvaluateMapObjectPropResult, Diagnostic> {
     for block in blocks.iter() {
         let mut object_values = IndexMap::new();
         for spec_object_prop in spec_object_props.iter() {
@@ -2067,42 +2246,51 @@ fn evaluate_map_object_prop(
                 if child_map_blocks.is_empty() {
                     continue;
                 }
-                let Type::Map(ref child_map_spec_object_props) = spec_object_prop.typing else {
-                    return Err(vec![diagnosed_error!(
+                let Type::Map(ref child_map_spec_object_def) = spec_object_prop.typing else {
+                    return Err(diagnosed_error!(
                         "expected type {} for property {}, found map",
                         spec_object_prop.typing.to_string(),
                         spec_object_prop.name
-                    )]);
+                    ));
                 };
-                match evaluate_map_object_prop(
-                    &spec_input_name,
-                    EvaluateMapObjectPropResult::new(),
-                    child_map_blocks,
-                    child_map_spec_object_props,
-                    dependencies_execution_results,
-                    package_id,
-                    runbook_workspace_context,
-                    runbook_execution_context,
-                    runtime_context,
-                ) {
-                    Ok(Some(res)) => {
-                        parent_result.unevaluated_inputs = res.unevaluated_inputs;
-                        let mut diags = parent_result.diags.clone();
-                        diags.extend(res.diags);
-                        parent_result.diags = diags;
-                        if res.fatal_error {
-                            parent_result.fatal_error = true;
-                            continue;
-                        }
-                        if res.require_user_interaction {
-                            parent_result.require_user_interaction = true;
-                            continue;
-                        }
-                        Value::array(res.entries)
-                    }
-                    Ok(None) => continue,
-                    Err(e) => return Err(e),
+
+                let res = match child_map_spec_object_def {
+                    ObjectDefinition::Strict(props) => evaluate_map_object_prop(
+                        spec_input_name,
+                        EvaluateMapObjectPropResult::new(),
+                        child_map_blocks,
+                        &props,
+                        dependencies_execution_results,
+                        package_id,
+                        runbook_workspace_context,
+                        runbook_execution_context,
+                        runtime_context,
+                    )?,
+                    ObjectDefinition::Arbitrary(_) => evaluate_arbitrary_inputs_map(
+                        spec_input_name,
+                        EvaluateMapObjectPropResult::new(),
+                        child_map_blocks,
+                        dependencies_execution_results,
+                        package_id,
+                        runbook_workspace_context,
+                        runbook_execution_context,
+                        runtime_context,
+                    )?,
+                };
+
+                parent_result.unevaluated_inputs = res.unevaluated_inputs;
+                let mut diags = parent_result.diags.clone();
+                diags.extend(res.diags);
+                parent_result.diags = diags;
+                if res.fatal_error {
+                    parent_result.fatal_error = true;
+                    continue;
                 }
+                if res.require_user_interaction {
+                    parent_result.require_user_interaction = true;
+                    continue;
+                }
+                Value::array(res.entries)
             };
 
             match value.clone() {
@@ -2119,5 +2307,5 @@ fn evaluate_map_object_prop(
         parent_result.entries.push(Value::object(object_values));
     }
 
-    Ok(Some(parent_result))
+    Ok(parent_result)
 }
