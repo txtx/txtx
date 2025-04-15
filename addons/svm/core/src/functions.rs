@@ -3,16 +3,13 @@ use std::str::FromStr;
 use crate::typing::anchor::types::Idl;
 use solana_sdk::{pubkey::Pubkey, system_program};
 use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
-use txtx_addon_kit::{
-    indexmap::indexmap,
-    types::{
-        diagnostics::Diagnostic,
-        functions::{
-            arg_checker_with_ctx, fn_diag_with_ctx, FunctionImplementation, FunctionSpecification,
-        },
-        types::{ObjectProperty, ObjectType, Type, Value},
-        AuthorizationContext,
+use txtx_addon_kit::types::{
+    diagnostics::Diagnostic,
+    functions::{
+        arg_checker_with_ctx, fn_diag_with_ctx, FunctionImplementation, FunctionSpecification,
     },
+    types::{ObjectType, Type, Value},
+    AuthorizationContext,
 };
 
 use crate::{
@@ -28,9 +25,9 @@ pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result
     let checker = arg_checker_with_ctx(NAMESPACE.to_string());
     checker(fn_spec, args)
 }
-pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
+pub fn to_diag<T: ToString>(fn_spec: &FunctionSpecification, e: T) -> Diagnostic {
     let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
-    error_fn(fn_spec, e)
+    error_fn(fn_spec, e.to_string())
 }
 
 lazy_static! {
@@ -554,19 +551,16 @@ impl FunctionImplementation for SolToLamports {
         let sol = match sol {
             Value::Integer(i) => {
                 if *i < 0 {
-                    return Err(to_diag(fn_spec, "SOL amount cannot be negative".into()));
+                    return Err(to_diag(fn_spec, "SOL amount cannot be negative"));
                 }
                 if *i > (1u64 << 53) as i128 {
-                    return Err(to_diag(
-                        fn_spec,
-                        "SOL amount too large for precise conversion".into(),
-                    ));
+                    return Err(to_diag(fn_spec, "SOL amount too large for precise conversion"));
                 }
                 *i as f64
             }
             Value::Float(f) => {
                 if *f < 0.0 {
-                    return Err(to_diag(fn_spec, "SOL amount cannot be negative".into()));
+                    return Err(to_diag(fn_spec, "SOL amount cannot be negative"));
                 }
                 *f
             }
