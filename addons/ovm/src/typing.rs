@@ -5,7 +5,7 @@ pub struct OvmValue {}
 impl OvmValue {}
 
 lazy_static! {
-    pub static ref ROLLUP_CONFIG_TYPE: Type = define_map_type! {
+    pub static ref ROLLUP_CONFIG_TYPE: Type = define_strict_map_type! {
         // required fields
         l1_chain_id: {
             documentation: "The L1 chain id.",
@@ -322,7 +322,7 @@ lazy_static! {
         }
     };
 
-    pub static ref ROLLUP_CONTAINER_IDS_TYPE: Type = define_object_type! {
+    pub static ref ROLLUP_CONTAINER_IDS_TYPE: Type = define_strict_object_type! {
         op_geth_container_id: {
             documentation: "The op-geth container id.",
             typing: Type::string(),
