@@ -3,7 +3,6 @@ use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
@@ -55,14 +54,7 @@ lazy_static! {
                 },
                 headers: {
                     documentation: "A map of request header field names and values.",
-                    typing: Type::object(vec![ObjectProperty {
-                        name: "Content-Type".into(),
-                        documentation: "Content-Type".into(),
-                        typing: Type::string(),
-                        optional: true,
-                        tainting: true,
-                        internal: false,
-                    }]),
+                    typing: Type::arbitrary_object(),
                     optional: true,
                     tainting: true,
                     internal: false
