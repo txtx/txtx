@@ -1,3 +1,5 @@
+use hcl_edit::expr::Expression;
+use hcl_edit::structure::Block;
 use indexmap::IndexMap;
 use jaq_interpret::Val;
 use serde::de::{self, MapAccess, Visitor};
@@ -7,8 +9,13 @@ use serde_json::{Map, Value as JsonValue};
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 
+use crate::helpers::hcl::{
+    collect_constructs_references_from_block, collect_constructs_references_from_expression,
+    visit_optional_untyped_attribute,
+};
+
 use super::diagnostics::Diagnostic;
-use super::Did;
+use super::{Did, EvaluatableInput};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type", content = "value", rename_all = "lowercase")]
@@ -920,6 +927,80 @@ impl Type {
             _ => None,
         }
     }
+
+    /// This function will get attributes from the provided HCL block that match the input name.
+    /// It will collect all expressions in the block that reference other constructs, according
+    /// to the rules defined by the `Type`.
+    ///
+    /// For example, while most types will just get the attribute value, the `Object` and `Map` types
+    /// need to look for nested blocks and properties.
+    pub fn get_expressions_referencing_constructs<'a, T: EvaluatableInput>(
+        &self,
+        block: &Block,
+        input: &'a T,
+        dependencies: &mut Vec<(Option<&'a T>, Expression)>,
+    ) {
+        let input_name = input.name();
+        match self {
+            Type::Map(ref object_def) => match object_def {
+                ObjectDefinition::Strict(props) => {
+                    for block in block.body.get_blocks(&input_name) {
+                        for prop in props.iter() {
+                            let res = visit_optional_untyped_attribute(&prop.name, &block);
+                            if let Some(expr) = res {
+                                collect_constructs_references_from_expression(
+                                    &expr,
+                                    Some(input),
+                                    dependencies,
+                                );
+                            }
+                        }
+                    }
+                }
+                ObjectDefinition::Arbitrary(_) => {
+                    for block in block.body.get_blocks(&input_name) {
+                        collect_constructs_references_from_block(block, Some(input), dependencies);
+                    }
+                }
+            },
+            Type::Object(ref object_def) => {
+                if let Some(expr) = visit_optional_untyped_attribute(&input_name, &block) {
+                    collect_constructs_references_from_expression(&expr, Some(input), dependencies);
+                }
+                match object_def {
+                    ObjectDefinition::Strict(props) => {
+                        for prop in props.iter() {
+                            for block in block.body.get_blocks(&input_name) {
+                                if let Some(expr) =
+                                    visit_optional_untyped_attribute(&prop.name, &block)
+                                {
+                                    collect_constructs_references_from_expression(
+                                        &expr,
+                                        Some(input),
+                                        dependencies,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    ObjectDefinition::Arbitrary(_) => {
+                        for block in block.body.get_blocks(&input_name) {
+                            collect_constructs_references_from_block(
+                                block,
+                                Some(input),
+                                dependencies,
+                            );
+                        }
+                    }
+                }
+            }
+            _ => {
+                if let Some(expr) = visit_optional_untyped_attribute(&input_name, &block) {
+                    collect_constructs_references_from_expression(&expr, Some(input), dependencies);
+                }
+            }
+        }
+    }
 }
 
 impl Type {
@@ -954,7 +1035,7 @@ impl TryFrom<String> for Type {
             "bool" => Type::Bool,
             "null" => Type::Null,
             "buffer" => Type::Buffer,
-            "object" => Type::Object(vec![]),
+            "object" => Type::Object(ObjectDefinition::arbitrary()),
             other => {
                 if other.starts_with("array[") && other.ends_with("]") {
                     let mut inner = other.replace("array[", "");

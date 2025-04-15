@@ -2,14 +2,13 @@ use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, CHECKED_ADDRESS, IS_BALANCE_CHECKED,
     PROVIDE_PUBLIC_KEY_ACTION_RESULT,
 };
-use crate::helpers::hcl::{
-    collect_constructs_references_from_expression, visit_optional_untyped_attribute,
-};
+use crate::helpers::hcl::visit_optional_untyped_attribute;
 use crate::types::stores::ValueStore;
 use futures::future;
 use hcl_edit::{expr::Expression, structure::Block, Span};
 use std::{collections::HashMap, future::Future, pin::Pin};
 
+use super::commands::ConstructInstance;
 use super::{
     commands::{
         CommandExecutionResult, CommandInput, CommandInputsEvaluationResult, CommandOutput,
@@ -21,7 +20,7 @@ use super::{
     types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
     ConstructDid, PackageId,
 };
-use super::{AuthorizationContext, Did};
+use super::{AuthorizationContext, Did, EvaluatableInput};
 
 #[derive(Debug, Clone)]
 pub struct SignersState {
@@ -326,46 +325,6 @@ impl SignerInstance {
         Did::from_components(comps)
     }
 
-    pub fn get_expressions_referencing_commands_from_inputs(
-        &self,
-    ) -> Result<Vec<(Option<&CommandInput>, Expression)>, String> {
-        let mut expressions = vec![];
-        for input in self.specification.inputs.iter() {
-            match input.typing {
-                Type::Object(ref props) => {
-                    for prop in props.iter() {
-                        let mut blocks_iter = self.block.body.get_blocks(&input.name);
-                        while let Some(block) = blocks_iter.next() {
-                            let res = visit_optional_untyped_attribute(&prop.name, &block);
-                            if let Some(expr) = res {
-                                let mut references = vec![];
-                                collect_constructs_references_from_expression(
-                                    &expr,
-                                    Some(input),
-                                    &mut references,
-                                );
-                                expressions.append(&mut references);
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    let res = visit_optional_untyped_attribute(&input.name, &self.block);
-                    if let Some(expr) = res {
-                        let mut references = vec![];
-                        collect_constructs_references_from_expression(
-                            &expr,
-                            Some(input),
-                            &mut references,
-                        );
-                        expressions.append(&mut references);
-                    }
-                }
-            }
-        }
-        Ok(expressions)
-    }
-
     /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
     pub fn get_expression_from_input(&self, input: &CommandInput) -> Option<Expression> {
         visit_optional_untyped_attribute(&input.name, &self.block)
@@ -500,39 +459,14 @@ impl SignerInstance {
         );
         consolidate_signer_activate_future_result(future, self.block.span()).await?
     }
+}
 
-    pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
-        let mut dependencies = vec![];
-        for input in self.specification.inputs.iter() {
-            match input.typing {
-                Type::Object(ref props) => {
-                    for prop in props.iter() {
-                        let mut blocks_iter = self.block.body.get_blocks(&input.name);
-                        while let Some(block) = blocks_iter.next() {
-                            let Some(attr) = block.body.get_attribute(&prop.name) else {
-                                continue;
-                            };
-                            collect_constructs_references_from_expression(
-                                &attr.value,
-                                Some(input),
-                                &mut dependencies,
-                            );
-                        }
-                    }
-                }
-                _ => {
-                    let Some(attr) = self.block.body.get_attribute(&input.name) else {
-                        continue;
-                    };
-                    collect_constructs_references_from_expression(
-                        &attr.value,
-                        Some(input),
-                        &mut dependencies,
-                    );
-                }
-            }
-        }
-        dependencies
+impl ConstructInstance for SignerInstance {
+    fn block(&self) -> &Block {
+        &self.block
+    }
+    fn inputs(&self) -> Vec<&impl EvaluatableInput> {
+        self.specification.inputs.iter().chain(&self.specification.default_inputs).collect()
     }
 }
 
