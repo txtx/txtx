@@ -88,6 +88,7 @@ pub fn parse_idl_string(idl_str: &str) -> Result<Idl, Diagnostic> {
     Ok(idl)
 }
 
+#[derive(Debug, Clone)]
 pub struct IdlRef {
     pub idl: Idl,
     pub location: Option<FileLocation>,
@@ -132,6 +133,40 @@ impl IdlRef {
         self.idl.types.clone()
     }
 
+    /// Encodes the arguments for a given instruction into a map of argument names to byte arrays.
+    pub fn get_encoded_args_map(
+        &self,
+        instruction_name: &str,
+        args: Vec<Value>,
+    ) -> Result<IndexMap<String, Vec<u8>>, Diagnostic> {
+        let instruction = self.get_instruction(instruction_name)?;
+        if args.len() != instruction.args.len() {
+            return Err(diagnosed_error!(
+                "{} arguments provided for instruction {}, which expects {} arguments",
+                args.len(),
+                instruction_name,
+                instruction.args.len()
+            ));
+        }
+        if args.is_empty() {
+            return Ok(IndexMap::new());
+        }
+
+        let idl_types = self.get_types();
+
+        let mut encoded_args = IndexMap::new();
+        for (user_arg_idx, arg) in args.iter().enumerate() {
+            let idl_arg = instruction.args.get(user_arg_idx).unwrap();
+            let encoded_arg = encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None)
+                .map_err(|e| {
+                    diagnosed_error!("error in argument at position {}: {}", user_arg_idx + 1, e)
+                })?;
+            encoded_args.insert(idl_arg.name.clone(), encoded_arg);
+        }
+        Ok(encoded_args)
+    }
+
+    /// Encodes the arguments for a given instruction into a flat byte array.
     pub fn get_encoded_args(
         &self,
         instruction_name: &str,

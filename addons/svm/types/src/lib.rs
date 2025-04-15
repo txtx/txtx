@@ -231,77 +231,40 @@ lazy_static! {
         }
     };
 
-    pub static ref INSTRUCTION_TYPE: Type = Type::map(vec![
-        ObjectProperty {
-            name: "description".into(),
-            documentation: "A description of the instruction.".into(),
-            typing: Type::string(),
-            optional: true,
-            tainting: false,
-            internal: false,
-        },
-        ObjectProperty {
-            name: "value".into(),
-            documentation: "The serialized instruction bytes.".into(),
+    pub static ref INSTRUCTION_TYPE: Type = define_documented_arbitrary_map_type! {
+        raw_bytes: {
+            documentation: "The serialized instruction bytes. Use this field in place of the other instructions if direct instruction bytes would like to be used.",
             typing: Type::addon(SVM_INSTRUCTION),
             optional: true,
-            tainting: false,
-            internal: false,
+            tainting: true
         },
-        ObjectProperty {
-            name: "program_id".into(),
-            documentation: "The SVM address of the program being invoked.".into(),
+        program_id: {
+            documentation: "The SVM address of the program being invoked. If omitted, the program_id will be pulled from the idl.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        program_idl: {
+            documentation: "The IDL of the program being invoked.",
             typing: Type::string(),
             optional: false,
-            tainting: true,
-            internal: false
+            tainting: true
         },
-        ObjectProperty {
-            name: "account".into(),
-            documentation: "A map of accounts (including other programs) that are read from or written to by the instruction.".into(),
-            typing: ACCOUNT_META_TYPE.clone(),
-            optional: false,
-            tainting: true,
-            internal: false
-        },
-        ObjectProperty {
-            name: "data".into(),
-            documentation: "A byte array that specifies which instruction handler on the program to invoke, plus any additional data required by the instruction handler, such as function arguments.".into(),
-            typing: Type::buffer(),
-            optional: true,
-            tainting: true,
-            internal: false
-        }
-    ]);
-
-    pub static ref ACCOUNT_META_TYPE: Type = Type::map(vec![
-        ObjectProperty {
-            name: "public_key".into(),
-            documentation: "The public key (SVM address) of the account.".into(),
+        instruction_name: {
+            documentation: "The name of the instruction being invoked.",
             typing: Type::string(),
             optional: false,
-            tainting: true,
-            internal: false,
+            tainting: true
         },
-        ObjectProperty {
-            name: "is_signer".into(),
-            documentation: "Specifies if the account is a signer on the instruction. The default is 'false'.".into(),
-            typing: Type::bool(),
-            optional: true,
-            tainting: true,
-            internal: false
-        },
-        ObjectProperty {
-            name: "is_writable".into(),
-            documentation: "Specifies if the account is written to by the instruction. The default is 'false'.".into(),
-            typing: Type::bool(),
-            optional: true,
-            tainting: true,
-            internal: false
+        instruction_args: {
+            documentation: "The arguments to the instruction being invoked.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
         }
-    ]);
+    };
 
-    pub static ref DEPLOYMENT_TRANSACTION_SIGNATURES: Type = define_object_type! {
+    pub static ref DEPLOYMENT_TRANSACTION_SIGNATURES: Type = define_strict_object_type! {
         create_temp_authority: {
             documentation: "The signature of the create temp authority transaction.",
             typing: Type::array(Type::string()),
