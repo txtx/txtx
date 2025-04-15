@@ -17,7 +17,7 @@ use txtx_addon_kit::{
     hex,
     types::{
         diagnostics::Diagnostic,
-        types::{ObjectProperty, Type, Value},
+        types::{Type, Value},
     },
 };
 
@@ -168,7 +168,7 @@ impl SvmValue {
 }
 
 lazy_static! {
-    pub static ref ANCHOR_PROGRAM_ARTIFACTS: Type = define_object_type! {
+    pub static ref ANCHOR_PROGRAM_ARTIFACTS: Type = define_strict_object_type! {
         idl: {
             documentation: "The program idl.",
             // typing: Type::addon(SVM_IDL),
@@ -195,7 +195,7 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref CLASSIC_RUST_PROGRAM_ARTIFACTS: Type = define_object_type! {
+    pub static ref CLASSIC_RUST_PROGRAM_ARTIFACTS: Type = define_strict_object_type! {
         binary: {
             documentation: "The program binary.",
             typing: Type::addon(SVM_BINARY),
@@ -216,7 +216,7 @@ lazy_static! {
         }
     };
 
-    pub static ref PDA_RESULT: Type = define_object_type! {
+    pub static ref PDA_RESULT: Type = define_strict_object_type! {
         pda: {
             documentation: "The program derived address.",
             typing: Type::addon(SVM_PUBKEY),
@@ -346,7 +346,7 @@ lazy_static! {
         }
     };
 
-    pub static ref SUBGRAPH_EVENT: Type = define_map_type! {
+    pub static ref SUBGRAPH_EVENT: Type = define_strict_map_type! {
         name: {
             documentation: "The name of the event, as indexed by the IDL, whose occurrences should be added to the subgraph.",
             typing: Type::string(),
@@ -361,7 +361,7 @@ lazy_static! {
         }
     };
 
-    pub static ref SUBGRAPH_EVENT_FIELD: Type = define_map_type! {
+    pub static ref SUBGRAPH_EVENT_FIELD: Type = define_strict_map_type! {
         name: {
             documentation: "The name of the field as it should appear in the subgraph.",
             typing: Type::string(),
