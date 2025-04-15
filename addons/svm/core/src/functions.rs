@@ -536,7 +536,7 @@ impl FunctionImplementation for GetInstructionDataFromIdlPath {
             .get_path_from_str(idl_path_str)
             .map_err(|e| to_diag(fn_spec, format!("failed to get idl: {e}")))?;
 
-        let idl_ref = IdlRef::new(idl_path).map_err(|e| to_diag(fn_spec, e))?;
+        let idl_ref = IdlRef::from_location(idl_path).map_err(|e| to_diag(fn_spec, e))?;
         let mut data =
             idl_ref.get_discriminator(&instruction_name).map_err(|e| to_diag(fn_spec, e))?;
         let mut encoded_args = idl_ref
