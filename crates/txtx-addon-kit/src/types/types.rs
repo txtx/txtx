@@ -680,7 +680,7 @@ impl Value {
             Value::Float(_) => Type::Float,
             Value::String(_) => Type::String,
             Value::Buffer(_) => Type::Buffer,
-            Value::Object(_) => Type::Object(vec![]),
+            Value::Object(_) => Type::Object(ObjectDefinition::arbitrary()),
             Value::Array(t) => {
                 Type::Array(Box::new(t.first().unwrap_or(&Value::null()).get_type()))
             }
@@ -779,10 +779,10 @@ pub enum Type {
     Float,
     String,
     Buffer,
-    Object(Vec<ObjectProperty>),
+    Object(ObjectDefinition),
     Addon(String),
     Array(Box<Type>),
-    Map(Vec<ObjectProperty>),
+    Map(ObjectDefinition),
 }
 
 impl Type {
@@ -801,11 +801,29 @@ impl Type {
     pub fn bool() -> Type {
         Type::Bool
     }
-    pub fn object(props: Vec<ObjectProperty>) -> Type {
-        Type::Object(props)
+    pub fn object(def: ObjectDefinition) -> Type {
+        Type::Object(def)
     }
-    pub fn map(props: Vec<ObjectProperty>) -> Type {
-        Type::Map(props)
+    pub fn strict_object(props: Vec<ObjectProperty>) -> Type {
+        Type::Object(ObjectDefinition::strict(props))
+    }
+    pub fn arbitrary_object() -> Type {
+        Type::Object(ObjectDefinition::arbitrary())
+    }
+    pub fn documented_arbitrary_object(props: Vec<ObjectProperty>) -> Type {
+        Type::Object(ObjectDefinition::documented_arbitrary(props))
+    }
+    pub fn map(def: ObjectDefinition) -> Type {
+        Type::Map(def)
+    }
+    pub fn strict_map(props: Vec<ObjectProperty>) -> Type {
+        Type::Map(ObjectDefinition::strict(props))
+    }
+    pub fn arbitrary_map() -> Type {
+        Type::Map(ObjectDefinition::arbitrary())
+    }
+    pub fn documented_arbitrary_map(props: Vec<ObjectProperty>) -> Type {
+        Type::Map(ObjectDefinition::documented_arbitrary(props))
     }
     pub fn buffer() -> Type {
         Type::Buffer
@@ -845,32 +863,37 @@ impl Type {
                 .as_array()
                 .map(|_| ())
                 .ok_or_else(|| mismatch_err(&format!("array<{}>", array_type.to_string())))?,
-            Type::Object(expected_props) | Type::Map(expected_props) => {
-                let object = value.as_object().ok_or_else(|| mismatch_err("object"))?;
-                for expected_prop in expected_props.iter() {
-                    let prop_value = object.get(&expected_prop.name);
-                    if expected_prop.optional && prop_value.is_none() {
-                        continue;
+            Type::Object(object_def) | Type::Map(object_def) => match object_def {
+                ObjectDefinition::Strict(props) => {
+                    let object = value.as_object().ok_or_else(|| mismatch_err("object"))?;
+                    for expected_prop in props.iter() {
+                        let prop_value = object.get(&expected_prop.name);
+                        if expected_prop.optional && prop_value.is_none() {
+                            continue;
+                        }
+                        let prop_value = prop_value.ok_or_else(|| {
+                            Diagnostic::error_from_string(format!(
+                                "missing required property '{}'",
+                                expected_prop.name,
+                            ))
+                        })?;
+                        expected_prop.typing.check_value(prop_value).map_err(|e| {
+                            Diagnostic::error_from_string(format!(
+                                "object property '{}': {}",
+                                expected_prop.name, e.message
+                            ))
+                        })?;
                     }
-                    let prop_value = prop_value.ok_or_else(|| {
-                        Diagnostic::error_from_string(format!(
-                            "missing required property '{}'",
-                            expected_prop.name,
-                        ))
-                    })?;
-                    expected_prop.typing.check_value(prop_value).map_err(|e| {
-                        Diagnostic::error_from_string(format!(
-                            "object property '{}': {}",
-                            expected_prop.name, e.message
-                        ))
-                    })?;
                 }
-            } //  => todo!(),
+                ObjectDefinition::Arbitrary(_) => {
+                    let _ = value.as_object().ok_or_else(|| mismatch_err("object"))?;
+                }
+            }, //  => todo!(),
         };
         Ok(())
     }
 
-    pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+    pub fn as_object(&self) -> Option<&ObjectDefinition> {
         match self {
             Type::Object(props) => Some(props),
             _ => None,
@@ -884,7 +907,7 @@ impl Type {
         }
     }
 
-    pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+    pub fn as_map(&self) -> Option<&ObjectDefinition> {
         match self {
             Type::Map(props) => Some(props),
             _ => None,
@@ -967,6 +990,30 @@ impl<'de> Deserialize<'de> for Type {
         let type_str: String = serde::Deserialize::deserialize(deserializer)?;
         let t = Type::try_from(type_str).map_err(serde::de::Error::custom)?;
         Ok(t)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum ObjectDefinition {
+    /// Strict object definition with a list of properties
+    Strict(Vec<ObjectProperty>),
+    /// Arbitrary object definition with no specific properties
+    /// The optional list of object properties is used for documenting
+    /// Some of the potential properties.
+    Arbitrary(Option<Vec<ObjectProperty>>),
+}
+
+impl ObjectDefinition {
+    pub fn strict(props: Vec<ObjectProperty>) -> Self {
+        ObjectDefinition::Strict(props)
+    }
+
+    pub fn arbitrary() -> Self {
+        ObjectDefinition::Arbitrary(None)
+    }
+
+    pub fn documented_arbitrary(props: Vec<ObjectProperty>) -> Self {
+        ObjectDefinition::Arbitrary(Some(props))
     }
 }
 

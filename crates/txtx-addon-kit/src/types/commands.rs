@@ -34,7 +34,7 @@ use super::{
         SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
     },
     stores::ValueMap,
-    types::{ObjectProperty, RunbookSupervisionContext, Type, Value},
+    types::{ObjectDefinition, ObjectProperty, RunbookSupervisionContext, Type, Value},
     ConstructDid, Did, EvaluatableInput, PackageId, WithEvaluatableInputs,
 };
 
@@ -242,7 +242,7 @@ impl EvaluatableInput for CommandInput {
 }
 
 impl CommandInput {
-    pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+    pub fn as_object(&self) -> Option<&ObjectDefinition> {
         self.typing.as_object()
     }
     pub fn as_array(&self) -> Option<&Box<Type>> {
@@ -251,7 +251,7 @@ impl CommandInput {
     pub fn as_action(&self) -> Option<&String> {
         self.typing.as_action()
     }
-    pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+    pub fn as_map(&self) -> Option<&ObjectDefinition> {
         self.typing.as_map()
     }
     pub fn check_value(&self, value: &Value) -> Result<(), Diagnostic> {
