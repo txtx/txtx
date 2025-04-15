@@ -96,6 +96,30 @@ pub fn build_diagnostics_for_unused_fields(
     diagnostics
 }
 
+/// Takes an HCL block and traverses all inner expressions and blocks,
+/// recursively collecting all the references to constructs (variables and traversals).
+pub fn collect_constructs_references_from_block<'a, T: EvaluatableInput>(
+    block: &Block,
+    input: Option<&'a T>,
+    dependencies: &mut Vec<(Option<&'a T>, Expression)>,
+) {
+    for attribute in block.body.attributes() {
+        let expr = attribute.value.clone();
+        let mut references = vec![];
+        collect_constructs_references_from_expression(&expr, input, &mut references);
+        dependencies.append(&mut references);
+    }
+    for block in block.body.blocks() {
+        collect_constructs_references_from_block(block, input, dependencies);
+    }
+}
+
+/// Takes an HCL expression and boils it down to a Variable or Traversal expression,
+/// pushing those low level expressions to the dependencies vector. For example:
+/// ```hcl
+/// val = [variable.a, variable.b]
+/// ```
+/// will push `variable.a` and `variable.b` to the dependencies vector.
 pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
     expr: &Expression,
     input: Option<&'a T>,
@@ -246,6 +270,8 @@ impl RawHclContent {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::commands::CommandInput;
+
     use super::*;
 
     #[test]
@@ -306,5 +332,63 @@ mod tests {
         assert_eq!(runbook_block, runbook_block_str);
         let output_block = RawHclContent::from_block(&blocks[3]).to_string();
         assert_eq!(output_block, output_block_str);
+    }
+
+    #[test]
+    fn test_collect_constructs_references_from_block() {
+        let input = r#"
+            runbook "test" {
+                location = "./embedded-runbook.json"
+                chain_id = input.chain_id
+                rpc_api_url = input.rpc_api_url
+                deployer = signer.deployer
+                arr = [variable.a, variable.b]
+                my_map {
+                    key1 = variable.a
+                    my_inner_map {
+                        key2 = variable.b
+                    }
+                }
+            }
+        "#;
+
+        let raw_hcl = RawHclContent::from_string(input.trim().to_string());
+        let block = raw_hcl.into_block_instance().unwrap();
+        let mut dependencies = vec![];
+        collect_constructs_references_from_block(&block, None::<&CommandInput>, &mut dependencies);
+
+        assert_eq!(dependencies.len(), 7);
+    }
+
+    #[test]
+    fn test_collect_constructs_references_expression() {
+        let input = r#"
+            runbook "test" {
+                location = "./embedded-runbook.json"
+                chain_id = input.chain_id
+                rpc_api_url = input.rpc_api_url
+                deployer = signer.deployer
+                arr = [variable.a, variable.b]
+                my_map {
+                    key1 = variable.a
+                    my_inner_map {
+                        key2 = variable.b
+                    }
+                }
+            }
+        "#;
+
+        let raw_hcl = RawHclContent::from_string(input.trim().to_string());
+        let block = raw_hcl.into_block_instance().unwrap();
+        let attribute = block.body.get_attribute("chain_id").unwrap();
+
+        let mut dependencies = vec![];
+        collect_constructs_references_from_expression(
+            &attribute.value,
+            None::<&CommandInput>,
+            &mut dependencies,
+        );
+
+        assert_eq!(dependencies.len(), 1);
     }
 }
