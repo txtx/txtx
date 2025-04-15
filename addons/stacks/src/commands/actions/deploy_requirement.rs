@@ -12,7 +12,6 @@ use txtx_addon_kit::types::commands::{
     CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::{
     types::{
         commands::{
@@ -116,31 +115,28 @@ lazy_static! {
                 },
                 transforms: {
                     documentation: "An array of transform operations to perform on the contract source, before being its signature.",
-                    typing: Type::array(Type::object(vec![
-                        ObjectProperty {
-                            name: "type".into(),
-                            documentation: "The type of transform (supported: 'contract_source_find_and_replace').".into(),
-                            typing: Type::string(),
-                            optional: false,
-                            tainting: true,
-                            internal: false,
-                        },
-                        ObjectProperty {
-                            name: "from".into(),
-                            documentation: "The pattern to locate.".into(),
-                            typing: Type::string(),
-                            optional: false,
-                            tainting: true,
-                            internal: false,
-                        },
-                        ObjectProperty {
-                            name: "to".into(),
-                            documentation: "The update.".into(),
-                            typing: Type::string(),
-                            optional: false,
-                            tainting: true,
-                            internal: false,
-                        }, ])),
+                    typing: Type::array(
+                        define_strict_object_type! {
+                            type: {
+                                documentation: "The type of transform (supported: 'contract_source_find_and_replace').",
+                                typing: Type::string(),
+                                optional: false,
+                                tainting: true
+                            },
+                            from: {
+                                documentation: "The pattern to locate.",
+                                typing: Type::string(),
+                                optional: false,
+                                tainting: true
+                            },
+                            to: {
+                                documentation: "The update.",
+                                typing: Type::string(),
+                                optional: false,
+                                tainting: true
+                            }
+                        }
+                    ),
                     optional: true,
                     tainting: true,
                     internal: false
