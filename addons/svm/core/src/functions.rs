@@ -1,6 +1,4 @@
-use std::str::FromStr;
-
-use crate::typing::anchor::types::Idl;
+use crate::{codec::utils::get_seeds_from_value, typing::anchor::types::Idl};
 use solana_sdk::{pubkey::Pubkey, system_program};
 use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
 use txtx_addon_kit::types::{
@@ -613,37 +611,11 @@ impl FunctionImplementation for FindPda {
         let program_id = SvmValue::to_pubkey(args.get(0).unwrap())
             .map_err(|e| to_diag(fn_spec, format!("invalid program id for finding pda: {e}")))?;
 
-        let seeds: Vec<Vec<u8>> = args
-            .get(1)
-            .map(|v| {
-                v.as_array()
-                    .ok_or_else(|| to_diag(fn_spec, "seeds must be an array".to_string()))?
-                    .iter()
-                    .map(|s| {
-                        let bytes = s.to_bytes();
-                        if bytes.is_empty() {
-                            return Err(to_diag(fn_spec, "seed cannot be empty".to_string()));
-                        }
-                        if bytes.len() > 32 {
-                            if let Ok(pubkey) = Pubkey::from_str(&s.to_string()) {
-                                return Ok(pubkey.to_bytes().to_vec());
-                            } else {
-                                return Err(to_diag(
-                                    fn_spec,
-                                    "seed cannot be longer than 32 bytes".to_string(),
-                                ));
-                            }
-                        }
-                        Ok(bytes)
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .transpose()?
-            .unwrap_or_default();
-
-        if seeds.len() > 16 {
-            return Err(to_diag(fn_spec, "seeds a maximum of 16 seeds can be used".to_string()));
-        }
+        let seeds = if let Some(val) = args.get(1) {
+            get_seeds_from_value(val).map_err(|diag| to_diag(fn_spec, diag))?
+        } else {
+            vec![]
+        };
 
         let seed_refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::try_find_program_address(&seed_refs, &program_id)
