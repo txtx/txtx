@@ -323,6 +323,7 @@ pub struct AddonInstance {
 
 pub trait WithEvaluatableInputs {
     fn name(&self) -> String;
+    fn block(&self) -> &Block;
     fn get_expression_from_input(&self, input_name: &str) -> Option<Expression>;
     fn get_blocks_for_map(
         &self,
