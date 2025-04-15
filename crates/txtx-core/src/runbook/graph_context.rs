@@ -1,5 +1,6 @@
 use daggy::Walker;
 use daggy::{Dag, NodeIndex};
+use kit::types::commands::ConstructInstance;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
 use std::collections::{HashMap, HashSet};
@@ -66,7 +67,9 @@ impl RunbookGraphContext {
                     execution_context.commands_instances.get(construct_did).unwrap();
                 let construct_id = workspace_context.constructs.get(construct_did).unwrap();
 
-                for (_input, dep) in command_instance.collect_dependencies().iter() {
+                for (_input, dep) in
+                    command_instance.get_expressions_referencing_commands_from_inputs().iter()
+                {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
@@ -90,7 +93,9 @@ impl RunbookGraphContext {
                     execution_context.commands_instances.get(construct_did).unwrap();
                 let construct_id = workspace_context.constructs.get(construct_did).unwrap();
 
-                for (_input, dep) in command_instance.collect_dependencies().iter() {
+                for (_input, dep) in
+                    command_instance.get_expressions_referencing_commands_from_inputs().iter()
+                {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
@@ -114,7 +119,9 @@ impl RunbookGraphContext {
                     execution_context.commands_instances.get(construct_did).unwrap();
                 let construct_id = workspace_context.constructs.get(construct_did).unwrap();
 
-                for (_input, dep) in command_instance.collect_dependencies().iter() {
+                for (_input, dep) in
+                    command_instance.get_expressions_referencing_commands_from_inputs().iter()
+                {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
@@ -148,7 +155,9 @@ impl RunbookGraphContext {
                     }
                 }
 
-                for (_input, dep) in command_instance.collect_dependencies().iter() {
+                for (_input, dep) in
+                    command_instance.get_expressions_referencing_commands_from_inputs().iter()
+                {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
@@ -187,7 +196,10 @@ impl RunbookGraphContext {
                     }
                 }
 
-                for (_input, dep) in embedded_runbook_instance.collect_dependencies().iter() {
+                for (_input, dep) in embedded_runbook_instance
+                    .get_expressions_referencing_commands_from_inputs()
+                    .iter()
+                {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
@@ -218,7 +230,9 @@ impl RunbookGraphContext {
                     execution_context.signers_instances.get(construct_did).unwrap();
                 let construct_id = workspace_context.constructs.get(construct_did).unwrap();
 
-                for (_input, dep) in signer_instance.collect_dependencies().iter() {
+                for (_input, dep) in
+                    signer_instance.get_expressions_referencing_commands_from_inputs().iter()
+                {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {

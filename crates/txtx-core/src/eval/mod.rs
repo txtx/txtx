@@ -4,6 +4,8 @@ use crate::runbook::{
     RuntimeContext,
 };
 use crate::types::{RunbookExecutionContext, RunbookSources};
+use kit::types::commands::ConstructInstance;
+use kit::types::types::ObjectDefinition;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Display;
 use txtx_addon_kit::constants::{
@@ -81,7 +83,7 @@ pub async fn run_signers_evaluation(
         let mut cached_dependency_execution_results = DependencyExecutionResultCache::new();
 
         let references_expressions =
-            signer_instance.get_expressions_referencing_commands_from_inputs().unwrap();
+            signer_instance.get_expressions_referencing_commands_from_inputs();
 
         for (_input, expr) in references_expressions.into_iter() {
             if let Some((dependency, _, _)) = runbook_workspace_context
@@ -467,7 +469,7 @@ pub async fn evaluate_command_instance(
     // Retrieve the construct_did of the inputs
     // Collect the outputs
     let references_expressions =
-        command_instance.get_expressions_referencing_commands_from_inputs().unwrap();
+        command_instance.get_expressions_referencing_commands_from_inputs();
 
     for (_input, expr) in references_expressions.into_iter() {
         if let Some((dependency, _, _)) = runbook_workspace_context
@@ -831,7 +833,7 @@ pub async fn evaluate_embedded_runbook_instance(
     // Retrieve the construct_did of the inputs
     // Collect the outputs
     let references_expressions =
-        embedded_runbook.get_expressions_referencing_commands_from_runbook_inputs().unwrap();
+        embedded_runbook.get_expressions_referencing_commands_from_inputs();
 
     for (_input, expr) in references_expressions.into_iter() {
         if let Some((dependency, _, _)) = runbook_workspace_context

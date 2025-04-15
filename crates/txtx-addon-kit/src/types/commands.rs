@@ -629,6 +629,9 @@ impl WithEvaluatableInputs for CommandInstance {
     fn name(&self) -> String {
         self.name.clone()
     }
+    fn block(&self) -> &Block {
+        &self.block
+    }
     /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
     fn get_expression_from_input(&self, input_name: &str) -> Option<Expression> {
         visit_optional_untyped_attribute(&input_name, &self.block)
@@ -719,83 +722,6 @@ impl CommandInstance {
         let future = (self.specification.inputs_post_processing_closure)(spec, inputs_evaluation)?;
         let res = future.await?;
         Ok(res)
-    }
-
-    pub fn get_expressions_referencing_commands_from_inputs(
-        &self,
-    ) -> Result<Vec<(Option<&CommandInput>, Expression)>, String> {
-        let mut expressions = vec![];
-        for input in self.specification.inputs.iter() {
-            match input.typing {
-                Type::Map(ref props) => {
-                    for block in self.block.body.get_blocks(&input.name) {
-                        for prop in props.iter() {
-                            let res = visit_optional_untyped_attribute(&prop.name, &block);
-                            if let Some(expr) = res {
-                                let mut references = vec![];
-                                collect_constructs_references_from_expression(
-                                    &expr,
-                                    Some(input),
-                                    &mut references,
-                                );
-                                expressions.append(&mut references);
-                            }
-                        }
-                    }
-                }
-                Type::Object(ref props) => {
-                    let res = visit_optional_untyped_attribute(&input.name, &self.block);
-                    if let Some(expr) = res {
-                        let mut references = vec![];
-                        collect_constructs_references_from_expression(
-                            &expr,
-                            Some(input),
-                            &mut references,
-                        );
-                        expressions.append(&mut references);
-                    }
-                    for prop in props.iter() {
-                        let mut blocks_iter = self.block.body.get_blocks(&input.name);
-                        while let Some(block) = blocks_iter.next() {
-                            let res = visit_optional_untyped_attribute(&prop.name, &block);
-                            if let Some(expr) = res {
-                                let mut references = vec![];
-                                collect_constructs_references_from_expression(
-                                    &expr,
-                                    Some(input),
-                                    &mut references,
-                                );
-                                expressions.append(&mut references);
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    let res = visit_optional_untyped_attribute(&input.name, &self.block);
-                    if let Some(expr) = res {
-                        let mut references = vec![];
-                        collect_constructs_references_from_expression(
-                            &expr,
-                            Some(input),
-                            &mut references,
-                        );
-                        expressions.append(&mut references);
-                    }
-                }
-            }
-        }
-        if self.specification.accepts_arbitrary_inputs {
-            for attribute in self.block.body.attributes() {
-                let mut references = vec![];
-                collect_constructs_references_from_expression(
-                    &attribute.value,
-                    None,
-                    &mut references,
-                );
-                expressions.append(&mut references);
-            }
-        }
-        Ok(expressions)
     }
 
     pub fn get_group(&self) -> String {
@@ -1195,48 +1121,51 @@ impl CommandInstance {
             &nested_results,
         )
     }
+}
 
-    pub fn collect_dependencies(&self) -> Vec<(Option<&CommandInput>, Expression)> {
-        let mut dependencies = vec![];
+impl ConstructInstance for CommandInstance {
+    fn block(&self) -> &Block {
+        &self.block
+    }
+    fn inputs(&self) -> Vec<&impl EvaluatableInput> {
+        self.specification.inputs.iter().chain(&self.specification.default_inputs).collect()
+    }
+    fn accepts_arbitrary_inputs(&self) -> bool {
+        self.specification.accepts_arbitrary_inputs
+    }
+}
 
-        for input in self.specification.inputs.iter().chain(&self.specification.default_inputs) {
-            match input.typing {
-                Type::Object(ref props) => {
-                    if let Some(attr) = self.block.body.get_attribute(&input.name) {
-                        collect_constructs_references_from_expression(
-                            &attr.value,
-                            Some(input),
-                            &mut dependencies,
-                        );
-                    } else {
-                        for prop in props.iter() {
-                            let mut blocks_iter = self.block.body.get_blocks(&input.name);
-                            while let Some(block) = blocks_iter.next() {
-                                let Some(attr) = block.body.get_attribute(&prop.name) else {
-                                    continue;
-                                };
-                                collect_constructs_references_from_expression(
-                                    &attr.value,
-                                    Some(input),
-                                    &mut dependencies,
-                                );
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    let Some(attr) = self.block.body.get_attribute(&input.name) else {
-                        continue;
-                    };
-                    collect_constructs_references_from_expression(
-                        &attr.value,
-                        Some(input),
-                        &mut dependencies,
-                    );
-                }
+pub trait ConstructInstance {
+    /// The HCL block of the construct
+    fn block(&self) -> &Block;
+    fn inputs(&self) -> Vec<&impl EvaluatableInput>;
+    fn accepts_arbitrary_inputs(&self) -> bool {
+        false
+    }
+
+    fn get_expressions_referencing_commands_from_inputs(
+        &self,
+    ) -> Vec<(Option<&impl EvaluatableInput>, Expression)> {
+        let mut expressions = vec![];
+        for input in self.inputs() {
+            input.typing().get_expressions_referencing_constructs(
+                &self.block(),
+                input,
+                &mut expressions,
+            );
+        }
+        if self.accepts_arbitrary_inputs() {
+            for attribute in self.block().body.attributes() {
+                let mut references = vec![];
+                collect_constructs_references_from_expression(
+                    &attribute.value,
+                    None,
+                    &mut references,
+                );
+                expressions.append(&mut references);
             }
         }
-        dependencies
+        expressions
     }
 }
 
