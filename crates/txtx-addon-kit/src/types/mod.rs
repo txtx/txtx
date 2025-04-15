@@ -7,7 +7,7 @@ use hcl_edit::structure::Block;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
-use types::{ObjectProperty, Type};
+use types::{ObjectDefinition, ObjectProperty, Type};
 
 use crate::helpers::fs::FileLocation;
 
@@ -323,6 +323,7 @@ pub struct AddonInstance {
 
 pub trait WithEvaluatableInputs {
     fn name(&self) -> String;
+    fn block(&self) -> &Block;
     fn get_expression_from_input(&self, input_name: &str) -> Option<Expression>;
     fn get_blocks_for_map(
         &self,
@@ -349,7 +350,7 @@ pub trait EvaluatableInput {
     fn optional(&self) -> bool;
     fn typing(&self) -> &Type;
     fn name(&self) -> String;
-    fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+    fn as_object(&self) -> Option<&ObjectDefinition> {
         self.typing().as_object()
     }
     fn as_array(&self) -> Option<&Box<Type>> {
@@ -358,7 +359,7 @@ pub trait EvaluatableInput {
     fn as_action(&self) -> Option<&String> {
         self.typing().as_action()
     }
-    fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+    fn as_map(&self) -> Option<&ObjectDefinition> {
         self.typing().as_map()
     }
 }

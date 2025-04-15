@@ -257,7 +257,7 @@ lazy_static! {
                 inputs: [
                     clarity_value: {
                         documentation: "An object where each key is a string and each value is a valid Clarity value.",
-                        typing: vec![Type::object(vec![])],
+                        typing: vec![Type::arbitrary_object()],
                         optional: false
                     }
                 ],

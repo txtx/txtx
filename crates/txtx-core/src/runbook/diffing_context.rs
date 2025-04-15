@@ -1,4 +1,5 @@
 use super::{FlowContext, RunbookExecutionMode, RunbookTopLevelInputsMap};
+use kit::types::types::ObjectDefinition;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use similar::{capture_diff_slices, Algorithm, ChangeTag, DiffOp, TextDiff};
@@ -375,11 +376,15 @@ impl RunbookSnapshotContext {
                                     // an object property is critical if the input is critical
                                     // and the property is tainting
                                     let object_prop_critical = match input.as_object() {
-                                        Some(object_props) => object_props
-                                            .iter()
-                                            .find(|p| p.name.eq(k))
-                                            .map(|p| critical && p.tainting)
-                                            .unwrap_or(false),
+                                        Some(object_def) => match object_def {
+                                            ObjectDefinition::Strict(props) => props
+                                                .iter()
+                                                .find(|p| p.name.eq(k))
+                                                .map(|p| critical && p.tainting)
+                                                .unwrap_or(false),
+                                            ObjectDefinition::Arbitrary(_) => false,
+                                        },
+
                                         None => critical,
                                     };
                                     object.insert(k.clone(), (v.clone(), object_prop_critical));

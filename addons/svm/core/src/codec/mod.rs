@@ -3,6 +3,7 @@ pub mod idl;
 pub mod instruction;
 pub mod native;
 pub mod send_transaction;
+pub mod utils;
 
 use anchor::AnchorProgramArtifacts;
 use bip39::Language;

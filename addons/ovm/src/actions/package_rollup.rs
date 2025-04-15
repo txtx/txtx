@@ -39,11 +39,11 @@ lazy_static! {
             outputs: [
                 genesis: {
                     documentation: "The genesis.json settings.",
-                    typing: Type::object(vec![])
+                    typing: Type::arbitrary_object()
                 },
                 rollup: {
                     documentation: "The rollup.json settings.",
-                    typing: Type::object(vec![])
+                    typing: Type::arbitrary_object()
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"

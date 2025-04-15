@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 use crate::typing::anchor as anchor_lang_idl;
 use crate::typing::SvmValue;
@@ -9,112 +9,172 @@ use anchor_lang_idl::types::{
 use solana_idl::Idl as ClassicIdl;
 use solana_sdk::pubkey::Pubkey;
 use spl_token::solana_program;
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
     types::types::{ObjectType, Value},
 };
 
+pub fn parse_idl_string(idl_str: &str) -> Result<Idl, Diagnostic> {
+    let idl = match serde_json::from_str::<ClassicIdl>(&idl_str) {
+        Ok(classic_idl) => {
+            let instructions = classic_idl
+                .instructions
+                .iter()
+                .map(|i| classic_instruction_to_anchor_instruction(&i, &classic_idl.types))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| {
+                    diagnosed_error!("failed to convert classic idl to anchor idl: {e}")
+                })?;
+
+            let idl_serializer = match &classic_idl.metadata {
+                Some(metadata) => {
+                    match metadata.serializer.as_ref().and_then(|s| Some::<&str>(s.as_ref())) {
+                        Some("bytemuck") => anchor_lang_idl::types::IdlSerialization::Bytemuck,
+                        Some("bytemuckunsafe") => {
+                            anchor_lang_idl::types::IdlSerialization::BytemuckUnsafe
+                        }
+                        Some("borsh") | None => anchor_lang_idl::types::IdlSerialization::Borsh,
+                        Some(ser) => {
+                            anchor_lang_idl::types::IdlSerialization::Custom(ser.to_string())
+                        }
+                    }
+                }
+                None => anchor_lang_idl::types::IdlSerialization::Borsh,
+            };
+
+            Idl {
+                address: classic_idl.metadata.clone().unwrap().address.unwrap().clone(),
+                metadata: classic_idl_to_anchor_metadata(&classic_idl),
+                docs: vec![],
+                instructions,
+                accounts: classic_idl
+                    .accounts
+                    .iter()
+                    .map(|a| classic_account_to_anchor_account(a.clone()))
+                    .collect(),
+                errors: classic_idl
+                    .errors
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|e| anchor_lang_idl::types::IdlErrorCode {
+                        code: e.code,
+                        name: e.name.clone(),
+                        msg: e.msg.clone(),
+                    })
+                    .collect(),
+                types: classic_idl_types_to_anchor_types(&classic_idl.types, &idl_serializer)
+                    .map_err(|e| {
+                        diagnosed_error!(
+                            "failed to convert classic idl types to anchor idl types: {e}"
+                        )
+                    })?,
+                constants: classic_idl
+                    .constants
+                    .iter()
+                    .map(|c| classic_const_to_anchor_const(c, &classic_idl.types))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| {
+                        diagnosed_error!("failed to convert classic idl to anchor idl: {e}")
+                    })?,
+                events: vec![], // todo
+            }
+        }
+        Err(_) => {
+            serde_json::from_str(&idl_str).map_err(|e| diagnosed_error!("invalid idl: {e}"))?
+        }
+    };
+    Ok(idl)
+}
+
+#[derive(Debug, Clone)]
 pub struct IdlRef {
     pub idl: Idl,
-    pub location: FileLocation,
+    pub location: Option<FileLocation>,
 }
 
 impl IdlRef {
-    pub fn new(location: FileLocation) -> Result<Self, String> {
-        let idl_str =
-            location.read_content_as_utf8().map_err(|e| format!("unable to read idl: {e}"))?;
-        let idl = match serde_json::from_str::<ClassicIdl>(&idl_str) {
-            Ok(classic_idl) => {
-                let instructions = classic_idl
-                    .instructions
-                    .iter()
-                    .map(|i| classic_instruction_to_anchor_instruction(&i, &classic_idl.types))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| format!("failed to convert classic idl to anchor idl: {e}"))?;
-
-                let idl_serializer = match &classic_idl.metadata {
-                    Some(metadata) => {
-                        match metadata.serializer.as_ref().and_then(|s| Some::<&str>(s.as_ref())) {
-                            Some("bytemuck") => anchor_lang_idl::types::IdlSerialization::Bytemuck,
-                            Some("bytemuckunsafe") => {
-                                anchor_lang_idl::types::IdlSerialization::BytemuckUnsafe
-                            }
-                            Some("borsh") | None => anchor_lang_idl::types::IdlSerialization::Borsh,
-                            Some(ser) => {
-                                anchor_lang_idl::types::IdlSerialization::Custom(ser.to_string())
-                            }
-                        }
-                    }
-                    None => anchor_lang_idl::types::IdlSerialization::Borsh,
-                };
-
-                Idl {
-                    address: classic_idl.metadata.clone().unwrap().address.unwrap().clone(),
-                    metadata: classic_idl_to_anchor_metadata(&classic_idl),
-                    docs: vec![],
-                    instructions,
-                    accounts: classic_idl
-                        .accounts
-                        .iter()
-                        .map(|a| classic_account_to_anchor_account(a.clone()))
-                        .collect(),
-                    errors: classic_idl
-                        .errors
-                        .unwrap_or_default()
-                        .iter()
-                        .map(|e| anchor_lang_idl::types::IdlErrorCode {
-                            code: e.code,
-                            name: e.name.clone(),
-                            msg: e.msg.clone(),
-                        })
-                        .collect(),
-                    types: classic_idl_types_to_anchor_types(&classic_idl.types, &idl_serializer)
-                        .map_err(|e| {
-                        format!("failed to convert classic idl types to anchor idl types: {e}")
-                    })?,
-                    constants: classic_idl
-                        .constants
-                        .iter()
-                        .map(|c| classic_const_to_anchor_const(c, &classic_idl.types))
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(|e| format!("failed to convert classic idl to anchor idl: {e}"))?,
-                    events: vec![], // todo
-                }
-            }
-            Err(_) => serde_json::from_str(&idl_str).map_err(|e| format!("invalid idl: {e}"))?,
-        };
-        Ok(Self { idl, location })
+    pub fn from_location(location: FileLocation) -> Result<Self, Diagnostic> {
+        let idl_str = location
+            .read_content_as_utf8()
+            .map_err(|e| diagnosed_error!("unable to read idl: {e}"))?;
+        let idl = parse_idl_string(&idl_str)?;
+        Ok(Self { idl, location: Some(location) })
     }
 
     pub fn from_idl(idl: Idl) -> Self {
-        Self { idl, location: FileLocation::FileSystem { path: PathBuf::default() } }
+        Self { idl, location: None }
     }
 
-    pub fn get_discriminator(&self, instruction_name: &str) -> Result<Vec<u8>, String> {
+    pub fn from_str(idl_str: &str) -> Result<Self, Diagnostic> {
+        let idl = parse_idl_string(idl_str)?;
+        Ok(Self { idl, location: None })
+    }
+
+    pub fn get_program_pubkey(&self) -> Result<Pubkey, Diagnostic> {
+        Pubkey::from_str(&self.idl.address)
+            .map_err(|e| diagnosed_error!("invalid pubkey in program IDL: {e}"))
+    }
+
+    pub fn get_discriminator(&self, instruction_name: &str) -> Result<Vec<u8>, Diagnostic> {
         self.get_instruction(instruction_name).map(|i| i.discriminator.clone())
     }
 
-    pub fn get_instruction(&self, instruction_name: &str) -> Result<&IdlInstruction, String> {
+    pub fn get_instruction(&self, instruction_name: &str) -> Result<&IdlInstruction, Diagnostic> {
         self.idl
             .instructions
             .iter()
             .find(|i| i.name == instruction_name)
-            .ok_or_else(|| format!("instruction not found: {instruction_name}"))
+            .ok_or_else(|| diagnosed_error!("instruction '{instruction_name}' not found in IDL"))
     }
 
     pub fn get_types(&self) -> Vec<IdlTypeDef> {
         self.idl.types.clone()
     }
 
+    /// Encodes the arguments for a given instruction into a map of argument names to byte arrays.
+    pub fn get_encoded_args_map(
+        &self,
+        instruction_name: &str,
+        args: Vec<Value>,
+    ) -> Result<IndexMap<String, Vec<u8>>, Diagnostic> {
+        let instruction = self.get_instruction(instruction_name)?;
+        if args.len() != instruction.args.len() {
+            return Err(diagnosed_error!(
+                "{} arguments provided for instruction {}, which expects {} arguments",
+                args.len(),
+                instruction_name,
+                instruction.args.len()
+            ));
+        }
+        if args.is_empty() {
+            return Ok(IndexMap::new());
+        }
+
+        let idl_types = self.get_types();
+
+        let mut encoded_args = IndexMap::new();
+        for (user_arg_idx, arg) in args.iter().enumerate() {
+            let idl_arg = instruction.args.get(user_arg_idx).unwrap();
+            let encoded_arg = encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None)
+                .map_err(|e| {
+                    diagnosed_error!("error in argument at position {}: {}", user_arg_idx + 1, e)
+                })?;
+            encoded_args.insert(idl_arg.name.clone(), encoded_arg);
+        }
+        Ok(encoded_args)
+    }
+
+    /// Encodes the arguments for a given instruction into a flat byte array.
     pub fn get_encoded_args(
         &self,
         instruction_name: &str,
         args: Vec<Value>,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<Vec<u8>, Diagnostic> {
         let instruction = self.get_instruction(instruction_name)?;
         if args.len() != instruction.args.len() {
-            return Err(format!(
+            return Err(diagnosed_error!(
                 "{} arguments provided for instruction {}, which expects {} arguments",
                 args.len(),
                 instruction_name,
@@ -132,7 +192,7 @@ impl IdlRef {
             let idl_arg = instruction.args.get(user_arg_idx).unwrap();
             let mut encoded_arg = encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None)
                 .map_err(|e| {
-                    format!("error in argument at position {}: {}", user_arg_idx + 1, e)
+                    diagnosed_error!("error in argument at position {}: {}", user_arg_idx + 1, e)
                 })?;
             encoded_args.append(&mut encoded_arg);
         }

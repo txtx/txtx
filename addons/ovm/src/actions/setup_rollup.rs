@@ -86,7 +86,7 @@ lazy_static! {
                 },
                 l1_deployment_addresses: {
                     documentation: "Coming soon.",
-                    typing: Type::object(vec![]),
+                    typing: Type::arbitrary_object(),
                     optional: false,
                     tainting: false,
                     internal: false

@@ -226,7 +226,7 @@ impl DecodedLog {
 }
 
 lazy_static! {
-    pub static ref CONTRACT_METADATA: Type = define_object_type! {
+    pub static ref CONTRACT_METADATA: Type = define_strict_object_type! {
         abi: {
             documentation: "The contract abi.",
             typing: Type::string(),
@@ -282,7 +282,7 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref DEPLOYMENT_ARTIFACTS_TYPE: Type = define_object_type! {
+    pub static ref DEPLOYMENT_ARTIFACTS_TYPE: Type = define_strict_object_type! {
         abi: {
             documentation: "The contract abi.",
             typing: Type::string(),
@@ -338,7 +338,7 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref CHAIN_DEFAULTS: Type = define_object_type! {
+    pub static ref CHAIN_DEFAULTS: Type = define_strict_object_type! {
         chain_id: {
             documentation: "The chain id.",
             typing: Type::integer(),
@@ -352,7 +352,7 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref CREATE2_OPTS: Type = define_map_type! {
+    pub static ref CREATE2_OPTS: Type = define_strict_map_type! {
         salt: {
             documentation: "The salt value used to calculate the contract address. This value must be a 32-byte hex string.",
             typing: Type::string(),
@@ -384,7 +384,7 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref PROXY_CONTRACT_OPTS: Type = define_map_type! {
+    pub static ref PROXY_CONTRACT_OPTS: Type = define_strict_map_type! {
         create_opcode: {
             documentation: "The create opcode to use for deployment. Options are 'create' and 'create2'. The default is 'create2'.",
             typing: Type::string(),
@@ -398,7 +398,7 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref PROXIED_CONTRACT_INITIALIZER: Type = define_map_type! {
+    pub static ref PROXIED_CONTRACT_INITIALIZER: Type = define_strict_map_type! {
         function_name: {
             documentation: "The name of the initializer function to call.",
             typing: Type::string(),
@@ -412,7 +412,7 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref DECODED_LOG_OUTPUT: Type = define_object_type! {
+    pub static ref DECODED_LOG_OUTPUT: Type = define_strict_object_type! {
         event_name: {
             documentation: "The decoded name of the event.",
             typing: Type::string(),
@@ -427,12 +427,12 @@ lazy_static! {
         },
         data: {
             documentation: "The decoded data of the event.",
-            typing: Type::object(vec![]),
+            typing: Type::arbitrary_object(),
             optional: false,
             tainting: true
         }
     };
-    pub static ref RAW_LOG_OUTPUT: Type = define_object_type! {
+    pub static ref RAW_LOG_OUTPUT: Type = define_strict_object_type! {
         topics: {
             documentation: "The event topics.",
             typing: Type::array(Type::string()),
@@ -452,7 +452,7 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref CONTRACT_VERIFICATION_OPTS_TYPE: Type = define_map_type! {
+    pub static ref CONTRACT_VERIFICATION_OPTS_TYPE: Type = define_strict_map_type! {
         provider_api_url: {
             documentation: "The verification provider API url.",
             typing: Type::string(),
@@ -484,7 +484,7 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref VERIFICATION_RESULT_TYPE: Type = define_object_type! {
+    pub static ref VERIFICATION_RESULT_TYPE: Type = define_strict_object_type! {
         provider: {
             documentation: "The verification provider.",
             typing: Type::string(),
