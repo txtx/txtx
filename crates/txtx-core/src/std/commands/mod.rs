@@ -320,7 +320,7 @@ pub fn new_runtime_setting() -> CommandSpecification {
             inputs: [
                 defaults: {
                     documentation: "Value of the input",
-                    typing: Type::object(vec![]),
+                    typing: Type::arbitrary_object(),
                     optional: true,
                     tainting: true,
                     internal: false

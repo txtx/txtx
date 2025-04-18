@@ -29,7 +29,7 @@ lazy_static! {
             inputs: [
                 decoded_json: {
                     documentation: "A JSON object.",
-                    typing: vec![Type::string(), Type::object(vec![])]
+                    typing: vec![Type::string(), Type::arbitrary_object()]
                 },
                 query: {
                     documentation: "A JSON query. See the [jq](https://jqlang.github.io/jq/manual/) documentation.",

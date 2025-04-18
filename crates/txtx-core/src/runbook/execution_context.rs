@@ -1,3 +1,4 @@
+use kit::types::commands::ConstructInstance;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use txtx_addon_kit::channel::unbounded;
@@ -284,7 +285,7 @@ impl RunbookExecutionContext {
         // Retrieve the construct_did of the inputs
         // Collect the outputs
         let references_expressions =
-            command_instance.get_expressions_referencing_commands_from_inputs().unwrap();
+            command_instance.get_expressions_referencing_commands_from_inputs();
 
         // For each input referencing another construct_did, we'll resolve the reference
         // and make sure we have the evaluation results, and seed a temporary, lighter map.
@@ -485,7 +486,7 @@ impl RunbookExecutionContext {
         // Retrieve the construct_did of the inputs
         // Collect the outputs
         let references_expressions =
-            embedded_runbook.get_expressions_referencing_commands_from_runbook_inputs().unwrap();
+            embedded_runbook.get_expressions_referencing_commands_from_inputs();
 
         // For each input referencing another construct_did, we'll resolve the reference
         // and make sure we have the evaluation results, and seed a temporary, lighter map.
