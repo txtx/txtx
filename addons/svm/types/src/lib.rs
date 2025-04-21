@@ -195,7 +195,14 @@ lazy_static! {
             tainting: true
         }
     };
+
     pub static ref CLASSIC_RUST_PROGRAM_ARTIFACTS: Type = define_strict_object_type! {
+        idl: {
+            documentation: "The program idl.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
         binary: {
             documentation: "The program binary.",
             typing: Type::addon(SVM_BINARY),
