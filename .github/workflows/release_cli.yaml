@@ -53,7 +53,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: linux
             target: x86_64-unknown-linux-gnu
             architecture: x64
@@ -145,7 +145,7 @@ jobs:
         run: echo "RUST_VERSION_HASH=$(rustc --version | sha256sum | awk '{print $1}')" >> $GITHUB_ENV
 
       - name: Cache cargo
-        if: matrix.os != 'ubuntu-20.04'
+        if: matrix.platform != 'linux'
         uses: actions/cache@v3
         with:
           path: |
@@ -182,7 +182,7 @@ jobs:
           tar -czf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz -C txtx/target/${{ matrix.target }}/release txtx.exe
 
       - name: Store SHA256 Hash of Tar (Linux x64)
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'linux'
         id: linux_x64_sha
         run: |
           echo "LINUX_X64_SHA=$(sha256sum txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz | awk '{ print $1 }')" >> "$GITHUB_OUTPUT"
