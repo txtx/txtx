@@ -103,7 +103,7 @@ pub async fn verify_contracts(
 
         failures.insert(i, None);
 
-        let client = match VerificationClient::new(opts, chain, &contract_address) {
+        let client = match VerificationClient::new(opts, chain, &contract_address.to_vec()) {
             Ok(client) => client,
             Err(diag) => {
                 propagate_failed_status(

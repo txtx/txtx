@@ -20,16 +20,18 @@ serde_json = { version = "1.0.113", features = ["arbitrary_precision"] }
 serde = "1"
 serde_derive = "1"
 async-recursion = "1"
-alloy = { version = "0.13", features = ["full", "rlp", "eip712"] }
-alloy-provider = { version = "0.13", features = ["debug-api"] }
-alloy-rpc-types = { version = "0.13", features = ["trace"] }
-alloy-signer-local = { version = "0.13", features = ["mnemonic"] }
+alloy = { version = "0.14", features = ["full", "rlp", "eip712"] }
+alloy-chains = "0.1"
+alloy-primitives = { version = "0.8" }
+alloy-provider = { version = "0.14", features = ["debug-api"] }
+alloy-rpc-types = { version = "0.14", features = ["trace"] }
+alloy-signer-local = { version = "0.14", features = ["mnemonic"] }
 thiserror = "1.0.62"
 toml = "0.5"
-foundry-block-explorers = "0.12.0"
-foundry-compilers-artifacts-solc = "0.13.5"
-alloy-chains = "0.1.27"
-foundry-config = "0.2.0"
+foundry-block-explorers = "0.13.0"
+foundry-compilers-artifacts-solc = "0.14"
+foundry-compilers = "0.14"
+foundry-config = { version = "1.0.0", git = "https://github.com/txtx/foundry.git", branch = "master"}
 semver = "1.0.26"
 
 [features]

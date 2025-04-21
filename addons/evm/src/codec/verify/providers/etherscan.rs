@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
-use alloy::primitives::Address;
 use alloy_chains::Chain;
+use alloy_primitives::Address;
 use foundry_block_explorers::verify::{CodeFormat, VerifyContract};
 use foundry_block_explorers::Client as EtherscanClient;
+use foundry_compilers_artifacts_solc::SolcLanguage;
 use semver::Version;
 use txtx_addon_kit::{reqwest::Url, types::diagnostics::Diagnostic};
 
@@ -24,8 +25,9 @@ impl Verifier for EtherscanVerificationClient {
         provider_api_url: &Url,
         provider_url: &Option<Url>,
         chain: Chain,
-        address: &Address,
+        address_bytes: &Vec<u8>,
     ) -> Result<Self, Diagnostic> {
+        let address = Address::from_slice(address_bytes);
         let mut client_builder =
             EtherscanClient::builder().with_api_key(api_key).with_chain_id(chain.clone());
 
@@ -163,7 +165,7 @@ impl VerifyArgsWrapper {
                 .collect();
 
             input = input.normalize_evm_version(&compiler_version);
-            input.settings = input.settings.sanitized(&compiler_version);
+            input.settings = input.settings.sanitized(&compiler_version, SolcLanguage::Solidity);
 
             let stripped_contract_target_path = contract_target_path
                 .strip_prefix(project.root())
