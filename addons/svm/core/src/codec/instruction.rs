@@ -129,7 +129,7 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
         if !instruction_data.is_empty() {
             return Err(diagnosed_error!(
                 "instruction data contains unrecognized fields: {}",
-                instruction_data.iter().map(|(k, _)| k.as_ref()).collect::<Vec<_>>().join(", ")
+                instruction_data.iter().map(|(k, _)| k.as_ref()).collect::<Vec<&str>>().join(", ")
             ));
         }
         let instruction =
