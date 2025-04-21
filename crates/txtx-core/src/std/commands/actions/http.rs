@@ -117,23 +117,35 @@ impl CommandImplementation for SendHttpRequest {
             let value = values.get_string("method").unwrap_or("GET");
             Method::try_from(value).unwrap()
         };
-        let request_headers =
-            values.get_value("headers").and_then(|value| Some(value.expect_object().clone()));
+        let request_headers = values.get_value("headers").cloned();
 
         let future = async move {
+            let request_headers = request_headers
+                .as_ref()
+                .map(|value| {
+                    value
+                        .as_object()
+                        .ok_or_else(|| diagnosed_error!("request headers must be an object"))
+                })
+                .transpose()?;
+
             let client = reqwest::Client::new();
             let mut req_builder = client.request(method, url);
 
-            req_builder = req_builder.header(CONTENT_TYPE, "application/json");
+            // req_builder = req_builder.header(CONTENT_TYPE, "application/json");
 
             if let Some(request_headers) = request_headers {
                 for (k, v) in request_headers.iter() {
-                    req_builder = req_builder.header(k, v.expect_string());
+                    req_builder = req_builder.header(
+                        k,
+                        v.as_string().ok_or_else(|| {
+                            diagnosed_error!("request header value must be a string; found type '{}' for header '{}'", v.get_type().to_string(), k)
+                        })?,
+                    );
                 }
             }
 
             if let Some(request_body) = request_body {
-                println!("request body: {:?}", request_body);
                 if request_body.as_object().is_some() {
                     req_builder = req_builder.json(&request_body.to_json());
                 } else {
@@ -142,16 +154,12 @@ impl CommandImplementation for SendHttpRequest {
             }
 
             let res = req_builder.send().await.map_err(|e| {
-                Diagnostic::error_from_string(format!(
-                    "unable to broadcast Stacks transaction - {e}"
-                ))
+                Diagnostic::error_from_string(format!("unable to send http request - {e}"))
             })?;
 
             let status_code = res.status();
             let response_body = res.text().await.map_err(|e| {
-                Diagnostic::error_from_string(format!(
-                    "Failed to parse broadcasted Stacks transaction result: {e}"
-                ))
+                Diagnostic::error_from_string(format!("Failed to parse http request result: {e}"))
             })?;
 
             result
