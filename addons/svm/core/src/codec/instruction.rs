@@ -13,7 +13,7 @@ use txtx_addon_network_svm_types::anchor::types::{
 };
 
 use crate::{
-    constants::{INSTRUCTION, PROGRAM_ID, PUBLIC_KEY},
+    constants::{INSTRUCTION, PROGRAM_ID, PUBLIC_KEY, SIGNER},
     typing::SvmValue,
 };
 
@@ -350,10 +350,14 @@ impl ParseIdlAccountErr {
         match self {
             ParseIdlAccountErr::NoArg(account_name, arg_name) => {
                 diagnosed_error!(
-                            "account '{account_name}' is a PDA derived from instruction arguments, but no value was provided for argument '{arg_name}'"
-                        )
+                    "account '{account_name}' is a PDA derived from instruction arguments, but no value was provided for argument '{arg_name}'"
+                )
             }
-            ParseIdlAccountErr::NoAccount(_, _) => todo!(),
+            ParseIdlAccountErr::NoAccount(account_name, pda_seed_account_name) => {
+                diagnosed_error!(
+                    "account '{account_name}' is a PDA derived from another account '{pda_seed_account_name}', but no value was provided for that account"
+                )
+            }
         }
     }
 }
