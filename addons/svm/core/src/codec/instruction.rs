@@ -94,21 +94,49 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                     diagnosed_error!("failed to build instruction '{instruction_name}': {e}")
                 })?;
 
-        let accounts =
+        let mut accounts =
             instruction_builder.get_instruction_accounts(instruction_data).map_err(|e| {
                 diagnosed_error!("failed to get accounts for instruction '{instruction_name}': {e}")
             })?;
 
-        let instruction =
-            Instruction { program_id, accounts, data: instruction_builder.get_instruction_data() };
+        if accounts.is_empty() {
+            let signer_value = instruction_data.swap_remove(SIGNER);
+            if let Some(signer_value) = signer_value {
+                let signer_map = signer_value
+                    .as_map()
+                    .ok_or(diagnosed_error!("each account field must be a map"))?;
+                if signer_map.len() != 1 {
+                    return Err(diagnosed_error!("each account field must have exactly one entry"));
+                }
+                let signer = signer_map
+                    .first()
+                    .unwrap()
+                    .as_object()
+                    .expect("expected map entry to be an object");
+
+                let pubkey = signer
+                    .get(PUBLIC_KEY)
+                    .map(|p| SvmValue::to_pubkey(p))
+                    .ok_or(diagnosed_error!("each account entry must have a 'public_key' field"))?
+                    .map_err(|e| diagnosed_error!("invalid 'public_key': {e}"))?;
+                accounts.push(AccountMeta { pubkey, is_signer: true, is_writable: true });
+            } else {
+                return Err(diagnosed_error!(
+                    "no account fields provided, or provided accounts do not match IDL accounts"
+                ));
+            }
+        }
         if !instruction_data.is_empty() {
             return Err(diagnosed_error!(
                 "instruction data contains unrecognized fields: {}",
                 instruction_data.iter().map(|(k, _)| k.as_ref()).collect::<Vec<_>>().join(", ")
             ));
         }
+        let instruction =
+            Instruction { program_id, accounts, data: instruction_builder.get_instruction_data() };
         instructions.push(instruction);
     }
+
     Ok(instructions)
 }
 
