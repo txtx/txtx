@@ -11,6 +11,7 @@ use txtx_addon_kit::constants::{
     SIGNED_TRANSACTION_BYTES,
 };
 use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     CommandSpecification, PreCommandSpecification,
@@ -23,7 +24,6 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{ObjectType, RunbookSupervisionContext, Type, Value};
-use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
 
@@ -597,7 +597,7 @@ impl CommandImplementation for DeployProgram {
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
-        _cloud_service_context: &Option<CloudServiceContext>
+        _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         let construct_did = construct_did.clone();
         let spec = spec.clone();

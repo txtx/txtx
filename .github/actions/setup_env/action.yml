@@ -24,7 +24,7 @@ runs:
         echo RELAYER_BASE_URL="https://txtx.link" >> "${{ inputs.working_directory }}/.env"
         echo RELAYER_HOST="txtx.link" >> "${{ inputs.working_directory }}/.env"
         echo INFURA_API_KEY="${{ inputs.INFURA_API_KEY }}" >> "${{ inputs.working_directory }}/.env"
-        echo AUTH_SERVICE_URL="https://id.txtx.run" >> "${{ inputs.working_directory }}/.env"
+        echo AUTH_SERVICE_URL="https://id.txtx.run/v1" >> "${{ inputs.working_directory }}/.env"
         echo NHOST_REGION="${{ inputs.NHOST_REGION }}" >> "${{ inputs.working_directory }}/.env"
         echo NHOST_SUBDOMAIN="${{ inputs.NHOST_SUBDOMAIN }}" >> "${{ inputs.working_directory }}/.env"
         echo TXTX_CONSOLE_URL="https://txtx.run" >> "${{ inputs.working_directory }}/.env"
