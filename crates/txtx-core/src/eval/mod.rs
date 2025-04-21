@@ -1608,9 +1608,30 @@ pub fn perform_inputs_evaluation(
                     }
                 }
                 ObjectDefinition::Arbitrary(_) => {
-                    for attr in with_evaluatable_inputs.block().body.attributes() {
-                        let ident = attr.key.to_string();
-                        let expr = attr.value.clone();
+                    let Some(expr) = with_evaluatable_inputs.get_expression_from_input(&input_name)
+                    else {
+                        continue;
+                    };
+                    let Some(object_block) = expr.as_object() else {
+                        continue;
+                    };
+                    for (object_key, object_value) in object_block.iter() {
+                        let object_key = match object_key {
+                            kit::hcl::expr::ObjectKey::Ident(ident) => ident.to_string(),
+                            kit::hcl::expr::ObjectKey::Expression(expr) => match expr.as_str() {
+                                Some(s) => s.to_string(),
+                                None => {
+                                    let diag = diagnosed_error!("object key must be a string");
+                                    results
+                                        .unevaluated_inputs
+                                        .insert(input_name.clone(), Some(diag.clone()));
+                                    diags.push(diag);
+                                    fatal_error = true;
+                                    continue;
+                                }
+                            },
+                        };
+                        let expr = object_value.expr();
 
                         let value = match eval_expression(
                             &expr,
@@ -1647,8 +1668,7 @@ pub fn perform_inputs_evaluation(
                                 continue;
                             }
                         };
-
-                        object_values.insert(ident, value);
+                        object_values.insert(object_key, value);
                     }
                 }
             }
