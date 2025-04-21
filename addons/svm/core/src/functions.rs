@@ -1,4 +1,6 @@
 use crate::{codec::utils::get_seeds_from_value, typing::anchor::types::Idl};
+
+use crate::constants::{DEFAULT_NATIVE_TARGET_PATH, DEFAULT_SHANK_IDL_PATH};
 use solana_sdk::{pubkey::Pubkey, system_program};
 use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
 use txtx_addon_kit::types::{
@@ -175,22 +177,32 @@ lazy_static! {
         define_function! {
             GetProgramFromNativeProject => {
                 name: "get_program_from_native_project",
-                documentation: "`svm::get_program_from_native_project` retrieves the program deployment artifacts for a program in a classic Rust project.",
+                documentation: "`svm::get_program_from_native_project` retrieves the program deployment artifacts for a non-Anchor program.",
                 example: indoc! {r#"
                     variable "contract" {
-                        value = svm::get_program_from_native_project("./bin/loc", "./keypair/loc")
+                        value = svm::get_program_from_native_project("my_program")
                     }
                 "#},
                 inputs: [
-                    binary_location: {
-                        documentation: "The path, relative to the txtx.yml, to the compiled program binary.",
+                    program_name: {
+                        documentation: "The name of the program being deployed.",
                         typing: vec![Type::string()],
                         optional: false
                     },
-                    program_keypair_path: {
-                        documentation: "The path, relative to the txtx.yml, to the program keypair.",
-                        typing: vec![Type::string()],
-                        optional: false
+                    keypair_path: {
+                        documentation: "The location of the program keypair file. Defaults to `./target/deploy/<program_name>-keypair.json`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
+                    },
+                    idl_path: {
+                        documentation: "The location of the program IDL file. Defaults to `./idl/<program_name>.json`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
+                    },
+                    bin_path: {
+                        documentation: "The location of the program binary file. Defaults to `./target/deploy/<program_name>.so`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
                     }
                 ],
                 output: {
@@ -488,6 +500,7 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let program_name = args.get(0).unwrap().as_string().unwrap();
+
         let keypair_path_str = match args.get(1) {
             Some(Value::Null) | None => {
                 format!("{}/deploy/{}-keypair.json", DEFAULT_ANCHOR_TARGET_PATH, program_name)
@@ -552,22 +565,60 @@ impl FunctionImplementation for GetProgramFromNativeProject {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
-        let bin_path = args.get(0).unwrap().as_string().unwrap();
-        let keypair_path = args.get(1).unwrap().as_string().unwrap();
+        let program_name = args.get(0).unwrap().as_string().unwrap();
 
-        let bin_path = auth_ctx
-            .get_path_from_str(bin_path)
-            .map_err(|e| to_diag(fn_spec, format!("failed to get program binary path: {e}")))?;
+        let keypair_path_str = match args.get(1) {
+            Some(Value::Null) | None => {
+                format!("{}/deploy/{}-keypair.json", DEFAULT_NATIVE_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
 
         let keypair_path = auth_ctx
-            .get_path_from_str(keypair_path)
+            .get_path_from_str(&keypair_path_str)
             .map_err(|e| to_diag(fn_spec, format!("failed to get program keypair path: {e}")))?;
 
-        let classic_program_artifacts = ClassicRustProgramArtifacts::new(bin_path, keypair_path)
-            .map_err(|e| to_diag(fn_spec, e.message))?;
+        let mut did_user_provide_idl_path = false;
+        let idl_path_str = match args.get(2) {
+            Some(Value::Null) | None => {
+                format!("{}/{}.json", DEFAULT_SHANK_IDL_PATH, program_name)
+            }
+            Some(Value::String(s)) => {
+                did_user_provide_idl_path = true;
+                s.to_string()
+            }
+            _ => unreachable!(),
+        };
 
-        let value = classic_program_artifacts.to_value();
-        Ok(value)
+        let idl_path = auth_ctx
+            .get_path_from_str(&idl_path_str)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get shank idl path: {e}")))?;
+
+        if did_user_provide_idl_path && !idl_path.exists() {
+            return Err(to_diag(
+                fn_spec,
+                format!("invalid program idl path; no idl found at: {idl_path_str}"),
+            ));
+        }
+
+        let bin_path_str = match args.get(3) {
+            Some(Value::Null) | None => {
+                format!("{}/deploy/{}.so", DEFAULT_NATIVE_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
+
+        let bin_path = auth_ctx
+            .get_path_from_str(&bin_path_str)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get program binary path: {e}")))?;
+
+        let classic_program_artifacts =
+            ClassicRustProgramArtifacts::new(keypair_path, idl_path, bin_path)
+                .map_err(|e| to_diag(fn_spec, e.message))?;
+
+        classic_program_artifacts.to_value()
     }
 }
 

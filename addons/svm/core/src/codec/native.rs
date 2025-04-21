@@ -1,3 +1,4 @@
+use crate::typing::anchor::types as anchor_types;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
@@ -9,6 +10,8 @@ use txtx_addon_kit::{
 
 use crate::typing::SvmValue;
 
+use super::idl::IdlRef;
+
 pub struct ClassicRustProgramArtifacts {
     /// The binary of the rust program, stored for a rust project at `target/deploy/<program_name>.so`.
     pub bin: Vec<u8>,
@@ -16,10 +19,29 @@ pub struct ClassicRustProgramArtifacts {
     pub keypair: Keypair,
     /// The program pubkey of the rust program.
     pub program_id: Pubkey,
+    /// The IDL of the program, if provided. IDLs are converted to anchor-style IDLs.
+    pub idl: Option<anchor_types::Idl>,
 }
 
 impl ClassicRustProgramArtifacts {
-    pub fn new(bin_path: FileLocation, keypair_path: FileLocation) -> Result<Self, Diagnostic> {
+    pub fn new(
+        keypair_path: FileLocation,
+        idl_path: FileLocation,
+        bin_path: FileLocation,
+    ) -> Result<Self, Diagnostic> {
+        let some_idl = if idl_path.exists() {
+            let idl_str = idl_path.read_content_as_utf8().map_err(|e| {
+                diagnosed_error!("invalid idl location {}: {}", &idl_path.to_string(), e)
+            })?;
+
+            let idl = IdlRef::from_str(&idl_str).map_err(|e| {
+                diagnosed_error!("invalid idl at location {}: {}", &idl_path.to_string(), e)
+            })?;
+            Some(idl.idl)
+        } else {
+            None
+        };
+
         let bin = bin_path.read_content().map_err(|e| {
             diagnosed_error!(
                 "invalid rust program binary location {}: {}",
@@ -54,17 +76,23 @@ impl ClassicRustProgramArtifacts {
 
         let program_id = Pubkey::from(keypair.pubkey());
 
-        Ok(ClassicRustProgramArtifacts { bin, keypair, program_id })
+        Ok(ClassicRustProgramArtifacts { bin, keypair, program_id, idl: some_idl })
     }
 
-    pub fn to_value(&self) -> Value {
-        ObjectType::from(vec![
+    pub fn to_value(&self) -> Result<Value, Diagnostic> {
+        let mut obj = ObjectType::from(vec![
             ("binary", SvmValue::binary(self.bin.clone())),
             ("keypair", SvmValue::keypair(self.keypair.to_bytes().to_vec())),
             ("program_id", SvmValue::pubkey(self.program_id.to_bytes().to_vec())),
             ("framework", Value::string("native".to_string())),
-        ])
-        .to_value()
+        ]);
+        if let Some(idl) = &self.idl {
+            let idl_str = serde_json::to_string_pretty(&idl)
+                .map_err(|e| diagnosed_error!("invalid idl: {e}"))?;
+
+            obj.insert("idl", Value::string(idl_str));
+        };
+        Ok(obj.to_value())
     }
 
     pub fn from_value(value: &Value) -> Result<Self, Diagnostic> {
@@ -89,6 +117,17 @@ impl ClassicRustProgramArtifacts {
             ))?)
             .map_err(|e| diagnosed_error!("{e}"))?;
 
-        Ok(ClassicRustProgramArtifacts { bin, keypair, program_id })
+        let idl = if let Some(idl_value) = map.get("idl") {
+            let idl_str = idl_value.as_string().ok_or(diagnosed_error!(
+                "rust program artifacts value had invalid idl data: expected string"
+            ))?;
+            let idl: anchor_types::Idl =
+                serde_json::from_str(idl_str).map_err(|e| diagnosed_error!("{e}"))?;
+            Some(idl)
+        } else {
+            None
+        };
+
+        Ok(ClassicRustProgramArtifacts { bin, keypair, program_id, idl })
     }
 }
