@@ -82,19 +82,37 @@ action "deploy_{}" "svm::deploy_program" {{
     );
 }
 
+pub fn get_interpolated_native_program_deployment_template(program_name: &str) -> String {
+    return format!(
+        r#"
+action "deploy_{}" "svm::deploy_program" {{
+    description = "Deploy {} program"
+    program = svm::get_program_from_native_project("{}") 
+    authority = signer.authority
+    payer = signer.payer
+}}
+"#,
+        program_name, program_name, program_name
+    );
+}
+
 pub fn get_interpolated_anchor_subgraph_template(
     program_name: &str,
     idl_str: &str,
-) -> Result<String, String> {
+) -> Result<Option<String>, String> {
     let idl: Idl =
         serde_json::from_str(idl_str).map_err(|e| format!("failed to parse program idl: {}", e))?;
-    Ok(idl
-        .events
-        .iter()
-        .map(|event| {
-            let event_slug = Casing::to_case(&event.name, Case::Snake);
-            format!(
-                r#"
+
+    let subgraph_runbook = if idl.events.is_empty() {
+        None
+    } else {
+        Some(
+            idl.events
+                .iter()
+                .map(|event| {
+                    let event_slug = Casing::to_case(&event.name, Case::Snake);
+                    format!(
+                        r#"
 action "{program_name}_{event_slug}" "svm::deploy_subgraph" {{
     program_id = action.deploy_{program_name}.program_id
     program_idl = action.deploy_{program_name}.program_idl
@@ -103,9 +121,12 @@ action "{program_name}_{event_slug}" "svm::deploy_subgraph" {{
         name = "{}"
     }}
 }}"#,
-                event.name,
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n"))
+                        event.name,
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+    };
+    Ok(subgraph_runbook)
 }
