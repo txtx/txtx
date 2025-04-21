@@ -78,11 +78,15 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
         let some_instruction_args = instruction_data.swap_remove(INSTRUCTION_ARGS);
         let instruction_args = some_instruction_args
             .as_ref()
-            .ok_or(diagnosed_error!("'instruction_args' is required for each instruction"))?
-            .as_array()
-            .ok_or(diagnosed_error!(
-                "'instruction_args' field for an instruction must be an array"
-            ))?;
+            .map(|v| {
+                v.as_array()
+                    .ok_or(diagnosed_error!(
+                        "'instruction_args' field for an instruction must be an array"
+                    ))
+                    .map(|a| a.to_vec())
+            })
+            .transpose()?
+            .unwrap_or(vec![]);
 
         let mut instruction_builder =
             InstructionBuilder::new(&idl, &program_id, instruction_name, instruction_args.to_vec())
