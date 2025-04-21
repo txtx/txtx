@@ -1,92 +1,21 @@
+mod convert_idl;
+
 use std::str::FromStr;
 
 use crate::typing::anchor as anchor_lang_idl;
 use crate::typing::SvmValue;
 use anchor_lang_idl::types::{
-    Idl, IdlArrayLen, IdlDefinedFields, IdlGenericArg, IdlInstruction, IdlInstructionAccount,
-    IdlInstructionAccounts, IdlType, IdlTypeDef, IdlTypeDefGeneric, IdlTypeDefTy,
+    Idl, IdlArrayLen, IdlDefinedFields, IdlGenericArg, IdlInstruction, IdlType, IdlTypeDef,
+    IdlTypeDefGeneric, IdlTypeDefTy,
 };
-use solana_idl::Idl as ClassicIdl;
+use convert_idl::classic_idl_to_anchor_idl;
 use solana_sdk::pubkey::Pubkey;
-use spl_token::solana_program;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
     types::types::{ObjectType, Value},
 };
-
-pub fn parse_idl_string(idl_str: &str) -> Result<Idl, Diagnostic> {
-    let idl = match serde_json::from_str::<ClassicIdl>(&idl_str) {
-        Ok(classic_idl) => {
-            let instructions = classic_idl
-                .instructions
-                .iter()
-                .map(|i| classic_instruction_to_anchor_instruction(&i, &classic_idl.types))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| {
-                    diagnosed_error!("failed to convert classic idl to anchor idl: {e}")
-                })?;
-
-            let idl_serializer = match &classic_idl.metadata {
-                Some(metadata) => {
-                    match metadata.serializer.as_ref().and_then(|s| Some::<&str>(s.as_ref())) {
-                        Some("bytemuck") => anchor_lang_idl::types::IdlSerialization::Bytemuck,
-                        Some("bytemuckunsafe") => {
-                            anchor_lang_idl::types::IdlSerialization::BytemuckUnsafe
-                        }
-                        Some("borsh") | None => anchor_lang_idl::types::IdlSerialization::Borsh,
-                        Some(ser) => {
-                            anchor_lang_idl::types::IdlSerialization::Custom(ser.to_string())
-                        }
-                    }
-                }
-                None => anchor_lang_idl::types::IdlSerialization::Borsh,
-            };
-
-            Idl {
-                address: classic_idl.metadata.clone().unwrap().address.unwrap().clone(),
-                metadata: classic_idl_to_anchor_metadata(&classic_idl),
-                docs: vec![],
-                instructions,
-                accounts: classic_idl
-                    .accounts
-                    .iter()
-                    .map(|a| classic_account_to_anchor_account(a.clone()))
-                    .collect(),
-                errors: classic_idl
-                    .errors
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|e| anchor_lang_idl::types::IdlErrorCode {
-                        code: e.code,
-                        name: e.name.clone(),
-                        msg: e.msg.clone(),
-                    })
-                    .collect(),
-                types: classic_idl_types_to_anchor_types(&classic_idl.types, &idl_serializer)
-                    .map_err(|e| {
-                        diagnosed_error!(
-                            "failed to convert classic idl types to anchor idl types: {e}"
-                        )
-                    })?,
-                constants: classic_idl
-                    .constants
-                    .iter()
-                    .map(|c| classic_const_to_anchor_const(c, &classic_idl.types))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| {
-                        diagnosed_error!("failed to convert classic idl to anchor idl: {e}")
-                    })?,
-                events: vec![], // todo
-            }
-        }
-        Err(_) => {
-            serde_json::from_str(&idl_str).map_err(|e| diagnosed_error!("invalid idl: {e}"))?
-        }
-    };
-    Ok(idl)
-}
 
 #[derive(Debug, Clone)]
 pub struct IdlRef {
@@ -105,6 +34,11 @@ impl IdlRef {
 
     pub fn from_idl(idl: Idl) -> Self {
         Self { idl, location: None }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Diagnostic> {
+        let idl = parse_idl_bytes(bytes)?;
+        Ok(Self { idl, location: None })
     }
 
     pub fn from_str(idl_str: &str) -> Result<Self, Diagnostic> {
@@ -157,7 +91,7 @@ impl IdlRef {
         let mut encoded_args = IndexMap::new();
         for (user_arg_idx, arg) in args.iter().enumerate() {
             let idl_arg = instruction.args.get(user_arg_idx).unwrap();
-            let encoded_arg = encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None)
+            let encoded_arg = borsh_encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None)
                 .map_err(|e| {
                     diagnosed_error!("error in argument at position {}: {}", user_arg_idx + 1, e)
                 })?;
@@ -190,17 +124,42 @@ impl IdlRef {
         let mut encoded_args = vec![];
         for (user_arg_idx, arg) in args.iter().enumerate() {
             let idl_arg = instruction.args.get(user_arg_idx).unwrap();
-            let mut encoded_arg = encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None)
-                .map_err(|e| {
-                    diagnosed_error!("error in argument at position {}: {}", user_arg_idx + 1, e)
-                })?;
+            let mut encoded_arg = borsh_encode_value_to_idl_type(
+                arg,
+                &idl_arg.ty,
+                &idl_types,
+                None,
+            )
+            .map_err(|e| {
+                diagnosed_error!("error in argument at position {}: {}", user_arg_idx + 1, e)
+            })?;
             encoded_args.append(&mut encoded_arg);
         }
         Ok(encoded_args)
     }
 }
 
-pub fn encode_value_to_idl_type(
+fn parse_idl_string(idl_str: &str) -> Result<Idl, Diagnostic> {
+    let idl = match serde_json::from_str(&idl_str) {
+        Ok(classic_idl) => classic_idl_to_anchor_idl(classic_idl)?,
+        Err(_) => {
+            serde_json::from_str(&idl_str).map_err(|e| diagnosed_error!("invalid idl: {e}"))?
+        }
+    };
+    Ok(idl)
+}
+
+fn parse_idl_bytes(idl_bytes: &[u8]) -> Result<Idl, Diagnostic> {
+    let idl = match serde_json::from_slice(&idl_bytes) {
+        Ok(classic_idl) => classic_idl_to_anchor_idl(classic_idl)?,
+        Err(_) => {
+            serde_json::from_slice(&idl_bytes).map_err(|e| diagnosed_error!("invalid idl: {e}"))?
+        }
+    };
+    Ok(idl)
+}
+
+fn borsh_encode_value_to_idl_type(
     value: &Value,
     idl_type: &IdlType,
     idl_types: &Vec<IdlTypeDef>,
@@ -216,6 +175,14 @@ pub fn encode_value_to_idl_type(
     let encode_err = |expected: &str, e| {
         format!("unable to encode value ({}) as borsh {}: {}", value.to_string(), expected, e)
     };
+
+    match value {
+        Value::Buffer(bytes) => return borsh_encode_bytes_to_idl_type(bytes, idl_type, idl_types),
+        Value::Addon(addon_data) => {
+            return borsh_encode_bytes_to_idl_type(&addon_data.bytes, idl_type, idl_types)
+        }
+        _ => {}
+    }
 
     match idl_type {
         IdlType::Bool => value
@@ -299,58 +266,20 @@ pub fn encode_value_to_idl_type(
             if let Some(_) = value.as_null() {
                 borsh::to_vec(&None::<u8>).map_err(|e| encode_err("Optional", e))
             } else {
-                let encoded_arg = encode_value_to_idl_type(value, idl_type, idl_types, None)?;
+                let encoded_arg = borsh_encode_value_to_idl_type(value, idl_type, idl_types, None)?;
                 borsh::to_vec(&Some(encoded_arg)).map_err(|e| encode_err("Optional", e))
             }
         }
         IdlType::Vec(idl_type) => match value {
             Value::String(_) => {
                 let bytes = value.get_buffer_bytes_result().map_err(|_| mismatch_err("vec"))?;
-                match idl_type.as_ref() {
-                    IdlType::U8 => bytes
-                        .iter()
-                        .map(|b| {
-                            encode_value_to_idl_type(
-                                &Value::integer(*b as i128),
-                                idl_type,
-                                idl_types,
-                                None,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                        .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
-                    _ => Err(mismatch_err("vec")),
-                }
+                borsh_encode_bytes_to_idl_type(&bytes, idl_type, idl_types)
             }
             Value::Array(vec) => vec
                 .iter()
-                .map(|v| encode_value_to_idl_type(v, idl_type, idl_types, None))
+                .map(|v| borsh_encode_value_to_idl_type(v, idl_type, idl_types, None))
                 .collect::<Result<Vec<_>, _>>()
                 .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
-            Value::Buffer(bytes) => match idl_type.as_ref() {
-                IdlType::U8 => bytes
-                    .iter()
-                    .map(|b| {
-                        encode_value_to_idl_type(
-                            &Value::integer(*b as i128),
-                            idl_type,
-                            idl_types,
-                            None,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
-                _ => Err(mismatch_err("vec")),
-            },
-            Value::Addon(addon_data) => match idl_type.as_ref() {
-                IdlType::U8 => addon_data
-                    .bytes
-                    .iter()
-                    .map(|b| borsh::to_vec(&b).map_err(|e| encode_err("u8", e)))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
-                _ => Err(mismatch_err("vec")),
-            },
             _ => Err(mismatch_err("vec")),
         },
         IdlType::Array(idl_type, idl_array_len) => {
@@ -402,7 +331,7 @@ pub fn encode_value_to_idl_type(
                         ));
                     }
                     a.iter()
-                        .map(|v| encode_value_to_idl_type(v, idl_type, idl_types, None))
+                        .map(|v| borsh_encode_value_to_idl_type(v, idl_type, idl_types, None))
                         .collect::<Result<Vec<_>, _>>()
                 })
                 .transpose()?
@@ -417,74 +346,82 @@ pub fn encode_value_to_idl_type(
                 .ok_or_else(|| format!("unable to find type definition for {} in idl", name))?;
             let fields = match &typing.ty {
                 IdlTypeDefTy::Struct { fields } => {
-                    if let Some(fields) = fields {
-                        let mut encoded_fields = vec![];
-                        match fields {
-                            IdlDefinedFields::Named(expected_fields) => {
-                                let user_values_map =
-                                    value.as_object().ok_or(mismatch_err("object"))?;
-                                for field in expected_fields {
-                                    let user_value =
-                                        user_values_map.get(&field.name).ok_or_else(|| {
-                                            format!("missing field '{}' in object", field.name)
-                                        })?;
-
-                                    let ty = parse_generic_expected_type(
-                                        &field.ty,
-                                        &typing.generics,
-                                        generics,
-                                    )?;
-
-                                    let mut encoded_field = encode_value_to_idl_type(
-                                        user_value,
-                                        &ty,
-                                        idl_types,
-                                        Some(idl_type),
-                                    )?;
-                                    encoded_fields.append(&mut encoded_field);
-                                }
-                            }
-                            IdlDefinedFields::Tuple(expected_tuple_types) => {
-                                return Err(
-                                    "Encoding tuple structs are not supported by txtx".to_string()
-                                );
-                                let user_values = value.as_array().ok_or(mismatch_err("array"))?;
-                                let mut encoded_tuple_fields = vec![];
-                                for (i, expected_type) in expected_tuple_types.iter().enumerate() {
-                                    let user_value = user_values.get(i).ok_or_else(|| {
-                                        format!("missing field value in {} index of array", i)
-                                    })?;
-
-                                    let ty = parse_generic_expected_type(
-                                        expected_type,
-                                        &typing.generics,
-                                        generics,
-                                    )?;
-
-                                    let encoded_field = encode_value_to_idl_type(
-                                        user_value,
-                                        &ty,
-                                        idl_types,
-                                        Some(idl_type),
-                                    )?;
-                                    encoded_tuple_fields.push(encoded_field);
-                                }
-                                encoded_fields.append(
-                                    &mut borsh::to_vec(&encoded_tuple_fields)
-                                        .map_err(|e| encode_err("tuple", e))?,
-                                );
-                            }
-                        }
-                        encoded_fields
+                    if let Some(idl_defined_fields) = fields {
+                        borsh_encode_value_to_idl_defined_fields(
+                            idl_defined_fields,
+                            value,
+                            idl_type,
+                            idl_types,
+                            generics,
+                            &typing.generics,
+                        )
+                        .map_err(|e| format!("unable to encode value as borsh struct: {}", e))?
                     } else {
                         vec![]
                     }
                 }
-                IdlTypeDefTy::Enum { .. } => {
-                    return Err("Encoding enums are not supported by txtx".to_string());
+                IdlTypeDefTy::Enum { variants } => {
+                    let enum_value = value.as_object().ok_or(mismatch_err("object"))?;
+                    let enum_variant = enum_value.get("variant").ok_or_else(|| {
+                        format!(
+                            "unable to encode value ({}) as borsh enum: missing variant field",
+                            value.to_string(),
+                        )
+                    })?.as_string().ok_or_else(|| {
+                        format!(
+                            "unable to encode value ({}) as borsh enum: expected variant field to be a string",
+                            value.to_string(),
+                        )
+                    })?;
+
+                    let (variant_index, expected_variant) = variants
+                        .iter()
+                        .enumerate()
+                        .find(|(_, v)| v.name.eq(enum_variant))
+                        .ok_or_else(|| {
+                            format!(
+                                "unable to encode value ({}) as borsh enum: unknown variant {}",
+                                value.to_string(),
+                                enum_variant
+                            )
+                        })?;
+
+                    let mut encoded = vec![variant_index as u8];
+
+                    let type_def_generics = idl_types
+                        .iter()
+                        .find(|t| &t.name == name)
+                        .map(|t| t.generics.clone())
+                        .unwrap_or_default();
+
+                    match &expected_variant.fields {
+                        Some(idl_defined_fields) => {
+                            let enum_variant_value = enum_value.get("value").ok_or_else(|| {
+                                format!(
+                                    "unable to encode value ({}) as borsh enum: missing 'value' field",
+                                    value.to_string(),
+                                )
+                            })?;
+                            let mut encoded_fields = borsh_encode_value_to_idl_defined_fields(
+                                &idl_defined_fields,
+                                enum_variant_value,
+                                idl_type,
+                                idl_types,
+                                &vec![],
+                                &type_def_generics,
+                            )
+                            .map_err(|e| {
+                                format!("unable to encode value as borsh struct: {}", e)
+                            })?;
+
+                            encoded.append(&mut encoded_fields);
+                            encoded
+                        }
+                        None => encoded,
+                    }
                 }
                 IdlTypeDefTy::Type { alias } => {
-                    encode_value_to_idl_type(value, &alias, idl_types, Some(idl_type))?
+                    borsh_encode_value_to_idl_type(value, &alias, idl_types, Some(idl_type))?
                 }
             };
             Ok(fields)
@@ -510,16 +447,111 @@ pub fn encode_value_to_idl_type(
                 IdlTypeDefGeneric::Type { name } => {
                     let ty = IdlType::from_str(name)
                         .map_err(|e| format!("invalid generic type: {e}"))?;
-                    encode_value_to_idl_type(value, &ty, idl_types, None)
+                    borsh_encode_value_to_idl_type(value, &ty, idl_types, None)
                 }
                 IdlTypeDefGeneric::Const { ty, .. } => {
                     let ty =
                         IdlType::from_str(ty).map_err(|e| format!("invalid generic type: {e}"))?;
-                    encode_value_to_idl_type(value, &ty, idl_types, None)
+                    borsh_encode_value_to_idl_type(value, &ty, idl_types, None)
                 }
             }
         }
         t => return Err(format!("IDL type {:?} is not yet supported", t)),
+    }
+}
+
+fn borsh_encode_value_to_idl_defined_fields(
+    idl_defined_fields: &IdlDefinedFields,
+    value: &Value,
+    idl_type: &IdlType,
+    idl_types: &Vec<IdlTypeDef>,
+    generics: &Vec<IdlGenericArg>,
+    type_def_generics: &Vec<IdlTypeDefGeneric>,
+) -> Result<Vec<u8>, String> {
+    let mismatch_err = |expected: &str| {
+        format!(
+            "invalid value for idl type: expected {}, found {}",
+            expected,
+            value.get_type().to_string()
+        )
+    };
+    let encode_err = |expected: &str, e| {
+        format!("unable to encode value ({}) as borsh {}: {}", value.to_string(), expected, e)
+    };
+    let mut encoded_fields = vec![];
+    match idl_defined_fields {
+        IdlDefinedFields::Named(expected_fields) => {
+            let mut user_values_map = value.as_object().ok_or(mismatch_err("object"))?.clone();
+            for field in expected_fields {
+                let user_value = user_values_map
+                    .swap_remove(&field.name)
+                    .ok_or_else(|| format!("missing field '{}' in object", field.name))?;
+
+                let ty = parse_generic_expected_type(&field.ty, &type_def_generics, generics)?;
+
+                let mut encoded_field =
+                    borsh_encode_value_to_idl_type(&user_value, &ty, idl_types, Some(idl_type))
+                        .map_err(|e| format!("failed to encode field '{}': {}", field.name, e))?;
+                encoded_fields.append(&mut encoded_field);
+            }
+            if !user_values_map.is_empty() {
+                return Err(format!(
+                    "extra fields found in object: {}",
+                    user_values_map.keys().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+                ));
+            }
+        }
+        IdlDefinedFields::Tuple(expected_tuple_types) => {
+            let user_values = value.as_array().ok_or(mismatch_err("array"))?;
+            let mut encoded_tuple_fields = vec![];
+
+            if user_values.len() != expected_tuple_types.len() {
+                return Err(format!(
+                    "invalid value for idl type: expected tuple length of {}, found {}",
+                    expected_tuple_types.len(),
+                    user_values.len()
+                ));
+            }
+            for (i, expected_type) in expected_tuple_types.iter().enumerate() {
+                let user_value = user_values
+                    .get(i)
+                    .ok_or_else(|| format!("missing field value in {} index of array", i))?;
+
+                let ty = parse_generic_expected_type(expected_type, &type_def_generics, generics)?;
+
+                let encoded_field =
+                    borsh_encode_value_to_idl_type(user_value, &ty, idl_types, Some(idl_type))
+                        .map_err(|e| format!("failed to encode field #{}: {}", i + 1, e))?;
+                encoded_tuple_fields.push(encoded_field);
+            }
+            encoded_fields.append(
+                &mut borsh::to_vec(&encoded_tuple_fields).map_err(|e| encode_err("tuple", e))?,
+            );
+        }
+    }
+    Ok(encoded_fields)
+}
+
+// todo
+fn borsh_encode_bytes_to_idl_type(
+    bytes: &Vec<u8>,
+    idl_type: &IdlType,
+    idl_types: &Vec<IdlTypeDef>,
+) -> Result<Vec<u8>, String> {
+    match idl_type {
+        IdlType::U8 => bytes
+            .iter()
+            .map(|b| {
+                borsh_encode_value_to_idl_type(
+                    &Value::integer(*b as i128),
+                    idl_type,
+                    idl_types,
+                    None,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
+        _ => todo!(),
     }
 }
 
@@ -795,288 +827,4 @@ fn parse_generic_expected_type(
         &expected_type
     };
     Ok(ty.clone())
-}
-
-pub fn classic_idl_to_anchor_metadata(
-    classic_idl: &ClassicIdl,
-) -> anchor_lang_idl::types::IdlMetadata {
-    anchor_lang_idl::types::IdlMetadata {
-        name: classic_idl.name.to_string(),
-        version: classic_idl.version.clone(),
-        spec: classic_idl.version.clone(),
-        description: None,
-        repository: None,
-        dependencies: vec![],
-        contact: None,
-        deployments: None,
-    }
-}
-
-pub fn classic_instruction_to_anchor_instruction(
-    classic_instruction: &solana_idl::IdlInstruction,
-    classic_types: &Vec<solana_idl::IdlTypeDefinition>,
-) -> Result<anchor_lang_idl::types::IdlInstruction, String> {
-    let mut discriminator = vec![];
-    if let Some(classic_discriminator) = &classic_instruction.discriminant {
-        if let Some(bytes) = &classic_discriminator.bytes {
-            discriminator = bytes.clone();
-        }
-    }
-    if discriminator.is_empty() {
-        discriminator = compute_discriminator("global", &classic_instruction.name);
-    }
-
-    Ok(anchor_lang_idl::types::IdlInstruction {
-        name: classic_instruction.name.to_string(),
-        accounts: classic_instruction
-            .accounts
-            .iter()
-            .map(|a| classic_account_item_to_anchor_instruction_account(a))
-            .collect(),
-        args: classic_instruction
-            .args
-            .iter()
-            .map(|a| classic_field_to_anchor_field(a, classic_types))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| format!("error in instruction {}: {}", classic_instruction.name, e))?,
-        docs: vec![],
-        discriminator,
-        returns: None,
-    })
-}
-
-pub fn classic_account_item_to_anchor_instruction_account(
-    classic_account: &solana_idl::IdlAccountItem,
-) -> anchor_lang_idl::types::IdlInstructionAccountItem {
-    match classic_account {
-        solana_idl::IdlAccountItem::IdlAccount(a) => {
-            anchor_lang_idl::types::IdlInstructionAccountItem::Single(IdlInstructionAccount {
-                name: a.name.to_string(),
-                docs: a.docs.clone().unwrap_or_default(),
-                writable: a.is_mut,
-                signer: a.is_signer,
-                optional: a.optional,
-                address: a.address.clone(),
-                pda: None, // todo
-                relations: vec![],
-            })
-        }
-        solana_idl::IdlAccountItem::IdlAccounts(a) => {
-            anchor_lang_idl::types::IdlInstructionAccountItem::Composite(IdlInstructionAccounts {
-                name: a.name.to_string(),
-                accounts: a
-                    .accounts
-                    .iter()
-                    .map(|a| classic_account_item_to_anchor_instruction_account(a))
-                    .collect(),
-            })
-        }
-    }
-}
-
-pub fn classic_field_to_anchor_field(
-    classic_field: &solana_idl::IdlField,
-    classic_types: &Vec<solana_idl::IdlTypeDefinition>,
-) -> Result<anchor_lang_idl::types::IdlField, String> {
-    Ok(anchor_lang_idl::types::IdlField {
-        name: classic_field.name.to_string(),
-        ty: classic_type_to_anchor_type(&classic_field.ty, classic_types)
-            .map_err(|e| format!("error in field {}: {}", classic_field.name, e))?,
-        docs: classic_field.attrs.clone().unwrap_or_default(),
-    })
-}
-
-pub fn classic_type_to_anchor_type(
-    classic_type: &solana_idl::IdlType,
-    classic_types: &Vec<solana_idl::IdlTypeDefinition>,
-) -> Result<anchor_lang_idl::types::IdlType, String> {
-    let ty =
-        match classic_type {
-            solana_idl::IdlType::Bool => anchor_lang_idl::types::IdlType::Bool,
-            solana_idl::IdlType::U8 => anchor_lang_idl::types::IdlType::U8,
-            solana_idl::IdlType::I8 => anchor_lang_idl::types::IdlType::I8,
-            solana_idl::IdlType::U16 => anchor_lang_idl::types::IdlType::U16,
-            solana_idl::IdlType::I16 => anchor_lang_idl::types::IdlType::I16,
-            solana_idl::IdlType::U32 => anchor_lang_idl::types::IdlType::U32,
-            solana_idl::IdlType::I32 => anchor_lang_idl::types::IdlType::I32,
-            solana_idl::IdlType::F32 => anchor_lang_idl::types::IdlType::F32,
-            solana_idl::IdlType::U64 => anchor_lang_idl::types::IdlType::U64,
-            solana_idl::IdlType::I64 => anchor_lang_idl::types::IdlType::I64,
-            solana_idl::IdlType::F64 => anchor_lang_idl::types::IdlType::F64,
-            solana_idl::IdlType::U128 => anchor_lang_idl::types::IdlType::U128,
-            solana_idl::IdlType::I128 => anchor_lang_idl::types::IdlType::I128,
-            solana_idl::IdlType::Bytes => anchor_lang_idl::types::IdlType::Bytes,
-            solana_idl::IdlType::String => anchor_lang_idl::types::IdlType::String,
-            solana_idl::IdlType::PublicKey => anchor_lang_idl::types::IdlType::Pubkey,
-            solana_idl::IdlType::Option(ty) => anchor_lang_idl::types::IdlType::Option(Box::new(
-                classic_type_to_anchor_type(ty, classic_types)?,
-            )),
-            solana_idl::IdlType::Vec(ty) => anchor_lang_idl::types::IdlType::Vec(Box::new(
-                classic_type_to_anchor_type(ty, classic_types)?,
-            )),
-            solana_idl::IdlType::Array(ty, len) => anchor_lang_idl::types::IdlType::Array(
-                Box::new(classic_type_to_anchor_type(ty, classic_types)?),
-                IdlArrayLen::Value(*len),
-            ),
-            solana_idl::IdlType::COption(idl_type) => anchor_lang_idl::types::IdlType::Option(
-                Box::new(classic_type_to_anchor_type(idl_type, classic_types)?),
-            ),
-            solana_idl::IdlType::Defined(type_name) => {
-                let type_def = classic_types
-                    .iter()
-                    .find(|t| t.name.eq(type_name))
-                    .ok_or(format!("unable to find type definition for {} in idl", type_name))?;
-                return Err(
-                "Defined types are not yet supported when converting from classic to anchor IDL"
-                    .to_string(),
-            );
-            }
-            solana_idl::IdlType::Tuple(vec) => {
-                return Err(
-                    "Tuple types are not yet supported when converting from classic to anchor IDL"
-                        .to_string(),
-                )
-            }
-            solana_idl::IdlType::HashMap(idl_type, idl_type1) => return Err(
-                "HashMap types are not yet supported when converting from classic to anchor IDL"
-                    .to_string(),
-            ),
-            solana_idl::IdlType::BTreeMap(idl_type, idl_type1) => return Err(
-                "BTreeMap types are not yet supported when converting from classic to anchor IDL"
-                    .to_string(),
-            ),
-            solana_idl::IdlType::HashSet(idl_type) => return Err(
-                "HashSet types are not yet supported when converting from classic to anchor IDL"
-                    .to_string(),
-            ),
-            solana_idl::IdlType::BTreeSet(idl_type) => return Err(
-                "BTreeSet types are not yet supported when converting from classic to anchor IDL"
-                    .to_string(),
-            ),
-        };
-    Ok(ty)
-}
-
-pub fn classic_account_to_anchor_account(
-    classic_account: solana_idl::IdlTypeDefinition,
-) -> anchor_lang_idl::types::IdlAccount {
-    anchor_lang_idl::types::IdlAccount {
-        name: classic_account.name.clone(),
-        discriminator: compute_discriminator("account", &classic_account.name),
-    }
-}
-
-pub fn classic_idl_type_def_ty_to_anchor_type_def_ty(
-    classic_type_def_ty: &solana_idl::IdlTypeDefinitionTy,
-    classic_idl_types: &Vec<solana_idl::IdlTypeDefinition>,
-) -> Result<anchor_lang_idl::types::IdlTypeDefTy, String> {
-    match &classic_type_def_ty {
-        solana_idl::IdlTypeDefinitionTy::Struct { fields } => {
-            Ok(anchor_lang_idl::types::IdlTypeDefTy::Struct {
-                fields: Some(anchor_lang_idl::types::IdlDefinedFields::Tuple(
-                    fields
-                        .iter()
-                        .map(|field| classic_type_to_anchor_type(&field.ty, &classic_idl_types))
-                        .collect::<Result<Vec<_>, _>>()?,
-                )),
-            })
-        }
-        solana_idl::IdlTypeDefinitionTy::Enum { variants } => {
-            Ok(anchor_lang_idl::types::IdlTypeDefTy::Enum {
-                variants: variants
-                    .iter()
-                    .map(|v| {
-                        Ok(anchor_lang_idl::types::IdlEnumVariant {
-                            name: v.name.clone(),
-                            fields: match &v.fields {
-                                Some(fields) => match fields {
-                                    solana_idl::EnumFields::Named(fields) => {
-                                        Some(anchor_lang_idl::types::IdlDefinedFields::Named(
-                                            fields
-                                                .iter()
-                                                .map(|field| {
-                                                    Ok(anchor_lang_idl::types::IdlField {
-                                                        name: field.name.clone(),
-                                                        ty: classic_type_to_anchor_type(
-                                                            &field.ty,
-                                                            &classic_idl_types,
-                                                        )?,
-                                                        docs: vec![],
-                                                    })
-                                                })
-                                                .collect::<Result<
-                                                    Vec<anchor_lang_idl::types::IdlField>,
-                                                    String,
-                                                >>(
-                                                )?,
-                                        ))
-                                    }
-                                    solana_idl::EnumFields::Tuple(fields) => {
-                                        Some(anchor_lang_idl::types::IdlDefinedFields::Tuple(
-                                            fields
-                                                .iter()
-                                                .map(|ty| {
-                                                    classic_type_to_anchor_type(
-                                                        &ty,
-                                                        &classic_idl_types,
-                                                    )
-                                                })
-                                                .collect::<Result<Vec<_>, _>>()?,
-                                        ))
-                                    }
-                                },
-                                None => None,
-                            },
-                        })
-                    })
-                    .collect::<Result<Vec<anchor_lang_idl::types::IdlEnumVariant>, String>>()?,
-            })
-        }
-    }
-}
-
-pub fn classic_idl_type_def_to_anchor_type_def(
-    classic_type_def: &solana_idl::IdlTypeDefinition,
-    classic_idl_types: &Vec<solana_idl::IdlTypeDefinition>,
-    idl_serializer: &anchor_lang_idl::types::IdlSerialization,
-) -> Result<anchor_lang_idl::types::IdlTypeDef, String> {
-    Ok(anchor_lang_idl::types::IdlTypeDef {
-        name: classic_type_def.name.clone(),
-        docs: vec![],
-        serialization: idl_serializer.clone(),
-        repr: None,
-        generics: vec![], // todo
-        ty: classic_idl_type_def_ty_to_anchor_type_def_ty(&classic_type_def.ty, classic_idl_types)
-            .map_err(|e| format!("error in type {}: {}", classic_type_def.name, e))?,
-    })
-}
-
-pub fn compute_discriminator(prefix: &str, input: &str) -> Vec<u8> {
-    let prefixed_input = format!("{}:{}", prefix, input);
-    let mut result = [0u8; 8];
-    result.copy_from_slice(&solana_program::hash::hash(prefixed_input.as_bytes()).to_bytes()[..8]);
-    let result = result.to_vec();
-    result
-}
-
-pub fn classic_idl_types_to_anchor_types(
-    classic_types: &Vec<solana_idl::IdlTypeDefinition>,
-    idl_serializer: &anchor_lang_idl::types::IdlSerialization,
-) -> Result<Vec<anchor_lang_idl::types::IdlTypeDef>, String> {
-    classic_types
-        .iter()
-        .map(|t| classic_idl_type_def_to_anchor_type_def(t, classic_types, idl_serializer))
-        .collect()
-}
-
-pub fn classic_const_to_anchor_const(
-    classic_const: &solana_idl::IdlConst,
-    classic_types: &Vec<solana_idl::IdlTypeDefinition>,
-) -> Result<anchor_lang_idl::types::IdlConst, String> {
-    Ok(anchor_lang_idl::types::IdlConst {
-        name: classic_const.name.clone(),
-        ty: classic_type_to_anchor_type(&classic_const.ty, &classic_types)?,
-        value: classic_const.value.clone(),
-        docs: vec![],
-    })
 }

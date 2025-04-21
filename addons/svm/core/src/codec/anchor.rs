@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use crate::typing::anchor::convert::convert_idl as anchor_convert_idl;
 use crate::typing::anchor::types as anchor_types;
 
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
@@ -13,6 +12,8 @@ use txtx_addon_kit::{
 };
 
 use crate::typing::SvmValue;
+
+use super::idl::IdlRef;
 
 pub struct AnchorProgramArtifacts {
     /// The IDL of the anchor program, stored for an anchor project at `target/idl/<program_name>.json`.
@@ -35,7 +36,7 @@ impl AnchorProgramArtifacts {
             format!("invalid anchor idl location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
 
-        let idl = anchor_convert_idl(&idl_bytes).map_err(|e| {
+        let idl_ref = IdlRef::from_bytes(&idl_bytes).map_err(|e| {
             format!("invalid anchor idl at location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
 
@@ -71,16 +72,16 @@ impl AnchorProgramArtifacts {
             )
         })?;
 
-        if idl.address.ne(&keypair.pubkey().to_string()) {
+        if idl_ref.idl.address.ne(&keypair.pubkey().to_string()) {
             return Err(format!(
                 "anchor idl address does not match keypair: idl specifies {}; keystore contains {}. Did you forget to run `anchor build`?",
-                idl.address,
+                idl_ref.idl.address,
                 keypair.pubkey().to_string()
             ));
         }
         let pubkey = keypair.pubkey();
 
-        Ok(Self { idl, bin, keypair, program_id: pubkey })
+        Ok(Self { idl: idl_ref.idl, bin, keypair, program_id: pubkey })
     }
 
     pub fn to_value(&self) -> Result<Value, String> {
