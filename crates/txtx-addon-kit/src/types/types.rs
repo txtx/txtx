@@ -600,7 +600,6 @@ impl Value {
                         if i == (len - 1) { "" } else { "," }
                     ));
                 }
-                res.push_str("\n}");
                 res
             }
             Value::Array(array) => {
