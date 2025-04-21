@@ -6,6 +6,8 @@ pub const AUTHORITY: &str = "authority";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0/0";
 pub const DEFAULT_ANCHOR_TARGET_PATH: &str = "target";
+pub const DEFAULT_NATIVE_TARGET_PATH: &str = "target";
+pub const DEFAULT_SHANK_IDL_PATH: &str = "idl";
 
 // Signer attached storage keys
 pub const CHECKED_PUBLIC_KEY: &str = "checked_public_key";
