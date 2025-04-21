@@ -1,5 +1,6 @@
 use clarity::util::sleep_ms;
 use std::fmt::Write;
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
@@ -160,6 +161,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
+        _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::{
             constants::SIGNED_TRANSACTION_BYTES, types::frontend::ProgressBarStatusColor,

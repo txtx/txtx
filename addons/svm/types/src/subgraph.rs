@@ -126,6 +126,8 @@ pub struct SubgraphRequest {
     pub fields: Vec<IndexedSubgraphField>,
     /// The Construct Did of the subgraph request action.
     pub construct_did: ConstructDid,
+    /// The network to index. This is used to determine the network of the subgraph.
+    pub network: String,
 }
 
 fn pubkey_serialize<S>(value: &Pubkey, serializer: S) -> Result<S::Ok, S::Error>
@@ -168,6 +170,7 @@ impl SubgraphRequest {
             data_source,
             construct_did: construct_did.clone(),
             fields,
+            network: "solana-devnet".into(),
         })
     }
 

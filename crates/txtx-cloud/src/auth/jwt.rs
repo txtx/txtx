@@ -15,11 +15,9 @@ impl JwtManager {
 
     pub async fn initialize(id_service_url: &str) -> Result<Self, String> {
         let client = Client::new();
-        let res = client
-            .get(&format!("{}/.well-known/jwks.json", id_service_url))
-            .send()
-            .await
-            .map_err(|e| format!("Unable to retrieve JWKS: {e}"))?;
+        let url = format!("{}/.well-known/jwks.json", id_service_url);
+        let res =
+            client.get(&url).send().await.map_err(|e| format!("Unable to retrieve JWKS: {e}"))?;
         let jwks = res.json::<JwkSet>().await.map_err(|e| format!("Unable to parse JWKS: {e}"))?;
 
         Ok(Self { jwks })
