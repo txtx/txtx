@@ -912,7 +912,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "derive_more 2.0.1",
- "jsonwebtoken 9.3.0",
+ "jsonwebtoken 9.3.1",
  "rand 0.8.5",
  "serde",
  "strum 0.27.1",
@@ -5387,7 +5387,7 @@ dependencies = [
  "chrono",
  "futures",
  "hyper 1.4.1",
- "jsonwebtoken 9.3.0",
+ "jsonwebtoken 9.3.1",
  "once_cell",
  "prost 0.13.5",
  "prost-types",
@@ -6796,11 +6796,11 @@ dependencies = [
 
 [[package]]
 name = "jsonwebtoken"
-version = "9.3.0"
+version = "9.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9ae10193d25051e74945f1ea2d0b42e03cc3b890f7e4cc5faa44997d808193f"
+checksum = "5a87cc7a48537badeae96744432de36f4be2b4a34a05a5ef32e9dd8a1c169dde"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.1",
  "js-sys",
  "pem 3.0.4",
  "ring 0.17.8",
@@ -15141,6 +15141,7 @@ dependencies = [
  "crossterm",
  "ctrlc",
  "dialoguer",
+ "dotenvy",
  "hiro-system-kit 0.3.4",
  "itertools 0.12.1",
  "openssl",
@@ -15182,9 +15183,9 @@ dependencies = [
  "clap_generate",
  "dialoguer",
  "dirs 5.0.1",
- "dotenvy",
  "graphql_client",
  "hiro-system-kit 0.3.4",
+ "jsonwebtoken 9.3.1",
  "open",
  "serde",
  "serde_derive",

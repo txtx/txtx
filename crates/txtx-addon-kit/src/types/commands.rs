@@ -22,6 +22,7 @@ use crate::{
 use crate::{helpers::hcl::get_object_expression_key, types::stores::ValueStore};
 
 use super::{
+    cloud_interface::CloudServiceContext,
     diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
@@ -353,6 +354,7 @@ pub struct CommandSpecification {
     pub prepare_signed_nested_execution: CommandSignedPrepareNestedExecution,
     pub run_signed_execution: CommandSignedExecutionClosure,
     pub build_background_task: CommandBackgroundTaskExecutionClosure,
+    pub implements_cloud_service: bool,
     pub aggregate_nested_execution_results: CommandAggregateNestedExecutionResults,
 }
 
@@ -499,6 +501,7 @@ pub type CommandBackgroundTaskExecutionClosure = Box<
         &channel::Sender<BlockEvent>,
         &Uuid,
         &RunbookSupervisionContext,
+        &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult,
 >;
 
@@ -1150,6 +1153,7 @@ impl CommandInstance {
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
+        cloud_svc_context: &CloudServiceContext,
     ) -> CommandExecutionFutureResult {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
@@ -1168,6 +1172,7 @@ impl CommandInstance {
             progress_tx,
             background_tasks_uuid,
             supervision_context,
+            &if spec.implements_cloud_service { Some(cloud_svc_context.clone()) } else { None },
         );
         res
     }
@@ -1347,6 +1352,7 @@ pub trait CommandImplementation {
         _progress_tx: &channel::Sender<BlockEvent>,
         _background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
+        _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }

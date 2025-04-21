@@ -87,6 +87,19 @@ impl AuthConfig {
         Ok(Some(config))
     }
 
+    pub async fn refresh_session_if_needed(
+        &self,
+        id_service_url: &str,
+        pat: &Option<String>,
+    ) -> Result<AuthConfig, String> {
+        if self.is_access_token_expired() {
+            return self.refresh_session(id_service_url, pat).await.map_err(|e| {
+                format!("Failed to refresh session. Run `txtx cloud login` to log in again. Downstream error: {e}")
+            });
+        }
+        Ok(self.clone())
+    }
+
     /// Get a new access token by sending a POST request to the auth service with the refresh token.
     /// If the request is successful, the new auth config is written to the system config.
     pub async fn refresh_session(
@@ -120,7 +133,7 @@ impl AuthConfig {
             return Ok(auth_config);
         } else {
             let err = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(format!("Failed to refresh session: {}", err));
+            return Err(format!("Received error from refresh session request: {}", err));
         }
     }
 
