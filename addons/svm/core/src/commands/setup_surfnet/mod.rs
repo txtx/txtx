@@ -9,6 +9,7 @@ use set_token_account::SurfpoolTokenAccountUpdate;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_request::RpcRequest;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     return_synchronous_ok, CommandExecutionFutureResult, CommandExecutionResult,
     CommandImplementation, CommandSpecification, PreCommandSpecification,
@@ -197,6 +198,7 @@ impl CommandImplementation for SetupSurfpool {
         _progress_tx: &channel::Sender<BlockEvent>,
         _background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
+        _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         return_synchronous_ok(CommandExecutionResult::new())
     }
