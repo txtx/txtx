@@ -182,7 +182,7 @@ jobs:
           tar -czf txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz -C txtx/target/${{ matrix.target }}/release txtx.exe
 
       - name: Store SHA256 Hash of Tar (Linux x64)
-        if: matrix.os == 'linux'
+        if: matrix.platform == 'linux'
         id: linux_x64_sha
         run: |
           echo "LINUX_X64_SHA=$(sha256sum txtx-${{ env.SHORT_TARGET_NAME }}.tar.gz | awk '{ print $1 }')" >> "$GITHUB_OUTPUT"
