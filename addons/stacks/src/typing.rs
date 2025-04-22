@@ -93,7 +93,7 @@ impl StacksValue {
 }
 
 lazy_static! {
-    pub static ref DEPLOYMENT_ARTIFACTS_TYPE: Type = define_object_type! {
+    pub static ref DEPLOYMENT_ARTIFACTS_TYPE: Type = define_strict_object_type! {
         contract_source: {
             documentation: "The contract source.",
             typing: Type::string(),

@@ -2,13 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use hcl_edit::{expr::Expression, structure::Block};
 
-use crate::helpers::hcl::{
-    collect_constructs_references_from_expression, get_object_expression_key,
-    visit_optional_untyped_attribute,
-};
+use crate::helpers::hcl::{get_object_expression_key, visit_optional_untyped_attribute};
 
 use super::{
-    commands::{CommandInput, CommandInstance},
+    commands::{CommandInput, CommandInstance, ConstructInstance},
     diagnostics::Diagnostic,
     package::Package,
     signers::{SignerInstance, SignersState},
@@ -29,6 +26,9 @@ pub struct EmbeddedRunbookInstance {
 impl WithEvaluatableInputs for EmbeddedRunbookInstance {
     fn name(&self) -> String {
         self.name.clone()
+    }
+    fn block(&self) -> &Block {
+        &self.block
     }
 
     fn get_expression_from_input(&self, input_name: &str) -> Option<Expression> {
@@ -126,141 +126,15 @@ impl EmbeddedRunbookInstance {
             specification,
         }
     }
+}
 
-    pub fn get_expressions_referencing_commands_from_runbook_inputs(
-        &self,
-    ) -> Result<Vec<(Option<&EmbeddedRunbookInputSpecification>, Expression)>, String> {
-        let mut expressions = vec![];
-        for input in self.specification.inputs.iter() {
-            match input {
-                EmbeddedRunbookInputSpecification::Value(value_spec) => match value_spec.typing {
-                    Type::Map(ref props) => {
-                        for block in self.block.body.get_blocks(&value_spec.name) {
-                            for prop in props.iter() {
-                                let res = visit_optional_untyped_attribute(&prop.name, &block);
-                                if let Some(expr) = res {
-                                    let mut references = vec![];
-                                    collect_constructs_references_from_expression(
-                                        &expr,
-                                        Some(input),
-                                        &mut references,
-                                    );
-                                    expressions.append(&mut references);
-                                }
-                            }
-                        }
-                    }
-                    Type::Object(ref props) => {
-                        let res = visit_optional_untyped_attribute(&value_spec.name, &self.block);
-                        if let Some(expr) = res {
-                            let mut references = vec![];
-                            collect_constructs_references_from_expression(
-                                &expr,
-                                Some(input),
-                                &mut references,
-                            );
-                            expressions.append(&mut references);
-                        }
-                        for prop in props.iter() {
-                            let mut blocks_iter = self.block.body.get_blocks(&value_spec.name);
-                            while let Some(block) = blocks_iter.next() {
-                                let res = visit_optional_untyped_attribute(&prop.name, &block);
-                                if let Some(expr) = res {
-                                    let mut references = vec![];
-                                    collect_constructs_references_from_expression(
-                                        &expr,
-                                        Some(input),
-                                        &mut references,
-                                    );
-                                    expressions.append(&mut references);
-                                }
-                            }
-                        }
-                    }
-                    _ => {
-                        let res = visit_optional_untyped_attribute(&value_spec.name, &self.block);
-                        if let Some(expr) = res {
-                            let mut references = vec![];
-                            collect_constructs_references_from_expression(
-                                &expr,
-                                Some(input),
-                                &mut references,
-                            );
-                            expressions.append(&mut references);
-                        }
-                    }
-                },
-                EmbeddedRunbookInputSpecification::Signer(signer_spec) => {
-                    let res = visit_optional_untyped_attribute(&signer_spec.name, &self.block);
-                    if let Some(expr) = res {
-                        let mut references = vec![];
-                        collect_constructs_references_from_expression(
-                            &expr,
-                            Some(input),
-                            &mut references,
-                        );
-                        expressions.append(&mut references);
-                    }
-                }
-            }
-        }
-        Ok(expressions)
+impl ConstructInstance for EmbeddedRunbookInstance {
+    fn block(&self) -> &Block {
+        &self.block
     }
 
-    pub fn collect_dependencies(
-        &self,
-    ) -> Vec<(Option<&EmbeddedRunbookInputSpecification>, Expression)> {
-        let mut dependencies = vec![];
-        for input in self.specification.inputs.iter() {
-            match input {
-                EmbeddedRunbookInputSpecification::Value(value_spec) => match value_spec.typing {
-                    Type::Object(ref props) => {
-                        if let Some(attr) = self.block.body.get_attribute(&value_spec.name) {
-                            collect_constructs_references_from_expression(
-                                &attr.value,
-                                Some(input),
-                                &mut dependencies,
-                            );
-                        } else {
-                            for prop in props.iter() {
-                                let mut blocks_iter = self.block.body.get_blocks(&value_spec.name);
-                                while let Some(block) = blocks_iter.next() {
-                                    let Some(attr) = block.body.get_attribute(&prop.name) else {
-                                        continue;
-                                    };
-                                    collect_constructs_references_from_expression(
-                                        &attr.value,
-                                        Some(input),
-                                        &mut dependencies,
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    _ => {
-                        let Some(attr) = self.block.body.get_attribute(&value_spec.name) else {
-                            continue;
-                        };
-                        collect_constructs_references_from_expression(
-                            &attr.value,
-                            Some(input),
-                            &mut dependencies,
-                        );
-                    }
-                },
-                EmbeddedRunbookInputSpecification::Signer(signer_spec) => {
-                    let res = visit_optional_untyped_attribute(&signer_spec.name, &self.block);
-                    if let Some(expr) = res {
-                        collect_constructs_references_from_expression(
-                            &expr,
-                            Some(input),
-                            &mut dependencies,
-                        );
-                    }
-                }
-            }
-        }
-        dependencies
+    fn inputs(&self) -> Vec<&impl EvaluatableInput> {
+        self.specification.inputs.iter().collect()
     }
 }
 

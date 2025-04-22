@@ -17,7 +17,7 @@ use txtx_addon_kit::{
     hex,
     types::{
         diagnostics::Diagnostic,
-        types::{ObjectProperty, Type, Value},
+        types::{Type, Value},
     },
 };
 
@@ -168,7 +168,7 @@ impl SvmValue {
 }
 
 lazy_static! {
-    pub static ref ANCHOR_PROGRAM_ARTIFACTS: Type = define_object_type! {
+    pub static ref ANCHOR_PROGRAM_ARTIFACTS: Type = define_strict_object_type! {
         idl: {
             documentation: "The program idl.",
             // typing: Type::addon(SVM_IDL),
@@ -195,7 +195,14 @@ lazy_static! {
             tainting: true
         }
     };
-    pub static ref CLASSIC_RUST_PROGRAM_ARTIFACTS: Type = define_object_type! {
+
+    pub static ref CLASSIC_RUST_PROGRAM_ARTIFACTS: Type = define_strict_object_type! {
+        idl: {
+            documentation: "The program idl.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
         binary: {
             documentation: "The program binary.",
             typing: Type::addon(SVM_BINARY),
@@ -216,7 +223,7 @@ lazy_static! {
         }
     };
 
-    pub static ref PDA_RESULT: Type = define_object_type! {
+    pub static ref PDA_RESULT: Type = define_strict_object_type! {
         pda: {
             documentation: "The program derived address.",
             typing: Type::addon(SVM_PUBKEY),
@@ -231,77 +238,40 @@ lazy_static! {
         }
     };
 
-    pub static ref INSTRUCTION_TYPE: Type = Type::map(vec![
-        ObjectProperty {
-            name: "description".into(),
-            documentation: "A description of the instruction.".into(),
-            typing: Type::string(),
-            optional: true,
-            tainting: false,
-            internal: false,
-        },
-        ObjectProperty {
-            name: "value".into(),
-            documentation: "The serialized instruction bytes.".into(),
+    pub static ref INSTRUCTION_TYPE: Type = define_documented_arbitrary_map_type! {
+        raw_bytes: {
+            documentation: "The serialized instruction bytes. Use this field in place of the other instructions if direct instruction bytes would like to be used.",
             typing: Type::addon(SVM_INSTRUCTION),
             optional: true,
-            tainting: false,
-            internal: false,
+            tainting: true
         },
-        ObjectProperty {
-            name: "program_id".into(),
-            documentation: "The SVM address of the program being invoked.".into(),
+        program_id: {
+            documentation: "The SVM address of the program being invoked. If omitted, the program_id will be pulled from the idl.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        program_idl: {
+            documentation: "The IDL of the program being invoked.",
             typing: Type::string(),
             optional: false,
-            tainting: true,
-            internal: false
+            tainting: true
         },
-        ObjectProperty {
-            name: "account".into(),
-            documentation: "A map of accounts (including other programs) that are read from or written to by the instruction.".into(),
-            typing: ACCOUNT_META_TYPE.clone(),
-            optional: false,
-            tainting: true,
-            internal: false
-        },
-        ObjectProperty {
-            name: "data".into(),
-            documentation: "A byte array that specifies which instruction handler on the program to invoke, plus any additional data required by the instruction handler, such as function arguments.".into(),
-            typing: Type::buffer(),
-            optional: true,
-            tainting: true,
-            internal: false
-        }
-    ]);
-
-    pub static ref ACCOUNT_META_TYPE: Type = Type::map(vec![
-        ObjectProperty {
-            name: "public_key".into(),
-            documentation: "The public key (SVM address) of the account.".into(),
+        instruction_name: {
+            documentation: "The name of the instruction being invoked.",
             typing: Type::string(),
             optional: false,
-            tainting: true,
-            internal: false,
+            tainting: true
         },
-        ObjectProperty {
-            name: "is_signer".into(),
-            documentation: "Specifies if the account is a signer on the instruction. The default is 'false'.".into(),
-            typing: Type::bool(),
-            optional: true,
-            tainting: true,
-            internal: false
-        },
-        ObjectProperty {
-            name: "is_writable".into(),
-            documentation: "Specifies if the account is written to by the instruction. The default is 'false'.".into(),
-            typing: Type::bool(),
-            optional: true,
-            tainting: true,
-            internal: false
+        instruction_args: {
+            documentation: "The arguments to the instruction being invoked.",
+            typing: Type::array(Type::string()),
+            optional: false,
+            tainting: true
         }
-    ]);
+    };
 
-    pub static ref DEPLOYMENT_TRANSACTION_SIGNATURES: Type = define_object_type! {
+    pub static ref DEPLOYMENT_TRANSACTION_SIGNATURES: Type = define_strict_object_type! {
         create_temp_authority: {
             documentation: "The signature of the create temp authority transaction.",
             typing: Type::array(Type::string()),
@@ -346,7 +316,7 @@ lazy_static! {
         }
     };
 
-    pub static ref SUBGRAPH_EVENT: Type = define_map_type! {
+    pub static ref SUBGRAPH_EVENT: Type = define_strict_map_type! {
         name: {
             documentation: "The name of the event, as indexed by the IDL, whose occurrences should be added to the subgraph.",
             typing: Type::string(),
@@ -361,7 +331,7 @@ lazy_static! {
         }
     };
 
-    pub static ref SUBGRAPH_EVENT_FIELD: Type = define_map_type! {
+    pub static ref SUBGRAPH_EVENT_FIELD: Type = define_strict_map_type! {
         name: {
             documentation: "The name of the field as it should appear in the subgraph.",
             typing: Type::string(),
@@ -376,6 +346,96 @@ lazy_static! {
         },
         idl_key: {
             documentation: "A key from the event's type in the IDL, indicating which argument from the IDL type to map to this field. By default, the field name is used.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        }
+    };
+
+    pub static ref SET_ACCOUNT_MAP: Type = define_strict_map_type! {
+        public_key: {
+            documentation: "The public key of the account to set.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        lamports: {
+            documentation: "The amount of lamports the account should be set to have.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: true
+        },
+        data: {
+            documentation: "The data to set in the account.",
+            typing: Type::addon(SVM_BYTES),
+            optional: true,
+            tainting: true
+        },
+        owner: {
+            documentation: "The owner to set for the account.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        },
+        executable: {
+            documentation: "The executability state to set for the account.",
+            typing: Type::bool(),
+            optional: true,
+            tainting: false
+        },
+        rent_epoch: {
+            documentation: "The epoch at which the account will be rent-exempt.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: false
+        }
+    };
+
+    pub static ref SET_TOKEN_ACCOUNT_MAP: Type = define_strict_map_type! {
+        public_key: {
+            documentation: "The public key of the token owner account to update.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        token: {
+            documentation: "The token symbol or public key for the token.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        token_program: {
+            documentation: "The token program id. Valid values are `token2020`, `token2022`, or a public key.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        },
+        amount: {
+            documentation: "The amount of tokens to set.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: true
+        },
+        delegate: {
+            documentation: "The public key of the delegate to set.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        },
+        delegated_amount: {
+            documentation: "The amount of tokens to delegate.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: true
+        },
+        close_authority: {
+            documentation: "The public key of the close authority to set.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        },
+        state: {
+            documentation: "The state of the token account. Valid values are `initialized`, `frozen`, or `uninitialized`.",
             typing: Type::string(),
             optional: true,
             tainting: true

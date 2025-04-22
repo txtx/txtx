@@ -149,7 +149,7 @@ macro_rules! define_multistep_command {
 }
 
 #[macro_export]
-macro_rules! define_object_type {
+macro_rules! define_strict_object_type {
     [
         $($input_name:ident: {
             documentation: $input_doc:expr,
@@ -158,7 +158,7 @@ macro_rules! define_object_type {
             tainting: $tainting:expr
         }),*
     ] => {
-        Type::object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+        Type::strict_object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
             name: String::from(stringify!($input_name)),
             documentation: String::from($input_doc),
             typing: $input_ts,
@@ -170,7 +170,7 @@ macro_rules! define_object_type {
 }
 
 #[macro_export]
-macro_rules! define_map_type {
+macro_rules! define_documented_arbitrary_object_type {
     [
         $($input_name:ident: {
             documentation: $input_doc:expr,
@@ -179,7 +179,49 @@ macro_rules! define_map_type {
             tainting: $tainting:expr
         }),*
     ] => {
-        Type::map(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+        Type::strict_object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+            name: String::from(stringify!($input_name)),
+            documentation: String::from($input_doc),
+            typing: $input_ts,
+            optional: $optional,
+            tainting: $tainting,
+            internal: false,
+        }),*])
+    };
+}
+
+#[macro_export]
+macro_rules! define_strict_map_type {
+    [
+        $($input_name:ident: {
+            documentation: $input_doc:expr,
+            typing: $input_ts:expr,
+            optional: $optional:expr,
+            tainting: $tainting:expr
+        }),*
+    ] => {
+        Type::strict_map(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+            name: String::from(stringify!($input_name)),
+            documentation: String::from($input_doc),
+            typing: $input_ts,
+            optional: $optional,
+            tainting: $tainting,
+            internal: false,
+        }),*])
+    };
+}
+
+#[macro_export]
+macro_rules! define_documented_arbitrary_map_type {
+    [
+        $($input_name:ident: {
+            documentation: $input_doc:expr,
+            typing: $input_ts:expr,
+            optional: $optional:expr,
+            tainting: $tainting:expr
+        }),*
+    ] => {
+        Type::documented_arbitrary_map(vec![$(txtx_addon_kit::types::types::ObjectProperty {
             name: String::from(stringify!($input_name)),
             documentation: String::from($input_doc),
             typing: $input_ts,

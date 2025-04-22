@@ -1,3 +1,5 @@
+use hcl_edit::expr::Expression;
+use hcl_edit::structure::Block;
 use indexmap::IndexMap;
 use jaq_interpret::Val;
 use serde::de::{self, MapAccess, Visitor};
@@ -7,8 +9,13 @@ use serde_json::{Map, Value as JsonValue};
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 
+use crate::helpers::hcl::{
+    collect_constructs_references_from_block, collect_constructs_references_from_expression,
+    visit_optional_untyped_attribute,
+};
+
 use super::diagnostics::Diagnostic;
-use super::Did;
+use super::{Did, EvaluatableInput};
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type", content = "value", rename_all = "lowercase")]
@@ -593,7 +600,6 @@ impl Value {
                         if i == (len - 1) { "" } else { "," }
                     ));
                 }
-                res.push_str("\n}");
                 res
             }
             Value::Array(array) => {
@@ -680,7 +686,7 @@ impl Value {
             Value::Float(_) => Type::Float,
             Value::String(_) => Type::String,
             Value::Buffer(_) => Type::Buffer,
-            Value::Object(_) => Type::Object(vec![]),
+            Value::Object(_) => Type::Object(ObjectDefinition::arbitrary()),
             Value::Array(t) => {
                 Type::Array(Box::new(t.first().unwrap_or(&Value::null()).get_type()))
             }
@@ -779,10 +785,10 @@ pub enum Type {
     Float,
     String,
     Buffer,
-    Object(Vec<ObjectProperty>),
+    Object(ObjectDefinition),
     Addon(String),
     Array(Box<Type>),
-    Map(Vec<ObjectProperty>),
+    Map(ObjectDefinition),
 }
 
 impl Type {
@@ -801,11 +807,29 @@ impl Type {
     pub fn bool() -> Type {
         Type::Bool
     }
-    pub fn object(props: Vec<ObjectProperty>) -> Type {
-        Type::Object(props)
+    pub fn object(def: ObjectDefinition) -> Type {
+        Type::Object(def)
     }
-    pub fn map(props: Vec<ObjectProperty>) -> Type {
-        Type::Map(props)
+    pub fn strict_object(props: Vec<ObjectProperty>) -> Type {
+        Type::Object(ObjectDefinition::strict(props))
+    }
+    pub fn arbitrary_object() -> Type {
+        Type::Object(ObjectDefinition::arbitrary())
+    }
+    pub fn documented_arbitrary_object(props: Vec<ObjectProperty>) -> Type {
+        Type::Object(ObjectDefinition::documented_arbitrary(props))
+    }
+    pub fn map(def: ObjectDefinition) -> Type {
+        Type::Map(def)
+    }
+    pub fn strict_map(props: Vec<ObjectProperty>) -> Type {
+        Type::Map(ObjectDefinition::strict(props))
+    }
+    pub fn arbitrary_map() -> Type {
+        Type::Map(ObjectDefinition::arbitrary())
+    }
+    pub fn documented_arbitrary_map(props: Vec<ObjectProperty>) -> Type {
+        Type::Map(ObjectDefinition::documented_arbitrary(props))
     }
     pub fn buffer() -> Type {
         Type::Buffer
@@ -845,32 +869,37 @@ impl Type {
                 .as_array()
                 .map(|_| ())
                 .ok_or_else(|| mismatch_err(&format!("array<{}>", array_type.to_string())))?,
-            Type::Object(expected_props) | Type::Map(expected_props) => {
-                let object = value.as_object().ok_or_else(|| mismatch_err("object"))?;
-                for expected_prop in expected_props.iter() {
-                    let prop_value = object.get(&expected_prop.name);
-                    if expected_prop.optional && prop_value.is_none() {
-                        continue;
+            Type::Object(object_def) | Type::Map(object_def) => match object_def {
+                ObjectDefinition::Strict(props) => {
+                    let object = value.as_object().ok_or_else(|| mismatch_err("object"))?;
+                    for expected_prop in props.iter() {
+                        let prop_value = object.get(&expected_prop.name);
+                        if expected_prop.optional && prop_value.is_none() {
+                            continue;
+                        }
+                        let prop_value = prop_value.ok_or_else(|| {
+                            Diagnostic::error_from_string(format!(
+                                "missing required property '{}'",
+                                expected_prop.name,
+                            ))
+                        })?;
+                        expected_prop.typing.check_value(prop_value).map_err(|e| {
+                            Diagnostic::error_from_string(format!(
+                                "object property '{}': {}",
+                                expected_prop.name, e.message
+                            ))
+                        })?;
                     }
-                    let prop_value = prop_value.ok_or_else(|| {
-                        Diagnostic::error_from_string(format!(
-                            "missing required property '{}'",
-                            expected_prop.name,
-                        ))
-                    })?;
-                    expected_prop.typing.check_value(prop_value).map_err(|e| {
-                        Diagnostic::error_from_string(format!(
-                            "object property '{}': {}",
-                            expected_prop.name, e.message
-                        ))
-                    })?;
                 }
-            } //  => todo!(),
+                ObjectDefinition::Arbitrary(_) => {
+                    let _ = value.as_object().ok_or_else(|| mismatch_err("object"))?;
+                }
+            }, //  => todo!(),
         };
         Ok(())
     }
 
-    pub fn as_object(&self) -> Option<&Vec<ObjectProperty>> {
+    pub fn as_object(&self) -> Option<&ObjectDefinition> {
         match self {
             Type::Object(props) => Some(props),
             _ => None,
@@ -884,7 +913,7 @@ impl Type {
         }
     }
 
-    pub fn as_map(&self) -> Option<&Vec<ObjectProperty>> {
+    pub fn as_map(&self) -> Option<&ObjectDefinition> {
         match self {
             Type::Map(props) => Some(props),
             _ => None,
@@ -895,6 +924,80 @@ impl Type {
         match self {
             Type::Addon(action) => Some(action),
             _ => None,
+        }
+    }
+
+    /// This function will get attributes from the provided HCL block that match the input name.
+    /// It will collect all expressions in the block that reference other constructs, according
+    /// to the rules defined by the `Type`.
+    ///
+    /// For example, while most types will just get the attribute value, the `Object` and `Map` types
+    /// need to look for nested blocks and properties.
+    pub fn get_expressions_referencing_constructs<'a, T: EvaluatableInput>(
+        &self,
+        block: &Block,
+        input: &'a T,
+        dependencies: &mut Vec<(Option<&'a T>, Expression)>,
+    ) {
+        let input_name = input.name();
+        match self {
+            Type::Map(ref object_def) => match object_def {
+                ObjectDefinition::Strict(props) => {
+                    for block in block.body.get_blocks(&input_name) {
+                        for prop in props.iter() {
+                            let res = visit_optional_untyped_attribute(&prop.name, &block);
+                            if let Some(expr) = res {
+                                collect_constructs_references_from_expression(
+                                    &expr,
+                                    Some(input),
+                                    dependencies,
+                                );
+                            }
+                        }
+                    }
+                }
+                ObjectDefinition::Arbitrary(_) => {
+                    for block in block.body.get_blocks(&input_name) {
+                        collect_constructs_references_from_block(block, Some(input), dependencies);
+                    }
+                }
+            },
+            Type::Object(ref object_def) => {
+                if let Some(expr) = visit_optional_untyped_attribute(&input_name, &block) {
+                    collect_constructs_references_from_expression(&expr, Some(input), dependencies);
+                }
+                match object_def {
+                    ObjectDefinition::Strict(props) => {
+                        for prop in props.iter() {
+                            for block in block.body.get_blocks(&input_name) {
+                                if let Some(expr) =
+                                    visit_optional_untyped_attribute(&prop.name, &block)
+                                {
+                                    collect_constructs_references_from_expression(
+                                        &expr,
+                                        Some(input),
+                                        dependencies,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    ObjectDefinition::Arbitrary(_) => {
+                        for block in block.body.get_blocks(&input_name) {
+                            collect_constructs_references_from_block(
+                                block,
+                                Some(input),
+                                dependencies,
+                            );
+                        }
+                    }
+                }
+            }
+            _ => {
+                if let Some(expr) = visit_optional_untyped_attribute(&input_name, &block) {
+                    collect_constructs_references_from_expression(&expr, Some(input), dependencies);
+                }
+            }
         }
     }
 }
@@ -931,7 +1034,7 @@ impl TryFrom<String> for Type {
             "bool" => Type::Bool,
             "null" => Type::Null,
             "buffer" => Type::Buffer,
-            "object" => Type::Object(vec![]),
+            "object" => Type::Object(ObjectDefinition::arbitrary()),
             other => {
                 if other.starts_with("array[") && other.ends_with("]") {
                     let mut inner = other.replace("array[", "");
@@ -967,6 +1070,30 @@ impl<'de> Deserialize<'de> for Type {
         let type_str: String = serde::Deserialize::deserialize(deserializer)?;
         let t = Type::try_from(type_str).map_err(serde::de::Error::custom)?;
         Ok(t)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum ObjectDefinition {
+    /// Strict object definition with a list of properties
+    Strict(Vec<ObjectProperty>),
+    /// Arbitrary object definition with no specific properties
+    /// The optional list of object properties is used for documenting
+    /// Some of the potential properties.
+    Arbitrary(Option<Vec<ObjectProperty>>),
+}
+
+impl ObjectDefinition {
+    pub fn strict(props: Vec<ObjectProperty>) -> Self {
+        ObjectDefinition::Strict(props)
+    }
+
+    pub fn arbitrary() -> Self {
+        ObjectDefinition::Arbitrary(None)
+    }
+
+    pub fn documented_arbitrary(props: Vec<ObjectProperty>) -> Self {
+        ObjectDefinition::Arbitrary(Some(props))
     }
 }
 

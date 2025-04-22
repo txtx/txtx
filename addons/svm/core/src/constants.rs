@@ -6,6 +6,8 @@ pub const AUTHORITY: &str = "authority";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0/0";
 pub const DEFAULT_ANCHOR_TARGET_PATH: &str = "target";
+pub const DEFAULT_NATIVE_TARGET_PATH: &str = "target";
+pub const DEFAULT_SHANK_IDL_PATH: &str = "idl";
 
 // Signer attached storage keys
 pub const CHECKED_PUBLIC_KEY: &str = "checked_public_key";
@@ -29,14 +31,9 @@ pub const RPC_API_URL: &str = "rpc_api_url";
 pub const PROGRAM_ID: &str = "program_id";
 pub const PROGRAM_IDL: &str = "program_idl";
 pub const PROGRAM: &str = "program";
-pub const KEYPAIR: &str = "keypair";
-pub const DATA: &str = "data";
-pub const ACCOUNT: &str = "account";
 pub const ADDRESS: &str = "address";
 pub const INSTRUCTION: &str = "instruction";
 pub const PUBLIC_KEY: &str = "public_key";
-pub const IS_SIGNER: &str = "is_signer";
-pub const IS_WRITABLE: &str = "is_writable";
 pub const TRANSACTION_BYTES: &str = "transaction_bytes";
 pub const PARTIALLY_SIGNED_TRANSACTION_BYTES: &str = "partially_signed_transaction_bytes";
 pub const UPDATED_PARTIALLY_SIGNED_TRANSACTION: &str = "updated_partially_signed_transaction";
@@ -57,6 +54,8 @@ pub const RECIPIENT_TOKEN_ADDRESS: &str = "recipient_token_address";
 pub const SOURCE_TOKEN_ADDRESS: &str = "source_token_address";
 pub const TOKEN_MINT_ADDRESS: &str = "token_mint_address";
 pub const IS_FUNDING_RECIPIENT: &str = "is_funding_recipient";
+pub const SET_ACCOUNT: &str = "set_account";
+pub const SET_TOKEN_ACCOUNT: &str = "set_token_account";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";

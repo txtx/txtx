@@ -103,11 +103,11 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "Any value.",
-                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::object(vec![])]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::arbitrary_object()]
                     },
                     rhs: {
                         documentation: "Any value.",
-                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::object(vec![])]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::arbitrary_object()]
                     }
                 ],
                 output: {

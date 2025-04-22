@@ -646,9 +646,6 @@ pub async fn handle_run_command(
                                     red!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
                                 );
-                                if let Some(diagnostic) = update.new_status.diagnostic {
-                                    println!("{} {}", red!("x"), diagnostic);
-                                }
                             }
                             ProgressBarStatusColor::Purple => {
                                 print!(

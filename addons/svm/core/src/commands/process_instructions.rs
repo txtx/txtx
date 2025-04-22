@@ -28,86 +28,92 @@ use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
 
 lazy_static! {
-    pub static ref PROCESS_INSTRUCTIONS: PreCommandSpecification = define_command! {
-        ProcessInstructions => {
-            name: "Process SVM Instructions",
-            matcher: "process_instructions",
-            documentation: "The `svm::process_instructions` action encodes instructions that are added to a transaction that is signed and broadcasted to the network.",
-            implements_signing_capability: true,
-            implements_background_task_capability: true,
-            inputs: [
-                description: {
-                    documentation: "A description of the transaction.",
-                    typing: Type::string(),
-                    optional: true,
-                    tainting: false,
-                    internal: false,
-                    sensitive: false
-                },
-                instruction: {
-                    documentation: "The instructions to add to the transaction.",
-                    typing: INSTRUCTION_TYPE.clone(),
-                    optional: false,
-                    tainting: true,
-                    internal: false,
-                    sensitive: false
-                },
-                signers: {
-                    documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
-                    typing: Type::array(Type::string()),
-                    optional: false,
-                    tainting: true,
-                    internal: false,
-                    sensitive: false
-                },
-                commitment_level: {
-                    documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
-                    typing: Type::string(),
-                    optional: true,
-                    tainting: false,
-                    internal: false,
-                    sensitive: false
-                },
-                rpc_api_url: {
-                    documentation: "The URL to use when making API requests.",
-                    typing: Type::string(),
-                    optional: false,
-                    tainting: false,
-                    internal: false,
-                    sensitive: false
-                },
-                rpc_api_auth_token: {
-                    documentation: "The HTTP authentication token to include in the headers when making API requests.",
-                    typing: Type::string(),
-                    optional: true,
-                    tainting: false,
-                    internal: false,
-                    sensitive: true
-                }
-            ],
-            outputs: [
-                signature: {
-                    documentation: "The transaction computed signature.",
-                    typing: Type::string()
-                }
-            ],
-            example: txtx_addon_kit::indoc! {r#"
-
-            action "program_call" "svm::process_instructions" {
-                description = "Invoke instructions"
-                instruction {
-                    program_id = variable.program
-                    account {
-                        public_key = signer.caller.address
-                        is_signer = true
-                        is_writable = true
-                }
-                    data = svm::get_instruction_data_from_idl(variable.program.idl, "my_instruction", ["arg1", "arg2"])
-                }
-                signers = [signer.caller]
+    pub static ref PROCESS_INSTRUCTIONS: PreCommandSpecification = {
+        let mut command = define_command! {
+            ProcessInstructions => {
+                name: "Process SVM Instructions",
+                matcher: "process_instructions",
+                documentation: "The `svm::process_instructions` action encodes instructions that are added to a transaction that is signed and broadcasted to the network.",
+                implements_signing_capability: true,
+                implements_background_task_capability: true,
+                inputs: [
+                    description: {
+                        documentation: "A description of the transaction.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
+                    },
+                    instruction: {
+                        documentation: "The instructions to add to the transaction.",
+                        typing: INSTRUCTION_TYPE.clone(),
+                        optional: false,
+                        tainting: true,
+                        internal: false,
+                        sensitive: false
+                    },
+                    signers: {
+                        documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
+                        typing: Type::array(Type::string()),
+                        optional: false,
+                        tainting: true,
+                        internal: false,
+                        sensitive: false
+                    },
+                    commitment_level: {
+                        documentation: "The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
+                    },
+                    rpc_api_url: {
+                        documentation: "The URL to use when making API requests.",
+                        typing: Type::string(),
+                        optional: false,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
+                    },
+                    rpc_api_auth_token: {
+                        documentation: "The HTTP authentication token to include in the headers when making API requests.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: true
+                    }
+                ],
+                outputs: [
+                    signature: {
+                        documentation: "The transaction computed signature.",
+                        typing: Type::string()
+                    }
+                ],
+                example: txtx_addon_kit::indoc! {r#"
+                    action "program_call" "svm::process_instructions" {
+                        description = "Invoke instructions"
+                        instruction {
+                            program_id = variable.program
+                            account {
+                                public_key = signer.caller.address
+                                is_signer = true
+                                is_writable = true
+                        }
+                            data = svm::get_instruction_data_from_idl(variable.program.idl, "my_instruction", ["arg1", "arg2"])
+                        }
+                        signers = [signer.caller]
+                    }
+                "#},
             }
-    "#},
-      }
+        };
+
+        if let PreCommandSpecification::Atomic(ref mut spec) = command {
+            spec.create_critical_output = Some("contract_id".to_string());
+        }
+        command
     };
 }
 

@@ -16,7 +16,6 @@ use txtx_addon_kit::types::commands::{
     CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::ObjectProperty;
 use txtx_addon_kit::types::ContractSourceTransform;
 use txtx_addon_kit::{
     types::{
@@ -66,31 +65,26 @@ lazy_static! {
                 },
                 contract: {
                     documentation: "Contract informations.",
-                    typing: Type::object(vec![
-                        ObjectProperty {
-                            name: "contract_source".into(),
-                            documentation: "The code of the contract method to deploy.".into(),
+                    typing: define_strict_object_type! {
+                        contract_source: {
+                            documentation: "The code of the contract method to deploy.",
                             typing: Type::string(),
                             optional: true,
-                            tainting: true,
-                            internal: false,
+                            tainting: true
                         },
-                        ObjectProperty {
-                            name: "contract_name".into(),
-                            documentation: "The name of the contract to deploy.".into(),
+                        contract_name: {
+                            documentation: "The name of the contract to deploy.",
                             typing: Type::string(),
                             optional: true,
-                            tainting: true,
-                            internal: false,
+                            tainting: true
                         },
-                        ObjectProperty {
-                            name: "clarity_version".into(),
-                            documentation: "The version of clarity to use (default: latest).".into(),
+                        clarity_version: {
+                            documentation: "The version of clarity to use (default: latest).",
                             typing: Type::integer(),
                             optional: true,
-                            tainting: true,
-                            internal: false,
-                        }, ]),
+                            tainting: true
+                        }
+                    },
                     optional: true,
                     tainting: true,
                     internal: false
@@ -160,31 +154,28 @@ lazy_static! {
                   },
                 transforms: {
                     documentation: "An array of transform operations to perform on the contract source, before being its signature.",
-                    typing: Type::array(Type::object(vec![
-                        ObjectProperty {
-                            name: "type".into(),
-                            documentation: "Type of transform (supported: 'contract_source_find_and_replace').".into(),
-                            typing: Type::string(),
-                            optional: false,
-                            tainting: true,
-                            internal: false,
-                        },
-                        ObjectProperty {
-                            name: "from".into(),
-                            documentation: "The pattern to locate.".into(),
-                            typing: Type::string(),
-                            optional: false,
-                            tainting: true,
-                            internal: false,
-                        },
-                        ObjectProperty {
-                            name: "to".into(),
-                            documentation: "The update.".into(),
-                            typing: Type::string(),
-                            optional: false,
-                            tainting: true,
-                            internal: false,
-                        }, ])),
+                    typing: Type::array(
+                        define_strict_object_type! {
+                            type: {
+                                documentation: "The type of transform (supported: 'contract_source_find_and_replace').",
+                                typing: Type::string(),
+                                optional: false,
+                                tainting: true
+                            },
+                            from: {
+                                documentation: "The pattern to locate.",
+                                typing: Type::string(),
+                                optional: false,
+                                tainting: true
+                            },
+                            to: {
+                                documentation: "The update.",
+                                typing: Type::string(),
+                                optional: false,
+                                tainting: true
+                            }
+                        }
+                    ),
                     optional: true,
                     tainting: true,
                     internal: false

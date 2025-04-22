@@ -1,18 +1,15 @@
-use std::str::FromStr;
+use crate::{codec::utils::get_seeds_from_value, typing::anchor::types::Idl};
 
-use crate::typing::anchor::types::Idl;
+use crate::constants::{DEFAULT_NATIVE_TARGET_PATH, DEFAULT_SHANK_IDL_PATH};
 use solana_sdk::{pubkey::Pubkey, system_program};
 use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
-use txtx_addon_kit::{
-    indexmap::indexmap,
-    types::{
-        diagnostics::Diagnostic,
-        functions::{
-            arg_checker_with_ctx, fn_diag_with_ctx, FunctionImplementation, FunctionSpecification,
-        },
-        types::{ObjectProperty, ObjectType, Type, Value},
-        AuthorizationContext,
+use txtx_addon_kit::types::{
+    diagnostics::Diagnostic,
+    functions::{
+        arg_checker_with_ctx, fn_diag_with_ctx, FunctionImplementation, FunctionSpecification,
     },
+    types::{ObjectType, Type, Value},
+    AuthorizationContext,
 };
 
 use crate::{
@@ -28,9 +25,9 @@ pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result
     let checker = arg_checker_with_ctx(NAMESPACE.to_string());
     checker(fn_spec, args)
 }
-pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
+pub fn to_diag<T: ToString>(fn_spec: &FunctionSpecification, e: T) -> Diagnostic {
     let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
-    error_fn(fn_spec, e)
+    error_fn(fn_spec, e.to_string())
 }
 
 lazy_static! {
@@ -68,59 +65,6 @@ lazy_static! {
                 output: {
                     documentation: "The default public key, `11111111111111111111111111111111`",
                     typing: Type::addon(SVM_PUBKEY.into())
-                },
-            }
-        },
-        define_function! {
-            CreateAccountMeta => {
-                name: "account",
-                documentation: "`svm::account` encodes a public key in to an account meta object for a program instruction call.",
-                example: indoc! {r#"
-                    output "account" { 
-                        value = svm::account("3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R", true, true)
-                    }
-                    // > account: { public_key: 3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R, is_signer: true, is_writable: true } 
-                "#},
-                inputs: [
-                    public_key: {
-                        documentation: "The on-chain address of an account.",
-                        typing: vec![Type::string()]
-                    },
-                    is_signer: {
-                        documentation: "Specify if the account is required as a signer on the transaction.",
-                        typing: vec![Type::bool()]
-                    },
-                    is_writable: {
-                        documentation: "Specify if the account data will be modified.",
-                        typing: vec![Type::bool()]
-                    }
-                ],
-                output: {
-                    documentation: "The account meta object.",
-                    typing: Type::object(vec![ObjectProperty {
-                        name: "public_key".into(),
-                        documentation: "The public key of the account.".into(),
-                        typing: Type::string(),
-                        optional: false,
-                        tainting: false,
-                        internal: false
-                    },
-                    ObjectProperty {
-                        name: "is_signer".into(),
-                        documentation: "Specifies if the account is a signer on the instruction.".into(),
-                        typing: Type::string(),
-                        optional: false,
-                        tainting: false,
-                        internal: false
-                    },
-                    ObjectProperty {
-                        name: "is_writable".into(),
-                        documentation: "Specifies if the account is written to by the instruction.".into(),
-                        typing: Type::string(),
-                        optional: false,
-                        tainting: false,
-                        internal: false
-                    }])
                 },
             }
         },
@@ -208,9 +152,19 @@ lazy_static! {
                         typing: vec![Type::string()],
                         optional: false
                     },
-                    target_path: {
-                        documentation: "The target path to the compiled anchor project artifacts. Defaults to `./target`.",
-                        typing: vec![Type::string()],
+                    keypair_path: {
+                        documentation: "The location of the program keypair file. Defaults to `./target/deploy/<program_name>-keypair.json`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
+                    },
+                    idl_path: {
+                        documentation: "The location of the program IDL file. Defaults to `./target/idl/<program_name>.json`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
+                    },
+                    bin_path: {
+                        documentation: "The location of the program binary file. Defaults to `./target/deploy/<program_name>.so`.",
+                        typing: vec![Type::string(), Type::null()],
                         optional: true
                     }
                 ],
@@ -223,22 +177,32 @@ lazy_static! {
         define_function! {
             GetProgramFromNativeProject => {
                 name: "get_program_from_native_project",
-                documentation: "`svm::get_program_from_native_project` retrieves the program deployment artifacts for a program in a classic Rust project.",
+                documentation: "`svm::get_program_from_native_project` retrieves the program deployment artifacts for a non-Anchor program.",
                 example: indoc! {r#"
                     variable "contract" {
-                        value = svm::get_program_from_native_project("./bin/loc", "./keypair/loc")
+                        value = svm::get_program_from_native_project("my_program")
                     }
                 "#},
                 inputs: [
-                    binary_location: {
-                        documentation: "The path, relative to the txtx.yml, to the compiled program binary.",
+                    program_name: {
+                        documentation: "The name of the program being deployed.",
                         typing: vec![Type::string()],
                         optional: false
                     },
-                    program_keypair_path: {
-                        documentation: "The path, relative to the txtx.yml, to the program keypair.",
-                        typing: vec![Type::string()],
-                        optional: false
+                    keypair_path: {
+                        documentation: "The location of the program keypair file. Defaults to `./target/deploy/<program_name>-keypair.json`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
+                    },
+                    idl_path: {
+                        documentation: "The location of the program IDL file. Defaults to `./idl/<program_name>.json`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
+                    },
+                    bin_path: {
+                        documentation: "The location of the program binary file. Defaults to `./target/deploy/<program_name>.so`.",
+                        typing: vec![Type::string(), Type::null()],
+                        optional: true
                     }
                 ],
                 output: {
@@ -442,35 +406,6 @@ impl FunctionImplementation for DefaultPubkey {
         Ok(SvmValue::pubkey(Pubkey::default().to_bytes().to_vec()))
     }
 }
-
-pub struct CreateAccountMeta;
-impl FunctionImplementation for CreateAccountMeta {
-    fn check_instantiability(
-        _fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
-    ) -> Result<Type, Diagnostic> {
-        unimplemented!()
-    }
-
-    fn run(
-        fn_spec: &FunctionSpecification,
-        _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
-        arg_checker(fn_spec, args)?;
-        let public_key = args.get(0).unwrap();
-        let is_signer = args.get(1).unwrap();
-        let is_writable = args.get(2).unwrap();
-
-        Ok(Value::object(indexmap! {
-            "public_key".to_string() => public_key.clone(),
-            "is_signer".to_string() => is_signer.clone(),
-            "is_writable".to_string() => is_writable.clone()
-        }))
-    }
-}
-
 pub struct GetInstructionDataFromIdl;
 impl FunctionImplementation for GetInstructionDataFromIdl {
     fn check_instantiability(
@@ -536,7 +471,7 @@ impl FunctionImplementation for GetInstructionDataFromIdlPath {
             .get_path_from_str(idl_path_str)
             .map_err(|e| to_diag(fn_spec, format!("failed to get idl: {e}")))?;
 
-        let idl_ref = IdlRef::new(idl_path).map_err(|e| to_diag(fn_spec, e))?;
+        let idl_ref = IdlRef::from_location(idl_path).map_err(|e| to_diag(fn_spec, e))?;
         let mut data =
             idl_ref.get_discriminator(&instruction_name).map_err(|e| to_diag(fn_spec, e))?;
         let mut encoded_args = idl_ref
@@ -565,16 +500,49 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let program_name = args.get(0).unwrap().as_string().unwrap();
-        let target_path_str =
-            args.get(1).and_then(|v| v.as_string()).unwrap_or(DEFAULT_ANCHOR_TARGET_PATH);
 
-        let target_path = auth_ctx
-            .get_path_from_str(target_path_str)
-            .map_err(|e| to_diag(fn_spec, format!("failed to get anchor target path: {e}")))?;
+        let keypair_path_str = match args.get(1) {
+            Some(Value::Null) | None => {
+                format!("{}/deploy/{}-keypair.json", DEFAULT_ANCHOR_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
 
-        let anchor_program_artifacts =
-            AnchorProgramArtifacts::new(target_path.expect_path_buf(), &program_name)
-                .map_err(|e| to_diag(fn_spec, e))?;
+        let keypair_path = auth_ctx.get_path_from_str(&keypair_path_str).map_err(|e| {
+            to_diag(fn_spec, format!("failed to get anchor program keypair path: {e}"))
+        })?;
+
+        let idl_path_str = match args.get(2) {
+            Some(Value::Null) | None => {
+                format!("{}/idl/{}.json", DEFAULT_ANCHOR_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
+
+        let idl_path = auth_ctx
+            .get_path_from_str(&idl_path_str)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get anchor program idl path: {e}")))?;
+
+        let bin_path_str = match args.get(3) {
+            Some(Value::Null) | None => {
+                format!("{}/deploy/{}.so", DEFAULT_ANCHOR_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
+
+        let bin_path = auth_ctx.get_path_from_str(&bin_path_str).map_err(|e| {
+            to_diag(fn_spec, format!("failed to get anchor program binary path: {e}"))
+        })?;
+
+        let anchor_program_artifacts = AnchorProgramArtifacts::new(
+            keypair_path.expect_path_buf(),
+            idl_path.expect_path_buf(),
+            bin_path.expect_path_buf(),
+        )
+        .map_err(|e| to_diag(fn_spec, e))?;
 
         let value = anchor_program_artifacts.to_value().map_err(|e| to_diag(fn_spec, e))?;
         Ok(value)
@@ -597,22 +565,60 @@ impl FunctionImplementation for GetProgramFromNativeProject {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
-        let bin_path = args.get(0).unwrap().as_string().unwrap();
-        let keypair_path = args.get(1).unwrap().as_string().unwrap();
+        let program_name = args.get(0).unwrap().as_string().unwrap();
 
-        let bin_path = auth_ctx
-            .get_path_from_str(bin_path)
-            .map_err(|e| to_diag(fn_spec, format!("failed to get program binary path: {e}")))?;
+        let keypair_path_str = match args.get(1) {
+            Some(Value::Null) | None => {
+                format!("{}/deploy/{}-keypair.json", DEFAULT_NATIVE_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
 
         let keypair_path = auth_ctx
-            .get_path_from_str(keypair_path)
+            .get_path_from_str(&keypair_path_str)
             .map_err(|e| to_diag(fn_spec, format!("failed to get program keypair path: {e}")))?;
 
-        let classic_program_artifacts = ClassicRustProgramArtifacts::new(bin_path, keypair_path)
-            .map_err(|e| to_diag(fn_spec, e.message))?;
+        let mut did_user_provide_idl_path = false;
+        let idl_path_str = match args.get(2) {
+            Some(Value::Null) | None => {
+                format!("{}/{}.json", DEFAULT_SHANK_IDL_PATH, program_name)
+            }
+            Some(Value::String(s)) => {
+                did_user_provide_idl_path = true;
+                s.to_string()
+            }
+            _ => unreachable!(),
+        };
 
-        let value = classic_program_artifacts.to_value();
-        Ok(value)
+        let idl_path = auth_ctx
+            .get_path_from_str(&idl_path_str)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get shank idl path: {e}")))?;
+
+        if did_user_provide_idl_path && !idl_path.exists() {
+            return Err(to_diag(
+                fn_spec,
+                format!("invalid program idl path; no idl found at: {idl_path_str}"),
+            ));
+        }
+
+        let bin_path_str = match args.get(3) {
+            Some(Value::Null) | None => {
+                format!("{}/deploy/{}.so", DEFAULT_NATIVE_TARGET_PATH, program_name)
+            }
+            Some(Value::String(s)) => s.to_string(),
+            _ => unreachable!(),
+        };
+
+        let bin_path = auth_ctx
+            .get_path_from_str(&bin_path_str)
+            .map_err(|e| to_diag(fn_spec, format!("failed to get program binary path: {e}")))?;
+
+        let classic_program_artifacts =
+            ClassicRustProgramArtifacts::new(keypair_path, idl_path, bin_path)
+                .map_err(|e| to_diag(fn_spec, e.message))?;
+
+        classic_program_artifacts.to_value()
     }
 }
 
@@ -636,19 +642,16 @@ impl FunctionImplementation for SolToLamports {
         let sol = match sol {
             Value::Integer(i) => {
                 if *i < 0 {
-                    return Err(to_diag(fn_spec, "SOL amount cannot be negative".into()));
+                    return Err(to_diag(fn_spec, "SOL amount cannot be negative"));
                 }
                 if *i > (1u64 << 53) as i128 {
-                    return Err(to_diag(
-                        fn_spec,
-                        "SOL amount too large for precise conversion".into(),
-                    ));
+                    return Err(to_diag(fn_spec, "SOL amount too large for precise conversion"));
                 }
                 *i as f64
             }
             Value::Float(f) => {
                 if *f < 0.0 {
-                    return Err(to_diag(fn_spec, "SOL amount cannot be negative".into()));
+                    return Err(to_diag(fn_spec, "SOL amount cannot be negative"));
                 }
                 *f
             }
@@ -701,37 +704,11 @@ impl FunctionImplementation for FindPda {
         let program_id = SvmValue::to_pubkey(args.get(0).unwrap())
             .map_err(|e| to_diag(fn_spec, format!("invalid program id for finding pda: {e}")))?;
 
-        let seeds: Vec<Vec<u8>> = args
-            .get(1)
-            .map(|v| {
-                v.as_array()
-                    .ok_or_else(|| to_diag(fn_spec, "seeds must be an array".to_string()))?
-                    .iter()
-                    .map(|s| {
-                        let bytes = s.to_bytes();
-                        if bytes.is_empty() {
-                            return Err(to_diag(fn_spec, "seed cannot be empty".to_string()));
-                        }
-                        if bytes.len() > 32 {
-                            if let Ok(pubkey) = Pubkey::from_str(&s.to_string()) {
-                                return Ok(pubkey.to_bytes().to_vec());
-                            } else {
-                                return Err(to_diag(
-                                    fn_spec,
-                                    "seed cannot be longer than 32 bytes".to_string(),
-                                ));
-                            }
-                        }
-                        Ok(bytes)
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .transpose()?
-            .unwrap_or_default();
-
-        if seeds.len() > 16 {
-            return Err(to_diag(fn_spec, "seeds a maximum of 16 seeds can be used".to_string()));
-        }
+        let seeds = if let Some(val) = args.get(1) {
+            get_seeds_from_value(val).map_err(|diag| to_diag(fn_spec, diag))?
+        } else {
+            vec![]
+        };
 
         let seed_refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
         let (pda, bump) = Pubkey::try_find_program_address(&seed_refs, &program_id)
