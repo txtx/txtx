@@ -54,6 +54,8 @@ pub const RECIPIENT_TOKEN_ADDRESS: &str = "recipient_token_address";
 pub const SOURCE_TOKEN_ADDRESS: &str = "source_token_address";
 pub const TOKEN_MINT_ADDRESS: &str = "token_mint_address";
 pub const IS_FUNDING_RECIPIENT: &str = "is_funding_recipient";
+pub const SET_ACCOUNT: &str = "set_account";
+pub const SET_TOKEN_ACCOUNT: &str = "set_token_account";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
