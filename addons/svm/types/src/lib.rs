@@ -351,6 +351,96 @@ lazy_static! {
             tainting: true
         }
     };
+
+    pub static ref SET_ACCOUNT_MAP: Type = define_strict_map_type! {
+        public_key: {
+            documentation: "The public key of the account to set.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        lamports: {
+            documentation: "The amount of lamports the account should be set to have.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: true
+        },
+        data: {
+            documentation: "The data to set in the account.",
+            typing: Type::addon(SVM_BYTES),
+            optional: true,
+            tainting: true
+        },
+        owner: {
+            documentation: "The owner to set for the account.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        },
+        executable: {
+            documentation: "The executability state to set for the account.",
+            typing: Type::bool(),
+            optional: true,
+            tainting: false
+        },
+        rent_epoch: {
+            documentation: "The epoch at which the account will be rent-exempt.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: false
+        }
+    };
+
+    pub static ref SET_TOKEN_ACCOUNT_MAP: Type = define_strict_map_type! {
+        public_key: {
+            documentation: "The public key of the token owner account to update.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        token: {
+            documentation: "The token symbol or public key for the token.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        token_program: {
+            documentation: "The token program id. Valid values are `token2020`, `token2022`, or a public key.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        },
+        amount: {
+            documentation: "The amount of tokens to set.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: true
+        },
+        delegate: {
+            documentation: "The public key of the delegate to set.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        },
+        delegated_amount: {
+            documentation: "The amount of tokens to delegate.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: true
+        },
+        close_authority: {
+            documentation: "The public key of the close authority to set.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        },
+        state: {
+            documentation: "The state of the token account. Valid values are `initialized`, `frozen`, or `uninitialized`.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        }
+    };
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
