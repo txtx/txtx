@@ -599,10 +599,10 @@ impl AddonConstructFactory {
     ) -> Result<CommandInstance, Diagnostic> {
         let Some(pre_command_spec) = self.commands.get(command_id) else {
             return Err(diagnosed_error!(
-                "action '{}::{}' unknown ({})",
+                "action '{}': unknown command '{}::{}'",
+                command_name,
                 namespace,
                 command_id.action_name(),
-                command_name
             ));
         };
         let typing = match command_id {
