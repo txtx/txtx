@@ -310,7 +310,7 @@ pub async fn execute_runbook(
             runbook_inputs,
             authorization_context,
             get_addon_by_namespace,
-            CloudServiceContext::empty()
+            CloudServiceContext::empty(),
         )
         .await
         .unwrap();

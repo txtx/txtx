@@ -4,11 +4,10 @@ use actix_web::web::{Data, Json};
 use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use dotenvy::dotenv;
-use native_tls::TlsConnector;
 use serde::Serialize;
+use tokio_tungstenite::connect_async_with_config;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tokio_tungstenite::connect_async_tls_with_config;
 use tokio_tungstenite::tungstenite::handshake::client::{generate_key, Request};
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
@@ -383,11 +382,10 @@ impl RelayerWebSocketChannel {
             .map_err(|e| format!("failed to create relayer ws connection: {}", e))
             .unwrap();
 
-        let (ws_stream, _) = connect_async_tls_with_config(
+        let (ws_stream, _) = connect_async_with_config(
             req,
             None,
             false,
-            Some(tokio_tungstenite::Connector::NativeTls(TlsConnector::new().unwrap())),
         )
         .await
         .map_err(|e| format!("relayer ws channel failed: {}", e))?;

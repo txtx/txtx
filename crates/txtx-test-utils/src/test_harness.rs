@@ -5,10 +5,15 @@ use txtx_addon_kit::{
     futures::executor::block_on,
     helpers::fs::FileLocation,
     types::{
-        block_id::BlockId, cloud_interface::CloudServiceContext, diagnostics::Diagnostic, frontend::{
+        block_id::BlockId,
+        cloud_interface::CloudServiceContext,
+        diagnostics::Diagnostic,
+        frontend::{
             ActionItemRequest, ActionItemResponse, ActionItemStatus, ActionPanelData, BlockEvent,
             ModalPanelData, NormalizedActionItemRequestUpdate, ProgressBarVisibilityUpdate,
-        }, types::Value, AuthorizationContext, RunbookId
+        },
+        types::Value,
+        AuthorizationContext, RunbookId,
     },
     Addon,
 };
@@ -254,7 +259,7 @@ pub async fn build_runbook_from_fixture(
             runbook_inputs,
             authorization_context,
             get_addon_by_namespace,
-            CloudServiceContext::empty()
+            CloudServiceContext::empty(),
         )
         .await?;
     Ok(runbook)
