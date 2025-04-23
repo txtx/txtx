@@ -5,9 +5,9 @@ use actix_web::HttpResponseBuilder;
 use actix_web::{HttpRequest, HttpResponse};
 use dotenvy::dotenv;
 use serde::Serialize;
-use tokio_tungstenite::connect_async_with_config;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::handshake::client::{generate_key, Request};
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
@@ -382,13 +382,9 @@ impl RelayerWebSocketChannel {
             .map_err(|e| format!("failed to create relayer ws connection: {}", e))
             .unwrap();
 
-        let (ws_stream, _) = connect_async_with_config(
-            req,
-            None,
-            false,
-        )
-        .await
-        .map_err(|e| format!("relayer ws channel failed: {}", e))?;
+        let (ws_stream, _) = connect_async_with_config(req, None, false)
+            .await
+            .map_err(|e| format!("relayer ws channel failed: {}", e))?;
 
         let (write, mut read) = ws_stream.split();
 
