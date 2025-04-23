@@ -4,6 +4,7 @@ use solana_client::rpc_client::RpcClient;
 use solana_sdk::message::Message;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
     PreCommandSpecification,
@@ -224,6 +225,7 @@ impl CommandImplementation for ProcessInstructions {
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
+        _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         send_transaction_background_task(
             &construct_did,

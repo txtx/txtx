@@ -27,6 +27,10 @@ default-members = ["crates/txtx-cli"]
 resolver = "2"
 
 [workspace.dependencies]
+reqwest = { version = "0.11.27", default-features = false, features = [
+    "json",
+    "rustls-tls",
+]}
 txtx-core = { path = "crates/txtx-core", default-features = false }
 txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
 txtx-cloud = { path = "crates/txtx-cloud" }

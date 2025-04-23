@@ -1,26 +1,50 @@
-use std::io::{Read, Write};
+pub mod jwt;
 
 use serde::{Deserialize, Serialize};
+use std::io::{Read, Write};
 use txtx_core::kit::reqwest;
-
-use crate::get_env_var;
-
-pub const AUTH_SERVICE_URL: &str = "AUTH_SERVICE_URL";
-pub const AUTH_CALLBACK_PORT: u16 = 8081;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthConfig {
     pub access_token: String,
-    pub refresh_token: String,
-    pub user: AuthUser,
     pub exp: u64,
+    pub refresh_token: String,
+    pub pat: Option<String>,
+    pub user: AuthUser,
 }
 
 impl AuthConfig {
-    pub fn new(access_token: String, refresh_token: String, user: AuthUser, exp: u64) -> Self {
-        // let user: AuthUser = serde_json::from_str(&user).unwrap();
-        Self { access_token, refresh_token, user, exp }
+    pub fn new(
+        access_token: String,
+        exp: u64,
+        refresh_token: String,
+        pat: Option<String>,
+        user: AuthUser,
+    ) -> Self {
+        Self { access_token, exp, refresh_token, pat, user }
+    }
+
+    async fn from_refresh_session_response(
+        id_service_url: &str,
+        RefreshSessionResponse { access_token, refresh_token, user }: &RefreshSessionResponse,
+        pat: &Option<String>,
+    ) -> Result<Self, String> {
+        let jwt_manager = jwt::JwtManager::initialize(id_service_url)
+            .await
+            .map_err(|e| format!("Failed to initialize JWT manager: {}", e))?;
+
+        let access_token_claims = jwt_manager
+            .decode_jwt(access_token, true)
+            .map_err(|e| format!("Failed to decode access token: {}", e))?;
+
+        Ok(Self {
+            access_token: access_token.clone(),
+            exp: access_token_claims.exp,
+            refresh_token: refresh_token.clone(),
+            pat: pat.clone(),
+            user: user.clone(),
+        })
     }
 
     /// Write auth config to system data directory.
@@ -63,12 +87,29 @@ impl AuthConfig {
         Ok(Some(config))
     }
 
-    /// Refresh the session by sending a POST request to the auth service with the refresh token.
+    pub async fn refresh_session_if_needed(
+        &self,
+        id_service_url: &str,
+        pat: &Option<String>,
+    ) -> Result<AuthConfig, String> {
+        if self.is_access_token_expired() {
+            return self.refresh_session(id_service_url, pat).await.map_err(|e| {
+                format!("Failed to refresh session. Run `txtx cloud login` to log in again. Downstream error: {e}")
+            });
+        }
+        Ok(self.clone())
+    }
+
+    /// Get a new access token by sending a POST request to the auth service with the refresh token.
     /// If the request is successful, the new auth config is written to the system config.
-    pub async fn refresh_session(&self) -> Result<AuthConfig, String> {
+    pub async fn refresh_session(
+        &self,
+        id_service_url: &str,
+        pat: &Option<String>,
+    ) -> Result<AuthConfig, String> {
         let client = reqwest::Client::new();
         let res = client
-            .post(&format!("{}/refresh", get_env_var(AUTH_SERVICE_URL)))
+            .post(&format!("{id_service_url}/token"))
             .json(&serde_json::json!({
                 "refreshToken": &self.refresh_token,
             }))
@@ -78,19 +119,25 @@ impl AuthConfig {
 
         if res.status().is_success() {
             let res = res
-                .json::<AuthConfig>()
+                .json::<RefreshSessionResponse>()
                 .await
                 .map_err(|e| format!("Failed to parse response: {}", e))?;
-            res.write_to_system_config()
+
+            let auth_config = AuthConfig::from_refresh_session_response(id_service_url, &res, pat)
+                .await
+                .map_err(|e| format!("Failed to parse refresh session response: {e}"))?;
+
+            auth_config
+                .write_to_system_config()
                 .map_err(|e| format!("Failed to write refreshed session to config: {}", e))?;
-            return Ok(res);
+            return Ok(auth_config);
         } else {
             let err = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(format!("Failed to refresh session: {}", err));
+            return Err(format!("Received error from refresh session request: {}", err));
         }
     }
 
-    pub fn is_expired(&self) -> bool {
+    pub fn is_access_token_expired(&self) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("SystemTime before UNIX EPOCH")
@@ -98,6 +145,14 @@ impl AuthConfig {
 
         self.exp < now as u64
     }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RefreshSessionResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub user: AuthUser,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

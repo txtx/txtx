@@ -21,7 +21,7 @@ runs:
   steps:
     - run: |
         touch "${{ inputs.working_directory }}/.env"
-        echo ID_SERVICE_URL="https://id.txtx.run" >> "${{ inputs.working_directory }}/.env"
+        echo ID_SERVICE_URL="https://id.txtx.run/v1" >> "${{ inputs.working_directory }}/.env"
         echo TXTX_DEV_NPM_READ_TOKEN="${{ inputs.txtx_dev_npm_read_token }}" >> "${{ inputs.working_directory }}/.env"
         echo NHOST_REGION="${{ inputs.nhost_region }}" >> "${{ inputs.working_directory }}/.env"
         echo NHOST_SUBDOMAIN="${{ inputs.nhost_subdomain }}" >> "${{ inputs.working_directory }}/.env"

@@ -742,6 +742,7 @@ pub async fn evaluate_command_instance(
                 progress_tx,
                 &pass_result.background_tasks_uuid,
                 supervision_context,
+                &runtime_context.cloud_service_context,
             );
             let future = match future_res {
                 Ok(future) => future,

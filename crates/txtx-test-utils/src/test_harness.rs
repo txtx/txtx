@@ -6,6 +6,7 @@ use txtx_addon_kit::{
     helpers::fs::FileLocation,
     types::{
         block_id::BlockId,
+        cloud_interface::CloudServiceContext,
         diagnostics::Diagnostic,
         frontend::{
             ActionItemRequest, ActionItemResponse, ActionItemStatus, ActionPanelData, BlockEvent,
@@ -258,6 +259,7 @@ pub async fn build_runbook_from_fixture(
             runbook_inputs,
             authorization_context,
             get_addon_by_namespace,
+            CloudServiceContext::empty(),
         )
         .await?;
     Ok(runbook)

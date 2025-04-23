@@ -1,4 +1,4 @@
-use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
+use super::{env::TxtxEnv, CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 use crate::{get_addon_by_namespace, get_available_addons};
 use ascii_table::AsciiTable;
 use console::Style;
@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
-use txtx_core::templates::{build_manifest_data, build_runbook_data};
+use txtx_cloud::{auth::AuthConfig, router::TxtxAuthenticatedCloudServiceRouter};
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     mustache,
@@ -46,6 +46,11 @@ use txtx_core::{
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
+use txtx_core::{
+    runbook::flow_context::FlowContext,
+    templates::{build_manifest_data, build_runbook_data},
+};
+use txtx_gql::kit::types::cloud_interface::CloudServiceContext;
 
 #[cfg(feature = "supervisor_ui")]
 use actix_web::dev::ServerHandle;
@@ -131,6 +136,7 @@ pub async fn handle_check_command(
     cmd: &CheckRunbook,
     buffer_stdin: Option<String>,
     _ctx: &Context,
+    env: &TxtxEnv,
 ) -> Result<(), String> {
     let (_manifest, _runbook_name, mut runbook, runbook_state) = load_runbook_from_manifest(
         &cmd.manifest_path,
@@ -138,6 +144,7 @@ pub async fn handle_check_command(
         &cmd.environment,
         &cmd.inputs,
         buffer_stdin,
+        env,
     )
     .await?;
 
@@ -434,6 +441,7 @@ pub async fn handle_run_command(
     cmd: &ExecuteRunbook,
     buffer_stdin: Option<String>,
     _ctx: &Context,
+    env: &TxtxEnv,
 ) -> Result<(), String> {
     let is_execution_unsupervised = cmd.unsupervised;
 
@@ -457,6 +465,7 @@ pub async fn handle_run_command(
         &cmd.environment,
         &cmd.inputs,
         buffer_stdin.clone(),
+        env,
     )
     .await;
     let (runbook_name, mut runbook, runbook_state_location) = match res {
@@ -465,10 +474,13 @@ pub async fn handle_run_command(
         }
         Err(_) => {
             let (runbook_name, runbook) =
-                load_runbook_from_file_path(&cmd.runbook, &cmd.inputs, buffer_stdin).await?;
+                load_runbook_from_file_path(&cmd.runbook, &cmd.inputs, buffer_stdin, env).await?;
             (runbook_name, runbook, None)
         }
     };
+
+    // Confirm that if the runbook is using cloud services, the user is authenticated
+    check_cloud_service_eligibility(runbook.flow_contexts.first().expect("no flow found"))?;
 
     let previous_state_opt = if let Some(state_file_location) = runbook_state_location.clone() {
         match state_file_location.load_execution_snapshot(
@@ -880,6 +892,7 @@ pub async fn load_runbook_from_manifest(
     environment_selector: &Option<String>,
     cli_inputs: &Vec<String>,
     buffer_stdin: Option<String>,
+    env: &TxtxEnv,
 ) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookStateLocation>), String> {
     let manifest = load_workspace_manifest_from_manifest_path(manifest_path)?;
     let top_level_inputs_map =
@@ -897,12 +910,18 @@ pub async fn load_runbook_from_manifest(
         if runbook_name.eq(desired_runbook_name) || runbook_id.eq(desired_runbook_name) {
             let authorization_context =
                 AuthorizationContext::new(manifest.location.clone().unwrap());
+
+            let cloud_svc_context = CloudServiceContext::new(Some(Arc::new(
+                TxtxAuthenticatedCloudServiceRouter::new(&env.id_service_url),
+            )));
+
             let res = runbook
                 .build_contexts_from_sources(
                     runbook_sources,
                     top_level_inputs_map,
                     authorization_context,
                     get_addon_by_namespace,
+                    cloud_svc_context,
                 )
                 .await;
             if let Err(diags) = res {
@@ -921,6 +940,7 @@ pub async fn load_runbook_from_file_path(
     file_path: &str,
     cli_inputs: &Vec<String>,
     buffer_stdin: Option<String>,
+    env: &TxtxEnv,
 ) -> Result<(String, Runbook), String> {
     let location = FileLocation::from_path_string(file_path)?;
     let (runbook_name, mut runbook, runbook_sources) =
@@ -929,13 +949,20 @@ pub async fn load_runbook_from_file_path(
     println!("\n{} Processing file '{}'", purple!("→"), file_path);
     let mut inputs_map = RunbookTopLevelInputsMap::new();
     inputs_map.override_values_with_cli_inputs(cli_inputs, buffer_stdin)?;
+
     let authorization_context = AuthorizationContext::new(location);
+
+    let cloud_svc_context = CloudServiceContext::new(Some(Arc::new(
+        TxtxAuthenticatedCloudServiceRouter::new(&env.id_service_url),
+    )));
+
     let res = runbook
         .build_contexts_from_sources(
             runbook_sources,
             inputs_map,
             authorization_context,
             get_addon_by_namespace,
+            cloud_svc_context,
         )
         .await;
     if let Err(diags) = res {
@@ -1020,5 +1047,21 @@ fn process_runbook_execution_output(
                 println!("{} Failed to write runbook state: {}", red!("x"), e);
             }
         };
+    }
+}
+
+fn check_cloud_service_eligibility(flow_context: &FlowContext) -> Result<(), String> {
+    let implements_cloud_svc =
+        flow_context.execution_context.get_commands_implementing_cloud_service();
+
+    if implements_cloud_svc.is_empty() {
+        return Ok(());
+    }
+
+    match AuthConfig::read_from_system_config() {
+        Ok(Some(_)) => Ok(()),
+        _ => {
+            return Err(format!("Runbook contains cloud service actions, but you are not authenticated.\nRun the command `txtx cloud login` to log in."));
+        }
     }
 }

@@ -16,6 +16,7 @@ use serde::ser::StdError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tokio::sync::RwLock;
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::Addon;
 use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
 use txtx_addon_network_evm::EvmNetworkAddon;
@@ -309,6 +310,7 @@ pub async fn execute_runbook(
             runbook_inputs,
             authorization_context,
             get_addon_by_namespace,
+            CloudServiceContext::empty(),
         )
         .await
         .unwrap();

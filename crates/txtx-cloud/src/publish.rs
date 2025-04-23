@@ -12,7 +12,6 @@ use txtx_core::{
 };
 
 use crate::{
-    get_env_var,
     gql::{
         get_orgs_for_user::{OrgsForUser, OrgsForUserHelper},
         insert_runbook::{insert_runbooks_one, InsertRunbookHelper, InsertRunbooksOne},
@@ -21,8 +20,6 @@ use crate::{
 };
 
 use super::{auth::AuthConfig, gql::GqlClient};
-
-pub const TXTX_CONSOLE_URL: &str = "TXTX_CONSOLE_URL";
 
 pub fn load_workspace_manifest_from_manifest_path(
     manifest_path: &str,
@@ -34,6 +31,9 @@ pub fn load_workspace_manifest_from_manifest_path(
 pub async fn handle_publish_command(
     cmd: &PublishRunbook,
     mut runbook: Runbook,
+    id_service_url: &str,
+    txtx_console_url: &str,
+    registry_gql_url: &str,
 ) -> Result<(), String> {
     let auth_config = AuthConfig::read_from_system_config()
         .map_err(|e| format!("failed to authenticate user: {e}"))?
@@ -60,7 +60,8 @@ pub async fn handle_publish_command(
             format!("failed to build publishable version of runbook: {}", diag.message)
         })?;
 
-    publish_gql(cmd, publishable, &auth_config).await?;
+    publish_gql(cmd, publishable, &auth_config, id_service_url, txtx_console_url, registry_gql_url)
+        .await?;
 
     Ok(())
 }
@@ -69,9 +70,12 @@ async fn publish_gql(
     cmd: &PublishRunbook,
     runbook: PublishableEmbeddedRunbookSpecification,
     auth_config: &AuthConfig,
+    id_service_url: &str,
+    txtx_console_url: &str,
+    registry_gql_url: &str,
 ) -> Result<(), String> {
     let user_id = auth_config.user.id.clone();
-    let mut gql_client = GqlClient::new(auth_config);
+    let mut gql_client = GqlClient::new(auth_config, id_service_url, registry_gql_url);
 
     let indexed_runbook = CloudServiceIndexedRunbook::new(&runbook)?;
 
@@ -153,7 +157,7 @@ async fn publish_gql(
     println!(
         "{} Runbook published to {}/runbook/{}",
         green!("✓"),
-        get_env_var(TXTX_CONSOLE_URL),
+        txtx_console_url,
         response.insert_runbooks_one.unwrap().id
     );
 

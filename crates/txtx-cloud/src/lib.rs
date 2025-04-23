@@ -1,15 +1,10 @@
 use clap::{Parser, ValueEnum};
-use dotenvy::dotenv;
 
 pub mod auth;
 pub mod gql;
 pub mod login;
 pub mod publish;
-
-pub fn get_env_var(key: &str) -> String {
-    dotenv().ok();
-    std::env::var(key).unwrap_or_else(|_| panic!("{} not found", key))
-}
+pub mod router;
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct LoginCommand {

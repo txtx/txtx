@@ -19,10 +19,7 @@ url = { version = "2.2.2", features = ["serde"] }
 uuid = { workspace = true }
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-reqwest = { version = "0.12.5", default-features = false, features = [
-    "json",
-    "rustls-tls",
-]}
+reqwest = { workspace = true }
 lazy_static = "1.4.0"
 indoc = "2.0.5"
 crossbeam-channel = "0.5.8"

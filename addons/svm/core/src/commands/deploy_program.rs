@@ -11,6 +11,7 @@ use txtx_addon_kit::constants::{
     SIGNED_TRANSACTION_BYTES,
 };
 use txtx_addon_kit::indexmap::IndexMap;
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     CommandSpecification, PreCommandSpecification,
@@ -106,6 +107,10 @@ lazy_static! {
                         typing: DEPLOYMENT_TRANSACTION_SIGNATURES.clone()
                     },
                     program_id: {
+                        documentation: "The program ID of the deployed program.",
+                        typing: Type::string()
+                    },
+                    program_idl: {
                         documentation: "The program ID of the deployed program.",
                         typing: Type::string()
                     }
@@ -592,6 +597,7 @@ impl CommandImplementation for DeployProgram {
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
+        _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         let construct_did = construct_did.clone();
         let spec = spec.clone();

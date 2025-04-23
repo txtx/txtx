@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::signers::SignerActionsFutureResult;
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
@@ -258,6 +259,7 @@ impl CommandImplementation for SendStxTransfer {
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
+        cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         BroadcastStacksTransaction::build_background_task(
             &construct_did,
@@ -267,6 +269,7 @@ impl CommandImplementation for SendStxTransfer {
             &progress_tx,
             &background_tasks_uuid,
             &supervision_context,
+            &cloud_service_context,
         )
     }
 }

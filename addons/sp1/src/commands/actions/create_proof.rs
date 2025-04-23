@@ -1,3 +1,4 @@
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::stores::ValueStore;
@@ -111,6 +112,7 @@ impl CommandImplementation for CreateProof {
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
+        _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         use std::{
             sync::{Arc, Mutex},
