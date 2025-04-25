@@ -41,7 +41,13 @@ lazy_static! {
             SetupSurfpool => {
                 name: "Setup Surfpool",
                 matcher: "setup_surfnet",
-                documentation: "The `svm::setup_surfnet` action is coming soon.",
+                documentation: indoc!{r#"
+                    `svm::setup_surfnet` can be used to configure a surfnet.
+                    
+                    The current supported operations are to set account or token account data.
+                    The `set_account` action can be used to set the lamports, owner, data, and executable fields of an account.
+                    The `set_token_account` action can be used to set the amount, delegate, delegated amount, and close authority for a token account.
+                "#},
                 implements_signing_capability: false,
                 implements_background_task_capability: true,
                 inputs: [

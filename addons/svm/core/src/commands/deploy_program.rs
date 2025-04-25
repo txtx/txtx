@@ -48,7 +48,7 @@ lazy_static! {
             DeployProgram => {
                 name: "Deploy SVM Program",
                 matcher: "deploy_program",
-                documentation: "`svm::deploy_program` deploys an anchor program to the specified SVM-compatible network.",
+                documentation: "`svm::deploy_program` deploys a Solana program to the specified SVM-compatible network.",
                 implements_signing_capability: true,
                 implements_background_task_capability: true,
                 inputs: [
@@ -127,7 +127,7 @@ lazy_static! {
         };
 
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
-            spec.create_critical_output = Some("program_id".to_string());
+            spec.create_critical_output = Some(PROGRAM_ID.to_string());
         }
         command
     };

@@ -34,9 +34,12 @@ lazy_static! {
                 name: "Deploy SVM Program Subgraph",
                 matcher: "deploy_subgraph",
                 documentation: indoc!{r#"
-                    `svm::deploy_subgraph` deploys allows specifying a schema for a subgraph for your program, 
-                        which will automatically be registered and return an endpoint to see live chain data."#
-                },
+                    `svm::deploy_subgraph` creates a live Graph QL database for your program.
+
+                    This command takes a program ID to index, a block height to start indexing from, and a set of events to index.
+                    This data is encoded as a request and sent to your surfnet (when deploying to localhost) or to the Surfpool cloud services (when deploying to devnet or mainnet).
+                    When the request is received, the associated chain is indexed and the data is stored in a Graph QL database.
+                "#},
                 implements_signing_capability: false,
                 implements_background_task_capability: true,
                 inputs: [
@@ -49,7 +52,7 @@ lazy_static! {
                         sensitive: false
                     },
                     subgraph_name: {
-                        documentation: "The name of the subgraph. This defaults to the command instance name.",
+                        documentation: "The name of the subgraph. This defaults to the event name.",
                         typing: Type::string(),
                         optional: true,
                         tainting: true,
@@ -65,7 +68,7 @@ lazy_static! {
                         sensitive: false
                     },
                     program_idl: {
-                        documentation: "The IDL of the program, used to decode subgraph types.",
+                        documentation: "The IDL of the program, used to decode the data to be indexed.",
                         typing: Type::string(),
                         optional: false,
                         tainting: true,

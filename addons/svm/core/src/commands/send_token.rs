@@ -92,7 +92,7 @@ lazy_static! {
                     sensitive: false
                 },
                 signers: {
-                    documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
+                    documentation: "A set of references to signer constructs, which will be used to sign the transaction.",
                     typing: Type::array(Type::string()),
                     optional: false,
                     tainting: true,

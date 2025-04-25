@@ -182,6 +182,9 @@ lazy_static! {
                     variable "contract" {
                         value = svm::get_program_from_native_project("my_program")
                     }
+                    output "idl" {
+                        value = variable.contract.idl
+                    }
                 "#},
                 inputs: [
                     program_name: {
@@ -206,7 +209,7 @@ lazy_static! {
                     }
                 ],
                 output: {
-                    documentation: "An object containing the rust program artifacts.",
+                    documentation: "An object containing the native program artifacts.",
                     typing: CLASSIC_RUST_PROGRAM_ARTIFACTS.clone()
                 },
             }
@@ -322,13 +325,13 @@ lazy_static! {
         define_function! {
             CreateTokenAccountInstruction => {
                 name: "create_token_account_instruction",
-                documentation: "`svm::create_token_account_instruction` creates an instruction to create an associated token account.",
+                documentation: "`svm::create_token_account_instruction` creates raw instruction bytes to create an associated token account.",
                 example: indoc! {r#"
                     action "call" "svm::process_instructions" {
                         signers = [signer.caller]
 
                         instruction { 
-                            value = svm::create_token_account_instruction(
+                            raw_bytes = svm::create_token_account_instruction(
                                 signer.caller.address, // funding address
                                 signer.caller.address, // wallet address
                                 variable.token_mint, // token mint address

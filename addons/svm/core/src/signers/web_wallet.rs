@@ -57,7 +57,11 @@ lazy_static! {
                 outputs: [
                     address: {
                         documentation: "The address of the account.",
-                        typing: Type::array(Type::string())
+                        typing: Type::string()
+                    },
+                    public_key: {
+                        documentation: "The address of the account.",
+                        typing: Type::string()
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"

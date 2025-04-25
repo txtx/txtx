@@ -29,11 +29,11 @@ use super::sign_transaction::SignTransaction;
 
 lazy_static! {
     pub static ref PROCESS_INSTRUCTIONS: PreCommandSpecification = {
-        let mut command = define_command! {
+        let command = define_command! {
             ProcessInstructions => {
                 name: "Process SVM Instructions",
                 matcher: "process_instructions",
-                documentation: "The `svm::process_instructions` action encodes instructions that are added to a transaction that is signed and broadcasted to the network.",
+                documentation: "The `svm::process_instructions` action encodes instructions, adds them to a transaction, and signs & broadcasts the transaction.",
                 implements_signing_capability: true,
                 implements_background_task_capability: true,
                 inputs: [
@@ -54,7 +54,7 @@ lazy_static! {
                         sensitive: false
                     },
                     signers: {
-                        documentation: "A set of references to a signer construct, which will be used to sign the transaction.",
+                        documentation: "A set of references to signer constructs, which will be used to sign the transaction.",
                         typing: Type::array(Type::string()),
                         optional: false,
                         tainting: true,
@@ -96,13 +96,12 @@ lazy_static! {
                     action "program_call" "svm::process_instructions" {
                         description = "Invoke instructions"
                         instruction {
-                            program_id = variable.program
-                            account {
-                                public_key = signer.caller.address
-                                is_signer = true
-                                is_writable = true
-                        }
-                            data = svm::get_instruction_data_from_idl(variable.program.idl, "my_instruction", ["arg1", "arg2"])
+                            program_idl = variable.program.idl
+                            instruction_name = "initialize"
+                            instruction_args = [1]
+                            payer {
+                                public_key = signer.payer.public_key
+                            }
                         }
                         signers = [signer.caller]
                     }
@@ -110,9 +109,6 @@ lazy_static! {
             }
         };
 
-        if let PreCommandSpecification::Atomic(ref mut spec) = command {
-            spec.create_critical_output = Some("contract_id".to_string());
-        }
         command
     };
 }
