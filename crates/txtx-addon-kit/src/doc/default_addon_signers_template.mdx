@@ -18,10 +18,14 @@ export const metadata = {
 
 {{# inputs }}
 
-  <Property name="{{ name }}" type="{{ requirementStatus }}">
+  <Property name="{{ name }}" required="{{ requirementStatus }}" type="{{ type }}">
     {{{ documentation }}}
   </Property>
 
+{{/ inputs }}
+
+{{^ inputs }}
+  None
 {{/ inputs }}
 
 </Properties>
@@ -38,7 +42,7 @@ When the `{{ matcher }}` action is successfully executed, the following outputs 
 
 {{# outputs }}
 
-  <Property name="{{ name }}">
+  <Property name="{{ name }}" type="{{ type }}">
     {{{ documentation }}}
   </Property>
 

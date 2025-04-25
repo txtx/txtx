@@ -2,6 +2,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use super::{Context, GetDocumentation};
+use itertools::Itertools;
 use serde_json::json;
 use txtx_addon_network_evm::EvmNetworkAddon;
 #[cfg(feature = "ovm")]
@@ -289,7 +290,7 @@ fn insert_inputs_from_spec(
             },
         )
         .insert_str("documentation", &input_spec.documentation)
-        .insert_str("type", format!("{:?}", input_spec.typing))
+        .insert_str("type", &input_spec.typing.to_string())
 }
 
 fn insert_outputs_from_spec(
@@ -299,7 +300,7 @@ fn insert_outputs_from_spec(
     output_builder
         .insert_str("name", &output_spec.name)
         .insert_str("documentation", &output_spec.documentation)
-        .insert_str("type", format!("{:?}", output_spec.typing))
+        .insert_str("type", &output_spec.typing.to_string())
 }
 
 fn insert_data_from_spec(
@@ -392,13 +393,27 @@ fn build_addon_function_group_doc_data(
                                     input
                                         .insert_str("name", &input_spec.name)
                                         .insert_str("documentation", &input_spec.documentation)
-                                        .insert_str("type", format!("{:?}", input_spec.typing))
+                                        .insert_str(
+                                            "requirementStatus",
+                                            match input_spec.optional {
+                                                true => "optional",
+                                                false => "required",
+                                            },
+                                        )
+                                        .insert_str(
+                                            "type",
+                                            &input_spec
+                                                .typing
+                                                .iter()
+                                                .map(|t| t.to_string())
+                                                .join(" | "),
+                                        )
                                 });
                             }
                             inputs
                         })
                         .insert_str("output_documentation", &function_spec.output.documentation)
-                        .insert_str("output_type", format!("{:?}", function_spec.output.typing))
+                        .insert_str("type", &function_spec.output.typing.to_string())
                 });
             }
             functions
@@ -473,13 +488,27 @@ fn build_addon_function_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
                                     input
                                         .insert_str("name", &input_spec.name)
                                         .insert_str("documentation", &input_spec.documentation)
-                                        .insert_str("type", format!("{:?}", input_spec.typing))
+                                        .insert_str(
+                                            "requirementStatus",
+                                            match input_spec.optional {
+                                                true => "optional",
+                                                false => "required",
+                                            },
+                                        )
+                                        .insert_str(
+                                            "type",
+                                            &input_spec
+                                                .typing
+                                                .iter()
+                                                .map(|t| t.to_string())
+                                                .join(" | "),
+                                        )
                                 });
                             }
                             inputs
                         })
                         .insert_str("output_documentation", &function_spec.output.documentation)
-                        .insert_str("output_type", format!("{:?}", function_spec.output.typing))
+                        .insert_str("type", &function_spec.output.typing.to_string())
                 });
             }
             functions
@@ -534,7 +563,14 @@ fn build_signers_action_doc_data(addon: &Box<dyn Addon>) -> mustache::Data {
                                     input
                                         .insert_str("name", &input_spec.name)
                                         .insert_str("documentation", &input_spec.documentation)
-                                        .insert_str("type", format!("{:?}", input_spec.typing))
+                                        .insert_str(
+                                            "requirementStatus",
+                                            match input_spec.optional {
+                                                true => "optional",
+                                                false => "required",
+                                            },
+                                        )
+                                        .insert_str("type", input_spec.typing.to_string())
                                 });
                             }
                             inputs
