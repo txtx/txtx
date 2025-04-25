@@ -20,14 +20,15 @@ See the [jq](https://jqlang.github.io/jq/manual/) documentation for more details
 <Properties>
 
 
-  <Property name="decoded_json">
+  <Property name="decoded_json" required="optional" type="string | object">
     A JSON object.
   </Property>
 
 
-  <Property name="query">
+  <Property name="query" required="optional" type="string">
     A JSON query. See the [jq](https://jqlang.github.io/jq/manual/) documentation.
   </Property>
+
 
 
 </Properties>
@@ -35,7 +36,7 @@ See the [jq](https://jqlang.github.io/jq/manual/) documentation for more details
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="array[string]">
     The result of the `jq` query.
   </Property>
 </Properties>

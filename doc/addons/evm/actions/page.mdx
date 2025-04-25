@@ -16,84 +16,85 @@ The `evm::call_contract` action encodes a contract call transaction, signs it wi
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the transaction.
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" required="optional" type="string">
     The URL of the EVM API used to broadcast the transaction.
   </Property>
 
 
-  <Property name="signer" type="required">
+  <Property name="signer" required="required" type="string">
     A reference to a signer construct, which will be used to sign the transaction.
   </Property>
 
 
-  <Property name="contract_address" type="required">
+  <Property name="contract_address" required="required" type="addon(evm::address)">
     The address of the contract being called.
   </Property>
 
 
-  <Property name="contract_abi" type="optional">
+  <Property name="contract_abi" required="optional" type="addon(evm::address)">
     The contract ABI, optionally used to check input arguments before sending the transaction to the chain.
   </Property>
 
 
-  <Property name="function_name" type="required">
+  <Property name="function_name" required="required" type="string">
     The contract function to invoke.
   </Property>
 
 
-  <Property name="function_args" type="optional">
+  <Property name="function_args" required="optional" type="array[buffer]">
     The contract function arguments
   </Property>
 
 
-  <Property name="amount" type="optional">
+  <Property name="amount" required="optional" type="integer">
     The amount, in WEI, to transfer.
   </Property>
 
 
-  <Property name="type" type="optional">
+  <Property name="type" required="optional" type="string">
     The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.
   </Property>
 
 
-  <Property name="max_fee_per_gas" type="optional">
+  <Property name="max_fee_per_gas" required="optional" type="integer">
     Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="max_priority_fee_per_gas" type="optional">
+  <Property name="max_priority_fee_per_gas" required="optional" type="integer">
     Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="chain_id" type="optional">
+  <Property name="chain_id" required="optional" type="string">
     The chain id.
   </Property>
 
 
-  <Property name="nonce" type="optional">
+  <Property name="nonce" required="optional" type="integer">
     The account nonce of the signer. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="gas_limit" type="optional">
+  <Property name="gas_limit" required="optional" type="integer">
     Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="gas_price" type="optional">
+  <Property name="gas_price" required="optional" type="integer">
     Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="confirmations" type="optional">
+  <Property name="confirmations" required="optional" type="integer">
     Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
   </Property>
+
 
 
 </Properties>
@@ -109,27 +110,27 @@ When the `call_contract` action is successfully executed, the following outputs 
 <Properties>
 
 
-  <Property name="tx_hash">
+  <Property name="tx_hash" type="string">
     The hash of the transaction.
   </Property>
 
 
-  <Property name="logs">
+  <Property name="logs" type="object">
     The logs of the transaction, decoded via any ABI provided by the contract call.
   </Property>
 
 
-  <Property name="raw_logs">
+  <Property name="raw_logs" type="object">
     The raw logs of the transaction.
   </Property>
 
 
-  <Property name="result">
+  <Property name="result" type="string">
     The result of simulating the execution of the transaction directly before its execution.
   </Property>
 
 
-  <Property name="abi_encoded_result">
+  <Property name="abi_encoded_result" type="addon(evm::sim_result)">
     The simulation result with ABI context for using in other function calls.
   </Property>
 
@@ -172,79 +173,80 @@ The `evm::eth_call` command simulates an Ethereum transaction using the `eth_cal
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the call.
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" required="optional" type="string">
     The URL of the EVM API used to send the RPC request.
   </Property>
 
 
-  <Property name="contract_address" type="required">
+  <Property name="contract_address" required="required" type="addon(evm::address)">
     The address of the contract being called.
   </Property>
 
 
-  <Property name="contract_abi" type="optional">
+  <Property name="contract_abi" required="optional" type="addon(evm::address)">
     The contract ABI, optionally used to check input arguments before sending the transaction to the chain.
   </Property>
 
 
-  <Property name="signer" type="required">
+  <Property name="signer" required="required" type="string">
     The address that will be used as the sender of this contract call.
   </Property>
 
 
-  <Property name="function_name" type="optional">
+  <Property name="function_name" required="optional" type="string">
     The contract function to call.
   </Property>
 
 
-  <Property name="function_args" type="optional">
+  <Property name="function_args" required="optional" type="array[buffer]">
     The contract function arguments.
   </Property>
 
 
-  <Property name="amount" type="optional">
+  <Property name="amount" required="optional" type="integer">
     The amount, in Wei, to send in the transaction.
   </Property>
 
 
-  <Property name="type" type="optional">
+  <Property name="type" required="optional" type="string">
     The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="max_fee_per_gas" type="optional">
+  <Property name="max_fee_per_gas" required="optional" type="integer">
     Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="max_priority_fee_per_gas" type="optional">
+  <Property name="max_priority_fee_per_gas" required="optional" type="integer">
     Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="chain_id" type="optional">
+  <Property name="chain_id" required="optional" type="string">
     The chain id.
   </Property>
 
 
-  <Property name="nonce" type="optional">
+  <Property name="nonce" required="optional" type="integer">
     The account nonce of the sender. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="gas_limit" type="optional">
+  <Property name="gas_limit" required="optional" type="integer">
     Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="gas_price" type="optional">
+  <Property name="gas_price" required="optional" type="integer">
     Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.
   </Property>
+
 
 
 </Properties>
@@ -260,7 +262,7 @@ When the `eth_call` action is successfully executed, the following outputs are a
 <Properties>
 
 
-  <Property name="result">
+  <Property name="result" type="string">
     The contract call result.
   </Property>
 
@@ -303,24 +305,25 @@ The `evm::check_confirmations` action polls the network until the provided `tx_h
 <Properties>
 
 
-  <Property name="tx_hash" type="required">
+  <Property name="tx_hash" required="required" type="buffer">
     The transaction hash to check.
   </Property>
 
 
-  <Property name="rpc_api_url" type="required">
+  <Property name="rpc_api_url" required="required" type="string">
     The URL of the EVM API used to poll for the transaction's inclusion in a block.
   </Property>
 
 
-  <Property name="chain_id" type="required">
+  <Property name="chain_id" required="required" type="integer">
     The chain ID of the network to check the transaction on.
   </Property>
 
 
-  <Property name="confirmations" type="optional">
+  <Property name="confirmations" required="optional" type="integer">
     Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
   </Property>
+
 
 
 </Properties>
@@ -336,12 +339,12 @@ When the `check_confirmations` action is successfully executed, the following ou
 <Properties>
 
 
-  <Property name="contract_address">
+  <Property name="contract_address" type="buffer">
     The contract address from the transaction receipt.
   </Property>
 
 
-  <Property name="logs">
+  <Property name="logs" type="array[array[string]]">
     The decoded contract logs from the transaction receipt.
   </Property>
 
@@ -381,19 +384,20 @@ The `evm::sign_transaction` command signs an EVM transaction.
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the transaction
   </Property>
 
 
-  <Property name="transaction_payload_bytes" type="required">
+  <Property name="transaction_payload_bytes" required="required" type="string">
     The unsigned transaction payload bytes.
   </Property>
 
 
-  <Property name="signer" type="required">
+  <Property name="signer" required="required" type="string">
     A reference to a signer construct, which will be used to sign the transaction payload.
   </Property>
+
 
 
 </Properties>
@@ -409,7 +413,7 @@ When the `sign_transaction` action is successfully executed, the following outpu
 <Properties>
 
 
-  <Property name="tx_hash">
+  <Property name="tx_hash" type="string">
     The hash of the transaction.
   </Property>
 
@@ -451,69 +455,70 @@ The `evm::send_eth` is coming soon.
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the transaction.
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" required="optional" type="string">
     The URL of the EVM API used to broadcast the transaction.
   </Property>
 
 
-  <Property name="signer" type="required">
+  <Property name="signer" required="required" type="string">
     A reference to a signer construct, which will be used to sign the transaction.
   </Property>
 
 
-  <Property name="recipient_address" type="required">
+  <Property name="recipient_address" required="required" type="addon(evm::address)">
     The EVM address of the recipient.
   </Property>
 
 
-  <Property name="amount" type="optional">
+  <Property name="amount" required="optional" type="integer">
     The amount to send, in WEI (1 ETH = 10^18 WEI).
   </Property>
 
 
-  <Property name="type" type="optional">
+  <Property name="type" required="optional" type="string">
     The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.
   </Property>
 
 
-  <Property name="max_fee_per_gas" type="optional">
+  <Property name="max_fee_per_gas" required="optional" type="integer">
     Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="max_priority_fee_per_gas" type="optional">
+  <Property name="max_priority_fee_per_gas" required="optional" type="integer">
     Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="chain_id" type="optional">
+  <Property name="chain_id" required="optional" type="string">
     The chain id.
   </Property>
 
 
-  <Property name="nonce" type="optional">
+  <Property name="nonce" required="optional" type="integer">
     The account nonce of the signer. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="gas_limit" type="optional">
+  <Property name="gas_limit" required="optional" type="integer">
     Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="gas_price" type="optional">
+  <Property name="gas_price" required="optional" type="integer">
     Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="confirmations" type="optional">
+  <Property name="confirmations" required="optional" type="integer">
     Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
   </Property>
+
 
 
 </Properties>
@@ -529,7 +534,7 @@ When the `send_eth` action is successfully executed, the following outputs are a
 <Properties>
 
 
-  <Property name="tx_hash">
+  <Property name="tx_hash" type="string">
     The hash of the transaction.
   </Property>
 
@@ -568,27 +573,27 @@ The `evm::deploy_contract` is coming soon.
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the transaction
   </Property>
 
 
-  <Property name="rpc_api_url" type="optional">
+  <Property name="rpc_api_url" required="optional" type="string">
     The URL of the EVM API used to broadcast the transaction.
   </Property>
 
 
-  <Property name="chain_id" type="optional">
+  <Property name="chain_id" required="optional" type="string">
     The chain id.
   </Property>
 
 
-  <Property name="signer" type="required">
+  <Property name="signer" required="required" type="string">
     A reference to a signer construct, which will be used to sign the transaction.
   </Property>
 
 
-  <Property name="contract" type="required">
+  <Property name="contract" required="required" type="object">
     The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
 The abi field can also be provided to add type checking for the constructor arguments.
 The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
@@ -596,89 +601,90 @@ The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat
   </Property>
 
 
-  <Property name="initializer" type="optional">
+  <Property name="initializer" required="optional" type="map">
     An optional array of initializer functions + arguments to call on the contract that is deployed to the proxy contract.
   </Property>
 
 
-  <Property name="constructor_args" type="optional">
+  <Property name="constructor_args" required="optional" type="array[string]">
     The optional constructor arguments for the deployed contract.
   </Property>
 
 
-  <Property name="create_opcode" type="optional">
+  <Property name="create_opcode" required="optional" type="string">
     The create opcode to use for deployment. Options are 'create' and 'create2'. The default is 'create2'.
   </Property>
 
 
-  <Property name="create2" type="optional">
+  <Property name="create2" required="optional" type="map">
     Options for deploying the contract with the CREATE2 opcode, overwriting txtx default options.
   </Property>
 
 
-  <Property name="proxied" type="optional">
+  <Property name="proxied" required="optional" type="bool">
     Deploys the contract via a proxy contract. The default is false.
   </Property>
 
 
-  <Property name="proxy" type="optional">
+  <Property name="proxy" required="optional" type="map">
     Options for deploying the contract via a proxy contract, overwriting txtx default options.
   </Property>
 
 
-  <Property name="amount" type="optional">
+  <Property name="amount" required="optional" type="integer">
     The amount, in WEI, to send with the deployment.
   </Property>
 
 
-  <Property name="type" type="optional">
+  <Property name="type" required="optional" type="string">
     The transaction type. Options are 'Legacy', 'EIP2930', 'EIP1559', 'EIP4844'. The default is 'EIP1559'.
   </Property>
 
 
-  <Property name="max_fee_per_gas" type="optional">
+  <Property name="max_fee_per_gas" required="optional" type="integer">
     Sets the max fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="max_priority_fee_per_gas" type="optional">
+  <Property name="max_priority_fee_per_gas" required="optional" type="integer">
     Sets the max priority fee per gas of an EIP1559 transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="nonce" type="optional">
+  <Property name="nonce" required="optional" type="integer">
     The account nonce of the signer. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="gas_limit" type="optional">
+  <Property name="gas_limit" required="optional" type="integer">
     Sets the maximum amount of gas that should be used to execute this transaction. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="gas_price" type="optional">
+  <Property name="gas_price" required="optional" type="integer">
     Sets the gas price for Legacy transactions. This value will be retrieved from the network if omitted.
   </Property>
 
 
-  <Property name="expected_contract_address" type="optional">
+  <Property name="expected_contract_address" required="optional" type="string">
     The contract address that the deployment should yield. If the deployment does not yield this address, the action will fail. If this field is omitted, the any deployed address will be accepted.
   </Property>
 
 
-  <Property name="confirmations" type="optional">
+  <Property name="confirmations" required="optional" type="integer">
     Once the transaction is included on a block, the number of blocks to await before the transaction is considered successful and Runbook execution continues. The default is 1.
   </Property>
 
 
-  <Property name="verify" type="optional">
+  <Property name="verify" required="optional" type="bool">
     Indicates whether the contract should be verified after deployment. The default is `true`. Set this value to `false` to prevent verification event when `verifier` args are provided.
   </Property>
 
 
-  <Property name="verifier" type="optional">
+  <Property name="verifier" required="optional" type="map">
     Specifies the verifier options for contract verifications.
   </Property>
+
 
 
 </Properties>
@@ -694,32 +700,32 @@ When the `deploy_contract` action is successfully executed, the following output
 <Properties>
 
 
-  <Property name="tx_hash">
+  <Property name="tx_hash" type="string">
     The hash of the transaction.
   </Property>
 
 
-  <Property name="abi">
+  <Property name="abi" type="string">
     The deployed contract ABI, if it was provided as a contract input.
   </Property>
 
 
-  <Property name="contract_address">
+  <Property name="contract_address" type="string">
     The address of the deployed transaction.
   </Property>
 
 
-  <Property name="logs">
+  <Property name="logs" type="object">
     The logs of the transaction, decoded via any ABI provided by the contract call.
   </Property>
 
 
-  <Property name="raw_logs">
+  <Property name="raw_logs" type="object">
     The raw logs of the transaction.
   </Property>
 
 
-  <Property name="verification_results">
+  <Property name="verification_results" type="array[object]">
     The contract verification results, if the action was configured to verify the contract.
   </Property>
 

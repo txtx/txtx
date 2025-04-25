@@ -18,9 +18,10 @@ export const metadata = {
 <Properties>
 
 
-  <Property name="value">
+  <Property name="value" required="optional" type="buffer | array[buffer]">
     The hex-encoded value to hash.
   </Property>
+
 
 
 </Properties>
@@ -28,7 +29,7 @@ export const metadata = {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="string">
     The hashed result.
   </Property>
 </Properties>
@@ -73,9 +74,10 @@ output "hashed_data" {
 <Properties>
 
 
-  <Property name="value">
+  <Property name="value" required="optional" type="buffer | array[buffer]">
     The hex-encoded value to hash.
   </Property>
+
 
 
 </Properties>
@@ -83,7 +85,7 @@ output "hashed_data" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="string">
     The hashed result.
   </Property>
 </Properties>
@@ -128,9 +130,10 @@ output "hashed_data" {
 <Properties>
 
 
-  <Property name="value">
+  <Property name="value" required="optional" type="string">
     The string value to hash.
   </Property>
+
 
 
 </Properties>
@@ -138,7 +141,7 @@ output "hashed_data" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="string">
     The hashed result.
   </Property>
 </Properties>

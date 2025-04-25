@@ -9,38 +9,39 @@ export const metadata = {
 
 ## send_http_request {{ tag: 'action' }}
 
-`send_http_request` command makes an HTTP request to the given URL and exports the response.
+`std::send_http_request` makes an HTTP request to the given URL and exports the response.
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="url" type="required">
+  <Property name="url" required="required" type="string">
     The URL for the request. Supported schemes are http and https.
   </Property>
 
 
-  <Property name="request_body" type="optional">
-    The request body as a string.
+  <Property name="body" required="optional" type="string">
+    The request body as a string or json object.
   </Property>
 
 
-  <Property name="method" type="optional">
+  <Property name="method" required="optional" type="string">
     The HTTP Method for the request. 
 Allowed methods are a subset of methods defined in RFC7231: GET, HEAD, and POST. 
 POST support is only intended for read-only URLs, such as submitting a search.
   </Property>
 
 
-  <Property name="request_timeout_ms" type="optional">
+  <Property name="timeout_ms" required="optional" type="integer">
     The request timeout in milliseconds.
   </Property>
 
 
-  <Property name="request_headers" type="optional">
+  <Property name="headers" required="optional" type="object">
     A map of request header field names and values.
   </Property>
+
 
 
 </Properties>
@@ -56,12 +57,12 @@ When the `send_http_request` action is successfully executed, the following outp
 <Properties>
 
 
-  <Property name="response_body">
+  <Property name="response_body" type="string">
     The response body returned as a string.
   </Property>
 
 
-  <Property name="status_code">
+  <Property name="status_code" type="integer">
     The HTTP response status code.
   </Property>
 

@@ -18,14 +18,15 @@ export const metadata = {
 <Properties>
 
 
-  <Property name="message">
+  <Property name="message" required="optional" type="buffer | array[buffer]">
     The hash of the original message that was signed.
   </Property>
 
 
-  <Property name="signature">
+  <Property name="signature" required="optional" type="buffer | array[buffer]">
     The signature that was produced using the secp256k1 elliptic curve algorithm.
   </Property>
+
 
 
 </Properties>
@@ -33,7 +34,7 @@ export const metadata = {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="string">
     The recovered public key.
   </Property>
 </Properties>

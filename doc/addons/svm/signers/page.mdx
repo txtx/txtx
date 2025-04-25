@@ -16,34 +16,35 @@ The `svm::secret_key` signer can be used to synchronously sign a transaction.
 <Properties>
 
 
-  <Property name="secret_key" type="">
+  <Property name="secret_key" required="optional" type="string">
     The secret key used to sign messages and transactions.
   </Property>
 
 
-  <Property name="mnemonic" type="">
+  <Property name="mnemonic" required="optional" type="string">
     The mnemonic phrase used to generate the secret key. This input will not be used if the `secret_key` input is provided.
   </Property>
 
 
-  <Property name="derivation_path" type="">
+  <Property name="derivation_path" required="optional" type="string">
     The derivation path used to generate the secret key. This input will not be used if the `secret_key` input is provided.
   </Property>
 
 
-  <Property name="keypair_json" type="">
+  <Property name="keypair_json" required="optional" type="string">
     A path to a keypair.json file containing the secret key. This input will not be used if the `secret_key` or `mnemonic` inputs are provided.
   </Property>
 
 
-  <Property name="is_encrypted" type="">
+  <Property name="is_encrypted" required="optional" type="bool">
     Coming soon
   </Property>
 
 
-  <Property name="password" type="">
+  <Property name="password" required="optional" type="string">
     Coming soon
   </Property>
+
 
 
 </Properties>
@@ -59,12 +60,12 @@ When the `secret_key` action is successfully executed, the following outputs are
 <Properties>
 
 
-  <Property name="public_key">
+  <Property name="public_key" type="string">
     The public key of the account generated from the secret key, mnemonic, or keypair file.
   </Property>
 
 
-  <Property name="address">
+  <Property name="address" type="string">
     The SVM address generated from the secret key, mnemonic, or keypair file. This is an alias for the `public_key` output.
   </Property>
 
@@ -104,9 +105,10 @@ The `svm::web_wallet` signer will allow a Runbook operator to sign the transacti
 <Properties>
 
 
-  <Property name="expected_address" type="">
+  <Property name="expected_address" required="optional" type="string">
     The SVM address that is expected to connect to the Runbook execution. Omitting this field will allow any address to be used for this signer.
   </Property>
+
 
 
 </Properties>
@@ -122,7 +124,12 @@ When the `web_wallet` action is successfully executed, the following outputs are
 <Properties>
 
 
-  <Property name="address">
+  <Property name="address" type="string">
+    The address of the account.
+  </Property>
+
+
+  <Property name="public_key" type="string">
     The address of the account.
   </Property>
 
@@ -162,9 +169,10 @@ The `svm::squads` signer can be used to synchronously sign a transaction.
 <Properties>
 
 
-  <Property name="address" type="">
+  <Property name="address" required="optional" type="string">
     The squad vault address.
   </Property>
+
 
 
 </Properties>
@@ -180,12 +188,12 @@ When the `squads` action is successfully executed, the following outputs are att
 <Properties>
 
 
-  <Property name="public_key">
+  <Property name="public_key" type="string">
     The public key of the squad vault.
   </Property>
 
 
-  <Property name="address">
+  <Property name="address" type="string">
     The SVM address generated from the secret key, mnemonic, or keypair file. This is an alias for the `public_key` output.
   </Property>
 

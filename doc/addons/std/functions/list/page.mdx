@@ -18,14 +18,15 @@ export const metadata = {
 <Properties>
 
 
-  <Property name="list">
+  <Property name="list" required="optional" type="array[string] | array[integer] | array[buffer]">
     The list to retrieve an entry from.
   </Property>
 
 
-  <Property name="index">
+  <Property name="index" required="optional" type="integer">
     The index of the entry to retrieve.
   </Property>
+
 
 
 </Properties>
@@ -33,7 +34,7 @@ export const metadata = {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="string">
     The entry from list at the specified index
   </Property>
 </Properties>

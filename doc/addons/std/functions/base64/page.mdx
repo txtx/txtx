@@ -18,9 +18,10 @@ export const metadata = {
 <Properties>
 
 
-  <Property name="base64_string">
+  <Property name="base64_string" required="optional" type="string">
     The base64 string to decode.
   </Property>
+
 
 
 </Properties>
@@ -28,7 +29,7 @@ export const metadata = {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="string">
     The decoded base64 string, as a hex string.
   </Property>
 </Properties>

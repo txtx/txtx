@@ -18,9 +18,10 @@ export const metadata = {
 <Properties>
 
 
-  <Property name="address_string">
+  <Property name="address_string" required="optional" type="integer">
     An Ethereum address string.
   </Property>
+
 
 
 </Properties>
@@ -28,7 +29,7 @@ export const metadata = {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::address)">
     The input string as an Ethereum address.
   </Property>
 </Properties>
@@ -72,12 +73,14 @@ output "address" {
 <Properties>
 
 
+  None
+
 </Properties>
 
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::address)">
     The zero address, `0x0000000000000000000000000000000000000000`.
   </Property>
 </Properties>
@@ -121,19 +124,20 @@ output "address" {
 <Properties>
 
 
-  <Property name="value">
+  <Property name="value" required="optional" type="string | addon() | array[string]">
     Coming soon.
   </Property>
 
 
-  <Property name="abi">
+  <Property name="abi" required="optional" type="string">
     Coming soon.
   </Property>
 
 
-  <Property name="typing">
+  <Property name="typing" required="optional" type="string">
     Coming soon.
   </Property>
+
 
 
 </Properties>
@@ -141,7 +145,7 @@ output "address" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::bytes32)">
     Coming Soon
   </Property>
 </Properties>
@@ -183,9 +187,10 @@ output "address" {
 <Properties>
 
 
-  <Property name="input">
+  <Property name="input" required="optional" type="array[string]">
     Coming soon.
   </Property>
+
 
 
 </Properties>
@@ -193,7 +198,7 @@ output "address" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::bytes32)">
     Coming Soon
   </Property>
 </Properties>
@@ -235,9 +240,10 @@ output "address" {
 <Properties>
 
 
-  <Property name="input">
+  <Property name="input" required="optional" type="string">
     A 32-byte hexadecimal string.
   </Property>
+
 
 
 </Properties>
@@ -245,7 +251,7 @@ output "address" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::bytes32)">
     A 32-byte buffer.
   </Property>
 </Properties>
@@ -289,9 +295,10 @@ output "32_bytes" {
 <Properties>
 
 
-  <Property name="input">
+  <Property name="input" required="optional" type="string | array[string] | addon() | buffer">
     The hex string to encode.
   </Property>
+
 
 
 </Properties>
@@ -299,7 +306,7 @@ output "32_bytes" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::bytes)">
     The input string encoded as a buffer.
   </Property>
 </Properties>
@@ -343,9 +350,10 @@ output "bytes" {
 <Properties>
 
 
-  <Property name="input">
+  <Property name="input" required="optional" type="string | array[string] | addon() | buffer">
     The number to encode.
   </Property>
+
 
 
 </Properties>
@@ -353,7 +361,7 @@ output "bytes" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::uint256)">
     The number encoded as a Solidity uint256.
   </Property>
 </Properties>
@@ -397,9 +405,10 @@ output "uint256" {
 <Properties>
 
 
-  <Property name="input">
+  <Property name="input" required="optional" type="integer">
     The number to encode.
   </Property>
+
 
 
 </Properties>
@@ -407,7 +416,7 @@ output "uint256" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::uint32)">
     The number encoded as a Solidity uint32.
   </Property>
 </Properties>
@@ -451,9 +460,10 @@ output "uint32" {
 <Properties>
 
 
-  <Property name="input">
+  <Property name="input" required="optional" type="integer">
     The number to encode.
   </Property>
+
 
 
 </Properties>
@@ -461,7 +471,7 @@ output "uint32" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::uint8)">
     The number encoded as a Solidity uint8.
   </Property>
 </Properties>
@@ -505,9 +515,10 @@ output "uint8" {
 <Properties>
 
 
-  <Property name="input">
+  <Property name="input" required="optional" type="string">
     An EVM-compatible chain name. See https://chainlist.org for a list of supported chains.
   </Property>
+
 
 
 </Properties>
@@ -515,7 +526,7 @@ output "uint8" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="object">
     The default chain data.
   </Property>
 </Properties>
@@ -560,24 +571,25 @@ output "chain_id" {
 <Properties>
 
 
-  <Property name="contract_name">
+  <Property name="contract_name" required="required" type="string">
     The name of the contract being deployed.
   </Property>
 
 
-  <Property name="contract_filename">
+  <Property name="contract_filename" required="optional" type="string">
     The `.sol` file that the contract is located in. Defaults to `<ContractName>.sol`.
   </Property>
 
 
-  <Property name="foundry_manifest_path">
+  <Property name="foundry_manifest_path" required="optional" type="string">
     The location of the Foundry.toml. Defaults to `./foundry.toml`.
   </Property>
 
 
-  <Property name="foundry_profile">
+  <Property name="foundry_profile" required="optional" type="string">
     The foundry profile that should be used to find the compiled output. Defaults to `default`.
   </Property>
+
 
 
 </Properties>
@@ -585,7 +597,7 @@ output "chain_id" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="object">
     Coming Soon
   </Property>
 </Properties>
@@ -632,19 +644,20 @@ output "abi" {
 <Properties>
 
 
-  <Property name="contract_name">
+  <Property name="contract_name" required="required" type="string">
     The name of the contract being deployed.
   </Property>
 
 
-  <Property name="contract_source_path">
+  <Property name="contract_source_path" required="optional" type="string">
     The path, relative to the Hardhat project root, to the contract source file. Defaults to `./contracts/<ContractName>.sol`.
   </Property>
 
 
-  <Property name="artifacts_path">
+  <Property name="artifacts_path" required="optional" type="string">
     The path to the Hardhat artifacts directory. Defaults to `./artifacts`.
   </Property>
+
 
 
 </Properties>
@@ -652,7 +665,7 @@ output "abi" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="object">
     Coming Soon
   </Property>
 </Properties>
@@ -699,14 +712,15 @@ Coming soon
 <Properties>
 
 
-  <Property name="bytecode">
+  <Property name="bytecode" required="optional" type="string">
     Coming Soon
   </Property>
 
 
-  <Property name="constructor_args">
+  <Property name="constructor_args" required="optional" type="array[string]">
     Coming Soon
   </Property>
+
 
 
 </Properties>
@@ -714,7 +728,7 @@ Coming soon
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::init_code)">
     Coming Soon
   </Property>
 </Properties>
@@ -756,19 +770,20 @@ Coming soon
 <Properties>
 
 
-  <Property name="function_name">
+  <Property name="function_name" required="required" type="string">
     Coming Soon
   </Property>
 
 
-  <Property name="function_args">
+  <Property name="function_args" required="required" type="array[string] | array[integer] | array[addon(evm::address)]">
     Coming Soon
   </Property>
 
 
-  <Property name="abi">
+  <Property name="abi" required="optional" type="string">
     Coming Soon
   </Property>
+
 
 
 </Properties>
@@ -776,7 +791,7 @@ Coming soon
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(evm::function_call)">
     Coming Soon
   </Property>
 </Properties>
@@ -818,19 +833,20 @@ Coming soon
 <Properties>
 
 
-  <Property name="salt">
+  <Property name="salt" required="optional" type="string">
     Coming Soon
   </Property>
 
 
-  <Property name="init_code">
+  <Property name="init_code" required="optional" type="addon(evm::init_code) | string">
     Coming Soon
   </Property>
 
 
-  <Property name="create2_factory_contract_address">
+  <Property name="create2_factory_contract_address" required="optional" type="addon(evm::address) | string">
     Coming Soon
   </Property>
+
 
 
 </Properties>
@@ -838,7 +854,7 @@ Coming soon
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="object">
     Coming Soon
   </Property>
 </Properties>
