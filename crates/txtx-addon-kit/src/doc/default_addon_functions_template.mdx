@@ -20,10 +20,14 @@ export const metadata = {
 
 {{# inputs }}
 
-  <Property name="{{ name }}">
+  <Property name="{{ name }}" required="{{ requirementStatus }}" type="{{ type }}">
     {{{ documentation }}}
   </Property>
 
+{{/ inputs }}
+
+{{^ inputs }}
+  None
 {{/ inputs }}
 
 </Properties>
@@ -31,7 +35,7 @@ export const metadata = {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="{{ type }}">
     {{{ output_documentation }}}
   </Property>
 </Properties>
