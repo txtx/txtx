@@ -1,4 +1,3 @@
-use txtx_addon_kit::reqwest::header::CONTENT_TYPE;
 use txtx_addon_kit::reqwest::{self, Method};
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
@@ -17,7 +16,7 @@ lazy_static! {
         SendHttpRequest => {
             name: "Send an HTTP request",
             matcher: "send_http_request",
-            documentation: "`send_http_request` command makes an HTTP request to the given URL and exports the response.",
+            documentation: "`std::send_http_request` makes an HTTP request to the given URL and exports the response.",
             implements_signing_capability: false,
             implements_background_task_capability: false,
             inputs: [
@@ -131,8 +130,6 @@ impl CommandImplementation for SendHttpRequest {
 
             let client = reqwest::Client::new();
             let mut req_builder = client.request(method, url);
-
-            // req_builder = req_builder.header(CONTENT_TYPE, "application/json");
 
             if let Some(request_headers) = request_headers {
                 for (k, v) in request_headers.iter() {
