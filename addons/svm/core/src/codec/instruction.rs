@@ -214,7 +214,7 @@ impl InstructionBuilder {
                 )?;
                 self.accounts_map.insert(account_name, account_meta);
             } else {
-                match self.parse_idl_account_item(idl_account_item) {
+                match self.parse_idl_account_item(idl_account_item, None) {
                     Ok((Some(pubkey), is_signer, is_writable)) => {
                         self.accounts_map.insert(
                             account_name,
@@ -226,9 +226,6 @@ impl InstructionBuilder {
                     }
                     Err(e) => {
                         match &e {
-                            ParseIdlAccountErr::NoArg(_, _) => {
-                                return Err(e.to_diagnostic())
-                            }
                             ParseIdlAccountErr::NoAccount(_, _) => {
                                 if attempts >= max_attempts {
                                     return Err(e.to_diagnostic())
@@ -236,6 +233,9 @@ impl InstructionBuilder {
                                 else {
                                     idl_instruction_accounts.push_back(idl_account_item);
                                 }
+                            }
+                            _ => {
+                                return Err(e.to_diagnostic())
                             }
                         }
                     }
@@ -274,8 +274,9 @@ impl InstructionBuilder {
             .ok_or(diagnosed_error!("each account entry must have a 'public_key' field"))?
             .map_err(|e| diagnosed_error!("invalid 'public_key': {e}"))?;
 
-        let (_, is_signer, is_writable) =
-            self.parse_idl_account_item(account_spec).map_err(|e| e.to_diagnostic())?;
+        let (_, is_signer, is_writable) = self
+            .parse_idl_account_item(account_spec, Some(pubkey))
+            .map_err(|e| e.to_diagnostic())?;
         Ok(AccountMeta { pubkey, is_signer, is_writable })
     }
 
@@ -314,7 +315,45 @@ impl InstructionBuilder {
                     }
                 }
             }
-            return Ok(Pubkey::try_find_program_address(&seeds, &self.program_id).map(|pda| pda.0));
+
+            let program_id = if let Some(program_seed) = &pda.program {
+                match program_seed {
+                    IdlSeed::Const(idl_seed_const) => {
+                        let idl_seed_array: [u8; 32] = idl_seed_const.value[..]
+                            .try_into()
+                            .expect("anchor idl contained invalid pubkey");
+                        Pubkey::new_from_array(idl_seed_array)
+                    }
+                    IdlSeed::Arg(arg) => {
+                        let Some(seed) = self.encoded_instruction_args.get(&arg.path) else {
+                            return Err(ParseIdlAccountErr::NoArg(
+                                account.name.clone(),
+                                arg.path.clone(),
+                            ));
+                        };
+                        let idl_seed_array: [u8; 32] = seed[..].try_into().map_err(|_| {
+                            ParseIdlAccountErr::InvalidArg(
+                                account.name.clone(),
+                                arg.path.clone(),
+                                format!("could not convert arg to 32-byte program id"),
+                            )
+                        })?;
+                        Pubkey::new_from_array(idl_seed_array)
+                    }
+                    IdlSeed::Account(seed_account) => {
+                        let Some(account) = self.accounts_map.get(&seed_account.path) else {
+                            return Err(ParseIdlAccountErr::NoAccount(
+                                account.name.clone(),
+                                seed_account.path.clone(),
+                            ));
+                        };
+                        account.pubkey.clone()
+                    }
+                }
+            } else {
+                self.program_id.clone()
+            };
+            return Ok(Pubkey::try_find_program_address(&seeds, &program_id).map(|pda| pda.0));
         }
 
         Ok(account
@@ -326,15 +365,20 @@ impl InstructionBuilder {
     fn parse_idl_account_item(
         &self,
         account_spec: &IdlInstructionAccountItem,
+        found_pubkey: Option<Pubkey>,
     ) -> Result<(Option<Pubkey>, bool, bool), ParseIdlAccountErr> {
         match account_spec {
             IdlInstructionAccountItem::Composite(accounts) => {
                 // todo, is this right? for composite accounts, if one is writable are they all?
                 let account = accounts.accounts.first().unwrap();
-                self.parse_idl_account_item(account)
+                self.parse_idl_account_item(account, found_pubkey)
             }
             IdlInstructionAccountItem::Single(account) => {
-                Ok((self.parse_idl_account_pubkey(&account)?, account.signer, account.writable))
+                if let Some(found_pubkey) = found_pubkey {
+                    Ok((Some(found_pubkey), account.signer, account.writable))
+                } else {
+                    Ok((self.parse_idl_account_pubkey(&account)?, account.signer, account.writable))
+                }
             }
         }
     }
@@ -342,12 +386,18 @@ impl InstructionBuilder {
 
 enum ParseIdlAccountErr {
     NoArg(String, String),
+    InvalidArg(String, String, String),
     NoAccount(String, String),
 }
 
 impl ParseIdlAccountErr {
     fn to_diagnostic(&self) -> Diagnostic {
         match self {
+            ParseIdlAccountErr::InvalidArg(account_name, arg_name, e) => {
+                diagnosed_error!(
+                    "account '{account_name}' is a PDA derived from instruction arguments, but the argument '{arg_name}' was invalid: {e}"
+                )
+            }
             ParseIdlAccountErr::NoArg(account_name, arg_name) => {
                 diagnosed_error!(
                     "account '{account_name}' is a PDA derived from instruction arguments, but no value was provided for argument '{arg_name}'"
