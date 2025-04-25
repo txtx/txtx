@@ -14920,7 +14920,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.1.16"
+version = "0.1.17"
 dependencies = [
  "async-recursion",
  "bincode",
@@ -14944,7 +14944,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.1.16"
+version = "0.1.17"
 dependencies = [
  "anchor-lang-idl",
  "lazy_static",
@@ -14984,7 +14984,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.2.15"
+version = "0.2.16"
 dependencies = [
  "actix-web",
  "ansi_term",
@@ -15099,7 +15099,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.2.15"
+version = "0.2.16"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
