@@ -16,24 +16,25 @@ The `telegram::send_message` ...
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the call.
   </Property>
 
 
-  <Property name="telegram_bot_api_token" type="required">
+  <Property name="telegram_bot_api_token" required="required" type="string">
     Coming soon
   </Property>
 
 
-  <Property name="telegram_chat_id" type="required">
+  <Property name="telegram_chat_id" required="required" type="string">
     Coming soon
   </Property>
 
 
-  <Property name="message" type="required">
+  <Property name="message" required="required" type="string">
     Message to send.
   </Property>
+
 
 
 </Properties>
@@ -49,7 +50,7 @@ When the `send_message` action is successfully executed, the following outputs a
 <Properties>
 
 
-  <Property name="result">
+  <Property name="result" type="string">
     The contract call result.
   </Property>
 
@@ -91,14 +92,15 @@ The `telegram::setup_chat` ...
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the call.
   </Property>
 
 
-  <Property name="telegram_bot_api_token" type="required">
+  <Property name="telegram_bot_api_token" required="required" type="string">
     Coming soon
   </Property>
+
 
 
 </Properties>
@@ -114,7 +116,7 @@ When the `setup_chat` action is successfully executed, the following outputs are
 <Properties>
 
 
-  <Property name="result">
+  <Property name="result" type="string">
     The chat_id.
   </Property>
 

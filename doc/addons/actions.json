@@ -3,7 +3,7 @@
     {
       "id": "send_http_request",
       "name": "Send an HTTP request",
-      "documentation": "`send_http_request` command makes an HTTP request to the given URL and exports the response.",
+      "documentation": "`std::send_http_request` makes an HTTP request to the given URL and exports the response.",
       "inputs": [
         {
           "name": "url",
@@ -12,8 +12,8 @@
           "optional": false
         },
         {
-          "name": "request_body",
-          "documentation": "The request body as a string.",
+          "name": "body",
+          "documentation": "The request body as a string or json object.",
           "typing": "string",
           "optional": true
         },
@@ -24,13 +24,13 @@
           "optional": true
         },
         {
-          "name": "request_timeout_ms",
+          "name": "timeout_ms",
           "documentation": "The request timeout in milliseconds.",
           "typing": "integer",
           "optional": true
         },
         {
-          "name": "request_headers",
+          "name": "headers",
           "documentation": "A map of request header field names and values.",
           "typing": "object",
           "optional": true
@@ -651,7 +651,7 @@
         },
         {
           "name": "signers",
-          "documentation": "A set of references to a signer construct, which will be used to sign the transaction.",
+          "documentation": "A set of references to signer constructs, which will be used to sign the transaction.",
           "typing": "array[string]",
           "optional": true
         },
@@ -674,7 +674,7 @@
     {
       "id": "process_instructions",
       "name": "Process SVM Instructions",
-      "documentation": "The `svm::process_instructions` action encodes instructions that are added to a transaction that is signed and broadcasted to the network.",
+      "documentation": "The `svm::process_instructions` action encodes instructions, adds them to a transaction, and signs & broadcasts the transaction.",
       "inputs": [
         {
           "name": "description",
@@ -690,7 +690,7 @@
         },
         {
           "name": "signers",
-          "documentation": "A set of references to a signer construct, which will be used to sign the transaction.",
+          "documentation": "A set of references to signer constructs, which will be used to sign the transaction.",
           "typing": "array[string]",
           "optional": false
         },
@@ -720,12 +720,12 @@
           "typing": "string"
         }
       ],
-      "example": "\naction \"program_call\" \"svm::process_instructions\" {\n    description = \"Invoke instructions\"\n    instruction {\n        program_id = variable.program\n        account {\n            public_key = signer.caller.address\n            is_signer = true\n            is_writable = true\n    }\n        data = svm::get_instruction_data_from_idl(variable.program.idl, \"my_instruction\", [\"arg1\", \"arg2\"])\n    }\n    signers = [signer.caller]\n}\n"
+      "example": "action \"program_call\" \"svm::process_instructions\" {\n    description = \"Invoke instructions\"\n    instruction {\n        program_idl = variable.program.idl\n        instruction_name = \"initialize\"\n        instruction_args = [1]\n        payer {\n            public_key = signer.payer.public_key\n        }\n    }\n    signers = [signer.caller]\n}\n"
     },
     {
       "id": "deploy_program",
       "name": "Deploy SVM Program",
-      "documentation": "`svm::deploy_program` deploys an anchor program to the specified SVM-compatible network.",
+      "documentation": "`svm::deploy_program` deploys a Solana program to the specified SVM-compatible network.",
       "inputs": [
         {
           "name": "description",
@@ -772,6 +772,11 @@
         },
         {
           "name": "program_id",
+          "documentation": "The program ID of the deployed program.",
+          "typing": "string"
+        },
+        {
+          "name": "program_idl",
           "documentation": "The program ID of the deployed program.",
           "typing": "string"
         }
@@ -878,7 +883,7 @@
         },
         {
           "name": "signers",
-          "documentation": "A set of references to a signer construct, which will be used to sign the transaction.",
+          "documentation": "A set of references to signer constructs, which will be used to sign the transaction.",
           "typing": "array[string]",
           "optional": false
         },
@@ -928,7 +933,7 @@
     {
       "id": "deploy_subgraph",
       "name": "Deploy SVM Program Subgraph",
-      "documentation": "`svm::deploy_subgraph` deploys allows specifying a schema for a subgraph for your program, \n    which will automatically be registered and return an endpoint to see live chain data.",
+      "documentation": "`svm::deploy_subgraph` creates a live Graph QL database for your program.\n\nThis command takes a program ID to index, a block height to start indexing from, and a set of events to index.\nThis data is encoded as a request and sent to your surfnet (when deploying to localhost) or to the Surfpool cloud services (when deploying to devnet or mainnet).\nWhen the request is received, the associated chain is indexed and the data is stored in a Graph QL database.\n",
       "inputs": [
         {
           "name": "description",
@@ -938,7 +943,7 @@
         },
         {
           "name": "subgraph_name",
-          "documentation": "The name of the subgraph. This defaults to the command instance name.",
+          "documentation": "The name of the subgraph. This defaults to the event name.",
           "typing": "string",
           "optional": true
         },
@@ -950,7 +955,7 @@
         },
         {
           "name": "program_idl",
-          "documentation": "The IDL of the program, used to decode subgraph types.",
+          "documentation": "The IDL of the program, used to decode the data to be indexed.",
           "typing": "string",
           "optional": false
         },
@@ -969,6 +974,45 @@
       ],
       "outputs": [],
       "example": "action \"transfer_event_subgraph\" \"svm::deploy_subgraph\" {\n    program_id = action.deploy.program_id\n    program_idl = action.deploy.program_idl\n    block_height = action.deploy.block_height\n    event {\n        name = \"TransferEvent\"\n    }\n"
+    },
+    {
+      "id": "setup_surfnet",
+      "name": "Setup Surfpool",
+      "documentation": "`svm::setup_surfnet` can be used to configure a surfnet.\n\nThe current supported operations are to set account or token account data.\nThe `set_account` action can be used to set the lamports, owner, data, and executable fields of an account.\nThe `set_token_account` action can be used to set the amount, delegate, delegated amount, and close authority for a token account.\n",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the setup.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL to use when making API requests.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "network_id",
+          "documentation": "The ID of the network type. Can be `localnet`, `devnet`, or `mainnet-beta`.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "set_account",
+          "documentation": "The account data to set.",
+          "typing": "map",
+          "optional": true
+        },
+        {
+          "name": "set_token_account",
+          "documentation": "The token account data to set.",
+          "typing": "map",
+          "optional": true
+        }
+      ],
+      "outputs": [],
+      "example": "action \"setup\" \"svm::setup_surfnet\" {\n    set_account {\n        public_key = signer.caller.public_key\n        lamports = 999999999\n    }\n    set_token_account {\n        public_key = signer.caller.public_key\n        token = \"usdc\"\n        amount = 1000000\n    }\n}\n"
     }
   ],
   "telegram": [

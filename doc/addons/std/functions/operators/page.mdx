@@ -18,14 +18,15 @@ export const metadata = {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="bool">
     A `boolean` value.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="bool">
     A `boolean` value.
   </Property>
+
 
 
 </Properties>
@@ -33,7 +34,7 @@ export const metadata = {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="bool">
     The result of a binary AND between the two arguments.
   </Property>
 </Properties>
@@ -78,14 +79,15 @@ output "my_bool" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="bool">
     A `boolean` value.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="bool">
     A `boolean` value.
   </Property>
+
 
 
 </Properties>
@@ -93,7 +95,7 @@ output "my_bool" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="bool">
     The result of a binary OR between the two arguments.
   </Property>
 </Properties>
@@ -138,14 +140,15 @@ output "my_bool" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="integer">
     The `int` dividend.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="integer">
     The `int` divisor.
   </Property>
+
 
 
 </Properties>
@@ -153,7 +156,7 @@ output "my_bool" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="integer">
     The result of dividing the dividend by the divisor.
   </Property>
 </Properties>
@@ -198,14 +201,15 @@ output "my_int" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="null | integer | float | integer | string | bool | addon() | array[null] | object">
     Any value.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="null | integer | float | integer | string | bool | addon() | array[null] | object">
     Any value.
   </Property>
+
 
 
 </Properties>
@@ -213,7 +217,7 @@ output "my_int" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="bool">
     The result of an equality check between the two inputs.
   </Property>
 </Properties>
@@ -258,14 +262,15 @@ output "is_eq" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
+
 
 
 </Properties>
@@ -273,7 +278,7 @@ output "is_eq" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="bool">
     The result of checking if the left-hand-side argument is greater than the right-hand-side argument
   </Property>
 </Properties>
@@ -318,14 +323,15 @@ output "is_gt" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
+
 
 
 </Properties>
@@ -333,7 +339,7 @@ output "is_gt" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="bool">
     The result of checking if the left-hand-side argument is greater than or equal to the right-hand-side argument
   </Property>
 </Properties>
@@ -378,14 +384,15 @@ output "is_gte" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
+
 
 
 </Properties>
@@ -393,7 +400,7 @@ output "is_gte" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="bool">
     The result of checking if the left-hand-side argument is less than the right-hand-side argument
   </Property>
 </Properties>
@@ -438,14 +445,15 @@ output "is_lt" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
+
 
 
 </Properties>
@@ -453,7 +461,7 @@ output "is_lt" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="bool">
     The result of checking if the left-hand-side argument is less than or equal to the right-hand-side argument
   </Property>
 </Properties>
@@ -498,14 +506,15 @@ output "is_lte" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="null | integer | float | integer | string | bool">
     An `integer`, `float`, `string`, `boolean` or `null` value.
   </Property>
+
 
 
 </Properties>
@@ -513,7 +522,7 @@ output "is_lte" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="bool">
     The result of a negated equality check between the two inputs.
   </Property>
 </Properties>
@@ -558,14 +567,15 @@ output "is_neq" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="integer">
     The `integer` minuend.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="integer">
     The `integer` subtrahend.
   </Property>
+
 
 
 </Properties>
@@ -573,7 +583,7 @@ output "is_neq" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="integer">
     The result of the subtraction operation.
   </Property>
 </Properties>
@@ -618,14 +628,15 @@ output "my_integer" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="integer">
     The `integer` dividend.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="integer">
     The `integer` divisor.
   </Property>
+
 
 
 </Properties>
@@ -633,7 +644,7 @@ output "my_integer" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="integer">
     The remainder of the division operation.
   </Property>
 </Properties>
@@ -678,14 +689,15 @@ output "my_mod" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="required" type="integer">
     The first `integer` operand.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="required" type="integer">
     The second `integer` operand.
   </Property>
+
 
 
 </Properties>
@@ -693,7 +705,7 @@ output "my_mod" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="integer">
     The result of the multiplication operation.
   </Property>
 </Properties>
@@ -738,14 +750,15 @@ output "my_product" {
 <Properties>
 
 
-  <Property name="lhs">
+  <Property name="lhs" required="optional" type="integer">
     The first `integer` operand.
   </Property>
 
 
-  <Property name="rhs">
+  <Property name="rhs" required="optional" type="integer">
     The second `integer` operand.
   </Property>
+
 
 
 </Properties>
@@ -753,7 +766,7 @@ output "my_product" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="integer">
     The result of the addition operation.
   </Property>
 </Properties>
@@ -798,9 +811,10 @@ Returns the negation of the given integer.
 <Properties>
 
 
-  <Property name="value">
+  <Property name="value" required="optional" type="integer">
     An integer value.
   </Property>
+
 
 
 </Properties>
@@ -808,7 +822,7 @@ Returns the negation of the given integer.
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="integer">
     The negated integer value.
   </Property>
 </Properties>
@@ -849,9 +863,10 @@ Returns the logical negation of the given boolean value.
 <Properties>
 
 
-  <Property name="value">
+  <Property name="value" required="optional" type="bool">
     A boolean value.
   </Property>
+
 
 
 </Properties>
@@ -859,7 +874,7 @@ Returns the logical negation of the given boolean value.
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="bool">
     The logical negation of the input boolean value.
   </Property>
 </Properties>

@@ -18,12 +18,14 @@ export const metadata = {
 <Properties>
 
 
+  None
+
 </Properties>
 
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(svm::pubkey)">
     The system program id.
   </Property>
 </Properties>
@@ -68,12 +70,14 @@ output "system_program_id" {
 <Properties>
 
 
+  None
+
 </Properties>
 
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(svm::pubkey)">
     The default public key, `11111111111111111111111111111111`
   </Property>
 </Properties>
@@ -106,71 +110,6 @@ output "default_pubkey" {
 ---
 
 
-## account {{ tag: 'function' }}
-
-<Row>
-  <Col>
-
-`svm::account` encodes a public key in to an account meta object for a program instruction call.
-
-### Inputs
-
-<Properties>
-
-
-  <Property name="public_key">
-    The on-chain address of an account.
-  </Property>
-
-
-  <Property name="is_signer">
-    Specify if the account is required as a signer on the transaction.
-  </Property>
-
-
-  <Property name="is_writable">
-    Specify if the account data will be modified.
-  </Property>
-
-
-</Properties>
-
-### Output
-
-<Properties>
-  <Property name="value">
-    The account meta object.
-  </Property>
-</Properties>
-
-
-<CodeGroup title="Example using account">
-
-
-```hcl {{ title: 'main.tx' }}
-output "account" { 
-    value = svm::account("3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R", true, true)
-}
-// > account: { public_key: 3z9vL1zjN6qyAFHhHQdWYRTFAcy69pJydkZmSFBKHg1R, is_signer: true, is_writable: true } 
-
-```
-
-
-```json {{ title: 'main.json' }}
-// Coming soon
-```
-
-```yaml {{ title: 'main.yaml' }}
-# Coming soon
-```
-
-</CodeGroup>
-</Col>
-</Row>
-
----
-
-
 ## get_instruction_data_from_idl_path {{ tag: 'function' }}
 
 <Row>
@@ -183,19 +122,20 @@ output "account" {
 <Properties>
 
 
-  <Property name="idl_path">
+  <Property name="idl_path" required="required" type="string">
     The path, relative to the txtx.yml, to the IDL `.json` file.
   </Property>
 
 
-  <Property name="instruction_name">
+  <Property name="instruction_name" required="required" type="string">
     The name of the instruction to generate data for, as indexed by the IDL.
   </Property>
 
 
-  <Property name="arguments">
+  <Property name="arguments" required="optional" type="array[string]">
     The instruction arguments to generate data for.
   </Property>
+
 
 
 </Properties>
@@ -203,7 +143,7 @@ output "account" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="buffer">
     The encoded instruction data.
   </Property>
 </Properties>
@@ -248,19 +188,20 @@ output "data" {
 <Properties>
 
 
-  <Property name="idl">
+  <Property name="idl" required="required" type="addon(svm::idl) | string">
     The program IDL.
   </Property>
 
 
-  <Property name="instruction_name">
+  <Property name="instruction_name" required="required" type="string">
     The name of the instruction to generate data for, as indexed by the IDL.
   </Property>
 
 
-  <Property name="arguments">
+  <Property name="arguments" required="optional" type="array[string]">
     The instruction arguments to generate data for.
   </Property>
+
 
 
 </Properties>
@@ -268,7 +209,7 @@ output "data" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="buffer">
     The encoded instruction data.
   </Property>
 </Properties>
@@ -313,14 +254,25 @@ output "data" {
 <Properties>
 
 
-  <Property name="program_name">
+  <Property name="program_name" required="required" type="string">
     The name of the program being deployed.
   </Property>
 
 
-  <Property name="target_path">
-    The target path to the compiled anchor project artifacts. Defaults to `./target`.
+  <Property name="keypair_path" required="optional" type="string | null">
+    The location of the program keypair file. Defaults to `./target/deploy/<program_name>-keypair.json`.
   </Property>
+
+
+  <Property name="idl_path" required="optional" type="string | null">
+    The location of the program IDL file. Defaults to `./target/idl/<program_name>.json`.
+  </Property>
+
+
+  <Property name="bin_path" required="optional" type="string | null">
+    The location of the program binary file. Defaults to `./target/deploy/<program_name>.so`.
+  </Property>
+
 
 
 </Properties>
@@ -328,7 +280,7 @@ output "data" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="object">
     An object containing the anchor program artifacts.
   </Property>
 </Properties>
@@ -368,21 +320,32 @@ output "idl" {
 <Row>
   <Col>
 
-`svm::get_program_from_native_project` retrieves the program deployment artifacts for a program in a classic Rust project.
+`svm::get_program_from_native_project` retrieves the program deployment artifacts for a non-Anchor program.
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="binary_location">
-    The path, relative to the txtx.yml, to the compiled program binary.
+  <Property name="program_name" required="required" type="string">
+    The name of the program being deployed.
   </Property>
 
 
-  <Property name="program_keypair_path">
-    The path, relative to the txtx.yml, to the program keypair.
+  <Property name="keypair_path" required="optional" type="string | null">
+    The location of the program keypair file. Defaults to `./target/deploy/<program_name>-keypair.json`.
   </Property>
+
+
+  <Property name="idl_path" required="optional" type="string | null">
+    The location of the program IDL file. Defaults to `./idl/<program_name>.json`.
+  </Property>
+
+
+  <Property name="bin_path" required="optional" type="string | null">
+    The location of the program binary file. Defaults to `./target/deploy/<program_name>.so`.
+  </Property>
+
 
 
 </Properties>
@@ -390,8 +353,8 @@ output "idl" {
 ### Output
 
 <Properties>
-  <Property name="value">
-    An object containing the rust program artifacts.
+  <Property name="value" type="object">
+    An object containing the native program artifacts.
   </Property>
 </Properties>
 
@@ -401,7 +364,10 @@ output "idl" {
 
 ```hcl {{ title: 'main.tx' }}
 variable "contract" {
-    value = svm::get_program_from_native_project("./bin/loc", "./keypair/loc")
+    value = svm::get_program_from_native_project("my_program")
+}
+output "idl" {
+    value = variable.contract.idl
 }
 
 ```
@@ -434,9 +400,10 @@ variable "contract" {
 <Properties>
 
 
-  <Property name="sol_amount">
+  <Property name="sol_amount" required="required" type="integer | float">
     The amount of SOL to convert to lamports.
   </Property>
+
 
 
 </Properties>
@@ -444,7 +411,7 @@ variable "contract" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="integer">
     The amount of SOL provided, represented as lamports.
   </Property>
 </Properties>
@@ -489,9 +456,10 @@ output "lamports" {
 <Properties>
 
 
-  <Property name="lamports_amount">
+  <Property name="lamports_amount" required="required" type="integer">
     The amount of lamports to convert to SOL.
   </Property>
+
 
 
 </Properties>
@@ -499,7 +467,7 @@ output "lamports" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="float">
     The number of lamports provided, represented as SOL.
   </Property>
 </Properties>
@@ -544,14 +512,15 @@ output "sol" {
 <Properties>
 
 
-  <Property name="program_id">
+  <Property name="program_id" required="required" type="string | addon(svm::pubkey) | addon(svm::address)">
     The address of the program the PDA is derived from.
   </Property>
 
 
-  <Property name="seeds">
+  <Property name="seeds" required="optional" type="array[string]">
     An optional array of seeds that will be used to derive the PDA. A maximum of 16 seeds can be used, and each seed can have a maximum length of 32 bytes.
   </Property>
+
 
 
 </Properties>
@@ -559,7 +528,7 @@ output "sol" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="object">
     An object containing the PDA address and associated bump seed.
   </Property>
 </Properties>
@@ -611,14 +580,15 @@ output "bump" {
 <Properties>
 
 
-  <Property name="wallet_address">
+  <Property name="wallet_address" required="required" type="string | addon(svm::pubkey) | addon(svm::address)">
     The address of the wallet to compute the associated token account for.
   </Property>
 
 
-  <Property name="token_mint_address">
+  <Property name="token_mint_address" required="optional" type="string | addon(svm::pubkey) | addon(svm::address)">
     The address of the token mint used to compute the token account.
   </Property>
+
 
 
 </Properties>
@@ -626,7 +596,7 @@ output "bump" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(svm::pubkey)">
     The address of the associated token account.
   </Property>
 </Properties>
@@ -663,31 +633,32 @@ variable "token_account" {
 <Row>
   <Col>
 
-`svm::create_token_account_instruction` creates an instruction to create an associated token account.
+`svm::create_token_account_instruction` creates raw instruction bytes to create an associated token account.
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="funding_address">
+  <Property name="funding_address" required="required" type="string | addon(svm::pubkey) | addon(svm::address)">
     The address of the funding account.
   </Property>
 
 
-  <Property name="wallet_address">
+  <Property name="wallet_address" required="required" type="string | addon(svm::pubkey) | addon(svm::address)">
     The address of the wallet to compute the associated token account for.
   </Property>
 
 
-  <Property name="token_mint_address">
+  <Property name="token_mint_address" required="optional" type="string | addon(svm::pubkey) | addon(svm::address)">
     The address of the token mint used to compute the token account.
   </Property>
 
 
-  <Property name="token_program_id">
+  <Property name="token_program_id" required="optional" type="string | addon(svm::pubkey) | addon(svm::address)">
     The address of the token program used to compute the token account.
   </Property>
+
 
 
 </Properties>
@@ -695,7 +666,7 @@ variable "token_account" {
 ### Output
 
 <Properties>
-  <Property name="value">
+  <Property name="value" type="addon(svm::pubkey)">
     The serialized instruction bytes.
   </Property>
 </Properties>
@@ -709,7 +680,7 @@ action "call" "svm::process_instructions" {
     signers = [signer.caller]
 
     instruction { 
-        value = svm::create_token_account_instruction(
+        raw_bytes = svm::create_token_account_instruction(
             signer.caller.address, // funding address
             signer.caller.address, // wallet address
             variable.token_mint, // token mint address

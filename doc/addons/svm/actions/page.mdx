@@ -16,24 +16,25 @@ The `svm::send_transaction` is used to sign a transaction and broadcast it to th
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the transaction.
   </Property>
 
 
-  <Property name="transaction_bytes" type="required">
+  <Property name="transaction_bytes" required="required" type="addon(svm::transaction)">
     The transaction bytes to sign.
   </Property>
 
 
-  <Property name="signers" type="optional">
-    A set of references to a signer construct, which will be used to sign the transaction.
+  <Property name="signers" required="optional" type="array[string]">
+    A set of references to signer constructs, which will be used to sign the transaction.
   </Property>
 
 
-  <Property name="signer" type="optional">
+  <Property name="signer" required="optional" type="array[string]">
     A reference to a signer construct, which will be used to sign the transaction.
   </Property>
+
 
 
 </Properties>
@@ -49,7 +50,7 @@ When the `sign_transaction` action is successfully executed, the following outpu
 <Properties>
 
 
-  <Property name="signed_transaction_bytes">
+  <Property name="signed_transaction_bytes" type="addon(svm::transaction)">
     The signed transaction bytes.
   </Property>
 
@@ -80,41 +81,42 @@ When the `sign_transaction` action is successfully executed, the following outpu
 
 ## process_instructions {{ tag: 'action' }}
 
-The `svm::process_instructions` action encodes instructions that are added to a transaction that is signed and broadcasted to the network.
+The `svm::process_instructions` action encodes instructions, adds them to a transaction, and signs & broadcasts the transaction.
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the transaction.
   </Property>
 
 
-  <Property name="instruction" type="required">
+  <Property name="instruction" required="required" type="map">
     The instructions to add to the transaction.
   </Property>
 
 
-  <Property name="signers" type="required">
-    A set of references to a signer construct, which will be used to sign the transaction.
+  <Property name="signers" required="required" type="array[string]">
+    A set of references to signer constructs, which will be used to sign the transaction.
   </Property>
 
 
-  <Property name="commitment_level" type="optional">
+  <Property name="commitment_level" required="optional" type="string">
     The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.
   </Property>
 
 
-  <Property name="rpc_api_url" type="required">
+  <Property name="rpc_api_url" required="required" type="string">
     The URL to use when making API requests.
   </Property>
 
 
-  <Property name="rpc_api_auth_token" type="optional">
+  <Property name="rpc_api_auth_token" required="optional" type="string">
     The HTTP authentication token to include in the headers when making API requests.
   </Property>
+
 
 
 </Properties>
@@ -130,7 +132,7 @@ When the `process_instructions` action is successfully executed, the following o
 <Properties>
 
 
-  <Property name="signature">
+  <Property name="signature" type="string">
     The transaction computed signature.
   </Property>
 
@@ -141,17 +143,15 @@ When the `process_instructions` action is successfully executed, the following o
 
 
 ```hcl {{ title: 'main.tx' }}
-
 action "program_call" "svm::process_instructions" {
     description = "Invoke instructions"
     instruction {
-        program_id = variable.program
-        account {
-            public_key = signer.caller.address
-            is_signer = true
-            is_writable = true
-    }
-        data = svm::get_instruction_data_from_idl(variable.program.idl, "my_instruction", ["arg1", "arg2"])
+        program_idl = variable.program.idl
+        instruction_name = "initialize"
+        instruction_args = [1]
+        payer {
+            public_key = signer.payer.public_key
+        }
     }
     signers = [signer.caller]
 }
@@ -174,41 +174,42 @@ action "program_call" "svm::process_instructions" {
 
 ## deploy_program {{ tag: 'action' }}
 
-`svm::deploy_program` deploys an anchor program to the specified SVM-compatible network.
+`svm::deploy_program` deploys a Solana program to the specified SVM-compatible network.
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the deployment action.
   </Property>
 
 
-  <Property name="program" type="required">
+  <Property name="program" required="required" type="object">
     The Solana program artifacts to deploy.
   </Property>
 
 
-  <Property name="payer" type="optional">
+  <Property name="payer" required="optional" type="string">
     A reference to a signer construct, which will be used to sign transactions that pay for the program deployment. If omitted, the `authority` will be used.
   </Property>
 
 
-  <Property name="authority" type="required">
+  <Property name="authority" required="required" type="string">
     A reference to a signer construct, which will be the final authority for the deployed program.
   </Property>
 
 
-  <Property name="commitment_level" type="optional">
+  <Property name="commitment_level" required="optional" type="string">
     The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.
   </Property>
 
 
-  <Property name="auto_extend" type="optional">
+  <Property name="auto_extend" required="optional" type="bool">
     Whether to auto extend the program account for program upgrades. Defaults to `true`.
   </Property>
+
 
 
 </Properties>
@@ -224,12 +225,17 @@ When the `deploy_program` action is successfully executed, the following outputs
 <Properties>
 
 
-  <Property name="signatures">
+  <Property name="signatures" type="object">
     The computed transaction signatures, grouped by transaction type.
   </Property>
 
 
-  <Property name="program_id">
+  <Property name="program_id" type="string">
+    The program ID of the deployed program.
+  </Property>
+
+
+  <Property name="program_idl" type="string">
     The program ID of the deployed program.
   </Property>
 
@@ -272,39 +278,40 @@ The `svm::send_sol` action encodes a transaction which sends SOL, signs it, and 
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the transaction.
   </Property>
 
 
-  <Property name="amount" type="required">
+  <Property name="amount" required="required" type="integer">
     The amount to send, in lamports (1 SOL = 10^9 lamports).
   </Property>
 
 
-  <Property name="recipient" type="required">
+  <Property name="recipient" required="required" type="string">
     The SVM address of the recipient.
   </Property>
 
 
-  <Property name="signer" type="required">
+  <Property name="signer" required="required" type="array[string]">
     A reference to a signer construct, which will be used to sign the transaction.
   </Property>
 
 
-  <Property name="commitment_level" type="optional">
+  <Property name="commitment_level" required="optional" type="string">
     The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.
   </Property>
 
 
-  <Property name="rpc_api_url" type="required">
+  <Property name="rpc_api_url" required="required" type="string">
     The URL to use when making API requests.
   </Property>
 
 
-  <Property name="rpc_api_auth_token" type="optional">
+  <Property name="rpc_api_auth_token" required="optional" type="string">
     The HTTP authentication token to include in the headers when making API requests.
   </Property>
+
 
 
 </Properties>
@@ -320,7 +327,7 @@ When the `send_sol` action is successfully executed, the following outputs are a
 <Properties>
 
 
-  <Property name="signature">
+  <Property name="signature" type="string">
     The transaction computed signature.
   </Property>
 
@@ -362,54 +369,55 @@ The `svm::send_token` action encodes a transaction which sends the specified tok
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the transaction.
   </Property>
 
 
-  <Property name="amount" type="required">
+  <Property name="amount" required="required" type="integer">
     The amount of tokens to send, in base unit.
   </Property>
 
 
-  <Property name="token" type="required">
+  <Property name="token" required="required" type="string">
     The program address for the token being sent. This is also known as the 'token mint account'.
   </Property>
 
 
-  <Property name="recipient" type="required">
+  <Property name="recipient" required="required" type="string">
     The SVM address of the recipient. The associated token account will be computed from this address and the token address.
   </Property>
 
 
-  <Property name="authority" type="optional">
+  <Property name="authority" required="optional" type="string">
     The pubkey of the authority account for the token source. If omitted, the first signer will be used.
   </Property>
 
 
-  <Property name="fund_recipient" type="optional">
+  <Property name="fund_recipient" required="optional" type="bool">
     If set to `true` and the recipient token account does not exist, the action will create the account and fund it, using the signer to fund the account. The default is `false`.
   </Property>
 
 
-  <Property name="signers" type="required">
-    A set of references to a signer construct, which will be used to sign the transaction.
+  <Property name="signers" required="required" type="array[string]">
+    A set of references to signer constructs, which will be used to sign the transaction.
   </Property>
 
 
-  <Property name="commitment_level" type="optional">
+  <Property name="commitment_level" required="optional" type="string">
     The commitment level expected for considering this action as done ('processed', 'confirmed', 'finalized'). The default is 'confirmed'.
   </Property>
 
 
-  <Property name="rpc_api_url" type="required">
+  <Property name="rpc_api_url" required="required" type="string">
     The URL to use when making API requests.
   </Property>
 
 
-  <Property name="rpc_api_auth_token" type="optional">
+  <Property name="rpc_api_auth_token" required="optional" type="string">
     The HTTP authentication token to include in the headers when making API requests.
   </Property>
+
 
 
 </Properties>
@@ -425,22 +433,22 @@ When the `send_token` action is successfully executed, the following outputs are
 <Properties>
 
 
-  <Property name="signature">
+  <Property name="signature" type="string">
     The transaction computed signature.
   </Property>
 
 
-  <Property name="recipient_token_address">
+  <Property name="recipient_token_address" type="addon(svm::pubkey)">
     The recipient token account address.
   </Property>
 
 
-  <Property name="source_token_address">
+  <Property name="source_token_address" type="addon(svm::pubkey)">
     The source token account address.
   </Property>
 
 
-  <Property name="token_mint_address">
+  <Property name="token_mint_address" type="addon(svm::pubkey)">
     The token mint address.
   </Property>
 
@@ -477,42 +485,47 @@ action "send_sol" "svm::send_token" {
 
 ## deploy_subgraph {{ tag: 'action' }}
 
-`svm::deploy_subgraph` deploys allows specifying a schema for a subgraph for your program, 
-    which will automatically be registered and return an endpoint to see live chain data.
+`svm::deploy_subgraph` creates a live Graph QL database for your program.
+
+This command takes a program ID to index, a block height to start indexing from, and a set of events to index.
+This data is encoded as a request and sent to your surfnet (when deploying to localhost) or to the Surfpool cloud services (when deploying to devnet or mainnet).
+When the request is received, the associated chain is indexed and the data is stored in a Graph QL database.
+
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="description" type="optional">
+  <Property name="description" required="optional" type="string">
     A description of the subgraph.
   </Property>
 
 
-  <Property name="subgraph_name" type="optional">
-    The name of the subgraph. This defaults to the command instance name.
+  <Property name="subgraph_name" required="optional" type="string">
+    The name of the subgraph. This defaults to the event name.
   </Property>
 
 
-  <Property name="program_id" type="required">
+  <Property name="program_id" required="required" type="string">
     The ID of the program to index as a subgraph.
   </Property>
 
 
-  <Property name="program_idl" type="required">
-    The IDL of the program, used to decode subgraph types.
+  <Property name="program_idl" required="required" type="string">
+    The IDL of the program, used to decode the data to be indexed.
   </Property>
 
 
-  <Property name="block_height" type="required">
+  <Property name="block_height" required="required" type="integer">
     The block height to start indexing from.
   </Property>
 
 
-  <Property name="event" type="required">
+  <Property name="event" required="required" type="map">
     A map of events to index in the subgraph.
   </Property>
+
 
 
 </Properties>
@@ -541,6 +554,93 @@ action "transfer_event_subgraph" "svm::deploy_subgraph" {
     event {
         name = "TransferEvent"
     }
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## setup_surfnet {{ tag: 'action' }}
+
+`svm::setup_surfnet` can be used to configure a surfnet.
+
+The current supported operations are to set account or token account data.
+The `set_account` action can be used to set the lamports, owner, data, and executable fields of an account.
+The `set_token_account` action can be used to set the amount, delegate, delegated amount, and close authority for a token account.
+
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" required="optional" type="string">
+    A description of the setup.
+  </Property>
+
+
+  <Property name="rpc_api_url" required="required" type="string">
+    The URL to use when making API requests.
+  </Property>
+
+
+  <Property name="network_id" required="required" type="string">
+    The ID of the network type. Can be `localnet`, `devnet`, or `mainnet-beta`.
+  </Property>
+
+
+  <Property name="set_account" required="optional" type="map">
+    The account data to set.
+  </Property>
+
+
+  <Property name="set_token_account" required="optional" type="map">
+    The token account data to set.
+  </Property>
+
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `setup_surfnet` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+</Properties>
+
+<CodeGroup title="Example using setup_surfnet">
+
+
+```hcl {{ title: 'main.tx' }}
+action "setup" "svm::setup_surfnet" {
+    set_account {
+        public_key = signer.caller.public_key
+        lamports = 999999999
+    }
+    set_token_account {
+        public_key = signer.caller.public_key
+        token = "usdc"
+        amount = 1000000
+    }
+}
 
 ```
 
