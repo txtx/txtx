@@ -81,8 +81,16 @@ pub fn classic_idl_to_anchor_idl(classic_idl: ClassicIdl) -> Result<AnchorIdl, D
         diagnosed_error!("failed to convert classic idl types to anchor idl types: {e}")
     })?;
 
+    let address = classic_idl
+        .metadata
+        .clone()
+        .ok_or(diagnosed_error!("missing metadata in classic IDL, cannot convert to anchor IDL"))?
+        .address
+        .ok_or(diagnosed_error!(
+            "missing address in classic IDL metadata, cannot convert to anchor IDL"
+        ))?;
     let idl = AnchorIdl {
-        address: classic_idl.metadata.clone().unwrap().address.unwrap().clone(),
+        address,
         metadata: classic_idl_to_anchor_metadata(&classic_idl),
         docs: vec![],
         instructions,
