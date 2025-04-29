@@ -71,6 +71,21 @@ pub fn classic_idl_to_anchor_idl(classic_idl: ClassicIdl) -> Result<AnchorIdl, D
         type_defs.extend(anchor_type_defs);
     }
 
+    let mut events = vec![];
+    if let Some(classic_events) = &classic_idl.events {
+        for classic_event in classic_events.iter() {
+            let (anchor_event, anchor_type_defs) = classic_event_to_anchor_event(
+                classic_event,
+                &classic_idl.types,
+                &idl_serializer,
+                &mut tuple_idx,
+            )?;
+
+            events.push(anchor_event);
+            type_defs.extend(anchor_type_defs);
+        }
+    }
+
     classic_idl_type_defs_to_anchor_type_defs(
         &mut type_defs,
         &classic_idl.types,
@@ -107,10 +122,7 @@ pub fn classic_idl_to_anchor_idl(classic_idl: ClassicIdl) -> Result<AnchorIdl, D
             .collect(),
         types: type_defs,
         constants,
-        events: classic_idl
-            .events
-            .map(|events| events.iter().map(|event| classic_event_to_anchor_event(event)).collect())
-            .unwrap_or_default(),
+        events,
     };
 
     Ok(idl)
@@ -211,11 +223,42 @@ fn classic_account_to_anchor_account(
     }
 }
 
-fn classic_event_to_anchor_event(classic_event: &ClassicIdlEvent) -> AnchorIdlEvent {
-    AnchorIdlEvent {
+fn classic_event_to_anchor_event(
+    classic_event: &ClassicIdlEvent,
+    classic_types: &Vec<ClassicIdlTypeDefinition>,
+    idl_serializer: &AnchorIdlSerialization,
+    tuple_idx: &mut usize,
+) -> Result<(AnchorIdlEvent, Vec<AnchorIdlTypeDef>), Diagnostic> {
+    let (anchor_idl_fields, mut anchor_type_defs) =
+        classic_idl_fields_to_anchor_fields_and_type_defs(
+            &classic_event
+                .fields
+                .iter()
+                .map(|f| ClassicIdlField { name: f.name.clone(), ty: f.ty.clone(), attrs: None })
+                .collect(),
+            classic_types,
+            &idl_serializer,
+            tuple_idx,
+        )?;
+
+    let event_type_def = AnchorIdlTypeDef {
         name: classic_event.name.clone(),
-        discriminator: compute_discriminator("event", &classic_event.name),
-    }
+        docs: vec![],
+        serialization: idl_serializer.clone(),
+        repr: None,
+        generics: vec![],
+        ty: AnchorIdlTypeDefTy::Struct {
+            fields: Some(AnchorIdlDefinedFields::Named(anchor_idl_fields)),
+        },
+    };
+    anchor_type_defs.push(event_type_def);
+    Ok((
+        AnchorIdlEvent {
+            name: classic_event.name.clone(),
+            discriminator: compute_discriminator("event", &classic_event.name),
+        },
+        anchor_type_defs,
+    ))
 }
 
 fn classic_idl_type_def_ty_to_anchor_type_def_ty(
