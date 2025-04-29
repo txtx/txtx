@@ -141,20 +141,26 @@ impl IdlRef {
 
 fn parse_idl_string(idl_str: &str) -> Result<Idl, Diagnostic> {
     let idl = match serde_json::from_str(&idl_str) {
-        Ok(classic_idl) => classic_idl_to_anchor_idl(classic_idl)?,
-        Err(_) => {
-            serde_json::from_str(&idl_str).map_err(|e| diagnosed_error!("invalid idl: {e}"))?
-        }
+        Ok(anchor_idl) => anchor_idl,
+        Err(e) => match serde_json::from_str(&idl_str) {
+            Ok(classic_idl) => classic_idl_to_anchor_idl(classic_idl)?,
+            Err(_) => {
+                return Err(diagnosed_error!("invalid idl: {e}"));
+            }
+        },
     };
     Ok(idl)
 }
 
 fn parse_idl_bytes(idl_bytes: &[u8]) -> Result<Idl, Diagnostic> {
     let idl = match serde_json::from_slice(&idl_bytes) {
-        Ok(classic_idl) => classic_idl_to_anchor_idl(classic_idl)?,
-        Err(_) => {
-            serde_json::from_slice(&idl_bytes).map_err(|e| diagnosed_error!("invalid idl: {e}"))?
-        }
+        Ok(anchor_idl) => anchor_idl,
+        Err(e) => match serde_json::from_slice(&idl_bytes) {
+            Ok(classic_idl) => classic_idl_to_anchor_idl(classic_idl)?,
+            Err(_) => {
+                return Err(diagnosed_error!("invalid idl: {e}"));
+            }
+        },
     };
     Ok(idl)
 }
