@@ -1,4 +1,4 @@
-use crate::typing::anchor::types::Idl;
+use crate::codec::idl::IdlRef;
 use convert_case::{Case, Casing};
 
 pub fn get_interpolated_header_template(title: &str) -> String {
@@ -100,8 +100,8 @@ pub fn get_interpolated_anchor_subgraph_template(
     program_name: &str,
     idl_str: &str,
 ) -> Result<Option<String>, String> {
-    let idl: Idl =
-        serde_json::from_str(idl_str).map_err(|e| format!("failed to parse program idl: {}", e))?;
+    let idl =
+        IdlRef::from_str(idl_str).map_err(|e| format!("failed to parse program idl: {e}"))?.idl;
 
     let subgraph_runbook = if idl.events.is_empty() {
         None
