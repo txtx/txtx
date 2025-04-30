@@ -158,3 +158,20 @@ impl Display for Diagnostic {
         write!(f, "{}", msg)
     }
 }
+
+impl From<Diagnostic> for String {
+    fn from(diagnostic: Diagnostic) -> Self {
+        diagnostic.to_string()
+    }
+}
+impl From<String> for Diagnostic {
+    fn from(message: String) -> Self {
+        Diagnostic::error_from_string(message)
+    }
+}
+
+impl From<&str> for Diagnostic {
+    fn from(message: &str) -> Self {
+        Diagnostic::error_from_string(message.to_string())
+    }
+}
