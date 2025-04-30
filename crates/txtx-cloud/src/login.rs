@@ -156,7 +156,7 @@ pub async fn handle_login_command(
             match auth_config.refresh_session(id_service_url, &auth_config.pat).await {
                 Ok(auth_config) => {
                     println!(
-                        "{} User {} already logged in.",
+                        "{} Logged in as {}.",
                         green!("✓"),
                         auth_config.user.display_name
                     );
@@ -168,7 +168,7 @@ pub async fn handle_login_command(
                         {
                             auth_config.write_to_system_config()?;
                             println!(
-                                "{} User {} already logged in.",
+                                "{} Logged in as {}.",
                                 green!("✓"),
                                 auth_config.user.display_name
                             );
@@ -179,7 +179,7 @@ pub async fn handle_login_command(
                 }
             }
         } else {
-            println!("{} User {} already logged in.", green!("✓"), auth_config.user.display_name);
+            println!("{} Logged in as {}.", green!("✓"), auth_config.user.display_name);
             return Ok(());
         }
     }

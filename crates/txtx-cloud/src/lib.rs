@@ -5,8 +5,9 @@ pub mod gql;
 pub mod login;
 pub mod publish;
 pub mod router;
+pub mod workspace;
 
-#[derive(Parser, PartialEq, Clone, Debug)]
+#[derive(Parser, PartialEq, Clone, Debug, Default)]
 pub struct LoginCommand {
     /// The username to use for authentication
     #[arg(long = "email", short = 'e', requires = "password", conflicts_with = "pat")]
