@@ -137,6 +137,7 @@ pub fn display_snapshot_diffing(
         // the RPC API URL, that's non-tainting (because if I change the url, that doesn't mean I want to execute
         // again, I just want a different RPC in the future) but it would be misleading to update the state file to reflect
         // the new RPC - that's not what we executed in the past.
+        // issue: https://linear.app/txtx/issue/TXTX-265/update-statefile-on-non-critical-changes
         // if we end up doing this:
         // if !synthesized_changes.is_empty() {
         // .. update state file

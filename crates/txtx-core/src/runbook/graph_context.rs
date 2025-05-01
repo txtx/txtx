@@ -285,13 +285,13 @@ impl RunbookGraphContext {
             return Err(diags);
         }
 
-        for (construct_did, instantiated) in self.instantiated_signers.iter() {
-            execution_context.order_for_signers_initialization.push(construct_did.clone());
+        for (signer_did, instantiated) in self.instantiated_signers.iter() {
+            execution_context.order_for_signers_initialization.push(signer_did.clone());
             // For each signing command instantiated
             if *instantiated {
                 // We retrieve the downstream dependencies (signed commands)
                 let unordered_signed_commands =
-                    self.get_downstream_dependencies_for_construct_did(construct_did, false);
+                    self.get_downstream_dependencies_for_construct_did(signer_did, false);
                 let mut ordered_signed_commands = vec![];
 
                 for signed_dependency in unordered_signed_commands.iter() {
@@ -301,7 +301,12 @@ impl RunbookGraphContext {
                     let mut upstream_dependencies = self
                         .get_upstream_dependencies_for_construct_did(signed_dependency)
                         .into_iter()
-                        .filter(|c| !c.eq(&construct_did))
+                        .filter(|c| {
+                            !self
+                                .instantiated_signers
+                                .iter()
+                                .any(|(signer_did, _)| c.eq(signer_did))
+                        })
                         .collect::<Vec<_>>();
                     upstream_dependencies.remove(upstream_dependencies.len() - 1);
 
@@ -313,6 +318,7 @@ impl RunbookGraphContext {
                         .insert(signed_dependency.clone(), upstream_dependencies);
                     execution_context.signed_commands.insert(signed_dependency.clone());
                 }
+
                 ordered_signed_commands.sort_by(|(a_id, a_len), (b_id, b_len)| {
                     if a_len.eq(b_len) {
                         a_id.cmp(b_id)
@@ -322,7 +328,7 @@ impl RunbookGraphContext {
                 });
 
                 execution_context.signers_downstream_dependencies.push((
-                    construct_did.clone(),
+                    signer_did.clone(),
                     ordered_signed_commands
                         .into_iter()
                         .map(|(construct_id, _)| construct_id)
