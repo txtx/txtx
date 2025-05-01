@@ -110,9 +110,17 @@ pub enum ValuePostEvaluation {
     Value(Value),
     /// If the post evaluation value is an object, store a map of the object property name, and a tuple with the value and its criticality  
     ObjectValue(IndexMap<String, (Value, bool)>),
+    /// If the post evaluation value is a map, store an array of the entries of the map, with each entry containing a map of the key to a tuple with the value and its criticality
+    MapValue(Vec<IndexMap<String, (Value, bool)>>),
 }
 
 impl ValuePostEvaluation {
+    pub fn as_map(&self) -> Option<&Vec<IndexMap<String, (Value, bool)>>> {
+        match self {
+            ValuePostEvaluation::MapValue(map) => Some(map),
+            _ => None,
+        }
+    }
     pub fn as_object(&self) -> Option<&IndexMap<String, (Value, bool)>> {
         match self {
             ValuePostEvaluation::ObjectValue(obj) => Some(obj),
@@ -164,10 +172,10 @@ impl RunbookSnapshotContext {
                         // Runbook was fully executed, the source of truth is the snapshoted context
                         let previous_flow_snapshot = previous_snapshot
                             .as_ref()
-                            .expect("unexpected error: former snapshot should have been provided")
+                            .ok_or("former snapshot should have been provided")?
                             .flows
                             .get(&flow_id)
-                            .expect("unexpected error: former snapshot corrupted")
+                            .ok_or("former snapshot corrupted")?
                             .clone();
                         snapshot.flows.insert(flow_id, previous_flow_snapshot);
                         continue;
@@ -206,10 +214,10 @@ impl RunbookSnapshotContext {
                         // Runbook was partially executed. We need to update the previous snapshot, only with the command that ran
                         let previous_flow_snapshot = previous_snapshot
                             .as_ref()
-                            .ok_or(diagnosed_error!("former snapshot should have been provided"))?
+                            .ok_or("former snapshot should have been provided")?
                             .flows
                             .get(&flow_id)
-                            .ok_or(diagnosed_error!("unexpected error: former snapshot corrupted"))?
+                            .ok_or("former snapshot corrupted")?
                             .clone();
                         let constructs_ids_to_consider = updated_constructs.clone();
                         (previous_flow_snapshot, constructs_ids_to_consider)
@@ -391,7 +399,42 @@ impl RunbookSnapshotContext {
                                 }
                                 ValuePostEvaluation::ObjectValue(object)
                             }
-                            None => ValuePostEvaluation::Value(value.clone()),
+                            None => {
+                                match value.as_map() {
+                                    Some(entries) => {
+                                        let mut map_value = Vec::new();
+                                        for entry in entries.iter() {
+                                            let map = entry
+                                                .as_object()
+                                                .ok_or("found map entry that is not an object")?;
+                                            let mut object = IndexMap::new();
+                                            for (k, v) in map.iter() {
+                                                // an object property is critical if the input is critical
+                                                // and the property is tainting
+                                                let object_prop_critical = match input.as_object() {
+                                                    Some(object_def) => match object_def {
+                                                        ObjectDefinition::Strict(props) => props
+                                                            .iter()
+                                                            .find(|p| p.name.eq(k))
+                                                            .map(|p| critical && p.tainting)
+                                                            .unwrap_or(false),
+                                                        ObjectDefinition::Arbitrary(_) => false,
+                                                    },
+
+                                                    None => critical,
+                                                };
+                                                object.insert(
+                                                    k.clone(),
+                                                    (v.clone(), object_prop_critical),
+                                                );
+                                            }
+                                            map_value.push(object);
+                                        }
+                                        ValuePostEvaluation::MapValue(map_value)
+                                    }
+                                    None => ValuePostEvaluation::Value(value.clone()),
+                                }
+                            }
                         };
 
                         match command_to_update.inputs.get_mut(input_name) {
@@ -844,6 +887,7 @@ pub fn diff_command_snapshots(
                     else {
                         continue;
                     };
+
                     consolidated_changes.constructs_to_update.push(evaluated_diff(
                         Some(old_construct_did.clone()),
                         TextDiff::from_lines(
@@ -867,6 +911,31 @@ pub fn diff_command_snapshots(
                             format!("Non-signing command's input value_post_evaluation updated"),
                             *new_prop_critical,
                         ));
+                    }
+                }
+                ValuePostEvaluation::MapValue(entries) => {
+                    for (i, new_entry) in entries.iter().enumerate() {
+                        let Some(old_entry) =
+                            old_input.value_post_evaluation.as_map().and_then(|o| o.get(i))
+                        else {
+                            continue;
+                        };
+                        for (prop, (new_value, new_prop_critical)) in new_entry.iter() {
+                            let Some((old_value, _)) = old_entry.get(prop) else {
+                                continue;
+                            };
+                            consolidated_changes.constructs_to_update.push(evaluated_diff(
+                                Some(old_construct_did.clone()),
+                                TextDiff::from_lines(
+                                    &old_value.to_string(),
+                                    &new_value.to_string(),
+                                ),
+                                format!(
+                                    "Non-signing command's input value_post_evaluation updated"
+                                ),
+                                *new_prop_critical,
+                            ));
+                        }
                     }
                 }
             }

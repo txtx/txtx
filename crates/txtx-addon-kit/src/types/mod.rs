@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::path::Path;
 
 use diagnostics::Diagnostic;
@@ -222,6 +223,12 @@ impl ConstructDid {
 
     pub fn from_hex_string(did_str: &str) -> Self {
         ConstructDid(Did::from_hex_string(did_str))
+    }
+}
+
+impl Display for ConstructDid {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }
 

@@ -734,6 +734,19 @@ impl RunbookExecutionContext {
                         ValuePostEvaluation::ObjectValue(index_map) => Value::object(
                             index_map.iter().map(|(k, (v, _))| (k.clone(), v.clone())).collect(),
                         ),
+                        ValuePostEvaluation::MapValue(index_maps) => Value::array(
+                            index_maps
+                                .iter()
+                                .map(|index_map| {
+                                    Value::object(
+                                        index_map
+                                            .iter()
+                                            .map(|(k, (v, _))| (k.clone(), v.clone()))
+                                            .collect(),
+                                    )
+                                })
+                                .collect::<Vec<Value>>(),
+                        ),
                     };
 
                     inputs_evaluation_result.inputs.insert(&input_name, value);

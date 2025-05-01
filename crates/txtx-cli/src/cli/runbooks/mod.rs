@@ -66,11 +66,6 @@ pub fn display_snapshot_diffing(
 ) -> Option<ConsolidatedChanges> {
     let synthesized_changes = consolidated_changes.get_synthesized_changes();
 
-    if synthesized_changes.is_empty() && consolidated_changes.new_plans_to_add.is_empty() {
-        println!("{} Latest snapshot in sync with latest runbook updates\n", green!("✓"));
-        return None;
-    }
-
     if !consolidated_changes.new_plans_to_add.is_empty() {
         println!("\n{}", yellow!("New chain to synchronize:"));
         println!("{}\n", consolidated_changes.new_plans_to_add.join(", "));
@@ -79,12 +74,13 @@ pub fn display_snapshot_diffing(
     let has_critical_changes = synthesized_changes
         .iter()
         .filter(|(c, _)| match c {
-            SynthesizedChange::Edition(_, _) => true,
+            SynthesizedChange::Edition(_, critical) => *critical,
             SynthesizedChange::FormerFailure(_, _) => false,
             SynthesizedChange::Addition(_) => false,
         })
-        .count();
-    if has_critical_changes > 0 {
+        .count()
+        > 0;
+    if has_critical_changes {
         println!("\n{}\n", yellow!("Changes detected:"));
         for (i, (change, _impacted)) in synthesized_changes.iter().enumerate() {
             match change {
@@ -105,15 +101,16 @@ pub fn display_snapshot_diffing(
         }
     }
 
-    let unexecuted = synthesized_changes
+    let has_unexecuted = synthesized_changes
         .iter()
         .filter(|(c, _)| match c {
             SynthesizedChange::Edition(_, _) => false,
             SynthesizedChange::FormerFailure(_, _) => true,
             SynthesizedChange::Addition(_) => false,
         })
-        .count();
-    if unexecuted > 0 {
+        .count()
+        > 0;
+    if has_unexecuted {
         println!("\n{}", yellow!("Runbook Recovery Plan"));
         println!("The previous runbook execution was interrupted before completion, causing the following actions to be aborted:");
 
@@ -127,6 +124,26 @@ pub fn display_snapshot_diffing(
             }
         }
         println!("These actions will be re-executed in the next run.\n");
+    }
+
+    if !has_critical_changes && !has_unexecuted && consolidated_changes.new_plans_to_add.is_empty()
+    {
+        println!("{} Latest snapshot in sync with latest runbook updates\n", green!("✓"));
+
+        // todo: if we had no critical changes, but there are some synthesized changes, this means the
+        // synthesized changes were non-critical. we should consider updating our runbook state file
+        // to match this new state, but not actually execute any actions.
+        // my concern here is that the state file could be used as a source of truth. For example, if I change something like
+        // the RPC API URL, that's non-tainting (because if I change the url, that doesn't mean I want to execute
+        // again, I just want a different RPC in the future) but it would be misleading to update the state file to reflect
+        // the new RPC - that's not what we executed in the past.
+        // issue: https://linear.app/txtx/issue/TXTX-265/update-statefile-on-non-critical-changes
+        // if we end up doing this:
+        // if !synthesized_changes.is_empty() {
+        // .. update state file
+        // }
+
+        return None;
     }
 
     Some(consolidated_changes)
@@ -537,9 +554,9 @@ pub async fn handle_run_command(
             let (actions_to_re_execute, actions_to_execute) =
                 runbook.prepared_flows_for_updated_plans(&consolidated_changes.plans_to_update);
 
-            let has_actions =
-                actions_to_re_execute.iter().filter(|(_, actions)| !actions.is_empty()).count();
-            if has_actions > 0 {
+            let has_actions_to_re_execute =
+                actions_to_re_execute.iter().filter(|(_, actions)| !actions.is_empty()).count() > 0;
+            if has_actions_to_re_execute {
                 println!("The following actions will be re-executed:");
                 for (context, actions) in actions_to_re_execute.iter() {
                     let documentation_missing = black!("<description field empty>");
@@ -555,9 +572,9 @@ pub async fn handle_run_command(
                 println!("\n");
             }
 
-            let has_actions =
-                actions_to_execute.iter().filter(|(_, actions)| !actions.is_empty()).count();
-            if has_actions > 0 {
+            let has_actions_to_execute_count =
+                actions_to_execute.iter().filter(|(_, actions)| !actions.is_empty()).count() > 0;
+            if has_actions_to_execute_count {
                 println!("The following actions have been added and will be executed for the first time:");
                 for (context, actions) in actions_to_execute.iter() {
                     let documentation_missing = black!("<description field empty>");
@@ -573,16 +590,20 @@ pub async fn handle_run_command(
                 println!("\n");
             }
 
-            let theme =
-                ColorfulTheme { values_style: Style::new().green(), ..ColorfulTheme::default() };
+            if has_actions_to_execute_count || has_actions_to_re_execute {
+                let theme = ColorfulTheme {
+                    values_style: Style::new().green(),
+                    ..ColorfulTheme::default()
+                };
 
-            let confirm = Confirm::with_theme(&theme)
-                .with_prompt("Do you want to continue?")
-                .interact()
-                .unwrap();
+                let confirm = Confirm::with_theme(&theme)
+                    .with_prompt("Do you want to continue?")
+                    .interact()
+                    .unwrap();
 
-            if !confirm {
-                return Ok(());
+                if !confirm {
+                    return Ok(());
+                }
             }
         }
     } else {
