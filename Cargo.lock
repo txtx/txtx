@@ -14811,7 +14811,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
@@ -15057,7 +15057,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.2.13"
+version = "0.2.14"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
