@@ -7,35 +7,43 @@ pub async fn get_user_workspaces(
     service_gql_url: &str,
 ) -> Result<Vec<Workspace>, String> {
     let client = reqwest::Client::new();
-    let res = client
-        .post(service_gql_url)
-        .bearer_auth(access_token)
-        .json(&json!({
-            "query": r#"
-                query GetWorkspaces {
-                    svm_workspaces {
-                        name
-                        id
+    let max_attempts = 3;
+    let mut attempts = 0;
+    loop {
+        attempts += 1;
+        let res = client
+            .post(service_gql_url)
+            .bearer_auth(access_token)
+            .json(&json!({
+                "query": r#"
+                    query GetWorkspaces {
+                        svm_workspaces {
+                            name
+                            id
+                        }
                     }
-                }
-            "#.to_string(),
-        }))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+                "#.to_string(),
+            }))
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
 
-    if !res.status().is_success() {
-        let err = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!("received error from server: {}", err));
-    }
+        if !res.status().is_success() {
+            let err = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(format!("received error from server: {}", err));
+        }
 
-    let response: GqlResponse<WorkspaceResponse> =
-        res.json().await.map_err(|e| format!("failed to parse response: {}", e))?;
+        let response: GqlResponse<WorkspaceResponse> =
+            res.json().await.map_err(|e| format!("failed to parse response: {}", e))?;
 
-    if let Some(workspace_response) = response.data {
-        Ok(workspace_response.svm_workspaces.clone())
-    } else {
-        Err("No data returned from server".to_string())
+        if let Some(workspace_response) = response.data {
+            return Ok(workspace_response.svm_workspaces.clone());
+        } else {
+            if attempts >= max_attempts {
+                return Err("no workspaces found for user after multiple attempts".to_string());
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
     }
 }
 
