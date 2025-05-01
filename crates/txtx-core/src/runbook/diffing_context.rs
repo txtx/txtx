@@ -172,10 +172,10 @@ impl RunbookSnapshotContext {
                         // Runbook was fully executed, the source of truth is the snapshoted context
                         let previous_flow_snapshot = previous_snapshot
                             .as_ref()
-                            .expect("unexpected error: former snapshot should have been provided")
+                            .ok_or("former snapshot should have been provided")?
                             .flows
                             .get(&flow_id)
-                            .expect("unexpected error: former snapshot corrupted")
+                            .ok_or("former snapshot corrupted")?
                             .clone();
                         snapshot.flows.insert(flow_id, previous_flow_snapshot);
                         continue;
@@ -214,10 +214,10 @@ impl RunbookSnapshotContext {
                         // Runbook was partially executed. We need to update the previous snapshot, only with the command that ran
                         let previous_flow_snapshot = previous_snapshot
                             .as_ref()
-                            .ok_or(diagnosed_error!("former snapshot should have been provided"))?
+                            .ok_or("former snapshot should have been provided")?
                             .flows
                             .get(&flow_id)
-                            .ok_or(diagnosed_error!("unexpected error: former snapshot corrupted"))?
+                            .ok_or("former snapshot corrupted")?
                             .clone();
                         let constructs_ids_to_consider = updated_constructs.clone();
                         (previous_flow_snapshot, constructs_ids_to_consider)
@@ -887,6 +887,7 @@ pub fn diff_command_snapshots(
                     else {
                         continue;
                     };
+
                     consolidated_changes.constructs_to_update.push(evaluated_diff(
                         Some(old_construct_did.clone()),
                         TextDiff::from_lines(
@@ -908,6 +909,10 @@ pub fn diff_command_snapshots(
                             Some(old_construct_did.clone()),
                             TextDiff::from_lines(&old_value.to_string(), &new_value.to_string()),
                             format!("Non-signing command's input value_post_evaluation updated"),
+                            *new_prop_critical,
+                        ));
+                    }
+                }
                 ValuePostEvaluation::MapValue(entries) => {
                     for (i, new_entry) in entries.iter().enumerate() {
                         let Some(old_entry) =
