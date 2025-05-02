@@ -21,7 +21,8 @@ pub fn create_init_code(
     constructor_args: Option<Vec<DynSolValue>>,
     json_abi: &Option<JsonAbi>,
 ) -> Result<Vec<u8>, String> {
-    let mut init_code = alloy::hex::decode(bytecode).map_err(|e| e.to_string())?;
+    let mut init_code = alloy::hex::decode(bytecode)
+        .map_err(|e| format!("invalid contract bytecode: {}", e.to_string()))?;
     if let Some(constructor_args) = constructor_args {
         // if we have an abi, use it to validate the constructor arguments
         let mut abi_encoded_args = if let Some(json_abi) = json_abi {
