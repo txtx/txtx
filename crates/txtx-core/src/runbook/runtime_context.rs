@@ -1,3 +1,4 @@
+use kit::helpers::hcl::RunbookConstruct;
 use kit::indexmap::IndexMap;
 use kit::types::cloud_interface::CloudServiceContext;
 use serde::Deserialize;
@@ -8,7 +9,7 @@ use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
 use txtx_addon_kit::types::stores::AddonDefaults;
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::{
-    hcl::structure::{Block, BlockLabel},
+    hcl::structure::Block,
     helpers::fs::FileLocation,
     types::{
         commands::{
@@ -194,12 +195,12 @@ impl RuntimeContext {
 
                 self.addons_context.register(&package_id.did(), "std", false).unwrap();
 
-                let blocks =
-                    raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
+                let constructs =
+                    raw_content.into_constructs().map_err(|diag| vec![diag.location(&location)])?;
 
                 let _ = self
-                    .register_addons_from_blocks(
-                        blocks,
+                    .register_addons_from_constructs(
+                        constructs,
                         &package_id,
                         &location,
                         runbook_workspace_context,
@@ -218,9 +219,9 @@ impl RuntimeContext {
         }
     }
 
-    pub fn register_addons_from_blocks(
+    pub fn register_addons_from_constructs(
         &mut self,
-        mut blocks: VecDeque<Block>,
+        mut constructs: VecDeque<RunbookConstruct>,
         package_id: &PackageId,
         location: &FileLocation,
         runbook_workspace_context: &mut RunbookWorkspaceContext,
@@ -228,18 +229,19 @@ impl RuntimeContext {
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = vec![];
         let dependencies_execution_results = DependencyExecutionResultCache::new();
-        while let Some(block) = blocks.pop_front() {
+        while let Some(construct) = constructs.pop_front() {
             // parse addon blocks to load that addon
-            match block.ident.value().as_str() {
+            match construct.get_construct_type() {
                 "addon" => {
-                    let Some(BlockLabel::String(name)) = block.labels.first() else {
+                    let Some(construct_instance_name) = construct.get_construct_instance_name()
+                    else {
                         diagnostics.push(
                             Diagnostic::error_from_string("addon name missing".into())
                                 .location(&location),
                         );
                         continue;
                     };
-                    let addon_id = name.to_string();
+                    let addon_id = construct_instance_name.to_string();
                     self.register_addon(&addon_id, &package_id.did())?;
 
                     let existing_addon_defaults = runbook_workspace_context
@@ -249,7 +251,7 @@ impl RuntimeContext {
                     let addon_defaults = self
                         .generate_addon_defaults_from_block(
                             existing_addon_defaults,
-                            &block,
+                            &construct,
                             &addon_id,
                             &package_id,
                             &dependencies_execution_results,
@@ -275,7 +277,7 @@ impl RuntimeContext {
     pub fn generate_addon_defaults_from_block(
         &self,
         existing_addon_defaults: Option<AddonDefaults>,
-        block: &Block,
+        construct: &RunbookConstruct,
         addon_id: &str,
         package_id: &PackageId,
         dependencies_execution_results: &DependencyExecutionResultCache,
@@ -555,14 +557,14 @@ impl AddonsContext {
         command_id: &str,
         command_name: &str,
         package_id: &PackageId,
-        block: &Block,
+        construct: &RunbookConstruct,
         location: &FileLocation,
     ) -> Result<CommandInstance, Diagnostic> {
         let factory = self
             .get_factory(namespace, &package_id.did())
             .map_err(|diag| diag.location(location))?;
         let command_id = CommandId::Action(command_id.to_string());
-        factory.create_command_instance(&command_id, namespace, command_name, block, package_id)
+        factory.create_command_instance(&command_id, namespace, command_name, construct, package_id)
     }
 
     pub fn create_signer_instance(
@@ -570,7 +572,7 @@ impl AddonsContext {
         namespaced_action: &str,
         signer_name: &str,
         package_id: &PackageId,
-        block: &Block,
+        construct: &RunbookConstruct,
         location: &FileLocation,
     ) -> Result<SignerInstance, Diagnostic> {
         let Some((namespace, signer_id)) = namespaced_action.split_once("::") else {
@@ -579,7 +581,7 @@ impl AddonsContext {
         let ctx = self
             .get_factory(namespace, &package_id.did())
             .map_err(|diag| diag.location(location))?;
-        ctx.create_signer_instance(signer_id, namespace, signer_name, block, package_id)
+        ctx.create_signer_instance(signer_id, namespace, signer_name, construct, package_id)
     }
 }
 
@@ -599,7 +601,7 @@ impl AddonConstructFactory {
         command_id: &CommandId,
         namespace: &str,
         command_name: &str,
-        block: &Block,
+        construct: &RunbookConstruct,
         package_id: &PackageId,
     ) -> Result<CommandInstance, Diagnostic> {
         let Some(pre_command_spec) = self.commands.get(command_id) else {
@@ -618,7 +620,7 @@ impl AddonConstructFactory {
                 let command_instance = CommandInstance {
                     specification: command_spec.clone(),
                     name: command_name.to_string(),
-                    block: block.clone(),
+                    construct: construct.clone(),
                     package_id: package_id.clone(),
                     typing,
                     namespace: namespace.to_string(),
@@ -634,7 +636,7 @@ impl AddonConstructFactory {
         signer_id: &str,
         namespace: &str,
         signer_name: &str,
-        block: &Block,
+        construct: &RunbookConstruct,
         package_id: &PackageId,
     ) -> Result<SignerInstance, Diagnostic> {
         let Some(signer_spec) = self.signers.get(signer_id) else {
@@ -646,7 +648,7 @@ impl AddonConstructFactory {
         Ok(SignerInstance {
             name: signer_name.to_string(),
             specification: signer_spec.clone(),
-            block: block.clone(),
+            construct: construct.clone(),
             package_id: package_id.clone(),
             namespace: namespace.to_string(),
         })

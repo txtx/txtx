@@ -82,7 +82,7 @@ impl RunbookGraphContext {
                                 command_instance.name,
                             )
                             .location(&construct_id.construct_location)
-                            .set_span_range(command_instance.block.span()),
+                            .set_span_range(command_instance.construct.get_span()),
                         );
                     }
                 }
@@ -108,7 +108,7 @@ impl RunbookGraphContext {
                                 command_instance.name,
                             )
                             .location(&construct_id.construct_location)
-                            .set_span_range(command_instance.block.span()),
+                            .set_span_range(command_instance.construct.get_span()),
                         );
                     }
                 }
@@ -134,7 +134,7 @@ impl RunbookGraphContext {
                                 command_instance.name,
                             )
                             .location(&construct_id.construct_location)
-                            .set_span_range(command_instance.block.span()),
+                            .set_span_range(command_instance.construct.get_span()),
                         );
                     }
                 }
@@ -176,7 +176,7 @@ impl RunbookGraphContext {
                                 command_instance.name,
                             )
                             .location(&construct_id.construct_location)
-                            .set_span_range(command_instance.block.span()),
+                            .set_span_range(command_instance.construct.get_span()),
                         );
                     }
                 }
@@ -218,7 +218,7 @@ impl RunbookGraphContext {
                                 embedded_runbook_instance.name,
                             )
                             .location(&construct_id.construct_location)
-                            .set_span_range(embedded_runbook_instance.block.span()),
+                            .set_span_range(embedded_runbook_instance.construct.get_span()),
                         );
                     }
                 }
@@ -252,7 +252,7 @@ impl RunbookGraphContext {
                                 signer_instance.name,
                             )
                             .location(&construct_id.construct_location)
-                            .set_span_range(signer_instance.block.span()),
+                            .set_span_range(signer_instance.construct.get_span()),
                         );
                     }
                 }

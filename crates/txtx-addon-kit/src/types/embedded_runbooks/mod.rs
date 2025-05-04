@@ -1,8 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use hcl_edit::{expr::Expression, structure::Block};
-
-use crate::helpers::hcl::{get_object_expression_key, visit_optional_untyped_attribute};
+use crate::helpers::hcl::{ConstructExpression, RunbookConstruct};
 
 use super::{
     commands::{CommandInput, CommandInstance, ConstructInstance},
@@ -10,7 +8,7 @@ use super::{
     package::Package,
     signers::{SignerInstance, SignersState},
     stores::ValueStore,
-    types::{ObjectProperty, Type},
+    types::Type,
     AddonInstance, ConstructDid, ConstructId, EvaluatableInput, PackageId, RunbookId,
     WithEvaluatableInputs,
 };
@@ -18,7 +16,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct EmbeddedRunbookInstance {
     pub name: String,
-    pub block: Block,
+    pub construct: RunbookConstruct,
     pub package_id: PackageId,
     pub specification: EmbeddedRunbookInstanceSpecification,
 }
@@ -27,12 +25,8 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
     fn name(&self) -> String {
         self.name.clone()
     }
-    fn block(&self) -> &Block {
-        &self.block
-    }
-
-    fn get_expression_from_input(&self, input_name: &str) -> Option<Expression> {
-        visit_optional_untyped_attribute(&input_name, &self.block)
+    fn construct(&self) -> &RunbookConstruct {
+        &self.construct
     }
 
     fn get_blocks_for_map(
@@ -40,13 +34,13 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
         input_name: &str,
         input_typing: &Type,
         input_optional: bool,
-    ) -> Result<Option<Vec<Block>>, Vec<super::diagnostics::Diagnostic>> {
+    ) -> Result<Option<Vec<RunbookConstruct>>, Vec<super::diagnostics::Diagnostic>> {
         let mut entries = vec![];
 
         match &input_typing {
             Type::Map(_) => {
-                for block in self.block.body.get_blocks(&input_name) {
-                    entries.push(block.clone());
+                for block in self.construct.get_sub_constructs_type(input_name) {
+                    entries.push(block.into());
                 }
             }
             _ => {
@@ -66,21 +60,13 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
         Ok(Some(entries))
     }
 
-    fn get_expression_from_block(
-        &self,
-        block: &Block,
-        prop: &ObjectProperty,
-    ) -> Option<Expression> {
-        visit_optional_untyped_attribute(&prop.name, &block)
-    }
-
     fn get_expression_from_object(
         &self,
         input_name: &str,
         input_typing: &Type,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
+    ) -> Result<Option<ConstructExpression>, Vec<Diagnostic>> {
         match &input_typing {
-            Type::Object(_) => Ok(visit_optional_untyped_attribute(&input_name, &self.block)),
+            Type::Object(_) => Ok(self.construct.get_expression_from_attribute(input_name)),
             _ => Err(vec![Diagnostic::error_from_string(format!(
                 "embedded runbook '{}' expected object for input '{}'",
                 self.name, input_name
@@ -92,17 +78,10 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
         &self,
         input_name: &str,
         prop: &super::types::ObjectProperty,
-    ) -> Option<Expression> {
-        let expr = visit_optional_untyped_attribute(&input_name, &self.block);
+    ) -> Option<ConstructExpression> {
+        let expr = self.construct.get_expression_from_attribute(&input_name);
         match expr {
-            Some(expr) => {
-                let object_expr = expr.as_object().unwrap();
-                let expr_res = get_object_expression_key(object_expr, &prop.name);
-                match expr_res {
-                    Some(expression) => Some(expression.expr().clone()),
-                    None => None,
-                }
-            }
+            Some(expr) => expr.get_object_expression_key(&prop.name),
             None => None,
         }
     }
@@ -115,13 +94,13 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
 impl EmbeddedRunbookInstance {
     pub fn new(
         name: &str,
-        block: &Block,
+        construct: &RunbookConstruct,
         package_id: &PackageId,
         specification: EmbeddedRunbookInstanceSpecification,
     ) -> Self {
         Self {
             name: name.to_string(),
-            block: block.clone(),
+            construct: construct.clone(),
             package_id: package_id.clone(),
             specification,
         }
@@ -129,8 +108,8 @@ impl EmbeddedRunbookInstance {
 }
 
 impl ConstructInstance for EmbeddedRunbookInstance {
-    fn block(&self) -> &Block {
-        &self.block
+    fn construct(&self) -> &RunbookConstruct {
+        &self.construct
     }
 
     fn inputs(&self) -> Vec<&impl EvaluatableInput> {

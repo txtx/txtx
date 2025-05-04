@@ -1,17 +1,14 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use crate::runbook::embedded_runbook::EmbeddedRunbookInstanceBuilder;
-use crate::runbook::RawHclContent;
+use crate::runbook::RunbookSource;
 use crate::std::commands;
 use crate::types::PreConstructData;
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
-use txtx_addon_kit::hcl::structure::BlockLabel;
 use txtx_addon_kit::hcl::template::Element;
 use txtx_addon_kit::hcl::Span;
 use txtx_addon_kit::helpers::fs::{get_txtx_files_paths, FileLocation};
-use txtx_addon_kit::helpers::hcl::{
-    visit_optional_untyped_attribute, visit_required_string_literal_attribute,
-};
+use txtx_addon_kit::helpers::hcl::visit_optional_untyped_attribute;
 use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
@@ -119,14 +116,14 @@ impl RunbookWorkspaceContext {
             let package_id = PackageId::from_file(&location, &self.runbook_id, &package_name)
                 .map_err(|e| vec![e])?;
 
-            let mut blocks =
-                raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
+            let mut constructs =
+                raw_content.into_constructs().map_err(|diag| vec![diag.location(&location)])?;
 
-            while let Some(block) = blocks.pop_front() {
-                match block.ident.value().as_str() {
+            while let Some(construct) = constructs.pop_front() {
+                match construct.get_construct_type() {
                     "import" => {
                         // imports are the only constructs that we need to process in this step
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("import name missing".into())
                                     .location(&location),
@@ -134,10 +131,21 @@ impl RunbookWorkspaceContext {
                             continue;
                         };
 
-                        let path = visit_required_string_literal_attribute("path", &block).unwrap(); // todo(lgalabru)
-                        println!("Loading {} at path ({path})", name.to_string());
+                        let path =
+                            match construct.get_required_string_literal_from_attribute("path") {
+                                Ok(path) => path,
+                                Err(e) => {
+                                    diagnostics.push(
+                                        Diagnostic::error_from_string(format!(
+                                            "path attribute missing for import '{}'",
+                                            name
+                                        ))
+                                        .location(&location),
+                                    );
+                                    continue;
+                                }
+                            };
 
-                        // todo(lgalabru): revisit this approach, filesystem access needs to be abstracted.
                         let mut imported_package_location =
                             location.get_parent_location().map_err(|e| {
                                 vec![diagnosed_error!("{}", e.to_string()).location(&location)]
@@ -145,6 +153,7 @@ impl RunbookWorkspaceContext {
 
                         imported_package_location.append_path(&path).unwrap();
 
+                        // todo(lgalabru): revisit this approach, filesystem access needs to be abstracted.
                         match std::fs::read_dir(imported_package_location.to_string()) {
                             Ok(_) => {
                                 let files = get_txtx_files_paths(
@@ -159,7 +168,7 @@ impl RunbookWorkspaceContext {
                                     let file_location = FileLocation::from_path(file_path);
                                     if !files_visited.contains(&file_location) {
                                         let raw_content =
-                                            RawHclContent::from_file_location(&file_location)
+                                            RunbookSource::from_file_location(&file_location)
                                                 .map_err(|diag| vec![diag])?;
                                         let module_name = name.to_string();
                                         sources.push_back((
@@ -172,7 +181,7 @@ impl RunbookWorkspaceContext {
                             }
                             Err(_) => {
                                 if !files_visited.contains(&imported_package_location) {
-                                    let raw_content = RawHclContent::from_file_location(&location)
+                                    let raw_content = RunbookSource::from_file_location(&location)
                                         .map_err(|diag| vec![diag])?;
                                     let module_name = name.to_string();
                                     sources.push_back((
@@ -187,14 +196,14 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Import(block.clone()),
+                            PreConstructData::Import(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
                     "variable" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("variable name missing".into())
                                     .location(&location),
@@ -204,14 +213,14 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Variable(block.clone()),
+                            PreConstructData::Variable(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
                     "module" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("module name missing".into())
                                     .location(&location),
@@ -221,14 +230,14 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Module(block.clone()),
+                            PreConstructData::Module(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
                     "output" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("output name missing".into())
                                     .location(&location),
@@ -238,16 +247,17 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Output(block.clone()),
+                            PreConstructData::Output(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
                     "action" => {
-                        let (Some(command_name), Some(namespaced_action)) =
-                            (block.labels.get(0), block.labels.get(1))
-                        else {
+                        let (Some(command_name), Some(namespaced_action)) = (
+                            construct.get_construct_instance_name(),
+                            construct.get_command_instance_type(),
+                        ) else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("invalid action syntax: expected `action \"action_name\" \"namespace::action\"".into())
                                     .location(&location),
@@ -263,9 +273,9 @@ impl RunbookWorkspaceContext {
                         match runtime_context.addons_context.create_action_instance(
                             namespace,
                             command_id,
-                            command_name.as_str(),
+                            command_name,
                             &package_id,
-                            &block,
+                            &construct,
                             &location,
                         ) {
                             Ok(command_instance) => {
@@ -284,7 +294,7 @@ impl RunbookWorkspaceContext {
                                 diagnostics.push(
                                     diagnostic
                                         .location(&location)
-                                        .set_span_range(block.span())
+                                        .set_span_range(construct.get_span())
                                         .set_diagnostic_span(span),
                                 );
                                 continue;
@@ -305,7 +315,7 @@ impl RunbookWorkspaceContext {
                             &namespaced_signer_cmd.as_str(),
                             signer_name.as_str(),
                             &package_id,
-                            &block,
+                            &construct,
                             &location,
                         ) {
                             Ok(signer_instance) => {
@@ -325,7 +335,7 @@ impl RunbookWorkspaceContext {
                         }
                     }
                     "runbook" => {
-                        let Some(runbook_name) = block.labels.get(0) else {
+                        let Some(runbook_name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("'runbook' syntax invalid".into())
                                     .location(&location),
@@ -333,9 +343,9 @@ impl RunbookWorkspaceContext {
                             continue;
                         };
                         let runbook_name = runbook_name.to_string();
-                        let embedded_runbook_location =
-                            visit_required_string_literal_attribute("location", &block).unwrap();
-                        println!("Loading {runbook_name} at path ({embedded_runbook_location})");
+                        let embedded_runbook_location = construct
+                            .get_required_string_literal_from_attribute("location")
+                            .unwrap();
 
                         let imported_package_location =
                             location.get_parent_location().map_err(|e| {
@@ -364,7 +374,7 @@ impl RunbookWorkspaceContext {
                                         loc,
                                         &runbook_name.to_string(),
                                         &package_id,
-                                        &block,
+                                        &construct,
                                         &mut runtime_context.addons_context,
                                     )
                                     .await
@@ -388,7 +398,7 @@ impl RunbookWorkspaceContext {
                         }
                     }
                     "addon" => {
-                        let Some(BlockLabel::String(addon_id)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("addon name missing".into())
                                     .location(&location),
@@ -396,9 +406,9 @@ impl RunbookWorkspaceContext {
                             continue;
                         };
                         let _ = self.index_construct(
-                            addon_id.to_string(),
+                            name.to_string(),
                             location.clone(),
-                            PreConstructData::Addon(block.clone()),
+                            PreConstructData::Addon(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,

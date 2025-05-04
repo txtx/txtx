@@ -1,5 +1,6 @@
 pub mod publishable;
 
+use kit::helpers::hcl::RunbookConstruct;
 use publishable::PublishableEmbeddedRunbookSpecification;
 use std::collections::HashMap;
 use txtx_addon_kit::hcl::structure::Block;
@@ -182,7 +183,7 @@ impl EmbeddingRunbookContext {
             let defaults = runtime_context
                 .generate_addon_defaults_from_block(
                     existing_addon_defaults,
-                    &addon_instance.block,
+                    &addon_instance.construct,
                     &addon_instance.addon_id,
                     &addon_instance.package_id,
                     &DependencyExecutionResultCache::new(),
@@ -220,7 +221,7 @@ impl EmbeddedRunbookInstanceBuilder {
         embedded_runbook_location: FileLocation,
         embedded_runbook_name: &str,
         package_id: &PackageId,
-        block: &Block,
+        construct: &RunbookConstruct,
         addons_context: &mut AddonsContext,
     ) -> Result<EmbeddedRunbookInstance, Diagnostic> {
         let bytes = embedded_runbook_location.read_content().map_err(|e| {
@@ -240,7 +241,7 @@ impl EmbeddedRunbookInstanceBuilder {
         let spec = publishable_runbook_instance_specification
             .into_embedded_runbook_instance_specification(addons_context)?;
 
-        Ok(EmbeddedRunbookInstance::new(embedded_runbook_name, block, package_id, spec))
+        Ok(EmbeddedRunbookInstance::new(embedded_runbook_name, construct, package_id, spec))
     }
 }
 
@@ -249,7 +250,7 @@ mod tests {
     use std::collections::HashSet;
 
     use txtx_addon_kit::helpers::fs::FileLocation;
-    use txtx_addon_kit::helpers::hcl::RawHclContent;
+    use txtx_addon_kit::helpers::hcl::RunbookSource;
     use txtx_addon_kit::types::commands::CommandInstanceType;
     use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInputSpecification;
     use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookValueInputSpecification;
@@ -293,14 +294,14 @@ mod tests {
             namespace: "std".to_string(),
             typing: CommandInstanceType::Variable,
             name: my_var_name.to_string(),
-            hcl: RawHclContent::from_string(variable_hcl.into()),
+            hcl: RunbookSource::from_hcl_string(variable_hcl.into()),
         };
         let my_output_inst = PublishableCommandInstance {
             package_id: package_id.clone(),
             namespace: "std".to_string(),
             typing: CommandInstanceType::Output,
             name: my_output_name.to_string(),
-            hcl: RawHclContent::from_string(output_hcl.into()),
+            hcl: RunbookSource::from_hcl_string(output_hcl.into()),
         };
 
         let mut package = Package::new(&package_id);

@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use serde::{
     ser::{SerializeMap, SerializeStruct},
     Serialize, Serializer,
@@ -10,16 +11,11 @@ use std::{
 };
 use uuid::Uuid;
 
-use hcl_edit::{expr::Expression, structure::Block, Span};
-use indexmap::IndexMap;
-
+use crate::types::stores::ValueStore;
 use crate::{
     constants::{SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES},
-    helpers::hcl::{
-        collect_constructs_references_from_expression, visit_optional_untyped_attribute,
-    },
+    helpers::hcl::{ConstructExpression, ConstructExpressionRef, RunbookConstruct},
 };
-use crate::{helpers::hcl::get_object_expression_key, types::stores::ValueStore};
 
 use super::{
     cloud_interface::CloudServiceContext,
@@ -603,7 +599,7 @@ impl CommandInstanceType {
 pub struct CommandInstance {
     pub specification: CommandSpecification,
     pub name: String,
-    pub block: Block,
+    pub construct: RunbookConstruct,
     pub package_id: PackageId,
     pub namespace: String,
     pub typing: CommandInstanceType,
@@ -632,26 +628,22 @@ impl WithEvaluatableInputs for CommandInstance {
     fn name(&self) -> String {
         self.name.clone()
     }
-    fn block(&self) -> &Block {
-        &self.block
-    }
-    /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
-    fn get_expression_from_input(&self, input_name: &str) -> Option<Expression> {
-        visit_optional_untyped_attribute(&input_name, &self.block)
+    fn construct(&self) -> &RunbookConstruct {
+        &self.construct
     }
 
-    fn get_blocks_for_map(
-        &self,
+    fn get_blocks_for_map<'a>(
+        &'a self,
         input_name: &str,
         input_typing: &Type,
         input_optional: bool,
-    ) -> Result<Option<Vec<Block>>, Vec<Diagnostic>> {
+    ) -> Result<Option<Vec<RunbookConstruct>>, Vec<Diagnostic>> {
         let mut entries = vec![];
 
         match &input_typing {
             Type::Map(_) => {
-                for block in self.block.body.get_blocks(&input_name) {
-                    entries.push(block.clone());
+                for object in self.construct.get_sub_constructs_type(&input_name) {
+                    entries.push(object.into());
                 }
             }
             _ => {
@@ -671,21 +663,13 @@ impl WithEvaluatableInputs for CommandInstance {
         Ok(Some(entries))
     }
 
-    fn get_expression_from_block(
-        &self,
-        block: &Block,
-        prop: &ObjectProperty,
-    ) -> Option<Expression> {
-        visit_optional_untyped_attribute(&prop.name, &block)
-    }
-
     fn get_expression_from_object(
         &self,
         input_name: &str,
         input_typing: &Type,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>> {
+    ) -> Result<Option<ConstructExpression>, Vec<Diagnostic>> {
         match &input_typing {
-            Type::Object(_) => Ok(visit_optional_untyped_attribute(&input_name, &self.block)),
+            Type::Object(_) => Ok(self.construct.get_expression_from_attribute(input_name)),
             _ => Err(vec![Diagnostic::error_from_string(format!(
                 "command '{}' (type '{}') expected object for input '{}'",
                 self.name, self.specification.matcher, input_name
@@ -697,17 +681,10 @@ impl WithEvaluatableInputs for CommandInstance {
         &self,
         input_name: &str,
         prop: &ObjectProperty,
-    ) -> Option<Expression> {
-        let expr = visit_optional_untyped_attribute(&input_name, &self.block);
+    ) -> Option<ConstructExpression> {
+        let expr = self.construct.get_expression_from_attribute(input_name);
         match expr {
-            Some(expr) => {
-                let object_expr = expr.as_object().unwrap();
-                let expr_res = get_object_expression_key(object_expr, &prop.name);
-                match expr_res {
-                    Some(expression) => Some(expression.expr().clone()),
-                    None => None,
-                }
-            }
+            Some(expr) => expr.get_object_expression_key(&prop.name),
             None => None,
         }
     }
@@ -728,10 +705,10 @@ impl CommandInstance {
     }
 
     pub fn get_group(&self) -> String {
-        let Some(group) = self.block.body.get_attribute("group") else {
-            return format!("{} Review", self.specification.name.to_string());
-        };
-        group.value.to_string()
+        match self.construct.get_attribute_stringified("group") {
+            Some(entry) => entry,
+            None => format!("{} Review", self.specification.name.to_string()),
+        }
     }
 
     pub fn check_executability(
@@ -846,7 +823,7 @@ impl CommandInstance {
         let spec = &self.specification;
         let res = (spec.run_execution)(&construct_did, &self.specification, &values, progress_tx)?
             .await
-            .map_err(|e| e.set_span_range(self.block.span()));
+            .map_err(|e| e.set_span_range(self.construct.get_span()));
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {
@@ -905,7 +882,7 @@ impl CommandInstance {
             signer_instances,
             signers,
         );
-        return consolidate_nested_execution_result(future, self.block.span()).await;
+        return consolidate_nested_execution_result(future, self.construct.get_span()).await;
     }
 
     pub fn prepare_nested_execution(
@@ -1002,7 +979,7 @@ impl CommandInstance {
             signers,
         );
         let (signer_state, mut actions) =
-            consolidate_signer_future_result(future, self.block.span()).await?;
+            consolidate_signer_future_result(future, self.construct.get_span()).await?;
         consolidated_actions.append(&mut actions);
         consolidated_actions.filter_existing_action_items(action_item_requests);
         Ok((signer_state, consolidated_actions))
@@ -1033,7 +1010,8 @@ impl CommandInstance {
             signer_instances,
             signers,
         );
-        let res = consolidate_signer_activate_future_result(future, self.block.span()).await?;
+        let res =
+            consolidate_signer_activate_future_result(future, self.construct.get_span()).await?;
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {
@@ -1129,8 +1107,8 @@ impl CommandInstance {
 }
 
 impl ConstructInstance for CommandInstance {
-    fn block(&self) -> &Block {
-        &self.block
+    fn construct(&self) -> &RunbookConstruct {
+        &self.construct
     }
     fn inputs(&self) -> Vec<&impl EvaluatableInput> {
         self.specification.inputs.iter().chain(&self.specification.default_inputs).collect()
@@ -1142,7 +1120,7 @@ impl ConstructInstance for CommandInstance {
 
 pub trait ConstructInstance {
     /// The HCL block of the construct
-    fn block(&self) -> &Block;
+    fn construct(&self) -> &RunbookConstruct;
     fn inputs(&self) -> Vec<&impl EvaluatableInput>;
     fn accepts_arbitrary_inputs(&self) -> bool {
         false
@@ -1150,27 +1128,27 @@ pub trait ConstructInstance {
 
     fn get_expressions_referencing_commands_from_inputs(
         &self,
-    ) -> Vec<(Option<&impl EvaluatableInput>, Expression)> {
+    ) -> Vec<(Option<bool>, ConstructExpression)> {
         let mut expressions = vec![];
         for input in self.inputs() {
             input.typing().get_expressions_referencing_constructs(
-                &self.block(),
+                &self.construct(),
+                input.name().as_str(),
                 input,
                 &mut expressions,
             );
         }
         if self.accepts_arbitrary_inputs() {
-            for attribute in self.block().body.attributes() {
+            for attribute in self.construct().get_attributes() {
                 let mut references = vec![];
-                collect_constructs_references_from_expression(
-                    &attribute.value,
-                    None,
-                    &mut references,
-                );
+                attribute
+                    .get_value()
+                    .collect_constructs_references_from_expression(None, &mut references);
                 expressions.append(&mut references);
             }
         }
-        expressions
+        // expressions
+        vec![]
     }
 }
 

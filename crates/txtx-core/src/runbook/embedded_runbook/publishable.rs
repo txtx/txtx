@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
-use txtx_addon_kit::helpers::hcl::RawHclContent;
+use txtx_addon_kit::helpers::hcl::RunbookSource;
 use txtx_addon_kit::types::commands::{CommandInstance, CommandInstanceType};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInstance;
@@ -314,24 +314,24 @@ impl PublishableWorkspaceContext {
 pub struct PublishableAddonInstance {
     pub package_id: PackageId,
     pub addon_id: String,
-    pub hcl: RawHclContent,
+    pub hcl: RunbookSource,
 }
 impl PublishableAddonInstance {
     pub fn into_addon_instance(self) -> Result<AddonInstance, Diagnostic> {
-        let block = self.hcl.into_block_instance().map_err(|e| {
+        let construct = self.hcl.into_construct().map_err(|e| {
             Diagnostic::error_from_string(format!(
                 "unable to parse hcl content for embedded runbook instance: {}",
                 e.message
             ))
         })?;
-        Ok(AddonInstance { package_id: self.package_id, addon_id: self.addon_id, block })
+        Ok(AddonInstance { package_id: self.package_id, addon_id: self.addon_id, construct })
     }
 
     pub fn from_addon_instance(addon_instance: &AddonInstance) -> Self {
         Self {
             package_id: addon_instance.package_id.clone(),
             addon_id: addon_instance.addon_id.clone(),
-            hcl: RawHclContent::from_block(&addon_instance.block),
+            hcl: RunbookSource::from_hcl_construct(&addon_instance.block),
         }
     }
 }
@@ -350,7 +350,7 @@ pub struct PublishableEmbeddedRunbookInstance {
     pub instance_name: String,
     pub package_id: PackageId,
     pub specification: PublishableEmbeddedRunbookSpecification,
-    pub hcl: RawHclContent,
+    pub hcl: RunbookSource,
 }
 
 impl PublishableEmbeddedRunbookInstance {
@@ -358,7 +358,7 @@ impl PublishableEmbeddedRunbookInstance {
         self,
         addons_context: &mut AddonsContext,
     ) -> Result<EmbeddedRunbookInstance, Diagnostic> {
-        let block = self.hcl.into_block_instance().map_err(|e| {
+        let construct = self.hcl.into_construct().map_err(|e| {
             Diagnostic::error_from_string(format!(
                 "unable to parse hcl content for embedded runbook instance: {}",
                 e.message
@@ -370,7 +370,7 @@ impl PublishableEmbeddedRunbookInstance {
             specification: self
                 .specification
                 .into_embedded_runbook_instance_specification(addons_context)?,
-            block,
+            construct,
         })
     }
     pub fn from_embedded_runbook_instance(instance: &EmbeddedRunbookInstance) -> Self {
@@ -378,7 +378,7 @@ impl PublishableEmbeddedRunbookInstance {
             instance_name: instance.name.clone(),
             package_id: instance.package_id.clone(),
             specification: PublishableEmbeddedRunbookSpecification::from_embedded_runbook_instance_specification(&instance.specification),
-            hcl: RawHclContent::from_block(&instance.block),
+            hcl: RunbookSource::from_hcl_construct(&instance.block),
         }
     }
 }
@@ -389,7 +389,7 @@ pub struct PublishableCommandInstance {
     pub namespace: String,
     pub typing: CommandInstanceType,
     pub name: String,
-    pub hcl: RawHclContent,
+    pub hcl: RunbookSource,
 }
 
 impl PublishableCommandInstance {
@@ -397,7 +397,7 @@ impl PublishableCommandInstance {
         self,
         addons_context: &mut AddonsContext,
     ) -> Result<CommandInstance, Diagnostic> {
-        let block = self.hcl.into_block_instance().map_err(|e| {
+        let construct = self.hcl.into_construct().map_err(|e| {
             Diagnostic::error_from_string(format!(
                 "unable to parse hcl content for embedded runbook instance: {}",
                 e.message
@@ -407,7 +407,7 @@ impl PublishableCommandInstance {
             CommandInstanceType::Variable => CommandInstance {
                 specification: commands::new_variable_specification(),
                 name: self.name.clone(),
-                block: block.clone(),
+                construct: construct.clone(),
                 package_id: self.package_id.clone(),
                 namespace: self.namespace.clone(),
                 typing: CommandInstanceType::Variable,
@@ -415,7 +415,7 @@ impl PublishableCommandInstance {
             CommandInstanceType::Output => CommandInstance {
                 specification: commands::new_output_specification(),
                 name: self.name.clone(),
-                block: block.clone(),
+                construct: construct.clone(),
                 package_id: self.package_id.clone(),
                 namespace: self.namespace.clone(),
                 typing: CommandInstanceType::Output,
@@ -450,7 +450,7 @@ impl PublishableCommandInstance {
             CommandInstanceType::Module => CommandInstance {
                 specification: commands::new_module_specification(),
                 name: self.name.clone(),
-                block: block.clone(),
+                construct: construct.clone(),
                 package_id: self.package_id.clone(),
                 namespace: self.namespace.clone(),
                 typing: CommandInstanceType::Module,
@@ -466,7 +466,7 @@ impl PublishableCommandInstance {
             namespace: command_instance.namespace.clone(),
             typing: command_instance.typing.clone(),
             name: command_instance.name.clone(),
-            hcl: RawHclContent::from_block(&command_instance.block),
+            hcl: RunbookSource::from_hcl_construct(&command_instance.block),
         }
     }
 }

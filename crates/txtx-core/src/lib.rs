@@ -816,7 +816,7 @@ pub async fn process_background_tasks(
                 if let Some(command_instance) =
                     flow_context.execution_context.commands_instances.get_mut(&construct_did)
                 {
-                    diag = diag.set_span_range(command_instance.block.span());
+                    diag = diag.set_span_range(command_instance.construct.get_span());
                 };
                 if let Some(SupervisedBackgroundTaskContext {
                     block_tx,

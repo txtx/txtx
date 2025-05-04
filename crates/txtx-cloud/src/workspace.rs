@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde_json::json;
 use txtx_addon_kit::{reqwest, uuid::Uuid};
 
-pub async fn get_user_workspaces(
+pub async fn fetch_workspaces(
     access_token: &str,
     service_gql_url: &str,
 ) -> Result<Vec<Workspace>, String> {

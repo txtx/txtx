@@ -630,7 +630,7 @@ impl RunbookExecutionContext {
             .await
             .map_err(|d| {
                 d.location(&construct_id.construct_location)
-                    .set_span_range(command_instance.block.span())
+                    .set_span_range(command_instance.construct.get_span())
             })?;
 
         self.commands_inputs_evaluation_results
