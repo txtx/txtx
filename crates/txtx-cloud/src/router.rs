@@ -21,14 +21,20 @@ impl AuthenticatedCloudServiceRouter for TxtxAuthenticatedCloudServiceRouter {
         service: CloudService,
     ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>> {
         Box::pin(async move {
-            let Some(auth_config) = AuthConfig::read_from_system_config()? else {
-                return Err("You must be logged in to use txtx cloud services. Run `txtx cloud login` to log in.".to_string());
+            let token_required = service.token_required();
+            let access_token = if token_required {
+                let Some(auth_config) = AuthConfig::read_from_system_config()? else {
+                    return Err("You must be logged in to use txtx cloud services. Run `txtx cloud login` to log in.".to_string());
+                };
+                auth_config
+                    .refresh_session_if_needed(&self.id_service_url, &auth_config.pat)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Some(auth_config.access_token)
+            } else {
+                None
             };
-            auth_config
-                .refresh_session_if_needed(&self.id_service_url, &auth_config.pat)
-                .await
-                .map_err(|e| e.to_string())?;
-            TxtxCloudServiceRouter::new(service).route(Some(&auth_config.access_token)).await
+            TxtxCloudServiceRouter::new(service).route(access_token).await
         })
     }
 }
@@ -45,7 +51,7 @@ pub struct TxtxCloudServiceRouter {
 }
 
 impl TxtxCloudServiceRouter {
-    async fn route(self, token: Option<&String>) -> Result<String, String> {
+    async fn route(self, token: Option<String>) -> Result<String, String> {
         match &self.service {
             CloudService::Registry => {
                 // Handle registry service
@@ -62,9 +68,12 @@ impl TxtxCloudServiceRouter {
                     let token = if *do_include_token { token } else { None };
                     let client = Client::new();
 
-                    let res = rpc_call::<JsonValue>(&client, url, "loadPlugin", params, token)
-                        .await
-                        .map_err(|e| format!("Failed to send request to deploy subgraph: {}", e))?;
+                    let res =
+                        rpc_call::<JsonValue>(&client, url, "loadPlugin", params, token.as_ref())
+                            .await
+                            .map_err(|e| {
+                                format!("Failed to send request to deploy subgraph: {}", e)
+                            })?;
 
                     return Ok(res.to_string());
                 }

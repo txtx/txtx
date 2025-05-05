@@ -40,6 +40,14 @@ impl CloudService {
             do_include_token,
         }))
     }
+    pub fn token_required(&self) -> bool {
+        match self {
+            CloudService::Registry => false,
+            CloudService::Id => false,
+            CloudService::Svm(SvmService::DeploySubgraph(cmd)) => cmd.do_include_token,
+            CloudService::Evm => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
