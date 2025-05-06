@@ -331,7 +331,7 @@ impl PublishableAddonInstance {
         Self {
             package_id: addon_instance.package_id.clone(),
             addon_id: addon_instance.addon_id.clone(),
-            hcl: RunbookSource::from_hcl_construct(&addon_instance.block),
+            hcl: RunbookSource::from_hcl_construct(&addon_instance.construct),
         }
     }
 }
@@ -378,7 +378,7 @@ impl PublishableEmbeddedRunbookInstance {
             instance_name: instance.name.clone(),
             package_id: instance.package_id.clone(),
             specification: PublishableEmbeddedRunbookSpecification::from_embedded_runbook_instance_specification(&instance.specification),
-            hcl: RunbookSource::from_hcl_construct(&instance.block),
+            hcl: RunbookSource::from_hcl_construct(&instance.construct),
         }
     }
 }
@@ -436,7 +436,7 @@ impl PublishableCommandInstance {
                         &command_id,
                         &self.name,
                         &self.package_id,
-                        &block,
+                        &construct,
                         &self.package_id.package_location,
                     )
                     .map_err(|diag| {
@@ -466,7 +466,7 @@ impl PublishableCommandInstance {
             namespace: command_instance.namespace.clone(),
             typing: command_instance.typing.clone(),
             name: command_instance.name.clone(),
-            hcl: RunbookSource::from_hcl_construct(&command_instance.block),
+            hcl: RunbookSource::from_hcl_construct(&command_instance.construct),
         }
     }
 }

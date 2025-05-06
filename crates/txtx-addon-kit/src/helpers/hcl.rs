@@ -307,6 +307,14 @@ impl<'a> ConstructExpression {
             _ => unimplemented!(),
         }
     }
+
+    pub fn expect_hcl_expression(&self) -> &Expression {
+        let expr = match &self {
+            Self::Hcl(src) => src,
+            _ => unimplemented!(),
+        };
+        expr
+    }
 }
 
 #[derive(Debug, Clone)]

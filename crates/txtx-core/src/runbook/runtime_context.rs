@@ -286,8 +286,8 @@ impl RuntimeContext {
     ) -> Result<AddonDefaults, Diagnostic> {
         let mut addon_defaults = existing_addon_defaults.unwrap_or(AddonDefaults::new(addon_id));
 
-        let map_entries = self.evaluate_hcl_map_blocks(
-            block.body.blocks().collect(),
+        let map_entries: IndexMap<String, Vec<Value>> = self.evaluate_hcl_map_blocks(
+            construct.get_sub_constructs(),
             dependencies_execution_results,
             package_id,
             runbook_workspace_context,
