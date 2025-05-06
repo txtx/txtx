@@ -21,11 +21,11 @@ impl AuthenticatedCloudServiceRouter for TxtxAuthenticatedCloudServiceRouter {
         service: CloudService,
     ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>> {
         Box::pin(async move {
-            let Some(auth_config) = AuthConfig::read_from_system_config()? else {
+            let Some(mut auth_config) = AuthConfig::read_from_system_config()? else {
                 return Err("You must be logged in to use txtx cloud services. Run `txtx cloud login` to log in.".to_string());
             };
             auth_config
-                .refresh_session_if_needed(&self.id_service_url, &auth_config.pat)
+                .refresh_session_if_needed(&self.id_service_url)
                 .await
                 .map_err(|e| e.to_string())?;
             TxtxCloudServiceRouter::new(service).route(Some(&auth_config.access_token)).await
