@@ -22,7 +22,7 @@ hex = "0.4.3"
 reqwest = { workspace = true }
 lazy_static = "1.4.0"
 indoc = "2.0.5"
-crossbeam-channel = "0.5.8"
+crossbeam-channel = { workspace = true }
 futures = "0.3"
 highway = "1.1.0"
 rand = "0.8.5"
