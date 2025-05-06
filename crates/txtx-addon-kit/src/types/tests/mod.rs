@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::path::PathBuf;
 
 use crate::helpers::fs::FileLocation;
 use crate::types::AuthorizationContext;
@@ -68,6 +69,6 @@ fn test_auth_context_get_path_from_str(path_str: &str, expected: &str) {
     let auth_context = AuthorizationContext::new(FileLocation::from_path(
         Path::new("/workspace/txtx.yml").to_path_buf(),
     ));
-    let result = auth_context.get_path_from_str(path_str).unwrap();
+    let result = auth_context.get_file_location_from_path_buf(&PathBuf::from(path_str)).unwrap();
     assert_eq!(result.to_string(), expected);
 }
