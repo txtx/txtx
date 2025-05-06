@@ -1,3 +1,4 @@
+use kit::helpers::hcl::RunbookConstruct;
 use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInstance;
 use txtx_addon_kit::{
     hcl::structure::Block,
@@ -6,13 +7,13 @@ use txtx_addon_kit::{
 
 #[derive(Debug)]
 pub enum PreConstructData {
-    Variable(Block),
-    Module(Block),
-    Output(Block),
-    Import(Block),
+    Variable(RunbookConstruct),
+    Module(RunbookConstruct),
+    Output(RunbookConstruct),
+    Import(RunbookConstruct),
     Action(CommandInstance),
     Signer(SignerInstance),
-    Addon(Block),
+    Addon(RunbookConstruct),
     EmbeddedRunbook(EmbeddedRunbookInstance),
     Root,
 }
@@ -32,35 +33,35 @@ impl PreConstructData {
         }
     }
 
-    pub fn as_import(&self) -> Option<&Block> {
+    pub fn as_import(&self) -> Option<&RunbookConstruct> {
         match self {
             PreConstructData::Import(data) => Some(&data),
             _ => None,
         }
     }
 
-    pub fn as_input(&self) -> Option<&Block> {
+    pub fn as_input(&self) -> Option<&RunbookConstruct> {
         match self {
             PreConstructData::Variable(data) => Some(&data),
             _ => None,
         }
     }
 
-    pub fn as_output(&self) -> Option<&Block> {
+    pub fn as_output(&self) -> Option<&RunbookConstruct> {
         match self {
             PreConstructData::Output(data) => Some(&data),
             _ => None,
         }
     }
 
-    pub fn as_module(&self) -> Option<&Block> {
+    pub fn as_module(&self) -> Option<&RunbookConstruct> {
         match self {
             PreConstructData::Module(data) => Some(&data),
             _ => None,
         }
     }
 
-    pub fn as_addon(&self) -> Option<&Block> {
+    pub fn as_addon(&self) -> Option<&RunbookConstruct> {
         match self {
             PreConstructData::Addon(data) => Some(&data),
             _ => None,

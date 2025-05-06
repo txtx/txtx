@@ -4,6 +4,7 @@ use crate::runbook::{
     RuntimeContext,
 };
 use crate::types::{RunbookExecutionContext, RunbookSources};
+use kit::helpers::hcl::ConstructExpression;
 use kit::types::commands::ConstructInstance;
 use kit::types::types::ObjectDefinition;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -970,7 +971,7 @@ pub enum ExpressionEvaluationStatus {
 }
 
 pub fn eval_expression(
-    expr: &Expression,
+    expr: &ConstructExpression,
     dependencies_execution_results: &DependencyExecutionResultCache,
     package_id: &PackageId,
     runbook_workspace_context: &RunbookWorkspaceContext,

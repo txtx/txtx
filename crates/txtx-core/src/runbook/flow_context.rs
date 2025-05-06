@@ -1,3 +1,4 @@
+use kit::helpers::hcl::ConstructAttributeRef;
 use txtx_addon_kit::hcl::structure::Attribute;
 use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
@@ -66,7 +67,7 @@ impl FlowContext {
 
     pub fn index_flow_inputs_from_attributes(
         &mut self,
-        attributes: &Vec<Attribute>,
+        attributes: &Vec<ConstructAttributeRef>,
         dependencies_execution_results: &DependencyExecutionResultCache,
         package_id: &PackageId,
         workspace_context: &RunbookWorkspaceContext,
@@ -75,7 +76,7 @@ impl FlowContext {
     ) -> Result<(), Diagnostic> {
         for attr in attributes.into_iter() {
             let res = eval::eval_expression(
-                &attr.value,
+                &attr.get_value(),
                 &dependencies_execution_results,
                 &package_id,
                 &workspace_context,

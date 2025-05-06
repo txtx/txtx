@@ -1,6 +1,9 @@
 use std::collections::VecDeque;
 
-use hcl_edit::{expr::Object, structure::Body};
+use hcl_edit::{
+    structure::{Attribute, Body},
+    Span,
+};
 
 use crate::{
     hcl::{
@@ -50,7 +53,7 @@ pub fn visit_optional_string_attribute(
     }
 }
 
-pub fn visit_required_string_literal_attribute(
+fn visit_required_string_literal_attribute(
     field_name: &str,
     block: &Block,
 ) -> Result<String, VisitorError> {
@@ -69,13 +72,6 @@ pub fn visit_optional_untyped_attribute(field_name: &str, block: &Block) -> Opti
         return None;
     };
     Some(attribute.value.clone())
-}
-
-pub fn get_object_expression_key(obj: &Object, key: &str) -> Option<hcl_edit::expr::ObjectValue> {
-    obj.into_iter()
-        .find(|(k, _)| k.as_ident().and_then(|i| Some(i.as_str().eq(key))).unwrap_or(false))
-        .map(|(_, v)| v)
-        .cloned()
 }
 
 pub fn build_diagnostics_for_unused_fields(
@@ -98,20 +94,21 @@ pub fn build_diagnostics_for_unused_fields(
 
 /// Takes an HCL block and traverses all inner expressions and blocks,
 /// recursively collecting all the references to constructs (variables and traversals).
-pub fn collect_constructs_references_from_block<'a, T: EvaluatableInput>(
-    block: &Block,
+pub fn collect_constructs_referenced_by_construct<'a, T: EvaluatableInput>(
+    construct: &RunbookConstruct,
     input: Option<&'a T>,
     dependencies: &mut Vec<(Option<&'a T>, Expression)>,
 ) {
-    for attribute in block.body.attributes() {
-        let expr = attribute.value.clone();
-        let mut references = vec![];
-        collect_constructs_references_from_expression(&expr, input, &mut references);
-        dependencies.append(&mut references);
-    }
-    for block in block.body.blocks() {
-        collect_constructs_references_from_block(block, input, dependencies);
-    }
+    unimplemented!()
+    // for attribute in construct.get_attributes() {
+    //     let expr = attribute.get_value();
+    //     let mut references = vec![];
+    //     expr.collect_constructs_references_from_expression(input, &mut references);
+    //     dependencies.append(&mut references);
+    // }
+    // for sub_construct in construct.get_sub_constructs() {
+    //     collect_constructs_referenced_by_construct(sub_construct, input, dependencies);
+    // }
 }
 
 /// Takes an HCL expression and boils it down to a Variable or Traversal expression,
@@ -120,7 +117,7 @@ pub fn collect_constructs_references_from_block<'a, T: EvaluatableInput>(
 /// val = [variable.a, variable.b]
 /// ```
 /// will push `variable.a` and `variable.b` to the dependencies vector.
-pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
+pub fn collect_constructs_references_from_hcl_expression<'a, T: EvaluatableInput>(
     expr: &Expression,
     input: Option<&'a T>,
     dependencies: &mut Vec<(Option<&'a T>, Expression)>,
@@ -131,38 +128,42 @@ pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
         }
         Expression::Array(elements) => {
             for element in elements.iter() {
-                collect_constructs_references_from_expression(element, input, dependencies);
+                collect_constructs_references_from_hcl_expression(element, input, dependencies);
             }
         }
         Expression::BinaryOp(op) => {
-            collect_constructs_references_from_expression(&op.lhs_expr, input, dependencies);
-            collect_constructs_references_from_expression(&op.rhs_expr, input, dependencies);
+            collect_constructs_references_from_hcl_expression(&op.lhs_expr, input, dependencies);
+            collect_constructs_references_from_hcl_expression(&op.rhs_expr, input, dependencies);
         }
         Expression::Bool(_)
         | Expression::Null(_)
         | Expression::Number(_)
         | Expression::String(_) => return,
         Expression::Conditional(cond) => {
-            collect_constructs_references_from_expression(&cond.cond_expr, input, dependencies);
-            collect_constructs_references_from_expression(&cond.false_expr, input, dependencies);
-            collect_constructs_references_from_expression(&cond.true_expr, input, dependencies);
+            collect_constructs_references_from_hcl_expression(&cond.cond_expr, input, dependencies);
+            collect_constructs_references_from_hcl_expression(
+                &cond.false_expr,
+                input,
+                dependencies,
+            );
+            collect_constructs_references_from_hcl_expression(&cond.true_expr, input, dependencies);
         }
         Expression::ForExpr(for_expr) => {
-            collect_constructs_references_from_expression(
+            collect_constructs_references_from_hcl_expression(
                 &for_expr.value_expr,
                 input,
                 dependencies,
             );
             if let Some(ref key_expr) = for_expr.key_expr {
-                collect_constructs_references_from_expression(&key_expr, input, dependencies);
+                collect_constructs_references_from_hcl_expression(&key_expr, input, dependencies);
             }
             if let Some(ref cond) = for_expr.cond {
-                collect_constructs_references_from_expression(&cond.expr, input, dependencies);
+                collect_constructs_references_from_hcl_expression(&cond.expr, input, dependencies);
             }
         }
         Expression::FuncCall(expr) => {
             for arg in expr.args.iter() {
-                collect_constructs_references_from_expression(arg, input, dependencies);
+                collect_constructs_references_from_hcl_expression(arg, input, dependencies);
             }
         }
         Expression::HeredocTemplate(expr) => {
@@ -170,7 +171,7 @@ pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
                 match element {
                     Element::Directive(_) | Element::Literal(_) => {}
                     Element::Interpolation(interpolation) => {
-                        collect_constructs_references_from_expression(
+                        collect_constructs_references_from_hcl_expression(
                             &interpolation.expr,
                             input,
                             dependencies,
@@ -183,22 +184,26 @@ pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
             for (k, v) in obj.iter() {
                 match k {
                     ObjectKey::Expression(expr) => {
-                        collect_constructs_references_from_expression(&expr, input, dependencies);
+                        collect_constructs_references_from_hcl_expression(
+                            &expr,
+                            input,
+                            dependencies,
+                        );
                     }
                     ObjectKey::Ident(_) => {}
                 }
-                collect_constructs_references_from_expression(&v.expr(), input, dependencies);
+                collect_constructs_references_from_hcl_expression(&v.expr(), input, dependencies);
             }
         }
         Expression::Parenthesis(expr) => {
-            collect_constructs_references_from_expression(&expr.inner(), input, dependencies);
+            collect_constructs_references_from_hcl_expression(&expr.inner(), input, dependencies);
         }
         Expression::StringTemplate(template) => {
             for element in template.iter() {
                 match element {
                     Element::Directive(_) | Element::Literal(_) => {}
                     Element::Interpolation(interpolation) => {
-                        collect_constructs_references_from_expression(
+                        collect_constructs_references_from_hcl_expression(
                             &interpolation.expr,
                             input,
                             dependencies,
@@ -214,35 +219,395 @@ pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
             dependencies.push((input.clone(), expr.clone()));
         }
         Expression::UnaryOp(op) => {
-            collect_constructs_references_from_expression(&op.expr, input, dependencies);
+            collect_constructs_references_from_hcl_expression(&op.expr, input, dependencies);
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RawHclContent(String);
-impl RawHclContent {
-    pub fn from_string(s: String) -> Self {
-        RawHclContent(s)
+#[derive(Debug, Clone)]
+pub enum ConstructAttributeRef<'a> {
+    Hcl(&'a Attribute),
+    Json(),
+    Yaml(),
+}
+
+impl<'a> ConstructAttributeRef<'a> {
+    pub fn get_value(&self) -> ConstructExpression {
+        match &self {
+            Self::Hcl(expr) => ConstructExpression::Hcl(expr.value.clone()),
+            _ => unimplemented!(),
+        }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum ConstructExpression {
+    Hcl(Expression),
+    Json(),
+    Yaml(),
+}
+
+#[derive(Debug, Clone)]
+pub enum ConstructExpressionRef<'a> {
+    Hcl(&'a Expression),
+    Json(),
+    Yaml(),
+}
+
+impl<'a> From<ConstructExpressionRef<'a>> for ConstructExpression {
+    fn from(value: ConstructExpressionRef<'a>) -> Self {
+        match value {
+            ConstructExpressionRef::Hcl(expr_ref) => ConstructExpression::Hcl(expr_ref.clone()),
+            ConstructExpressionRef::Json() => ConstructExpression::Json(),
+            ConstructExpressionRef::Yaml() => ConstructExpression::Yaml(),
+        }
+    }
+}
+
+impl<'a> From<&'a ConstructExpression> for ConstructExpressionRef<'a> {
+    fn from(value: &'a ConstructExpression) -> Self {
+        match value {
+            ConstructExpression::Hcl(expr) => ConstructExpressionRef::Hcl(expr),
+            ConstructExpression::Json() => ConstructExpressionRef::Json(),
+            ConstructExpression::Yaml() => ConstructExpressionRef::Yaml(),
+        }
+    }
+}
+
+impl<'a> ConstructExpression {
+    pub fn collect_constructs_references_from_expression<T: EvaluatableInput>(
+        &self,
+        input: Option<&'a T>,
+        dependencies: &mut Vec<(Option<&'a T>, Expression)>,
+    ) {
+        match &self {
+            Self::Hcl(expr) => {
+                collect_constructs_references_from_hcl_expression(&expr, input, dependencies)
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_object_expression_key(&self, key: &str) -> Option<ConstructExpression> {
+        match &self {
+            Self::Hcl(expr) => {
+                let object_expr = expr.as_object().unwrap();
+                let expr_res = object_expr
+                    .into_iter()
+                    .find(|(k, _)| {
+                        k.as_ident().and_then(|i| Some(i.as_str().eq(key))).unwrap_or(false)
+                    })
+                    .map(|(_, v)| v)
+                    .cloned();
+                match expr_res {
+                    Some(expression) => Some(ConstructExpression::Hcl(expression.expr().clone())),
+                    None => None,
+                }
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn expect_hcl_expression(&self) -> &Expression {
+        let expr = match &self {
+            Self::Hcl(src) => src,
+            _ => unimplemented!(),
+        };
+        expr
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum RunbookConstruct {
+    Hcl(Block),
+    Json(),
+    Yaml(),
+}
+
+#[derive(Debug, Clone)]
+pub enum RunbookConstructRef<'a> {
+    Hcl(&'a Block),
+    Json(),
+    Yaml(),
+}
+
+impl<'a> From<RunbookConstructRef<'a>> for RunbookConstruct {
+    fn from(value: RunbookConstructRef<'a>) -> Self {
+        match value {
+            RunbookConstructRef::Hcl(block_ref) => RunbookConstruct::Hcl(block_ref.clone()),
+            RunbookConstructRef::Json() => RunbookConstruct::Json(),
+            RunbookConstructRef::Yaml() => RunbookConstruct::Yaml(),
+        }
+    }
+}
+
+impl<'a> From<&'a RunbookConstruct> for RunbookConstructRef<'a> {
+    fn from(value: &'a RunbookConstruct) -> Self {
+        match value {
+            RunbookConstruct::Hcl(block) => RunbookConstructRef::Hcl(block),
+            RunbookConstruct::Json() => RunbookConstructRef::Json(),
+            RunbookConstruct::Yaml() => RunbookConstructRef::Yaml(),
+        }
+    }
+}
+impl<'a> RunbookConstructRef<'a> {
+    pub fn get_sub_constructs(&'a self) -> Objects<'a> {
+        match &self {
+            Self::Hcl(block) => {
+                block.body.blocks().map(|b: &Block| RunbookConstructRef::Hcl(b)).collect::<Vec<_>>()
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_attributes(&'a self) -> Vec<ConstructAttributeRef<'a>> {
+        match &self {
+            Self::Hcl(block) => {
+                block.body.attributes().map(|b| ConstructAttributeRef::Hcl(b)).collect::<Vec<_>>()
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_sub_constructs_type(&'a self, sub_constructs_type: &'a str) -> Objects<'a> {
+        match &self {
+            Self::Hcl(block) => block
+                .body
+                .get_blocks(sub_constructs_type)
+                .map(|b: &Block| RunbookConstructRef::Hcl(b))
+                .collect::<Vec<_>>(),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_expression_from_attribute(
+        &'a self,
+        attribute_name: &str,
+    ) -> Option<ConstructExpressionRef<'a>> {
+        match &self {
+            Self::Hcl(block) => {
+                let Some(attribute) = block.body.get_attribute(attribute_name) else {
+                    return None;
+                };
+                Some(ConstructExpressionRef::Hcl(&attribute.value))
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    // pub fn collect_constructs_referenced_by_construct<'b, T: EvaluatableInput>(
+    //     &self,
+    //     input: Option<&'b T>,
+    //     dependencies: &'b mut Vec<(Option<&'b T>, Expression)>,
+    // ) {
+    //     for attribute in self.get_attributes() {
+    //         let expr = attribute.get_value();
+    //         let mut references = vec![];
+    //         expr.collect_constructs_references_from_expression(input, &mut references);
+    //         dependencies.append(&mut references);
+    //     }
+    //     for sub_constructs in self.get_sub_constructs() {
+    //         sub_constructs.collect_constructs_referenced_by_construct(input, dependencies);
+    //     }
+    // }
+}
+
+pub type Objects<'a> = Vec<RunbookConstructRef<'a>>;
+
+impl RunbookConstruct {
+    pub fn get_construct_type(&self) -> &str {
+        match &self {
+            Self::Hcl(src) => src.ident.value().as_str(),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_construct_instance_name(&self) -> Option<&str> {
+        match &self {
+            Self::Hcl(block) => {
+                let Some(BlockLabel::String(name)) = block.labels.get(0) else { return None };
+                Some(name.as_str())
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_attributes<'a>(&'a self) -> Vec<ConstructAttributeRef<'a>> {
+        match &self {
+            Self::Hcl(block) => {
+                block.body.attributes().map(|b| ConstructAttributeRef::Hcl(b)).collect::<Vec<_>>()
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    // pub fn get_attribute<'a>(&'a self, attribute_name: &str, expected_type: Option<Type>) -> Option<ConstructAttributeRef<'a>> {
+    //     match &self {
+    //         Self::Hcl(block) => {
+    //             let value = block.body.get_attribute(attribute_name).map(|b| ConstructAttributeRef::Hcl(b))?;
+    //             match expected_type {
+    //                 None => Some(value),
+    //                 Some(Type::String) =>
+    //             }
+    //         }
+    //         _ => unimplemented!(),
+    //     }
+    // }
+
+    pub fn get_attribute_stringified(&self, attribute_name: &str) -> Option<String> {
+        match &self {
+            Self::Hcl(block) => {
+                block.body.get_attribute(attribute_name).map(|b| b.value.to_string())
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_command_instance_type(&self) -> Option<&str> {
+        match &self {
+            Self::Hcl(block) => {
+                let Some(BlockLabel::String(name)) = block.labels.get(1) else { return None };
+                Some(name.as_str())
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_sub_constructs<'a>(&'a self) -> Objects<'a> {
+        match &self {
+            Self::Hcl(block) => {
+                block.body.blocks().map(|b: &Block| RunbookConstructRef::Hcl(b)).collect::<Vec<_>>()
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_sub_constructs_type<'a>(
+        &'a self,
+        sub_constructs_type: &'a str,
+    ) -> Vec<RunbookConstruct> {
+        match &self {
+            Self::Hcl(block) => block
+                .body
+                .get_blocks(sub_constructs_type)
+                .map(|b: &Block| RunbookConstruct::Hcl(b.clone()))
+                .collect::<Vec<_>>(),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_required_string_literal_from_attribute(
+        &self,
+        attribute_name: &str,
+    ) -> Result<String, VisitorError> {
+        match &self {
+            Self::Hcl(block) => visit_required_string_literal_attribute(attribute_name, block),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn get_expression_from_attribute<'a>(
+        &'a self,
+        attribute_name: &str,
+    ) -> Option<ConstructExpression> {
+        match &self {
+            Self::Hcl(block) => {
+                let Some(attribute) = block.body.get_attribute(attribute_name) else {
+                    return None;
+                };
+                Some(ConstructExpression::Hcl(attribute.value.clone()))
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    // pub fn collect_constructs_referenced_by_construct<T: EvaluatableInput>(
+    //     &self,
+    //     input: Option<&T>,
+    //     dependencies: &mut Vec<(Option<&T>, Expression)>,
+    // ) {
+    //     for attribute in self.get_attributes() {
+    //         let expr = attribute.get_value();
+    //         let mut references = vec![];
+    //         expr.collect_constructs_references_from_expression(input, &mut references);
+    //         dependencies.append(&mut references);
+    //     }
+    //     for block in self.get_sub_constructs() {
+    //         // block.coll
+    //         // collect_constructs_referenced_by_construct(block, input, dependencies);
+    //     }
+    // }
+
+    pub fn get_span(&self) -> Option<std::ops::Range<usize>> {
+        match &self {
+            Self::Hcl(block) => block.body.span(),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn expect_hcl_block(&self) -> &Block {
+        let block = match &self {
+            Self::Hcl(src) => src,
+            _ => unimplemented!(),
+        };
+        block
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RunbookSource {
+    Hcl(String),
+    Json(String),
+    Yaml(String),
+}
+
+impl RunbookSource {
+    pub fn from_hcl_string(s: String) -> Self {
+        Self::Hcl(s)
+    }
+
     pub fn from_file_location(file_location: &FileLocation) -> Result<Self, Diagnostic> {
         file_location
             .read_content_as_utf8()
             .map_err(|e| {
                 Diagnostic::error_from_string(format!("{}", e.to_string())).location(&file_location)
             })
-            .map(|s| RawHclContent(s))
+            .map(|s| {
+                let res = match file_location.get_file_name() {
+                    Some(name) if name.ends_with(".tx") => Self::Hcl(s),
+                    Some(name) if name.ends_with(".tx.hcl") => Self::Hcl(s),
+                    Some(name) if name.ends_with(".tx.yaml") => Self::Hcl(s),
+                    Some(name) if name.ends_with(".tx.json") => Self::Hcl(s),
+                    _ => {
+                        return Err(Diagnostic::error_from_string(format!(
+                            "file format unknown (.tx, .tx.hcl, .tx.yaml, .tx.json)",
+                        ))
+                        .location(&file_location))
+                    }
+                };
+                Ok(res)
+            })?
     }
 
-    pub fn into_blocks(&self) -> Result<VecDeque<Block>, Diagnostic> {
-        let content = crate::hcl::parser::parse_body(&self.0).map_err(|e| {
-            Diagnostic::error_from_string(format!("parsing error: {}", e.to_string()))
-        })?;
-        Ok(content.into_blocks().into_iter().collect::<VecDeque<Block>>())
+    pub fn into_constructs(&self) -> Result<VecDeque<RunbookConstruct>, Diagnostic> {
+        let constructs = match &self {
+            Self::Hcl(source) => {
+                let content = crate::hcl::parser::parse_body(&source).map_err(|e| {
+                    Diagnostic::error_from_string(format!("parsing error: {}", e.to_string()))
+                })?;
+                content
+                    .into_blocks()
+                    .into_iter()
+                    .map(RunbookConstruct::Hcl)
+                    .collect::<VecDeque<RunbookConstruct>>()
+            }
+            _ => unimplemented!(),
+        };
+        Ok(constructs)
     }
 
-    pub fn into_block_instance(&self) -> Result<Block, Diagnostic> {
-        let mut blocks = self.into_blocks()?;
+    pub fn into_construct(&self) -> Result<RunbookConstruct, Diagnostic> {
+        let mut blocks = self.into_constructs()?;
         if blocks.len() != 1 {
             return Err(Diagnostic::error_from_string(
                 "expected exactly one block instance".into(),
@@ -251,18 +616,23 @@ impl RawHclContent {
         Ok(blocks.pop_front().unwrap())
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        let mut bytes = vec![0u8; 2 * self.0.len()];
-        crate::hex::encode_to_slice(self.0.clone(), &mut bytes).map_err(|e| {
-            Diagnostic::error_from_string(format!("failed to encode raw content: {e}"))
-        })?;
-        Ok(bytes)
+    // pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
+    //     let mut bytes = vec![0u8; 2 * self.0.len()];
+    //     crate::hex::encode_to_slice(self.0.clone(), &mut bytes).map_err(|e| {
+    //         Diagnostic::error_from_string(format!("failed to encode raw content: {e}"))
+    //     })?;
+    //     Ok(bytes)
+    // }
+    pub fn as_hcl_str(&self) -> &str {
+        let source = match &self {
+            Self::Hcl(src) => src,
+            _ => unreachable!(),
+        };
+        source.as_str()
     }
-    pub fn to_string(&self) -> String {
-        self.0.clone()
-    }
-    pub fn from_block(block: &Block) -> Self {
-        RawHclContent::from_string(
+
+    pub fn from_hcl_construct(block: &Block) -> Self {
+        Self::from_hcl_string(
             Body::builder().block(block.clone()).build().to_string().trim().to_string(),
         )
     }
@@ -321,21 +691,29 @@ mod tests {
         "#
         );
 
-        let raw_hcl = RawHclContent::from_string(input.trim().to_string());
-        let blocks = raw_hcl.into_blocks().unwrap();
-        assert_eq!(blocks.len(), 4);
-        let addon_block = RawHclContent::from_block(&blocks[0]).to_string();
+        let raw_hcl = RunbookSource::from_hcl_string(input.trim().to_string());
+        let constructs = raw_hcl.into_constructs().unwrap();
+        assert_eq!(constructs.len(), 4);
+        let addon_block = RunbookSource::from_hcl_construct(&constructs[0].expect_hcl_block())
+            .as_hcl_str()
+            .to_string();
         assert_eq!(addon_block, addon_block_str);
-        let signer_block = RawHclContent::from_block(&blocks[1]).to_string();
+        let signer_block = RunbookSource::from_hcl_construct(&constructs[1].expect_hcl_block())
+            .as_hcl_str()
+            .to_string();
         assert_eq!(signer_block, signer_block_str);
-        let runbook_block = RawHclContent::from_block(&blocks[2]).to_string();
+        let runbook_block = RunbookSource::from_hcl_construct(&constructs[2].expect_hcl_block())
+            .as_hcl_str()
+            .to_string();
         assert_eq!(runbook_block, runbook_block_str);
-        let output_block = RawHclContent::from_block(&blocks[3]).to_string();
+        let output_block = RunbookSource::from_hcl_construct(&constructs[3].expect_hcl_block())
+            .as_hcl_str()
+            .to_string();
         assert_eq!(output_block, output_block_str);
     }
 
     #[test]
-    fn test_collect_constructs_references_from_block() {
+    fn test_collect_constructs_referenced_by_construct() {
         let input = r#"
             runbook "test" {
                 location = "./embedded-runbook.json"
@@ -352,10 +730,15 @@ mod tests {
             }
         "#;
 
-        let raw_hcl = RawHclContent::from_string(input.trim().to_string());
-        let block = raw_hcl.into_block_instance().unwrap();
+        let raw_hcl = RunbookSource::from_hcl_string(input.trim().to_string());
+        let construct = raw_hcl.into_construct().unwrap();
+
         let mut dependencies = vec![];
-        collect_constructs_references_from_block(&block, None::<&CommandInput>, &mut dependencies);
+        collect_constructs_referenced_by_construct(
+            &construct,
+            None::<&CommandInput>,
+            &mut dependencies,
+        );
 
         assert_eq!(dependencies.len(), 7);
     }
@@ -378,12 +761,12 @@ mod tests {
             }
         "#;
 
-        let raw_hcl = RawHclContent::from_string(input.trim().to_string());
-        let block = raw_hcl.into_block_instance().unwrap();
+        let raw_hcl = RunbookSource::from_hcl_string(input.trim().to_string());
+        let block = raw_hcl.into_construct().unwrap().expect_hcl_block().clone();
         let attribute = block.body.get_attribute("chain_id").unwrap();
 
         let mut dependencies = vec![];
-        collect_constructs_references_from_expression(
+        collect_constructs_references_from_hcl_expression(
             &attribute.value,
             None::<&CommandInput>,
             &mut dependencies,

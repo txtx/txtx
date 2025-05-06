@@ -2,10 +2,11 @@ use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, CHECKED_ADDRESS, IS_BALANCE_CHECKED,
     PROVIDE_PUBLIC_KEY_ACTION_RESULT,
 };
-use crate::helpers::hcl::visit_optional_untyped_attribute;
+use crate::helpers::hcl::{
+    visit_optional_untyped_attribute, ConstructExpression, ConstructExpressionRef, RunbookConstruct,
+};
 use crate::types::stores::ValueStore;
 use futures::future;
-use hcl_edit::{expr::Expression, structure::Block, Span};
 use std::{collections::HashMap, future::Future, pin::Pin};
 
 use super::commands::ConstructInstance;
@@ -308,7 +309,7 @@ pub struct SignerSpecification {
 pub struct SignerInstance {
     pub specification: SignerSpecification,
     pub name: String,
-    pub block: Block,
+    pub construct: RunbookConstruct,
     pub package_id: PackageId,
     pub namespace: String,
 }
@@ -326,12 +327,12 @@ impl SignerInstance {
     }
 
     /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
-    pub fn get_expression_from_input(&self, input: &CommandInput) -> Option<Expression> {
-        visit_optional_untyped_attribute(&input.name, &self.block)
+    pub fn get_expression_from_input(&self, input: &CommandInput) -> Option<ConstructExpression> {
+        self.construct.get_expression_from_attribute(&input.name)
     }
 
     pub fn get_group(&self) -> String {
-        let Some(group) = self.block.body.get_attribute("group") else {
+        let Some(group) = self.construct.expect_hcl_block().body.get_attribute("group") else {
             return format!("{} Review", self.specification.name.to_string());
         };
         group.value.to_string()
@@ -341,13 +342,13 @@ impl SignerInstance {
         &self,
         input: &CommandInput,
         prop: &ObjectProperty,
-    ) -> Option<Expression> {
-        let object = self.block.body.get_blocks(&input.name).next();
-        match object {
-            Some(block) => {
-                let expr_res = visit_optional_untyped_attribute(&prop.name, &block);
+    ) -> Option<ConstructExpression> {
+        let sub_constructs = self.construct.get_sub_constructs_type(&input.name);
+        match sub_constructs.first() {
+            Some(construct) => {
+                let expr_res = construct.get_expression_from_attribute(&prop.name);
                 match expr_res {
-                    Some(expression) => Some(expression),
+                    Some(expression) => Some(expression.into()),
                     None => None,
                 }
             }
@@ -432,7 +433,7 @@ impl SignerInstance {
             is_public_key_required,
         );
 
-        consolidate_signer_future_result(res, self.block.span()).await
+        consolidate_signer_future_result(res, self.construct.get_span()).await
     }
 
     pub async fn perform_activation(
@@ -457,13 +458,13 @@ impl SignerInstance {
             signers_instances,
             progress_tx,
         );
-        consolidate_signer_activate_future_result(future, self.block.span()).await?
+        consolidate_signer_activate_future_result(future, self.construct.get_span()).await?
     }
 }
 
 impl ConstructInstance for SignerInstance {
-    fn block(&self) -> &Block {
-        &self.block
+    fn construct(&self) -> &RunbookConstruct {
+        &self.construct
     }
     fn inputs(&self) -> Vec<&impl EvaluatableInput> {
         self.specification.inputs.iter().chain(&self.specification.default_inputs).collect()

@@ -6,10 +6,9 @@ use kit::types::frontend::ActionItemRequestType;
 use kit::types::ConstructDid;
 use serde_json::{json, Value as JsonValue};
 use std::collections::{HashMap, HashSet, VecDeque};
-use txtx_addon_kit::hcl::structure::BlockLabel;
 use txtx_addon_kit::hcl::Span;
 use txtx_addon_kit::helpers::fs::FileLocation;
-use txtx_addon_kit::helpers::hcl::RawHclContent;
+use txtx_addon_kit::helpers::hcl::RunbookSource;
 use txtx_addon_kit::types::commands::{CommandExecutionResult, DependencyExecutionResultCache};
 use txtx_addon_kit::types::diagnostics::DiagnosticSpan;
 use txtx_addon_kit::types::stores::ValueStore;
@@ -123,21 +122,24 @@ impl Runbook {
                 PackageId::from_file(&location, &self.runbook_id, &package_name).map_err(|e| e)?;
             package_ids.push(package_id.clone());
 
-            let mut blocks = raw_content.into_blocks().map_err(|diag| diag.location(&location))?;
+            let mut constructs =
+                raw_content.into_constructs().map_err(|diag| diag.location(&location))?;
 
-            while let Some(block) = blocks.pop_front() {
-                match block.ident.value().as_str() {
+            while let Some(construct) = constructs.pop_front() {
+                match construct.get_construct_type() {
                     "flow" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(construct_instance_name) = construct.get_construct_instance_name()
+                        else {
+                            // TODO: return error?
                             continue;
                         };
-                        let flow_name = name.to_string();
+                        let flow_name = construct_instance_name.to_string();
                         let flow_context = FlowContext::new(
                             &flow_name,
                             &self.runbook_id,
                             &current_top_level_value_store,
                         );
-                        flow_map.push((flow_context, block.body.attributes().cloned().collect()));
+                        flow_map.push((flow_context, construct.get_attributes()));
                     }
                     _ => {}
                 }
@@ -239,7 +241,7 @@ impl Runbook {
                         .unwrap();
                     let diag = diag
                         .location(&construct_id.construct_location)
-                        .set_span_range(command_instance.block.span());
+                        .set_span_range(command_instance.construct.get_span());
                     vec![diag
                         .clone()
                         .set_diagnostic_span(get_source_context_for_diagnostic(&diag, &sources))]
@@ -793,7 +795,7 @@ impl RunbookTopLevelInputsMap {
 #[derive(Clone, Debug)]
 pub struct RunbookSources {
     /// Map of files required to construct the runbook
-    pub tree: HashMap<FileLocation, (String, RawHclContent)>,
+    pub tree: HashMap<FileLocation, (String, RunbookSource)>,
 }
 
 impl RunbookSources {
@@ -802,10 +804,10 @@ impl RunbookSources {
     }
 
     pub fn add_source(&mut self, name: String, location: FileLocation, content: String) {
-        self.tree.insert(location, (name, RawHclContent::from_string(content)));
+        self.tree.insert(location, (name, RunbookSource::from_hcl_string(content)));
     }
 
-    pub fn to_vec_dequeue(&self) -> VecDeque<(FileLocation, String, RawHclContent)> {
+    pub fn to_vec_dequeue(&self) -> VecDeque<(FileLocation, String, RunbookSource)> {
         self.tree
             .iter()
             .map(|(file_location, (package_name, raw_content))| {
@@ -831,7 +833,7 @@ pub fn get_source_context_for_diagnostic(
     else {
         return None;
     };
-    let raw_content_string = raw_content.to_string();
+    let raw_content_string = raw_content.as_hcl_str();
     let mut lines = 1;
     let mut cols = 1;
     let mut span = DiagnosticSpan::new();

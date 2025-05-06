@@ -1,17 +1,15 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use crate::runbook::embedded_runbook::EmbeddedRunbookInstanceBuilder;
-use crate::runbook::RawHclContent;
+use crate::runbook::RunbookSource;
 use crate::std::commands;
 use crate::types::PreConstructData;
+use kit::helpers::hcl::ConstructExpression;
 use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
-use txtx_addon_kit::hcl::structure::BlockLabel;
 use txtx_addon_kit::hcl::template::Element;
 use txtx_addon_kit::hcl::Span;
 use txtx_addon_kit::helpers::fs::{get_txtx_files_paths, FileLocation};
-use txtx_addon_kit::helpers::hcl::{
-    visit_optional_untyped_attribute, visit_required_string_literal_attribute,
-};
+use txtx_addon_kit::helpers::hcl::visit_optional_untyped_attribute;
 use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::commands::{CommandId, CommandInstance, CommandInstanceType};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
@@ -119,14 +117,14 @@ impl RunbookWorkspaceContext {
             let package_id = PackageId::from_file(&location, &self.runbook_id, &package_name)
                 .map_err(|e| vec![e])?;
 
-            let mut blocks =
-                raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
+            let mut constructs =
+                raw_content.into_constructs().map_err(|diag| vec![diag.location(&location)])?;
 
-            while let Some(block) = blocks.pop_front() {
-                match block.ident.value().as_str() {
+            while let Some(construct) = constructs.pop_front() {
+                match construct.get_construct_type() {
                     "import" => {
                         // imports are the only constructs that we need to process in this step
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("import name missing".into())
                                     .location(&location),
@@ -134,10 +132,21 @@ impl RunbookWorkspaceContext {
                             continue;
                         };
 
-                        let path = visit_required_string_literal_attribute("path", &block).unwrap(); // todo(lgalabru)
-                        println!("Loading {} at path ({path})", name.to_string());
+                        let path =
+                            match construct.get_required_string_literal_from_attribute("path") {
+                                Ok(path) => path,
+                                Err(e) => {
+                                    diagnostics.push(
+                                        Diagnostic::error_from_string(format!(
+                                            "path attribute missing for import '{}'",
+                                            name
+                                        ))
+                                        .location(&location),
+                                    );
+                                    continue;
+                                }
+                            };
 
-                        // todo(lgalabru): revisit this approach, filesystem access needs to be abstracted.
                         let mut imported_package_location =
                             location.get_parent_location().map_err(|e| {
                                 vec![diagnosed_error!("{}", e.to_string()).location(&location)]
@@ -145,6 +154,7 @@ impl RunbookWorkspaceContext {
 
                         imported_package_location.append_path(&path).unwrap();
 
+                        // todo(lgalabru): revisit this approach, filesystem access needs to be abstracted.
                         match std::fs::read_dir(imported_package_location.to_string()) {
                             Ok(_) => {
                                 let files = get_txtx_files_paths(
@@ -159,7 +169,7 @@ impl RunbookWorkspaceContext {
                                     let file_location = FileLocation::from_path(file_path);
                                     if !files_visited.contains(&file_location) {
                                         let raw_content =
-                                            RawHclContent::from_file_location(&file_location)
+                                            RunbookSource::from_file_location(&file_location)
                                                 .map_err(|diag| vec![diag])?;
                                         let module_name = name.to_string();
                                         sources.push_back((
@@ -172,7 +182,7 @@ impl RunbookWorkspaceContext {
                             }
                             Err(_) => {
                                 if !files_visited.contains(&imported_package_location) {
-                                    let raw_content = RawHclContent::from_file_location(&location)
+                                    let raw_content = RunbookSource::from_file_location(&location)
                                         .map_err(|diag| vec![diag])?;
                                     let module_name = name.to_string();
                                     sources.push_back((
@@ -187,14 +197,14 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Import(block.clone()),
+                            PreConstructData::Import(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
                     "variable" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("variable name missing".into())
                                     .location(&location),
@@ -204,14 +214,14 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Variable(block.clone()),
+                            PreConstructData::Variable(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
                     "module" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("module name missing".into())
                                     .location(&location),
@@ -221,14 +231,14 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Module(block.clone()),
+                            PreConstructData::Module(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
                     "output" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("output name missing".into())
                                     .location(&location),
@@ -238,16 +248,17 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Output(block.clone()),
+                            PreConstructData::Output(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
                     "action" => {
-                        let (Some(command_name), Some(namespaced_action)) =
-                            (block.labels.get(0), block.labels.get(1))
-                        else {
+                        let (Some(command_name), Some(namespaced_action)) = (
+                            construct.get_construct_instance_name(),
+                            construct.get_command_instance_type(),
+                        ) else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("invalid action syntax: expected `action \"action_name\" \"namespace::action\"".into())
                                     .location(&location),
@@ -263,9 +274,9 @@ impl RunbookWorkspaceContext {
                         match runtime_context.addons_context.create_action_instance(
                             namespace,
                             command_id,
-                            command_name.as_str(),
+                            command_name,
                             &package_id,
-                            &block,
+                            &construct,
                             &location,
                         ) {
                             Ok(command_instance) => {
@@ -284,7 +295,7 @@ impl RunbookWorkspaceContext {
                                 diagnostics.push(
                                     diagnostic
                                         .location(&location)
-                                        .set_span_range(block.span())
+                                        .set_span_range(construct.get_span())
                                         .set_diagnostic_span(span),
                                 );
                                 continue;
@@ -293,7 +304,7 @@ impl RunbookWorkspaceContext {
                     }
                     "signer" => {
                         let (Some(signer_name), Some(namespaced_signer_cmd)) =
-                            (block.labels.get(0), block.labels.get(1))
+                            (construct.get_construct_instance_name(), construct.get_command_instance_type())
                         else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("signer syntax invalid".into())
@@ -302,10 +313,10 @@ impl RunbookWorkspaceContext {
                             continue;
                         };
                         match runtime_context.addons_context.create_signer_instance(
-                            &namespaced_signer_cmd.as_str(),
-                            signer_name.as_str(),
+                            &namespaced_signer_cmd,
+                            signer_name,
                             &package_id,
-                            &block,
+                            &construct,
                             &location,
                         ) {
                             Ok(signer_instance) => {
@@ -325,7 +336,7 @@ impl RunbookWorkspaceContext {
                         }
                     }
                     "runbook" => {
-                        let Some(runbook_name) = block.labels.get(0) else {
+                        let Some(runbook_name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("'runbook' syntax invalid".into())
                                     .location(&location),
@@ -333,9 +344,9 @@ impl RunbookWorkspaceContext {
                             continue;
                         };
                         let runbook_name = runbook_name.to_string();
-                        let embedded_runbook_location =
-                            visit_required_string_literal_attribute("location", &block).unwrap();
-                        println!("Loading {runbook_name} at path ({embedded_runbook_location})");
+                        let embedded_runbook_location = construct
+                            .get_required_string_literal_from_attribute("location")
+                            .unwrap();
 
                         let imported_package_location =
                             location.get_parent_location().map_err(|e| {
@@ -364,7 +375,7 @@ impl RunbookWorkspaceContext {
                                         loc,
                                         &runbook_name.to_string(),
                                         &package_id,
-                                        &block,
+                                        &construct,
                                         &mut runtime_context.addons_context,
                                     )
                                     .await
@@ -388,7 +399,7 @@ impl RunbookWorkspaceContext {
                         }
                     }
                     "addon" => {
-                        let Some(BlockLabel::String(addon_id)) = block.labels.first() else {
+                        let Some(name) = construct.get_construct_instance_name() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("addon name missing".into())
                                     .location(&location),
@@ -396,9 +407,9 @@ impl RunbookWorkspaceContext {
                             continue;
                         };
                         let _ = self.index_construct(
-                            addon_id.to_string(),
+                            name.to_string(),
                             location.clone(),
-                            PreConstructData::Addon(block.clone()),
+                            PreConstructData::Addon(construct.clone()),
                             &package_id,
                             graph_context,
                             execution_context,
@@ -485,7 +496,7 @@ impl RunbookWorkspaceContext {
         let construct_did = construct_id.did();
         self.constructs.insert(construct_did.clone(), construct_id.clone());
         let construct_instance_type = match construct_data {
-            PreConstructData::Module(block) => {
+            PreConstructData::Module(construct) => {
                 // if construct_name.eq("runbook") && self.runbook_metadata_construct_did.is_none() {
                 //     self.runbook_metadata_construct_did = Some(construct_did.clone());
                 // }
@@ -494,40 +505,40 @@ impl RunbookWorkspaceContext {
                 ConstructInstanceType::Executable(CommandInstance {
                     specification: commands::new_module_specification(),
                     name: construct_name.clone(),
-                    block: block.clone(),
+                    construct: construct.clone(),
                     package_id: package_id.clone(),
                     namespace: construct_name.clone(),
                     typing: CommandInstanceType::Module,
                 })
             }
-            PreConstructData::Variable(block) => {
+            PreConstructData::Variable(construct) => {
                 package.variables_dids.insert(construct_did.clone());
                 package.variables_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
                     specification: commands::new_variable_specification(),
                     name: construct_name.clone(),
-                    block: block.clone(),
+                    construct: construct.clone(),
                     package_id: package_id.clone(),
                     namespace: construct_name.clone(),
                     typing: CommandInstanceType::Variable,
                 })
             }
-            PreConstructData::Addon(block) => {
+            PreConstructData::Addon(construct) => {
                 package.addons_dids.insert(construct_did.clone());
                 package.addons_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Addon(AddonInstance {
-                    block: block.clone(),
+                    construct: construct.clone(),
                     package_id: package_id.clone(),
                     addon_id: construct_name.clone(),
                 })
             }
-            PreConstructData::Output(block) => {
+            PreConstructData::Output(construct) => {
                 package.outputs_dids.insert(construct_did.clone());
                 package.outputs_did_lookup.insert(construct_name.clone(), construct_did.clone());
                 ConstructInstanceType::Executable(CommandInstance {
                     specification: commands::new_output_specification(),
                     name: construct_name.clone(),
-                    block: block.clone(),
+                    construct: construct.clone(),
                     package_id: package_id.clone(),
                     namespace: construct_name.clone(),
                     typing: CommandInstanceType::Output,
@@ -596,7 +607,7 @@ impl RunbookWorkspaceContext {
     ) -> Vec<EmbeddedRunbookInputSpecification> {
         let mut embedded_runbook_inputs = vec![];
         for input in command_instance.specification.inputs.iter() {
-            let res = visit_optional_untyped_attribute(&input.name, &command_instance.block);
+            let res = command_instance.construct.get_expression_from_attribute(&input.name);
             if let Some(expr) = res {
                 if let Some(input_names) =
                     self.get_top_level_input_name_from_expression_reference(&expr)
@@ -629,8 +640,8 @@ impl RunbookWorkspaceContext {
         addon_instance: &AddonInstance,
     ) -> Vec<EmbeddedRunbookInputSpecification> {
         let mut embedded_runbook_inputs = vec![];
-        for attribute in addon_instance.block.body.attributes() {
-            let expr = &attribute.value;
+        for attribute in addon_instance.construct.get_attributes() {
+            let expr = &attribute.get_value();
             if let Some(input_names) =
                 self.get_top_level_input_name_from_expression_reference(&expr)
             {
@@ -672,7 +683,7 @@ impl RunbookWorkspaceContext {
                 continue;
             };
             let res =
-                visit_optional_untyped_attribute(&input.name, &embedded_runbook_instance.block);
+            embedded_runbook_instance.construct.get_expression_from_attribute(&input.name);
             if let Some(expr) = res {
                 if let Some(input_names) =
                     self.get_top_level_input_name_from_expression_reference(&expr)
@@ -692,9 +703,9 @@ impl RunbookWorkspaceContext {
 
     fn get_top_level_input_name_from_expression_reference(
         &self,
-        expression: &Expression,
+        expression: &ConstructExpression,
     ) -> Option<Vec<String>> {
-        if let Some(traversal) = expression.as_traversal() {
+        if let Some(traversal) = expression.expect_hcl_expression().as_traversal() {
             let Some(root) = traversal.expr.as_variable() else {
                 return None;
             };
@@ -709,7 +720,7 @@ impl RunbookWorkspaceContext {
                     return Some(vec![top_level_input_name]);
                 };
             }
-        } else if let Some(arr) = expression.as_array() {
+        } else if let Some(arr) = expression.expect_hcl_expression().as_array() {
             let mut res = vec![];
             for expr in arr.iter() {
                 if let Some(mut input_name) =
@@ -719,7 +730,7 @@ impl RunbookWorkspaceContext {
                 }
             }
             return Some(res);
-        } else if let Some(obj) = expression.as_object() {
+        } else if let Some(obj) = expression.expect_hcl_expression().as_object() {
             let mut res = vec![];
             for (_, object_value) in obj.iter() {
                 if let Some(mut input_name) =
@@ -729,7 +740,7 @@ impl RunbookWorkspaceContext {
                 }
             }
             return Some(res);
-        } else if let Some(string_template) = expression.as_string_template() {
+        } else if let Some(string_template) = expression.expect_hcl_expression().as_string_template() {
             let mut res = vec![];
             for element in string_template.into_iter() {
                 match element {
@@ -756,7 +767,7 @@ impl RunbookWorkspaceContext {
     pub fn try_resolve_construct_reference_in_expression(
         &self,
         source_package_id: &PackageId,
-        expression: &Expression,
+        expression: &ConstructExpression,
     ) -> Result<Option<(ConstructDid, VecDeque<String>, VecDeque<Value>)>, String> {
         let Some(traversal) = expression.as_traversal() else {
             return Ok(None);

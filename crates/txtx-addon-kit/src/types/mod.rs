@@ -3,14 +3,13 @@ use std::fmt::Display;
 use std::path::Path;
 
 use diagnostics::Diagnostic;
-use hcl_edit::expr::Expression;
-use hcl_edit::structure::Block;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use types::{ObjectDefinition, ObjectProperty, Type};
 
 use crate::helpers::fs::FileLocation;
+use crate::helpers::hcl::{ConstructExpression, RunbookConstruct};
 
 pub mod block_id;
 pub mod cloud_interface;
@@ -326,31 +325,28 @@ impl AddonPostProcessingResult {
 pub struct AddonInstance {
     pub addon_id: String,
     pub package_id: PackageId,
-    pub block: Block,
+    pub construct: RunbookConstruct,
 }
 
 pub trait WithEvaluatableInputs {
     fn name(&self) -> String;
-    fn block(&self) -> &Block;
-    fn get_expression_from_input(&self, input_name: &str) -> Option<Expression>;
+    fn construct(&self) -> &RunbookConstruct;
     fn get_blocks_for_map(
         &self,
         input_name: &str,
         input_typing: &Type,
         input_optional: bool,
-    ) -> Result<Option<Vec<Block>>, Vec<Diagnostic>>;
-    fn get_expression_from_block(&self, block: &Block, prop: &ObjectProperty)
-        -> Option<Expression>;
+    ) -> Result<Option<Vec<RunbookConstruct>>, Vec<Diagnostic>>;
     fn get_expression_from_object(
         &self,
         input_name: &str,
         input_typing: &Type,
-    ) -> Result<Option<Expression>, Vec<Diagnostic>>;
+    ) -> Result<Option<ConstructExpression>, Vec<Diagnostic>>;
     fn get_expression_from_object_property(
         &self,
         input_name: &str,
         prop: &ObjectProperty,
-    ) -> Option<Expression>;
+    ) -> Option<ConstructExpression>;
     fn spec_inputs(&self) -> Vec<impl EvaluatableInput>;
 }
 

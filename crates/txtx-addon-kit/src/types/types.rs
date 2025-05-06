@@ -1,5 +1,4 @@
 use hcl_edit::expr::Expression;
-use hcl_edit::structure::Block;
 use indexmap::IndexMap;
 use jaq_interpret::Val;
 use serde::de::{self, MapAccess, Visitor};
@@ -9,10 +8,7 @@ use serde_json::{Map, Value as JsonValue};
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
 
-use crate::helpers::hcl::{
-    collect_constructs_references_from_block, collect_constructs_references_from_expression,
-    visit_optional_untyped_attribute,
-};
+use crate::helpers::hcl::{collect_constructs_referenced_by_construct, RunbookConstruct};
 
 use super::diagnostics::Diagnostic;
 use super::{Did, EvaluatableInput};
@@ -935,20 +931,19 @@ impl Type {
     /// need to look for nested blocks and properties.
     pub fn get_expressions_referencing_constructs<'a, T: EvaluatableInput>(
         &self,
-        block: &Block,
+        construct: &RunbookConstruct,
+        input_name: &str,
         input: &'a T,
         dependencies: &mut Vec<(Option<&'a T>, Expression)>,
     ) {
-        let input_name = input.name();
         match self {
             Type::Map(ref object_def) => match object_def {
                 ObjectDefinition::Strict(props) => {
-                    for block in block.body.get_blocks(&input_name) {
+                    for construct in construct.get_sub_constructs_type(&input_name) {
                         for prop in props.iter() {
-                            let res = visit_optional_untyped_attribute(&prop.name, &block);
+                            let res = construct.get_expression_from_attribute(&prop.name);
                             if let Some(expr) = res {
-                                collect_constructs_references_from_expression(
-                                    &expr,
+                                expr.collect_constructs_references_from_expression(
                                     Some(input),
                                     dependencies,
                                 );
@@ -957,24 +952,26 @@ impl Type {
                     }
                 }
                 ObjectDefinition::Arbitrary(_) => {
-                    for block in block.body.get_blocks(&input_name) {
-                        collect_constructs_references_from_block(block, Some(input), dependencies);
+                    for sub_construct in construct.get_sub_constructs_type(&input_name) {
+                        collect_constructs_referenced_by_construct(
+                            &sub_construct,
+                            Some(input),
+                            dependencies,
+                        );
                     }
                 }
             },
             Type::Object(ref object_def) => {
-                if let Some(expr) = visit_optional_untyped_attribute(&input_name, &block) {
-                    collect_constructs_references_from_expression(&expr, Some(input), dependencies);
+                if let Some(expr) = construct.get_expression_from_attribute(&input_name) {
+                    expr.collect_constructs_references_from_expression(Some(input), dependencies);
                 }
                 match object_def {
                     ObjectDefinition::Strict(props) => {
                         for prop in props.iter() {
-                            for block in block.body.get_blocks(&input_name) {
-                                if let Some(expr) =
-                                    visit_optional_untyped_attribute(&prop.name, &block)
+                            for object in construct.get_sub_constructs_type(&input_name) {
+                                if let Some(expr) = object.get_expression_from_attribute(&prop.name)
                                 {
-                                    collect_constructs_references_from_expression(
-                                        &expr,
+                                    expr.collect_constructs_references_from_expression(
                                         Some(input),
                                         dependencies,
                                     );
@@ -983,9 +980,9 @@ impl Type {
                         }
                     }
                     ObjectDefinition::Arbitrary(_) => {
-                        for block in block.body.get_blocks(&input_name) {
-                            collect_constructs_references_from_block(
-                                block,
+                        for object in construct.get_sub_constructs_type(&input_name) {
+                            collect_constructs_referenced_by_construct(
+                                &object,
                                 Some(input),
                                 dependencies,
                             );
@@ -994,8 +991,8 @@ impl Type {
                 }
             }
             _ => {
-                if let Some(expr) = visit_optional_untyped_attribute(&input_name, &block) {
-                    collect_constructs_references_from_expression(&expr, Some(input), dependencies);
+                if let Some(expr) = construct.get_expression_from_attribute(&input_name) {
+                    expr.collect_constructs_references_from_expression(Some(input), dependencies);
                 }
             }
         }
