@@ -87,26 +87,24 @@ impl AuthConfig {
         Ok(Some(config))
     }
 
-    pub async fn refresh_session_if_needed(
-        &self,
-        id_service_url: &str,
-        pat: &Option<String>,
-    ) -> Result<AuthConfig, String> {
+    pub async fn refresh_session_if_needed(&mut self, id_service_url: &str) -> Result<(), String> {
         if self.is_access_token_expired() {
-            return self.refresh_session(id_service_url, pat).await.map_err(|e| {
+            let refreshed_auth_config = self.get_refreshed_session(id_service_url).await.map_err(|e| {
                 format!("Failed to refresh session. Run `txtx cloud login` to log in again. Downstream error: {e}")
-            });
+            })?;
+            self.access_token = refreshed_auth_config.access_token;
+            self.exp = refreshed_auth_config.exp;
+            self.refresh_token = refreshed_auth_config.refresh_token;
+            self.write_to_system_config()
+                .map_err(|e| format!("Failed to write refreshed session to config: {}", e))?;
+            return Ok(());
         }
-        Ok(self.clone())
+        Ok(())
     }
 
     /// Get a new access token by sending a POST request to the auth service with the refresh token.
     /// If the request is successful, the new auth config is written to the system config.
-    pub async fn refresh_session(
-        &self,
-        id_service_url: &str,
-        pat: &Option<String>,
-    ) -> Result<AuthConfig, String> {
+    async fn get_refreshed_session(&self, id_service_url: &str) -> Result<AuthConfig, String> {
         let client = reqwest::Client::new();
         let res = client
             .post(&format!("{id_service_url}/token"))
@@ -123,9 +121,10 @@ impl AuthConfig {
                 .await
                 .map_err(|e| format!("Failed to parse response: {}", e))?;
 
-            let auth_config = AuthConfig::from_refresh_session_response(id_service_url, &res, pat)
-                .await
-                .map_err(|e| format!("Failed to parse refresh session response: {e}"))?;
+            let auth_config =
+                AuthConfig::from_refresh_session_response(id_service_url, &res, &self.pat)
+                    .await
+                    .map_err(|e| format!("Failed to parse refresh session response: {e}"))?;
 
             auth_config
                 .write_to_system_config()

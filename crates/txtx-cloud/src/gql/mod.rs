@@ -33,9 +33,7 @@ impl GqlClient {
     {
         let request_body = T::build_query(variables);
 
-        self.auth_config
-            .refresh_session_if_needed(&self.id_service_url, &self.auth_config.pat)
-            .await?;
+        self.auth_config.refresh_session_if_needed(&self.id_service_url).await?;
 
         let response = self
             .client

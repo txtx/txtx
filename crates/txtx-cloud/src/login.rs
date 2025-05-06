@@ -151,15 +151,11 @@ pub async fn handle_login_command(
         .await
         .map_err(|e| format!("Failed to initialize JWT manager: {}", e))?;
 
-    if let Some(auth_config) = auth_config {
+    if let Some(mut auth_config) = auth_config {
         if auth_config.is_access_token_expired() {
-            match auth_config.refresh_session(id_service_url, &auth_config.pat).await {
-                Ok(auth_config) => {
-                    println!(
-                        "{} Logged in as {}.",
-                        green!("✓"),
-                        auth_config.user.display_name
-                    );
+            match auth_config.refresh_session_if_needed(id_service_url).await {
+                Ok(()) => {
+                    println!("{} Logged in as {}.", green!("✓"), auth_config.user.display_name);
                     return Ok(());
                 }
                 Err(_e) => {
@@ -332,7 +328,7 @@ async fn user_pass_login(
     }
 }
 
-async fn pat_login(
+pub async fn pat_login(
     id_service_url: &str,
     jwt_manager: &JwtManager,
     pat: &str,
