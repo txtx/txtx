@@ -255,7 +255,7 @@ impl SurfpoolTokenAccountUpdate {
     }
 
     fn rpc_method() -> &'static str {
-        "svm_setTokenAccount"
+        "surfnet_setTokenAccount"
     }
 
     fn update_status(&self, status_updater: &mut StatusUpdater, index: usize, total: usize) {
