@@ -597,7 +597,7 @@ pub struct UpgradeableProgramDeployer {
     /// The public key of the program to deploy.
     pub program_pubkey: Pubkey,
     /// The keypair of the program to deploy.
-    pub program_keypair: Keypair,
+    pub program_keypair: Option<Keypair>,
     /// The public key of the payer.
     pub payer_pubkey: Pubkey,
     /// The public key of the final upgrade authority. (Can be the same as the payer)
@@ -644,7 +644,8 @@ impl UpgradeableProgramDeployer {
     ///     * `Keypair` - The keypair associated with the existing program buffer.
     ///     * `Vec<u8>` - A vector of bytes representing the existing program buffer data. If `None`, a new program buffer will be created.
     pub fn new(
-        program_keypair: Keypair,
+        program_pubkey: Pubkey,
+        program_keypair: Option<Keypair>,
         final_upgrade_authority_pubkey: &Pubkey,
         temp_authority_keypair: Keypair,
         binary: &Vec<u8>,
@@ -665,12 +666,12 @@ impl UpgradeableProgramDeployer {
 
         let is_program_upgrade = !UpgradeableProgramDeployer::should_do_initial_deploy(
             &rpc_client,
-            &program_keypair.pubkey(),
+            &program_pubkey,
             &final_upgrade_authority_pubkey,
         )?;
 
         Ok(Self {
-            program_pubkey: program_keypair.pubkey(),
+            program_pubkey,
             program_keypair,
             final_upgrade_authority_pubkey: *final_upgrade_authority_pubkey,
             temp_upgrade_authority_pubkey: temp_authority_keypair.pubkey(),
@@ -695,7 +696,6 @@ impl UpgradeableProgramDeployer {
         let mut core_transactions =
             // transactions for first deployment of a program
             if !self.is_program_upgrade {
-
                 // create the buffer account
                 let create_account_transaction =
                     self.get_create_buffer_transaction(&recent_blockhash)?;
@@ -1127,6 +1127,13 @@ impl UpgradeableProgramDeployer {
         &self,
         blockhash: &Hash,
     ) -> Result<Value, Diagnostic> {
+        if self.program_keypair.is_none() {
+            return Err(diagnosed_error!(
+                "program keypair is missing. Did you forget to run `anchor build`?"
+            ));
+        }
+
+        // @todo - deprecation warning on bpf_loader_upgradeable::deploy_with_max_program_len`: Use loader-v4 instead
         let instructions = bpf_loader_upgradeable::deploy_with_max_program_len(
             &self.temp_upgrade_authority_pubkey,
             &self.program_pubkey,
@@ -1152,7 +1159,7 @@ impl UpgradeableProgramDeployer {
 
         DeploymentTransaction::deploy_program(
             &transaction,
-            vec![&self.temp_upgrade_authority, &self.program_keypair],
+            vec![&self.temp_upgrade_authority, &self.program_keypair.as_ref().unwrap()],
         )
         .to_value()
     }
@@ -1313,6 +1320,12 @@ impl ProgramArtifacts {
                 Ok(ProgramArtifacts::Anchor(artifacts))
             }
             _ => Err(diagnosed_error!("unsupported framework: {framework}")),
+        }
+    }
+    pub fn program_id(&self) -> Pubkey {
+        match self {
+            ProgramArtifacts::Native(artifacts) => artifacts.program_id,
+            ProgramArtifacts::Anchor(artifacts) => artifacts.program_id,
         }
     }
     pub fn keypair(&self) -> Result<Keypair, Diagnostic> {

@@ -262,14 +262,15 @@ impl CommandImplementation for DeployProgram {
                     }
                 };
 
+                let program_pubkey = program_artifacts.program_id();
+                let program_keypair = match program_artifacts.keypair() {
+                    Ok(keypair) => Some(keypair),
+                    _ => None,
+                };
+
                 let mut deployer = UpgradeableProgramDeployer::new(
-                    program_artifacts.keypair().map_err(|e| {
-                        (
-                            signers.clone(),
-                            authority_signer_state.clone(),
-                            diagnosed_error!("failed to get program keypair: {}", e),
-                        )
-                    })?,
+                    program_pubkey,
+                    program_keypair,
                     &authority_pubkey,
                     temp_authority_keypair,
                     &program_artifacts.bin(),

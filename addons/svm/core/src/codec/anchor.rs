@@ -32,15 +32,15 @@ impl AnchorProgramArtifacts {
         idl_path: PathBuf,
         bin_path: PathBuf,
     ) -> Result<Self, String> {
-        let idl_bytes = std::fs::read(&idl_path).map_err(|e| {
+        let idl_bytes: Vec<u8> = std::fs::read(&idl_path).map_err(|e| {
             format!("invalid anchor idl location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
 
-        let idl_ref = IdlRef::from_bytes(&idl_bytes).map_err(|e| {
+        let idl_ref: IdlRef = IdlRef::from_bytes(&idl_bytes).map_err(|e| {
             format!("invalid anchor idl at location {}: {}", &idl_path.to_str().unwrap_or(""), e)
         })?;
 
-        let bin = std::fs::read(&bin_path).map_err(|e| {
+        let bin: Vec<u8> = std::fs::read(&bin_path).map_err(|e| {
             format!(
                 "invalid anchor program binary location {}: {}",
                 &bin_path.to_str().unwrap_or(""),
@@ -48,7 +48,7 @@ impl AnchorProgramArtifacts {
             )
         })?;
 
-        let keypair_file = std::fs::read(&keypair_path).map_err(|e| {
+        let keypair_file: Vec<u8> = std::fs::read(&keypair_path).map_err(|e| {
             format!(
                 "invalid anchor program keypair location {}: {}",
                 &bin_path.to_str().unwrap_or(""),
@@ -64,7 +64,7 @@ impl AnchorProgramArtifacts {
             )
         })?;
 
-        let keypair = Keypair::from_bytes(&keypair_bytes).map_err(|e| {
+        let keypair: Keypair = Keypair::from_bytes(&keypair_bytes).map_err(|e| {
             format!(
                 "invalid anchor program keypair at location {}: {}",
                 &keypair_path.to_str().unwrap_or(""),
@@ -72,16 +72,8 @@ impl AnchorProgramArtifacts {
             )
         })?;
 
-        if idl_ref.idl.address.ne(&keypair.pubkey().to_string()) {
-            return Err(format!(
-                "anchor idl address does not match keypair: idl specifies {}; keystore contains {}. Did you forget to run `anchor build`?",
-                idl_ref.idl.address,
-                keypair.pubkey().to_string()
-            ));
-        }
-        let pubkey = keypair.pubkey();
-
-        Ok(Self { idl: idl_ref.idl, bin, keypair, program_id: pubkey })
+        let program_id = Pubkey::from_str_const(&idl_ref.idl.address);
+        Ok(Self { idl: idl_ref.idl, bin, keypair, program_id })
     }
 
     pub fn to_value(&self) -> Result<Value, String> {
