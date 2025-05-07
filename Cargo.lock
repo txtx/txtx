@@ -14811,7 +14811,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.2.11"
+version = "0.2.12"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
@@ -15029,7 +15029,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cloud"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "actix-cors",
  "actix-web",
