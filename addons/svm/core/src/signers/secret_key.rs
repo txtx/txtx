@@ -130,6 +130,8 @@ impl SignerImplementation for SvmSecretKey {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use std::path::PathBuf;
+
         use crate::constants::{
             DEFAULT_DERIVATION_PATH, DERIVATION_PATH, IS_ENCRYPTED, KEYPAIR_JSON, MNEMONIC,
             PASSWORD, SECRET_KEY,
@@ -149,8 +151,9 @@ impl SignerImplementation for SvmSecretKey {
                         .get_expected_string(KEYPAIR_JSON)
                         .map_err(|_| (signers.clone(), signer_state.clone(), diagnosed_error!("either `secret_key`, `mnemonic`, or `keypair_json` fields are required")))?;
 
-                    let keypair_json =
-                        auth_ctx.get_path_from_str(keypair_json_str).map_err(|e| {
+                    let keypair_json = auth_ctx
+                        .get_file_location_from_path_buf(&PathBuf::from(keypair_json_str))
+                        .map_err(|e| {
                             (
                                 signers.clone(),
                                 signer_state.clone(),

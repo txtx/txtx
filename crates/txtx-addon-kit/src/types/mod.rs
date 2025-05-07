@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::env;
 use std::fmt::Display;
-use std::path::Path;
+use std::path::PathBuf;
 
 use diagnostics::Diagnostic;
 use hcl_edit::expr::Expression;
@@ -278,18 +279,16 @@ impl AuthorizationContext {
         Self { workspace_location: FileLocation::working_dir() }
     }
 
-    pub fn get_path_from_str(&self, path_str: &str) -> Result<FileLocation, String> {
-        let path = Path::new(path_str);
+    pub fn get_file_location_from_path_buf(&self, input: &PathBuf) -> Result<FileLocation, String> {
+        let path_str = input.to_string_lossy();
 
-        let path = if path.starts_with("~") {
-            if let Some(home) = dirs::home_dir() {
-                let path = home.join(path_str.trim_start_matches("~/"));
-                FileLocation::from_path(path)
-            } else {
-                return Err(format!("unable to resolve home directory in path {}", path_str));
-            }
-        } else if path.is_absolute() {
-            FileLocation::from_path(path.to_path_buf())
+        let loc = if let Some(stripped) = path_str.strip_prefix("~/") {
+            let home = PathBuf::from(get_home_dir());
+            FileLocation::from_path(home.join(stripped))
+        }
+        // If absolute, use as-is
+        else if input.is_absolute() {
+            FileLocation::from_path(input.clone())
         } else {
             let mut workspace_loc = self
                 .workspace_location
@@ -301,7 +300,21 @@ impl AuthorizationContext {
                 .map_err(|e| format!("invalid path: {}", e))?;
             workspace_loc
         };
-        Ok(path)
+
+        Ok(loc)
+    }
+}
+
+/// Gets the user's home directory, accounting for the Snap confinement environment.
+/// We set out snap build to set this environment variable to the real home directory,
+/// because by default, snaps run in a confined environment where the home directory is not
+/// the user's actual home directory.
+fn get_home_dir() -> String {
+    if let Ok(real_home) = env::var("SNAP_REAL_HOME") {
+        let path_buf = PathBuf::from(real_home);
+        path_buf.display().to_string()
+    } else {
+        dirs::home_dir().unwrap().display().to_string()
     }
 }
 

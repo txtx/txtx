@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{codec::utils::get_seeds_from_value, typing::anchor::types::Idl};
 
 use crate::constants::{DEFAULT_NATIVE_TARGET_PATH, DEFAULT_SHANK_IDL_PATH};
@@ -471,7 +473,7 @@ impl FunctionImplementation for GetInstructionDataFromIdlPath {
             args.get(2).and_then(|a| Some(a.as_array().unwrap().to_vec())).unwrap_or(vec![]);
 
         let idl_path = auth_ctx
-            .get_path_from_str(idl_path_str)
+            .get_file_location_from_path_buf(&PathBuf::from(idl_path_str))
             .map_err(|e| to_diag(fn_spec, format!("failed to get idl: {e}")))?;
 
         let idl_ref = IdlRef::from_location(idl_path).map_err(|e| to_diag(fn_spec, e))?;
@@ -504,39 +506,40 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
         arg_checker(fn_spec, args)?;
         let program_name = args.get(0).unwrap().as_string().unwrap();
 
-        let keypair_path_str = match args.get(1) {
-            Some(Value::Null) | None => {
-                format!("{}/deploy/{}-keypair.json", DEFAULT_ANCHOR_TARGET_PATH, program_name)
-            }
-            Some(Value::String(s)) => s.to_string(),
+        let keypair_path_buf = match args.get(1) {
+            Some(Value::Null) | None => PathBuf::from(DEFAULT_ANCHOR_TARGET_PATH)
+                .join("deploy")
+                .join(format!("{}-keypair.json", program_name)),
+            Some(Value::String(s)) => PathBuf::from(s),
             _ => unreachable!(),
         };
 
-        let keypair_path = auth_ctx.get_path_from_str(&keypair_path_str).map_err(|e| {
-            to_diag(fn_spec, format!("failed to get anchor program keypair path: {e}"))
-        })?;
+        let keypair_path =
+            auth_ctx.get_file_location_from_path_buf(&keypair_path_buf).map_err(|e| {
+                to_diag(fn_spec, format!("failed to get anchor program keypair path: {e}"))
+            })?;
 
-        let idl_path_str = match args.get(2) {
-            Some(Value::Null) | None => {
-                format!("{}/idl/{}.json", DEFAULT_ANCHOR_TARGET_PATH, program_name)
-            }
-            Some(Value::String(s)) => s.to_string(),
+        let idl_path_buf = match args.get(2) {
+            Some(Value::Null) | None => PathBuf::from(DEFAULT_ANCHOR_TARGET_PATH)
+                .join("idl")
+                .join(format!("{}.json", program_name)),
+            Some(Value::String(s)) => PathBuf::from(s),
             _ => unreachable!(),
         };
 
         let idl_path = auth_ctx
-            .get_path_from_str(&idl_path_str)
+            .get_file_location_from_path_buf(&idl_path_buf)
             .map_err(|e| to_diag(fn_spec, format!("failed to get anchor program idl path: {e}")))?;
 
-        let bin_path_str = match args.get(3) {
-            Some(Value::Null) | None => {
-                format!("{}/deploy/{}.so", DEFAULT_ANCHOR_TARGET_PATH, program_name)
-            }
-            Some(Value::String(s)) => s.to_string(),
+        let bin_path_buf = match args.get(3) {
+            Some(Value::Null) | None => PathBuf::from(DEFAULT_ANCHOR_TARGET_PATH)
+                .join("deploy")
+                .join(format!("{}.so", program_name)),
+            Some(Value::String(s)) => PathBuf::from(s),
             _ => unreachable!(),
         };
 
-        let bin_path = auth_ctx.get_path_from_str(&bin_path_str).map_err(|e| {
+        let bin_path = auth_ctx.get_file_location_from_path_buf(&bin_path_buf).map_err(|e| {
             to_diag(fn_spec, format!("failed to get anchor program binary path: {e}"))
         })?;
 
@@ -570,51 +573,52 @@ impl FunctionImplementation for GetProgramFromNativeProject {
         arg_checker(fn_spec, args)?;
         let program_name = args.get(0).unwrap().as_string().unwrap();
 
-        let keypair_path_str = match args.get(1) {
-            Some(Value::Null) | None => {
-                format!("{}/deploy/{}-keypair.json", DEFAULT_NATIVE_TARGET_PATH, program_name)
-            }
-            Some(Value::String(s)) => s.to_string(),
+        let keypair_path_buf = match args.get(1) {
+            Some(Value::Null) | None => PathBuf::from(DEFAULT_NATIVE_TARGET_PATH)
+                .join("deploy")
+                .join(format!("{}-keypair.json", program_name)),
+            Some(Value::String(s)) => PathBuf::from(s),
             _ => unreachable!(),
         };
 
         let keypair_path = auth_ctx
-            .get_path_from_str(&keypair_path_str)
+            .get_file_location_from_path_buf(&keypair_path_buf)
             .map_err(|e| to_diag(fn_spec, format!("failed to get program keypair path: {e}")))?;
 
         let mut did_user_provide_idl_path = false;
-        let idl_path_str = match args.get(2) {
-            Some(Value::Null) | None => {
-                format!("{}/{}.json", DEFAULT_SHANK_IDL_PATH, program_name)
-            }
+
+        let idl_path_buf = match args.get(2) {
+            Some(Value::Null) | None => PathBuf::from(DEFAULT_SHANK_IDL_PATH)
+                .join("idl")
+                .join(format!("{}.json", program_name)),
             Some(Value::String(s)) => {
                 did_user_provide_idl_path = true;
-                s.to_string()
+                PathBuf::from(s)
             }
             _ => unreachable!(),
         };
 
         let idl_path = auth_ctx
-            .get_path_from_str(&idl_path_str)
+            .get_file_location_from_path_buf(&idl_path_buf)
             .map_err(|e| to_diag(fn_spec, format!("failed to get shank idl path: {e}")))?;
 
         if did_user_provide_idl_path && !idl_path.exists() {
             return Err(to_diag(
                 fn_spec,
-                format!("invalid program idl path; no idl found at: {idl_path_str}"),
+                format!("invalid program idl path; no idl found at: {}", idl_path_buf.display()),
             ));
         }
 
-        let bin_path_str = match args.get(3) {
-            Some(Value::Null) | None => {
-                format!("{}/deploy/{}.so", DEFAULT_NATIVE_TARGET_PATH, program_name)
-            }
-            Some(Value::String(s)) => s.to_string(),
+        let bin_path_buf = match args.get(3) {
+            Some(Value::Null) | None => PathBuf::from(DEFAULT_NATIVE_TARGET_PATH)
+                .join("deploy")
+                .join(format!("{}.so", program_name)),
+            Some(Value::String(s)) => PathBuf::from(s),
             _ => unreachable!(),
         };
 
         let bin_path = auth_ctx
-            .get_path_from_str(&bin_path_str)
+            .get_file_location_from_path_buf(&bin_path_buf)
             .map_err(|e| to_diag(fn_spec, format!("failed to get program binary path: {e}")))?;
 
         let classic_program_artifacts =
