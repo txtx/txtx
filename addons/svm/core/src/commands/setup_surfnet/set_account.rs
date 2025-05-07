@@ -142,7 +142,7 @@ impl SurfpoolAccountUpdate {
     }
 
     fn rpc_method() -> &'static str {
-        "svm_setAccount"
+        "surfnet_setAccount"
     }
 
     fn update_status(&self, status_updater: &mut StatusUpdater, index: usize, total: usize) {
