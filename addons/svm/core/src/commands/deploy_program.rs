@@ -173,20 +173,19 @@ impl CommandImplementation for DeployProgram {
 
         let auto_extend = values.get_bool(AUTO_EXTEND);
 
-        // safe unwrap because AnchorProgramArtifacts::from_map already checked for the key
-        let keypair = SvmValue::keypair(program_artifacts.keypair_bytes());
-
-        insert_to_payer_or_authority(
-            &mut payer_signer_state,
-            &mut authority_signer_state,
-            |signer_state| {
-                signer_state.insert_scoped_value(
-                    &construct_did.to_string(),
-                    PROGRAM_DEPLOYMENT_KEYPAIR,
-                    keypair.clone(),
-                );
-            },
-        );
+        if let Some(keypair_bytes) = program_artifacts.keypair_bytes() {
+            insert_to_payer_or_authority(
+                &mut payer_signer_state,
+                &mut authority_signer_state,
+                |signer_state| {
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        PROGRAM_DEPLOYMENT_KEYPAIR,
+                        SvmValue::keypair(keypair_bytes.clone()),
+                    );
+                },
+            );
+        }
 
         let authority_pubkey = {
             let authority_pubkey_val =
@@ -264,7 +263,7 @@ impl CommandImplementation for DeployProgram {
 
                 let program_pubkey = program_artifacts.program_id();
                 let program_keypair = match program_artifacts.keypair() {
-                    Ok(keypair) => Some(keypair),
+                    Some(Ok(keypair)) => Some(keypair),
                     _ => None,
                 };
 
