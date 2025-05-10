@@ -71,7 +71,7 @@ lazy_static! {
                         sensitive: false
                     },
                     class: {
-                        documentation: "The pubkey of the class to which the record belongs.",
+                        documentation: "The public key of the class to which the record belongs.",
                         typing: Type::string(),
                         optional: false,
                         tainting: true,
@@ -133,11 +133,11 @@ lazy_static! {
                         typing: Type::string()
                     },
                     class: {
-                        documentation: "The pubkey of the associated class.",
+                        documentation: "The public key of the associated class.",
                         typing: Type::string()
                     },
-                    pubkey: {
-                        documentation: "The pubkey of the created record.",
+                    public_key: {
+                        documentation: "The public key of the created record.",
                         typing: Type::string()
                     }
                 ],
@@ -145,14 +145,14 @@ lazy_static! {
                     action "my_record" "svm::create_record" {
                         name = "my_record"
                         data = "data string"
-                        class = action.create_my_class.pubkey
+                        class = action.create_my_class.public_key
                         owner = signer.owner
                     }
                 "#},
             }
         };
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
-            spec.create_critical_output = Some("pubkey".to_string());
+            spec.create_critical_output = Some("public_key".to_string());
         }
         command
     };
@@ -400,7 +400,7 @@ impl CommandImplementation for ProcessInstructions {
             if let Some(expiration) = expiration {
                 result.insert("expiration", expiration.clone());
             }
-            result.insert("pubkey", record.clone());
+            result.insert("public_key", record.clone());
             Ok(result)
         };
         Ok(Box::pin(future))
