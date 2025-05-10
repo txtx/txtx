@@ -441,6 +441,21 @@ lazy_static! {
             tainting: true
         }
     };
+
+    pub static ref CLONE_PROGRAM_ACCOUNT: Type = define_strict_map_type! {
+        source_program_id: {
+            documentation: "The public key of the program to clone.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        destination_program_id: {
+            documentation: "The destination public key of the program.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        }
+    };
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
