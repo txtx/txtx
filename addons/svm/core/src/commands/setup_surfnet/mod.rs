@@ -1,7 +1,9 @@
+pub mod clone_program_account;
 mod set_account;
 mod set_token_account;
 mod tokens;
 
+use clone_program_account::SurfpoolProgramCloning;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use set_account::SurfpoolAccountUpdate;
@@ -20,7 +22,7 @@ use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_network_svm_types::{SET_ACCOUNT_MAP, SET_TOKEN_ACCOUNT_MAP};
+use txtx_addon_network_svm_types::{CLONE_PROGRAM_ACCOUNT, SET_ACCOUNT_MAP, SET_TOKEN_ACCOUNT_MAP};
 
 use crate::constants::{NETWORK_ID, RPC_API_URL};
 
@@ -90,6 +92,14 @@ lazy_static! {
                         tainting: false,
                         internal: false,
                         sensitive: false
+                    },
+                    clone_program_account: {
+                        documentation: "The program clone data to set.",
+                        typing: CLONE_PROGRAM_ACCOUNT.clone(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
                     }
                 ],
                 outputs: [],
@@ -103,6 +113,10 @@ lazy_static! {
                             public_key = signer.caller.public_key
                             token = "usdc"
                             amount = 1000000
+                        }
+                        clone_program_account {
+                            source_program_id = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC program id
+                            destination_program_id = variable.my_program_id
                         }
                     }
                 "#},
@@ -185,6 +199,14 @@ impl CommandImplementation for SetupSurfpool {
             let token_account_updates = SurfpoolTokenAccountUpdate::parse_value_store(&values)?;
             SurfpoolTokenAccountUpdate::process_updates(
                 token_account_updates,
+                &rpc_client,
+                &mut status_updater,
+            )
+            .await?;
+
+            let program_account_clones = SurfpoolProgramCloning::parse_value_store(&values)?;
+            SurfpoolProgramCloning::process_updates(
+                program_account_clones,
                 &rpc_client,
                 &mut status_updater,
             )
