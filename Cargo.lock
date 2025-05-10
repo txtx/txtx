@@ -6767,6 +6767,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kaigan"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ba15de5aeb137f0f65aa3bf82187647f1285abfe5b20c80c2c37f7007ad519a"
+dependencies = [
+ "borsh 0.10.4",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11766,6 +11775,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-record-service-sdk"
+version = "0.1.0"
+dependencies = [
+ "borsh 0.10.4",
+ "kaigan",
+ "solana-program",
+]
+
+[[package]]
 name = "solana-rent"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14924,13 +14942,16 @@ version = "0.1.21"
 dependencies = [
  "async-recursion",
  "bincode",
+ "borsh 0.10.4",
  "borsh 1.5.6",
  "convert_case 0.6.0",
+ "kaigan",
  "lazy_static",
  "serde",
  "serde_derive",
  "serde_json",
  "solana-client",
+ "solana-record-service-sdk",
  "solana-sdk",
  "solana_idl",
  "spl-associated-token-account",
