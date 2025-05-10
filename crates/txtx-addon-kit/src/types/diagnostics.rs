@@ -175,3 +175,9 @@ impl From<&str> for Diagnostic {
         Diagnostic::error_from_string(message.to_string())
     }
 }
+
+impl From<std::io::Error> for Diagnostic {
+    fn from(err: std::io::Error) -> Self {
+        Diagnostic::error_from_string(err.to_string())
+    }
+}
