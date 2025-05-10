@@ -122,8 +122,8 @@ lazy_static! {
                         documentation: "The metadata of the class.",
                         typing: Type::string()
                     },
-                    pubkey: {
-                        documentation: "The pubkey of the created class.",
+                    public_key: {
+                        documentation: "The public key of the created class.",
                         typing: Type::string()
                     }
                 ],
@@ -139,7 +139,7 @@ lazy_static! {
             }
         };
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
-            spec.create_critical_output = Some("pubkey".to_string());
+            spec.create_critical_output = Some("public_key".to_string());
         }
 
         command
@@ -334,7 +334,7 @@ impl CommandImplementation for ProcessInstructions {
 
             result.insert("name", name.clone());
             result.insert("metadata", metadata.clone());
-            result.insert("pubkey", class.clone());
+            result.insert("public_key", class.clone());
             Ok(result)
         };
         Ok(Box::pin(future))
