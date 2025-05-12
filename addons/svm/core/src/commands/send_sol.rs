@@ -6,7 +6,6 @@ use solana_sdk::message::Message;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
@@ -25,7 +24,6 @@ use txtx_addon_kit::uuid::Uuid;
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::constants::{AMOUNT, CHECKED_PUBLIC_KEY, RECIPIENT, RPC_API_URL, TRANSACTION_BYTES};
 use crate::typing::SvmValue;
-use crate::utils::build_transaction_from_svm_value;
 
 use super::get_signer_did;
 use super::sign_transaction::SignTransaction;
@@ -214,7 +212,7 @@ impl CommandImplementation for SendSol {
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
 
-        let mut args = args.clone();
+        let args = args.clone();
         let future = async move {
             let run_signing_future = SignTransaction::run_signed_execution(
                 &construct_did,
@@ -232,19 +230,6 @@ impl CommandImplementation for SendSol {
                 Err(err) => return Err(err),
             };
 
-            let transaction_bytes_value =
-                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
-            args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes_value.clone());
-            let transaction = build_transaction_from_svm_value(transaction_bytes_value)
-                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-
-            let _ = transaction.verify_and_hash_message().map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to verify transaction message: {}", e),
-                )
-            })?;
             Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))

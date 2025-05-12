@@ -6,7 +6,6 @@ use solana_sdk::message::Message;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
@@ -29,7 +28,6 @@ use crate::constants::{
     TOKEN, TOKEN_MINT_ADDRESS, TRANSACTION_BYTES,
 };
 use crate::typing::{SvmValue, SVM_PUBKEY};
-use crate::utils::build_transaction_from_svm_value;
 
 use super::get_signers_did;
 use super::sign_transaction::SignTransaction;
@@ -384,7 +382,7 @@ impl CommandImplementation for SendToken {
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
 
-        let mut args = args.clone();
+        let args = args.clone();
         let future = async move {
             let run_signing_future = SignTransaction::run_signed_execution(
                 &construct_did,
@@ -430,19 +428,6 @@ impl CommandImplementation for SendToken {
             res_signing.outputs.insert(TOKEN_MINT_ADDRESS.into(), token_mint_address.clone());
             res_signing.outputs.insert(IS_FUNDING_RECIPIENT.into(), is_funding_recipient.clone());
 
-            let transaction_bytes_value =
-                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
-            args.insert(SIGNED_TRANSACTION_BYTES, transaction_bytes_value.clone());
-            let transaction = build_transaction_from_svm_value(transaction_bytes_value)
-                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-
-            let _ = transaction.verify_and_hash_message().map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to verify transaction message: {}", e),
-                )
-            })?;
             Ok((signers, signer_state, res_signing))
         };
         Ok(Box::pin(future))
