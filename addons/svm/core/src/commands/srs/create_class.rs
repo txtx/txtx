@@ -258,7 +258,7 @@ impl CommandImplementation for ProcessInstructions {
             client.get_account_with_commitment(&class, CommitmentConfig::default()).map(|a| a.value)
         {
             let existing_class = Class::from_bytes(&account.data)
-                    .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("class PDA '{class}' exists on chain, but the on chain account is not a valid class: {e}")))?;
+                    .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("class PDA '{class}' exists on chain, but the on-chain account is not a valid class: {e}")))?;
 
             let mut instructions = vec![];
 
@@ -321,7 +321,7 @@ impl CommandImplementation for ProcessInstructions {
                         signers.clone(),
                         signer_state.clone(),
                         diagnosed_error!(
-                            "class PDA '{class}' exists on chain, but the class is frozen"
+                            "class PDA '{class}' exists on chain, but the class is frozen so changes cannot be made"
                         ),
                     ));
                 }
