@@ -15,7 +15,7 @@ use txtx_addon_kit::types::{
 };
 
 use crate::{
-    codec::{anchor::AnchorProgramArtifacts, idl::IdlRef, native::ClassicRustProgramArtifacts},
+    codec::{anchor::AnchorProgramArtifacts, idl::IdlRef, native::NativeProgramArtifacts},
     constants::{DEFAULT_ANCHOR_TARGET_PATH, NAMESPACE},
     typing::{
         SvmValue, ANCHOR_PROGRAM_ARTIFACTS, CLASSIC_RUST_PROGRAM_ARTIFACTS, PDA_RESULT,
@@ -622,7 +622,7 @@ impl FunctionImplementation for GetProgramFromNativeProject {
             .map_err(|e| to_diag(fn_spec, format!("failed to get program binary path: {e}")))?;
 
         let classic_program_artifacts =
-            ClassicRustProgramArtifacts::new(keypair_path, idl_path, bin_path)
+            NativeProgramArtifacts::new(keypair_path, idl_path, bin_path)
                 .map_err(|e| to_diag(fn_spec, e.message))?;
 
         classic_program_artifacts.to_value()

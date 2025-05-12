@@ -10,7 +10,7 @@ use bip39::Language;
 use bip39::Mnemonic;
 use bip39::MnemonicType;
 use bip39::Seed;
-use native::ClassicRustProgramArtifacts;
+use native::NativeProgramArtifacts;
 use serde::Deserialize;
 use serde::Serialize;
 use solana_client::rpc_client::RpcClient;
@@ -597,7 +597,7 @@ pub struct UpgradeableProgramDeployer {
     /// The public key of the program to deploy.
     pub program_pubkey: Pubkey,
     /// The keypair of the program to deploy.
-    pub program_keypair: Keypair,
+    pub program_keypair: Option<Keypair>,
     /// The public key of the payer.
     pub payer_pubkey: Pubkey,
     /// The public key of the final upgrade authority. (Can be the same as the payer)
@@ -644,7 +644,8 @@ impl UpgradeableProgramDeployer {
     ///     * `Keypair` - The keypair associated with the existing program buffer.
     ///     * `Vec<u8>` - A vector of bytes representing the existing program buffer data. If `None`, a new program buffer will be created.
     pub fn new(
-        program_keypair: Keypair,
+        program_pubkey: Pubkey,
+        program_keypair: Option<Keypair>,
         final_upgrade_authority_pubkey: &Pubkey,
         temp_authority_keypair: Keypair,
         binary: &Vec<u8>,
@@ -665,12 +666,12 @@ impl UpgradeableProgramDeployer {
 
         let is_program_upgrade = !UpgradeableProgramDeployer::should_do_initial_deploy(
             &rpc_client,
-            &program_keypair.pubkey(),
+            &program_pubkey,
             &final_upgrade_authority_pubkey,
         )?;
 
         Ok(Self {
-            program_pubkey: program_keypair.pubkey(),
+            program_pubkey,
             program_keypair,
             final_upgrade_authority_pubkey: *final_upgrade_authority_pubkey,
             temp_upgrade_authority_pubkey: temp_authority_keypair.pubkey(),
@@ -695,6 +696,18 @@ impl UpgradeableProgramDeployer {
         let mut core_transactions =
             // transactions for first deployment of a program
             if !self.is_program_upgrade {
+
+                let Some(keypair) = self.program_keypair.as_ref() else {
+                    return Err(diagnosed_error!("program keypair is required for initial deployment; does your `target/deploy` folder have a keypair.json?"));
+                };
+
+                if keypair.pubkey() != self.program_pubkey {
+                    return Err(diagnosed_error!(
+                        "program keypair does not match program pubkey found in IDL: keypair pubkey: '{}'; IDL pubkey: '{}'",
+                        keypair.pubkey(),
+                        self.program_pubkey
+                    ));
+                }
 
                 // create the buffer account
                 let create_account_transaction =
@@ -1127,6 +1140,7 @@ impl UpgradeableProgramDeployer {
         &self,
         blockhash: &Hash,
     ) -> Result<Value, Diagnostic> {
+        // @todo - deprecation warning on bpf_loader_upgradeable::deploy_with_max_program_len`: Use loader-v4 instead
         let instructions = bpf_loader_upgradeable::deploy_with_max_program_len(
             &self.temp_upgrade_authority_pubkey,
             &self.program_pubkey,
@@ -1152,7 +1166,7 @@ impl UpgradeableProgramDeployer {
 
         DeploymentTransaction::deploy_program(
             &transaction,
-            vec![&self.temp_upgrade_authority, &self.program_keypair],
+            vec![&self.temp_upgrade_authority, &self.program_keypair.as_ref().unwrap()],
         )
         .to_value()
     }
@@ -1288,7 +1302,7 @@ pub fn transaction_is_fully_signed(transaction: &Transaction) -> bool {
 }
 
 pub enum ProgramArtifacts {
-    Native(ClassicRustProgramArtifacts),
+    Native(NativeProgramArtifacts),
     Anchor(AnchorProgramArtifacts),
 }
 
@@ -1305,7 +1319,7 @@ impl ProgramArtifacts {
 
         match framework {
             "native" => {
-                let artifacts = ClassicRustProgramArtifacts::from_value(value)?;
+                let artifacts = NativeProgramArtifacts::from_value(value)?;
                 Ok(ProgramArtifacts::Native(artifacts))
             }
             "anchor" => {
@@ -1315,15 +1329,27 @@ impl ProgramArtifacts {
             _ => Err(diagnosed_error!("unsupported framework: {framework}")),
         }
     }
-    pub fn keypair(&self) -> Result<Keypair, Diagnostic> {
-        let keypair_bytes = self.keypair_bytes();
-        Keypair::from_bytes(&keypair_bytes)
-            .map_err(|e| diagnosed_error!("failed to deserialize keypair: {e}"))
-    }
-    pub fn keypair_bytes(&self) -> Vec<u8> {
+    pub fn program_id(&self) -> Pubkey {
         match self {
-            ProgramArtifacts::Native(artifacts) => artifacts.keypair.to_bytes().to_vec(),
-            ProgramArtifacts::Anchor(artifacts) => artifacts.keypair.to_bytes().to_vec(),
+            ProgramArtifacts::Native(artifacts) => artifacts.program_id,
+            ProgramArtifacts::Anchor(artifacts) => artifacts.program_id,
+        }
+    }
+    pub fn keypair(&self) -> Option<Result<Keypair, Diagnostic>> {
+        self.keypair_bytes().map(|bytes| {
+            Keypair::from_bytes(&bytes)
+                .map_err(|e| diagnosed_error!("failed to deserialize keypair: {e}"))
+        })
+    }
+
+    pub fn keypair_bytes(&self) -> Option<Vec<u8>> {
+        match self {
+            ProgramArtifacts::Native(artifacts) => {
+                artifacts.keypair.as_ref().map(|k| k.to_bytes().to_vec())
+            }
+            ProgramArtifacts::Anchor(artifacts) => {
+                artifacts.keypair.as_ref().map(|k| k.to_bytes().to_vec())
+            }
         }
     }
     pub fn bin(&self) -> &Vec<u8> {
