@@ -29,8 +29,8 @@ use crate::constants::{NETWORK_ID, RPC_API_URL};
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub struct RpcVersionInfo {
-    /// The current version of surfpool, if RPC is a surfnet
-    pub surfpool_version: Option<String>,
+    /// The current version of surfnet, if RPC is a surfnet
+    pub surfnet_version: Option<String>,
     /// The current version of solana-core
     pub solana_core: String,
     /// first 4 bytes of the FeatureSet identifier
@@ -174,7 +174,7 @@ impl CommandImplementation for SetupSurfpool {
                 .send::<RpcVersionInfo>(RpcRequest::Custom { method: "getVersion" }, json!([]))
                 .await
                 .map_err(|e| diagnosed_error!("failed to fetch RPC endpoint version: {e}"))?;
-            if version.surfpool_version.is_none() {
+            if version.surfnet_version.is_none() {
                 return Err(diagnosed_error!(
                     "RPC endpoint is not a surfnet, setup_surfnet is not supported"
                 ));
