@@ -1,8 +1,8 @@
 use std::fs;
-use std::process::Command;
 use std::{env, path::Path};
 
 fn main() {
+    #[cfg(not(feature = "bypass_supervisor_build"))]
     {
         use npm_rs::*;
         let out_dir = env::var_os("OUT_DIR").unwrap();
