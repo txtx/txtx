@@ -46,6 +46,7 @@ pub const SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::temp_authority_sig
 pub const SVM_U128: &str = "svm::u128";
 pub const SVM_U256: &str = "svm::u256";
 pub const SVM_I256: &str = "svm::i256";
+pub const SVM_SQUAD_MULTISIG: &str = "svm::squads_multisig";
 
 pub struct SvmValue {}
 
@@ -164,6 +165,10 @@ impl SvmValue {
 
     pub fn close_temp_authority_transaction_parts(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS)
+    }
+
+    pub fn squads_multisig(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_SQUAD_MULTISIG)
     }
 }
 

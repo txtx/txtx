@@ -446,7 +446,6 @@ impl SignerImplementation for SvmSecretKey {
             } else {
                 let mut transaction: Transaction = build_transaction_from_svm_value(&payload)
                     .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-
                 transaction.message.recent_blockhash = blockhash;
 
                 (transaction, true)
@@ -463,7 +462,6 @@ impl SignerImplementation for SvmSecretKey {
                     )
                 })?;
         }
-
         result.outputs.insert(
             PARTIALLY_SIGNED_TRANSACTION_BYTES.into(),
             SvmValue::transaction(&transaction)

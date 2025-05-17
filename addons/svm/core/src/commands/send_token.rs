@@ -6,6 +6,7 @@ use solana_sdk::message::Message;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::futures::future;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
@@ -30,7 +31,7 @@ use crate::constants::{
 use crate::typing::{SvmValue, SVM_PUBKEY};
 
 use super::get_signers_did;
-use super::sign_transaction::SignTransaction;
+use super::sign_transaction::{check_signed_executability, run_signed_execution};
 
 lazy_static! {
     pub static ref SEND_TOKEN: PreCommandSpecification = define_command! {
@@ -166,7 +167,7 @@ impl CommandImplementation for SendToken {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -356,42 +357,33 @@ impl CommandImplementation for SendToken {
         );
 
         signers.push_signer_state(signer_state);
-        SignTransaction::check_signed_executability(
+        let res = check_signed_executability(
             construct_did,
             instance_name,
-            spec,
             &args,
             supervision_context,
             signers_instances,
             signers,
-        )
+        );
+        Ok(Box::pin(future::ready(res)))
     }
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
+        _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let progress_tx = progress_tx.clone();
         let args = args.clone();
         let signers_instances = signers_instances.clone();
         let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
 
         let args = args.clone();
         let future = async move {
-            let run_signing_future = SignTransaction::run_signed_execution(
-                &construct_did,
-                &spec,
-                &args,
-                &progress_tx,
-                &signers_instances,
-                signers,
-            );
+            let run_signing_future =
+                run_signed_execution(&construct_did, &args, &signers_instances, signers);
             let (signers, signer_state, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,

@@ -1439,6 +1439,7 @@ pub enum ActionItemRequestType {
     PickInputOption(PickInputOptionRequest),
     ProvidePublicKey(ProvidePublicKeyRequest),
     ProvideSignedTransaction(ProvideSignedTransactionRequest),
+    VerifyThirdPartySignature(VerifyThirdPartySignatureRequest),
     ProvideSignedMessage(ProvideSignedMessageRequest),
     SendTransaction(SendTransactionRequest),
     DisplayOutput(DisplayOutputRequest),
@@ -1477,6 +1478,12 @@ impl ActionItemRequestType {
     pub fn as_provide_signed_tx(&self) -> Option<&ProvideSignedTransactionRequest> {
         match &self {
             ActionItemRequestType::ProvideSignedTransaction(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub fn as_verify_third_party_signature(&self) -> Option<&VerifyThirdPartySignatureRequest> {
+        match &self {
+            ActionItemRequestType::VerifyThirdPartySignature(value) => Some(value),
             _ => None,
         }
     }
@@ -1542,6 +1549,17 @@ impl ActionItemRequestType {
                         .and_then(|u| Some(u.to_string()))
                         .unwrap_or("None".to_string()),
                     val.signer_uuid.to_string(),
+                    val.namespace,
+                    val.network_id
+                )
+            }
+            ActionItemRequestType::VerifyThirdPartySignature(val) => {
+                format!(
+                    "VerifyThirdPartySignature({}-{}-{})",
+                    val.check_expectation_action_uuid
+                        .as_ref()
+                        .and_then(|u| Some(u.to_string()))
+                        .unwrap_or("None".to_string()),
                     val.namespace,
                     val.network_id
                 )
@@ -1679,6 +1697,36 @@ impl ActionItemRequestType {
                     if new.only_approval_needed != existing.only_approval_needed {
                         unreachable!(
                             "cannot change provide signed tx request only_approval_needed"
+                        );
+                    }
+                    Some(new_type.clone())
+                } else {
+                    None
+                }
+            }
+            ActionItemRequestType::VerifyThirdPartySignature(new) => {
+                let Some(existing) = existing_item.as_verify_third_party_signature() else {
+                    unreachable!("cannot change action item request type")
+                };
+                if new.url != existing.url || new.payload != existing.payload {
+                    if new.check_expectation_action_uuid != existing.check_expectation_action_uuid {
+                        unreachable!(
+                            "cannot change verify third party signature request check_expectation_action_uuid"
+                        );
+                    }
+                    if new.signer_uuid != existing.signer_uuid {
+                        unreachable!(
+                            "cannot change verify third party signature request signer_uuid"
+                        );
+                    }
+                    if new.namespace != existing.namespace {
+                        unreachable!(
+                            "cannot change verify third party signature request namespace"
+                        );
+                    }
+                    if new.network_id != existing.network_id {
+                        unreachable!(
+                            "cannot change verify third party signature request network_id"
                         );
                     }
                     Some(new_type.clone())
@@ -1900,6 +1948,58 @@ impl ProvideSignedTransactionRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct VerifyThirdPartySignatureRequest {
+    pub check_expectation_action_uuid: Option<ConstructDid>,
+    pub signer_uuid: ConstructDid,
+    pub namespace: String,
+    pub network_id: String,
+    pub signer_name: String,
+    pub third_party_name: String,
+    pub url: String,
+    pub payload: Value,
+    pub formatted_payload: Option<Value>,
+}
+
+impl VerifyThirdPartySignatureRequest {
+    pub fn new(
+        signer_uuid: &Did,
+        url: &str,
+        signer_name: &str,
+        third_party_name: &str,
+        payload: &Value,
+        namespace: &str,
+        network_id: &str,
+    ) -> Self {
+        VerifyThirdPartySignatureRequest {
+            signer_uuid: ConstructDid(signer_uuid.clone()),
+            check_expectation_action_uuid: None,
+            signer_name: signer_name.to_string(),
+            third_party_name: third_party_name.to_string(),
+            url: url.to_string(),
+            namespace: namespace.to_string(),
+            network_id: network_id.to_string(),
+            payload: payload.clone(),
+            formatted_payload: None,
+        }
+    }
+
+    pub fn check_expectation_action_uuid(&mut self, uuid: &ConstructDid) -> &mut Self {
+        self.check_expectation_action_uuid = Some(uuid.clone());
+        self
+    }
+
+    pub fn formatted_payload(&mut self, display_payload: Option<&Value>) -> &mut Self {
+        self.formatted_payload = display_payload.cloned();
+        self
+    }
+
+    pub fn to_action_type(&self) -> ActionItemRequestType {
+        ActionItemRequestType::VerifyThirdPartySignature(self.clone())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SendTransactionRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub signer_uuid: ConstructDid,
@@ -1970,6 +2070,7 @@ pub enum ActionItemResponseType {
     ProvidePublicKey(ProvidePublicKeyResponse),
     ProvideSignedMessage(ProvideSignedMessageResponse),
     ProvideSignedTransaction(ProvideSignedTransactionResponse),
+    VerifyThirdPartySignature(VerifyThirdPartySignatureResponse),
     SendTransaction(SendTransactionResponse),
     ValidateBlock,
     ValidateModal,
@@ -2019,7 +2120,12 @@ pub struct ProvideSignedTransactionResponse {
     pub signature_approved: Option<bool>,
     pub signer_uuid: ConstructDid,
 }
-
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyThirdPartySignatureResponse {
+    pub signer_uuid: ConstructDid,
+    pub signature_complete: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SendTransactionResponse {

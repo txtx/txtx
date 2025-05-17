@@ -1,12 +1,10 @@
 use crate::constants::{SIGNER, SIGNERS};
-// use encode_instruction::ENCODE_INSTRUCTION;
 use deploy_program::DEPLOY_PROGRAM;
 use deploy_subraph::DEPLOY_SUBGRAPH;
 use process_instructions::PROCESS_INSTRUCTIONS;
 use send_sol::SEND_SOL;
 use send_token::SEND_TOKEN;
 use setup_surfnet::SETUP_SURFNET;
-use sign_transaction::SIGN_TRANSACTION;
 use srs::create_class::CREATE_CLASS;
 use srs::create_record::CREATE_RECORD;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
@@ -45,8 +43,6 @@ pub fn get_custom_signer_did(
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
-        SIGN_TRANSACTION.clone(),
-        // ENCODE_INSTRUCTION.clone(),
         PROCESS_INSTRUCTIONS.clone(),
         DEPLOY_PROGRAM.clone(),
         SEND_SOL.clone(),
