@@ -153,11 +153,8 @@ pub fn get_create_vault_transaction_ix_data(
         });
     }
 
-    println!("compiled instructions: {:?}", ixs);
-
     let transaction_message = TransactionMessage::try_compile(vault_key, &ixs, &[])?;
 
-    println!("compiled transaction message: {:?}", transaction_message);
     let mut message_bytes = vec![];
     transaction_message
         .serialize(&mut message_bytes)
