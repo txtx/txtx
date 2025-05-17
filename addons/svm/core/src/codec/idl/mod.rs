@@ -8,6 +8,7 @@ use anchor_lang_idl::types::{
     Idl, IdlArrayLen, IdlDefinedFields, IdlGenericArg, IdlInstruction, IdlType, IdlTypeDef,
     IdlTypeDefGeneric, IdlTypeDefTy,
 };
+use borsh_1_5_1 as borsh;
 use convert_idl::classic_idl_to_anchor_idl;
 use solana_sdk::pubkey::Pubkey;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
