@@ -13,6 +13,7 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::system_program;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::futures::future;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
@@ -31,7 +32,7 @@ use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::commands::get_custom_signer_did;
-use crate::commands::sign_transaction::SignTransaction;
+use crate::commands::sign_transaction::{check_signed_executability, run_signed_execution};
 use crate::constants::{
     AUTHORITY, CHECKED_PUBLIC_KEY, OWNER, RPC_API_URL, SIGNERS, TRANSACTION_BYTES,
 };
@@ -211,7 +212,7 @@ impl CommandImplementation for ProcessInstructions {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -249,72 +250,70 @@ impl CommandImplementation for ProcessInstructions {
             None
         };
 
-        let rpc_api_url = args
-            .get_expected_string(RPC_API_URL)
-            .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?
-            .to_string();
-        let client = RpcClient::new(rpc_api_url);
-
-        let class = args
-            .get_expected_value("class")
-            .and_then(|key| SvmValue::to_pubkey(key).map_err(Into::into))
-            .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?;
-
-        let name_str = args
-            .get_expected_string("name")
-            .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?;
-
-        let expiration = args
-            .get_i64("expiration")
-            .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?
-            .unwrap_or(0);
-
-        let name = to_u8_prefix_string(name_str).map_err(|diag| {
-            (
-                signers.clone(),
-                owner_signer_state.clone(),
-                format!("invalid name '{}' for class: {}", name_str, diag).into(),
-            )
-        })?;
-
-        let data = args
-            .get_expected_string("data")
-            .map(|d| RemainderStr::from(d.to_string()))
-            .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?;
-
-        let is_frozen = args.get_bool("is_frozen");
-
-        let record_seeds = [RECORD_PREFIX, class.as_ref(), name_str.as_bytes()];
-        let (record, _) =
-            Pubkey::find_program_address(&record_seeds[..], &SOLANA_RECORD_SERVICE_ID);
-
-        // store the signer state so we can store it in our outputs later
-        owner_signer_state.insert_scoped_value(
-            &construct_did.to_string(),
-            "record",
-            SvmValue::pubkey(record.to_bytes().to_vec()),
-        );
-
-        let (is_class_permissioned, is_class_frozen) = if let Ok(Some(class_account)) = client
-            .get_account_with_commitment(&class, CommitmentConfig::default())
-            .map(|res| res.value)
+        let transaction_bytes = if let Some(transaction_bytes) =
+            owner_signer_state.get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
         {
-            let existing_class = Class::from_bytes(&class_account.data)
-                    .map_err(|e| (signers.clone(), owner_signer_state.clone(), diagnosed_error!("class PDA '{class}' exists on chain, but the on-chain account is not a valid class: {e}")))?;
-            (existing_class.is_permissioned, existing_class.is_frozen)
+            transaction_bytes.clone()
         } else {
-            (false, false)
-        };
+            let rpc_api_url = args
+                .get_expected_string(RPC_API_URL)
+                .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?
+                .to_string();
+            let client = RpcClient::new(rpc_api_url);
 
-        let mut record_actions = vec![];
-        let mut instructions = vec![];
+            let class = args
+                .get_expected_value("class")
+                .and_then(|key| SvmValue::to_pubkey(key).map_err(Into::into))
+                .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?;
 
-        // check if the record already exists
-        if let Ok(Some(account)) = client
-            .get_account_with_commitment(&record, CommitmentConfig::default())
-            .map(|res| res.value)
-        {
-            let existing_record = Record::from_bytes(&account.data).map_err(|e| {
+            let name_str = args
+                .get_expected_string("name")
+                .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?;
+
+            let expiration = args
+                .get_i64("expiration")
+                .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?
+                .unwrap_or(0);
+
+            let name = to_u8_prefix_string(name_str).map_err(|diag| {
+                (
+                    signers.clone(),
+                    owner_signer_state.clone(),
+                    format!("invalid name '{}' for class: {}", name_str, diag).into(),
+                )
+            })?;
+
+            let data = args
+                .get_expected_string("data")
+                .map(|d| RemainderStr::from(d.to_string()))
+                .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?;
+
+            let is_frozen = args.get_bool("is_frozen");
+
+            let record_seeds = [RECORD_PREFIX, class.as_ref(), name_str.as_bytes()];
+            let (record, _) =
+                Pubkey::find_program_address(&record_seeds[..], &SOLANA_RECORD_SERVICE_ID);
+
+            let (is_class_permissioned, is_class_frozen) = if let Ok(Some(class_account)) = client
+                .get_account_with_commitment(&class, CommitmentConfig::default())
+                .map(|res| res.value)
+            {
+                let existing_class = Class::from_bytes(&class_account.data)
+                    .map_err(|e| (signers.clone(), owner_signer_state.clone(), diagnosed_error!("class PDA '{class}' exists on chain, but the on-chain account is not a valid class: {e}")))?;
+                (existing_class.is_permissioned, existing_class.is_frozen)
+            } else {
+                (false, false)
+            };
+
+            let mut record_actions = vec![];
+            let mut instructions = vec![];
+
+            // check if the record already exists
+            if let Ok(Some(account)) = client
+                .get_account_with_commitment(&record, CommitmentConfig::default())
+                .map(|res| res.value)
+            {
+                let existing_record = Record::from_bytes(&account.data).map_err(|e| {
                 (
                     signers.clone(),
                     owner_signer_state.clone(),
@@ -325,165 +324,181 @@ impl CommandImplementation for ProcessInstructions {
                 )
             })?;
 
-            // check if we're transferring ownership, and push that instruction if so
-            if existing_record.owner != owner_pubkey {
-                if authority_pubkey.is_none() {
-                    return Err((
+                // check if we're transferring ownership, and push that instruction if so
+                if existing_record.owner != owner_pubkey {
+                    if authority_pubkey.is_none() {
+                        return Err((
                         signers.clone(),
                         owner_signer_state.clone(),
                         diagnosed_error!(
                             "attempting to transfer ownership of record '{record}' to '{owner_pubkey}', but no authority was provided"
                         ),
                     ));
+                    }
+
+                    record_actions.push(RecordAction::Transfer);
+                    instructions.push(
+                        TransferRecordBuilder::new()
+                            .authority(authority_pubkey.unwrap())
+                            .record(record)
+                            .new_owner(owner_pubkey)
+                            .instruction(),
+                    );
                 }
 
-                record_actions.push(RecordAction::Transfer);
-                instructions.push(
-                    TransferRecordBuilder::new()
-                        .authority(authority_pubkey.unwrap())
-                        .record(record)
-                        .new_owner(owner_pubkey)
-                        .instruction(),
-                );
-            }
+                // check if the data is different, and push that instruction if so
+                if existing_record.data != data {
+                    record_actions.push(RecordAction::UpdateData);
+                    instructions.push(
+                        UpdateRecordBuilder::new()
+                            .record(record)
+                            .system_program(system_program::ID)
+                            .authority(authority_pubkey.unwrap_or(owner_pubkey))
+                            .data(data)
+                            .instruction(),
+                    );
+                }
 
-            // check if the data is different, and push that instruction if so
-            if existing_record.data != data {
-                record_actions.push(RecordAction::UpdateData);
+                // if the user is changing the `is_frozen` flag, push that instruction
+                if let Some(inner_is_frozen) = is_frozen {
+                    if existing_record.is_frozen != inner_is_frozen {
+                        record_actions.push(RecordAction::Freeze);
+                        instructions.push(
+                            FreezeRecordBuilder::new()
+                                .record(record)
+                                .authority(authority_pubkey.unwrap_or(owner_pubkey))
+                                .is_frozen(inner_is_frozen)
+                                .instruction(),
+                        );
+                    }
+                }
+
+                // if there are some actions to take, check if the record is frozen and return an error if so
+                if !record_actions.is_empty() {
+                    if existing_record.is_frozen {
+                        return Err((
+                            signers.clone(),
+                            owner_signer_state.clone(),
+                            diagnosed_error!("record '{record}' is frozen, cannot update record"),
+                        ));
+                    }
+                }
+            } else {
+                // if the record doesn't exist, create it
+                record_actions.push(RecordAction::Create);
                 instructions.push(
-                    UpdateRecordBuilder::new()
+                    CreateRecordBuilder::new()
+                        .owner(owner_pubkey)
+                        .class(class)
                         .record(record)
                         .system_program(system_program::ID)
-                        .authority(authority_pubkey.unwrap_or(owner_pubkey))
+                        .authority(authority_pubkey)
+                        .expiration(expiration)
+                        .name(name)
                         .data(data)
                         .instruction(),
                 );
-            }
-
-            // if the user is changing the `is_frozen` flag, push that instruction
-            if let Some(inner_is_frozen) = is_frozen {
-                if existing_record.is_frozen != inner_is_frozen {
+                // and if the user is trying to freeze it, push that instruction after the create
+                if is_frozen.unwrap_or(false) {
                     record_actions.push(RecordAction::Freeze);
                     instructions.push(
                         FreezeRecordBuilder::new()
                             .record(record)
-                            .authority(authority_pubkey.unwrap_or(owner_pubkey))
-                            .is_frozen(inner_is_frozen)
+                            .authority(owner_pubkey)
+                            .is_frozen(true)
                             .instruction(),
                     );
                 }
-            }
+            };
 
-            // if there are some actions to take, check if the record is frozen and return an error if so
-            if !record_actions.is_empty() {
-                if existing_record.is_frozen {
+            // store the signer state so we can store it in our outputs later
+            owner_signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                "record",
+                SvmValue::pubkey(record.to_bytes().to_vec()),
+            );
+            owner_signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                "record_actions",
+                Value::array(record_actions.iter().map(|a| a.to_value()).collect()),
+            );
+
+            if record_actions.is_empty() {
+                return return_synchronous_actions(Ok((
+                    signers,
+                    owner_signer_state,
+                    Actions::none(),
+                )));
+            } else {
+                // if we have some actions to take and the class is frozen, return an error
+                if is_class_frozen {
                     return Err((
                         signers.clone(),
                         owner_signer_state.clone(),
-                        diagnosed_error!("record '{record}' is frozen, cannot update record"),
+                        diagnosed_error!("class '{class}' is frozen, cannot update record"),
                     ));
                 }
-            }
-        } else {
-            // if the record doesn't exist, create it
-            record_actions.push(RecordAction::Create);
-            instructions.push(
-                CreateRecordBuilder::new()
-                    .owner(owner_pubkey)
-                    .class(class)
-                    .record(record)
-                    .system_program(system_program::ID)
-                    .authority(authority_pubkey)
-                    .expiration(expiration)
-                    .name(name)
-                    .data(data)
-                    .instruction(),
-            );
-            // and if the user is trying to freeze it, push that instruction after the create
-            if is_frozen.unwrap_or(false) {
-                record_actions.push(RecordAction::Freeze);
-                instructions.push(
-                    FreezeRecordBuilder::new()
-                        .record(record)
-                        .authority(owner_pubkey)
-                        .is_frozen(true)
-                        .instruction(),
+                // if the class is permissioned, check if the authority is provided
+                if is_class_permissioned {
+                    if authority_pubkey.is_none() {
+                        return Err((
+                            signers.clone(),
+                            owner_signer_state.clone(),
+                            diagnosed_error!(
+                                "class '{class}' is permissioned, but no authority was provided"
+                            ),
+                        ));
+                    }
+                }
+
+                let mut message = Message::new(&instructions, None);
+                message.recent_blockhash = client.get_latest_blockhash().map_err(|e| {
+                    (
+                        signers.clone(),
+                        owner_signer_state.clone(),
+                        diagnosed_error!("failed to get latest blockhash: {e}"),
+                    )
+                })?;
+
+                let transaction = SvmValue::transaction(&Transaction::new_unsigned(message))
+                    .map_err(|e| (signers.clone(), owner_signer_state.clone(), e))?;
+
+                owner_signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    TRANSACTION_BYTES,
+                    transaction.clone(),
                 );
+                transaction
             }
         };
 
-        owner_signer_state.insert_scoped_value(
-            &construct_did.to_string(),
-            "record_actions",
-            Value::array(record_actions.iter().map(|a| a.to_value()).collect()),
+        let mut args = args.clone();
+        args.insert(TRANSACTION_BYTES, transaction_bytes);
+        args.insert(SIGNERS, Value::array(signer_dids));
+        signers.push_signer_state(owner_signer_state);
+
+        let res = check_signed_executability(
+            construct_did,
+            instance_name,
+            &args,
+            supervision_context,
+            signers_instances,
+            signers,
         );
-        if record_actions.is_empty() {
-            return_synchronous_actions(Ok((signers, owner_signer_state, Actions::none())))
-        } else {
-            // if we have some actions to take and the class is frozen, return an error
-            if is_class_frozen {
-                return Err((
-                    signers.clone(),
-                    owner_signer_state.clone(),
-                    diagnosed_error!("class '{class}' is frozen, cannot update record"),
-                ));
-            }
-            // if the class is permissioned, check if the authority is provided
-            if is_class_permissioned {
-                if authority_pubkey.is_none() {
-                    return Err((
-                        signers.clone(),
-                        owner_signer_state.clone(),
-                        diagnosed_error!(
-                            "class '{class}' is permissioned, but no authority was provided"
-                        ),
-                    ));
-                }
-            }
-
-            let mut message = Message::new(&instructions, None);
-            message.recent_blockhash = client.get_latest_blockhash().map_err(|e| {
-                (
-                    signers.clone(),
-                    owner_signer_state.clone(),
-                    diagnosed_error!("failed to get latest blockhash: {e}"),
-                )
-            })?;
-
-            let transaction = SvmValue::transaction(&Transaction::new_unsigned(message))
-                .map_err(|e| (signers.clone(), owner_signer_state.clone(), e))?;
-
-            let mut args = args.clone();
-            args.insert(TRANSACTION_BYTES, transaction);
-            args.insert(SIGNERS, Value::array(signer_dids));
-
-            signers.push_signer_state(owner_signer_state);
-            SignTransaction::check_signed_executability(
-                construct_did,
-                instance_name,
-                spec,
-                &args,
-                supervision_context,
-                signers_instances,
-                signers,
-            )
-        }
+        Ok(Box::pin(future::ready(res)))
     }
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
+        _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let progress_tx = progress_tx.clone();
         let mut args = args.clone();
         let signers_instances = signers_instances.clone();
         let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
 
         let future = async move {
             let mut signer_dids = vec![];
@@ -496,6 +511,10 @@ impl CommandImplementation for ProcessInstructions {
                 .map(|v| v.as_array().unwrap())
                 .unwrap()
                 .clone();
+            let record = owner_signer_state
+                .get_scoped_value(&construct_did.to_string(), "record")
+                .unwrap()
+                .clone();
 
             let (signers, signer_state, mut result) = if record_actions.is_empty() {
                 (signers, owner_signer_state, CommandExecutionResult::new())
@@ -504,14 +523,8 @@ impl CommandImplementation for ProcessInstructions {
                     signer_dids.push(Value::string(authority_did.to_string()));
                 };
                 args.insert(SIGNERS, Value::array(signer_dids));
-                let run_signing_future = SignTransaction::run_signed_execution(
-                    &construct_did,
-                    &spec,
-                    &args,
-                    &progress_tx,
-                    &signers_instances,
-                    signers,
-                );
+                let run_signing_future =
+                    run_signed_execution(&construct_did, &args, &signers_instances, signers);
                 match run_signing_future {
                     Ok(future) => match future.await {
                         Ok(res) => res,
@@ -521,13 +534,7 @@ impl CommandImplementation for ProcessInstructions {
                 }
             };
 
-            result.insert(
-                "record",
-                signer_state
-                    .get_scoped_value(&construct_did.to_string(), "record")
-                    .unwrap()
-                    .clone(),
-            );
+            result.insert("record", record);
             result.insert("record_actions", Value::Array(record_actions));
 
             Ok((signers, signer_state, result))

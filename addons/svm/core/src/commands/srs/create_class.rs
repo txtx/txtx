@@ -13,16 +13,16 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::system_program;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::futures::future;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     CommandSpecification, PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent, StatusUpdater};
+use txtx_addon_kit::types::frontend::{BlockEvent, StatusUpdater};
 use txtx_addon_kit::types::signers::{
-    return_synchronous_actions, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
-    SignersState,
+    SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
@@ -31,7 +31,7 @@ use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::commands::get_signer_did;
-use crate::commands::sign_transaction::SignTransaction;
+use crate::commands::sign_transaction::{check_signed_executability, run_signed_execution};
 use crate::constants::{CHECKED_PUBLIC_KEY, RPC_API_URL, TRANSACTION_BYTES};
 use crate::typing::SvmValue;
 
@@ -201,7 +201,7 @@ impl CommandImplementation for ProcessInstructions {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -210,143 +210,149 @@ impl CommandImplementation for ProcessInstructions {
         let signer_did = get_signer_did(args).unwrap();
         let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-        let rpc_api_url = args
-            .get_expected_string(RPC_API_URL)
-            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
-            .to_string();
-
-        let client = RpcClient::new(rpc_api_url);
-
-        let authority = signer_state
-            .get_expected_value(CHECKED_PUBLIC_KEY)
-            .and_then(|key| SvmValue::to_pubkey(key).map_err(Into::into))
-            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
-
-        let name_str = args
-            .get_expected_string("name")
-            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
-
-        let name = to_u8_prefix_string(name_str).map_err(|diag| {
-            (
-                signers.clone(),
-                signer_state.clone(),
-                format!("invalid name '{}' for class: {}", name_str, diag).into(),
-            )
-        })?;
-
-        let metadata = args
-            .get_expected_string("metadata")
-            .map(|s| RemainderStr::from(s.to_string()))
-            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
-
-        let class_seeds = [CLASS_PREFIX, authority.as_ref(), name_str.as_bytes()];
-        let (class, _) = Pubkey::find_program_address(&class_seeds[..], &SOLANA_RECORD_SERVICE_ID);
-
-        let mut is_permissioned = args.get_bool("is_permissioned");
-
-        let is_frozen = args.get_bool("is_frozen").unwrap_or(false);
-
-        // store the signer state so we can store it in our outputs later
-        signer_state.insert_scoped_value(
-            &construct_did.to_string(),
-            "class",
-            SvmValue::pubkey(class.to_bytes().to_vec()),
-        );
-        let mut class_action = ClassAction::None;
-
-        let instructions = if let Ok(Some(account)) =
-            client.get_account_with_commitment(&class, CommitmentConfig::default()).map(|a| a.value)
+        let transaction_bytes = if let Some(transaction_bytes) =
+            signer_state.get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
         {
-            let existing_class = Class::from_bytes(&account.data)
+            transaction_bytes.clone()
+        } else {
+            let rpc_api_url = args
+                .get_expected_string(RPC_API_URL)
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
+                .to_string();
+
+            let client = RpcClient::new(rpc_api_url);
+
+            let authority = signer_state
+                .get_expected_value(CHECKED_PUBLIC_KEY)
+                .and_then(|key| SvmValue::to_pubkey(key).map_err(Into::into))
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
+            let name_str = args
+                .get_expected_string("name")
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
+            let name = to_u8_prefix_string(name_str).map_err(|diag| {
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    format!("invalid name '{}' for class: {}", name_str, diag).into(),
+                )
+            })?;
+
+            let metadata = args
+                .get_expected_string("metadata")
+                .map(|s| RemainderStr::from(s.to_string()))
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
+            let class_seeds = [CLASS_PREFIX, authority.as_ref(), name_str.as_bytes()];
+            let (class, _) =
+                Pubkey::find_program_address(&class_seeds[..], &SOLANA_RECORD_SERVICE_ID);
+
+            let mut is_permissioned = args.get_bool("is_permissioned");
+
+            let is_frozen = args.get_bool("is_frozen").unwrap_or(false);
+
+            let mut class_action = ClassAction::None;
+
+            let instructions = if let Ok(Some(account)) = client
+                .get_account_with_commitment(&class, CommitmentConfig::default())
+                .map(|a| a.value)
+            {
+                let existing_class = Class::from_bytes(&account.data)
                     .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("class PDA '{class}' exists on chain, but the on-chain account is not a valid class: {e}")))?;
 
-            let mut instructions = vec![];
+                let mut instructions = vec![];
 
-            // if the user is changing the `is_frozen` flag, push that instruction
-            if existing_class.is_frozen != is_frozen {
-                class_action = ClassAction::Freeze;
-                instructions.push(
-                    FreezeClassBuilder::new()
-                        .authority(authority)
-                        .class(class)
-                        .is_frozen(is_frozen)
-                        .instruction(),
-                );
-            }
+                // if the user is changing the `is_frozen` flag, push that instruction
+                if existing_class.is_frozen != is_frozen {
+                    class_action = ClassAction::Freeze;
+                    instructions.push(
+                        FreezeClassBuilder::new()
+                            .authority(authority)
+                            .class(class)
+                            .is_frozen(is_frozen)
+                            .instruction(),
+                    );
+                }
 
-            // if the user set the is_permissioned flag, we need to check if it matches the existing class
-            // if it doesn't, we need to return an error
-            // if it does, we can just use the existing class value as the default
-            if let Some(inner_is_permissioned) = is_permissioned {
-                if existing_class.is_permissioned != inner_is_permissioned {
-                    return Err((
+                // if the user set the is_permissioned flag, we need to check if it matches the existing class
+                // if it doesn't, we need to return an error
+                // if it does, we can just use the existing class value as the default
+                if let Some(inner_is_permissioned) = is_permissioned {
+                    if existing_class.is_permissioned != inner_is_permissioned {
+                        return Err((
                         signers.clone(),
                         signer_state.clone(),
                         diagnosed_error!(
                             "class PDA '{class}' exists on chain, and the supplied 'is_permissioned' value does not match the existing class; only the 'metadata' and 'frozen' fields can be updated"
                         ),
                     ));
-                } else {
-                    is_permissioned = Some(existing_class.is_permissioned);
+                    } else {
+                        is_permissioned = Some(existing_class.is_permissioned);
+                    }
                 }
-            }
 
-            // if the user is changing the metadata, push that instruction
-            let instructions = if existing_class.metadata.eq(&metadata) {
-                instructions
-            } else {
-                if ClassAction::Freeze == class_action {
-                    class_action = ClassAction::FreezeAndUpdateMetadata;
+                // if the user is changing the metadata, push that instruction
+                let instructions = if existing_class.metadata.eq(&metadata) {
+                    instructions
                 } else {
-                    class_action = ClassAction::UpdateMetadata;
-                }
-                instructions.push(
-                    UpdateClassMetadataBuilder::new()
-                        .authority(authority)
-                        .class(class)
-                        .system_program(system_program::ID)
-                        .metadata(metadata)
-                        .instruction(),
-                );
-                instructions
-            };
+                    if ClassAction::Freeze == class_action {
+                        class_action = ClassAction::FreezeAndUpdateMetadata;
+                    } else {
+                        class_action = ClassAction::UpdateMetadata;
+                    }
+                    instructions.push(
+                        UpdateClassMetadataBuilder::new()
+                            .authority(authority)
+                            .class(class)
+                            .system_program(system_program::ID)
+                            .metadata(metadata)
+                            .instruction(),
+                    );
+                    instructions
+                };
 
-            if instructions.is_empty() {
-                instructions
-            } else {
-                // todo: can you unfreeze a class? if so, this needs to change
-                // currently, if we have some instructions updating our class, we throw if the existing class is frozen
-                if existing_class.is_frozen {
-                    return Err((
+                if instructions.is_empty() {
+                    instructions
+                } else {
+                    // todo: can you unfreeze a class? if so, this needs to change
+                    // currently, if we have some instructions updating our class, we throw if the existing class is frozen
+                    if existing_class.is_frozen {
+                        return Err((
                         signers.clone(),
                         signer_state.clone(),
                         diagnosed_error!(
                             "class PDA '{class}' exists on chain, but the class is frozen so changes cannot be made"
                         ),
                     ));
+                    }
+                    instructions
                 }
-                instructions
-            }
-        } else {
-            class_action = ClassAction::Create;
-            vec![CreateClassBuilder::new()
-                .authority(authority)
-                .class(class)
-                .system_program(system_program::ID)
-                .is_permissioned(is_permissioned.unwrap_or(true))
-                .is_frozen(is_frozen)
-                .metadata(metadata)
-                .name(name)
-                .instruction()]
-        };
+            } else {
+                class_action = ClassAction::Create;
+                vec![CreateClassBuilder::new()
+                    .authority(authority)
+                    .class(class)
+                    .system_program(system_program::ID)
+                    .is_permissioned(is_permissioned.unwrap_or(true))
+                    .is_frozen(is_frozen)
+                    .metadata(metadata)
+                    .name(name)
+                    .instruction()]
+            };
 
-        signer_state.insert_scoped_value(
-            &construct_did.to_string(),
-            "class_action",
-            class_action.to_value(),
-        );
+            // store the signer state so we can store it in our outputs later
+            signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                "class",
+                SvmValue::pubkey(class.to_bytes().to_vec()),
+            );
+            signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                "class_action",
+                class_action.to_value(),
+            );
 
-        if !instructions.is_empty() {
             let mut message = Message::new(&instructions, None);
             message.recent_blockhash = client.get_latest_blockhash().map_err(|e| {
                 (
@@ -358,39 +364,40 @@ impl CommandImplementation for ProcessInstructions {
             let transaction = SvmValue::transaction(&Transaction::new_unsigned(message))
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-            let mut args = args.clone();
-            args.insert(TRANSACTION_BYTES, transaction);
+            signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                TRANSACTION_BYTES,
+                transaction.clone(),
+            );
+            transaction
+        };
+        let mut args = args.clone();
+        args.insert(TRANSACTION_BYTES.into(), transaction_bytes.clone());
+        signers.push_signer_state(signer_state);
 
-            signers.push_signer_state(signer_state);
-            SignTransaction::check_signed_executability(
-                construct_did,
-                instance_name,
-                spec,
-                &args,
-                supervision_context,
-                signers_instances,
-                signers,
-            )
-        } else {
-            return_synchronous_actions(Ok((signers, signer_state, Actions::none())))
-        }
+        let res = check_signed_executability(
+            construct_did,
+            instance_name,
+            &args,
+            supervision_context,
+            signers_instances,
+            signers,
+        );
+        Ok(Box::pin(future::ready(res)))
     }
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
+        _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let progress_tx = progress_tx.clone();
         let args = args.clone();
         let signers_instances = signers_instances.clone();
         let signers = signers.clone();
         let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
 
         let future = async move {
             let signer_did = get_signer_did(&args).unwrap();
@@ -400,16 +407,12 @@ impl CommandImplementation for ProcessInstructions {
                 .get_scoped_value(&construct_did.to_string(), "class_action")
                 .map(|v| ClassAction::from_value(v))
                 .unwrap();
+            let class =
+                signer_state.get_scoped_value(&construct_did.to_string(), "class").unwrap().clone();
 
             let (signers, signer_state, mut result) = if ClassAction::None != class_action {
-                let run_signing_future = SignTransaction::run_signed_execution(
-                    &construct_did,
-                    &spec,
-                    &args,
-                    &progress_tx,
-                    &signers_instances,
-                    signers,
-                );
+                let run_signing_future =
+                    run_signed_execution(&construct_did, &args, &signers_instances, signers);
                 match run_signing_future {
                     Ok(future) => match future.await {
                         Ok(res) => res,
@@ -421,11 +424,7 @@ impl CommandImplementation for ProcessInstructions {
                 (signers, signer_state, CommandExecutionResult::new())
             };
 
-            result.insert(
-                "class",
-                signer_state.get_scoped_value(&construct_did.to_string(), "class").unwrap().clone(),
-            );
-
+            result.insert("class", class);
             result.insert("class_action", class_action.to_value());
 
             Ok((signers, signer_state, result))
