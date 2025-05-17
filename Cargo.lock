@@ -14931,6 +14931,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "solana-client",
+ "solana-message",
  "solana-sdk",
  "solana_idl",
  "spl-associated-token-account",

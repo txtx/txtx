@@ -984,6 +984,12 @@ impl CommandInstance {
                                     .set_status(ActionItemStatus::Success(None));
                             consolidated_actions.push_action_item_update(action_item_update);
                         }
+                        ActionItemResponseType::VerifyThirdPartySignature(_) => {
+                            let action_item_update =
+                                ActionItemRequestUpdate::from_id(&action_item_id)
+                                    .set_status(ActionItemStatus::Success(None));
+                            consolidated_actions.push_action_item_update(action_item_update);
+                        }
                         _ => {}
                     }
                 })
@@ -1060,6 +1066,12 @@ impl CommandInstance {
                     }
                 }
                 ActionItemRequestType::ProvideSignedMessage(_) => {
+                    if success {
+                        request.action_status = status.clone();
+                    }
+                }
+                // idk what this does
+                ActionItemRequestType::VerifyThirdPartySignature(_) => {
                     if success {
                         request.action_status = status.clone();
                     }

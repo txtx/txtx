@@ -523,7 +523,8 @@ pub async fn start_supervised_runbook_runloop(
                 )
                 .await;
             }
-            ActionItemResponseType::ProvideSignedTransaction(_)
+            ActionItemResponseType::VerifyThirdPartySignature(_)
+            | ActionItemResponseType::ProvideSignedTransaction(_)
             | ActionItemResponseType::SendTransaction(_)
             | ActionItemResponseType::ProvideSignedMessage(_) => {
                 // Retrieve the previous requests sent and update their statuses.

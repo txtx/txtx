@@ -28,6 +28,16 @@ pub fn send_transaction_background_task(
     background_tasks_uuid: &Uuid,
     _supervision_context: &RunbookSupervisionContext,
 ) -> CommandExecutionFutureResult {
+    let outputs = outputs.clone();
+    let already_broadcasted = inputs.get_bool("third_party_signature_complete").unwrap_or(false);
+
+    if already_broadcasted {
+        return Ok(Box::pin(async move {
+            let result = CommandExecutionResult::from_value_store(&outputs);
+            Ok(result)
+        }));
+    }
+
     let construct_did = construct_did.clone();
     let outputs = outputs.clone();
     let inputs = inputs.clone();
