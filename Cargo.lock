@@ -11775,8 +11775,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "solana-record-service-sdk"
+name = "solana-record-service-client"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccf8d878040f2ed9ca3dc78781fc902f6d1b2af6d7d917cc7979c9b37ccff3e6"
 dependencies = [
  "borsh 0.10.4",
  "kaigan",
@@ -14951,7 +14953,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "solana-client",
- "solana-record-service-sdk",
+ "solana-record-service-client",
  "solana-sdk",
  "solana_idl",
  "spl-associated-token-account",
