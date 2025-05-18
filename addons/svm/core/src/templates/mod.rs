@@ -27,10 +27,12 @@ pub fn get_interpolated_localnet_signer_template(keypair_path: &str) -> String {
     return format!(
         r#"
 signer "payer" "svm::secret_key" {{
+    description = "Pays for the cost of deploying the program (e.g. rent for the program account)."
     keypair_json = {}
 }}
     
 signer "authority" "svm::secret_key" {{
+    description = "Has permission to upgrade the program in the future (if the program is upgradable)."
     keypair_json = {}
 }}
 "#,
@@ -42,11 +44,13 @@ pub fn get_interpolated_devnet_signer_template() -> String {
     return format!(
         r#"
 signer "payer" "svm::web_wallet" {{
-    // expected_address = input.expected_payer_address
+    description = "Pays for the cost of deploying the program (e.g. rent for the program account)."
+    // expected_address = "PUBLIC_KEY"
 }}
     
 signer "authority" "svm::web_wallet" {{
-    // expected_address = input.expected_payer_address
+    description = "Has permission to upgrade the program in the future (if the program is upgradable)."
+    // expected_address = "PUBLIC_KEY"
 }}
 "#,
     );
@@ -55,15 +59,18 @@ signer "authority" "svm::web_wallet" {{
 pub fn get_interpolated_mainnet_signer_template(_keypair_path: &str) -> String {
     return format!(
         r#"
-# For mainnet deployment, use web wallets, hardware wallets, or multisig for key security.
+// For mainnet deployment, use web wallets, hardware wallets, or multisig for key security.
 
-# signer "payer" "svm::web_wallet" {{
-#   address = "YOUR_WEB_WALLET_PUBLIC_KEY"
-# }}
+// signer "payer" "svm::web_wallet" {{
+//   description = "Pays for the cost of deploying the program (e.g. rent for the program account)."
+//   address = "PUBLIC_KEY"
+// }}
 
-# signer "authority" "svm::squads" {{
-#   address = "YOUR_SQUAD_PUBLIC_KEY"
-# }}
+// signer "authority" "svm::squads" {{
+//    description = "Has permission to upgrade the program in the future (if the program is upgradable)."
+//    address = "SQUAD_PUBLIC_KEY"
+//    initiator = "INITIATOR_PUBLIC_KEY"
+// }}
 "#
     );
 }
