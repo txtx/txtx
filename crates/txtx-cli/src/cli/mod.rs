@@ -85,7 +85,7 @@ enum Command {
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
     Snapshots(SnapshotCommand),
-    /// txtx cloud commands
+    /// Txtx cloud commands
     #[clap(subcommand, name = "cloud", bin_name = "cloud")]
     Cloud(CloudCommand),
 }
