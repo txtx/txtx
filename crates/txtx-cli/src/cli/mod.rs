@@ -66,7 +66,7 @@ enum Command {
     /// Create a new runbook
     #[clap(name = "new", bin_name = "new")]
     New(CreateRunbook),
-    /// Check if a runbook can be executed
+    /// Check a runbook against a previous execution's statefile to list which actions will be re-executed
     #[clap(name = "check", bin_name = "check")]
     Check(CheckRunbook),
     /// Execute a runbook
