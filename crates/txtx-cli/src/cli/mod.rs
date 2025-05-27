@@ -69,7 +69,7 @@ enum Command {
     /// Check a runbook against a previous execution's statefile to list which actions will be re-executed
     #[clap(name = "check", bin_name = "check")]
     Check(CheckRunbook),
-    /// Execute a runbook
+    /// Execute a runbook. Run, runbook, run!
     #[clap(name = "run", bin_name = "run")]
     Run(ExecuteRunbook),
     /// Display documentation
