@@ -78,7 +78,7 @@ enum Command {
     /// Start the txtx language server
     #[clap(name = "lsp", bin_name = "lsp")]
     Lsp,
-    /// Start the txtx server
+    /// Start a server to listen for requests to execute runbooks
     #[clap(name = "serve", bin_name = "serve")]
     #[cfg(feature = "txtx_serve")]
     Serve(StartServer),
