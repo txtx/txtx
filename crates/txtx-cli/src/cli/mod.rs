@@ -60,7 +60,7 @@ struct Opts {
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
 enum Command {
-    /// List runbooks in the current directory
+    /// List the runbooks indexed in the txtx manifest
     #[clap(name = "ls", bin_name = "ls")]
     List(ListRunbooks),
     /// Create a new runbook
