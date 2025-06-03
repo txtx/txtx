@@ -257,6 +257,32 @@ impl DeploymentTransaction {
         }
     }
 
+    /// Converts a [Value] containing a [DeploymentTransaction] into a [DeploymentTransactionType].
+    /// If you have a transaction [Value] and just need the inner type, this method is preferred to [DeploymentTransaction::from_value],
+    /// as it avoids the rpc requests to fully assemble a deployment transaction from [CloseTempAuthorityTransactionParts].
+    pub fn transaction_type_from_value(
+        value: &Value,
+    ) -> Result<DeploymentTransactionType, Diagnostic> {
+        let addon_data = value.as_addon_data().ok_or(diagnosed_error!(
+            "expected addon data for deployment transaction, found: {}",
+            value.get_type().to_string()
+        ))?;
+        if addon_data.id == SVM_DEPLOYMENT_TRANSACTION {
+            let deployment_tx: DeploymentTransaction = serde_json::from_slice(&addon_data.bytes)
+                .map_err(|e| {
+                    diagnosed_error!("failed to deserialize deployment transaction: {e}")
+                })?;
+            return Ok(deployment_tx.transaction_type);
+        } else if addon_data.id == SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS {
+            return Ok(DeploymentTransactionType::CloseTempAuthority);
+        } else {
+            return Err(diagnosed_error!(
+                "failed to decode deployment transaction: invalid addon data type: {}",
+                addon_data.id
+            ));
+        }
+    }
+
     pub fn get_signers_dids(
         &self,
         authority_signer_did: ConstructDid,
