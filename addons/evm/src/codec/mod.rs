@@ -130,10 +130,12 @@ pub async fn build_unsigned_transaction(
         tx.clone().build_unsigned().map_err(|e| format!("failed to build transaction: {e}"))?;
     let cost = get_transaction_cost(&typed_transaction, &rpc).await?;
 
-    let sim = rpc
-        .call(&tx)
-        .await
-        .map_err(|e| format!("failed to simulate transaction: {}", e.to_string()))?;
+    // don't propagate the error if simulation fails, just return empty result.
+    // this is because in some cases, the user _wants_ a transaction that will fail to be propagated to the network
+    // (e.g. to have a transaction trace on that network).
+    // this is usually configured at the RPC level, so if the transaction error should have been returned,
+    // it will be returned by the RPC during the gas estimate above.
+    let sim = rpc.call(&tx, false).await.unwrap_or("0x".into());
     Ok((tx, cost, sim))
 }
 
@@ -219,7 +221,7 @@ async fn set_gas_limit(
     if let Some(gas_limit) = gas_limit {
         tx = tx.with_gas_limit(gas_limit.into());
     } else {
-        let call_res = rpc.call(&tx).await;
+        let call_res = rpc.call(&tx, false).await;
 
         let gas_limit = rpc.estimate_gas(&tx).await.map_err(|estimate_err| match call_res {
             Ok(res) => format!(
