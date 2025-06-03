@@ -249,7 +249,7 @@ impl EvmRpc {
         .await
     }
 
-    pub async fn trace_transaction(&self, tx_hash: &Vec<u8>) -> Result<String, String> {
+    pub async fn get_transaction_return_value(&self, tx_hash: &Vec<u8>) -> Result<String, String> {
         let result = EvmRpc::retry_async(|| async {
             self.provider
                 .debug_trace_transaction(
@@ -267,9 +267,16 @@ impl EvmRpc {
         .await
         .map_err(|e| e.to_string())?;
 
-        let result = serde_json::to_string(&result)
-            .map_err(|e| format!("failed to serialize debug_trace_transaction response: {}", e))?;
-        Ok(result)
+        match result {
+            GethTrace::Default(default_frame) => {
+                Ok(hex::encode(&default_frame.return_value.to_vec()))
+            }
+            _ => {
+                let result = serde_json::to_string(&result)
+                    .map_err(|e| format!("failed to serialize trace response: {}", e))?;
+                return Ok(result);
+            }
+        }
     }
 
     pub async fn trace_call(&self, tx: &TransactionRequest) -> Result<String, String> {
