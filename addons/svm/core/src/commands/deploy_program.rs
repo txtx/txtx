@@ -335,15 +335,17 @@ impl CommandImplementation for DeployProgram {
             ]));
             let mut value_store =
                 ValueStore::new(&format!("{}:{}", instance_name, cursor), &new_did.value());
-            let deployment_transaction = DeploymentTransaction::from_value(transaction_value)
-                .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?;
+
+            let deployment_transaction_type =
+                DeploymentTransaction::transaction_type_from_value(transaction_value)
+                    .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?;
 
             value_store.insert(NESTED_CONSTRUCT_DID, Value::string(new_did.to_string()));
 
             value_store.insert_scoped_value(
                 &new_did.to_string(),
                 "deployment_transaction_type",
-                Value::string(deployment_transaction.transaction_type.to_string()),
+                Value::string(deployment_transaction_type.to_string()),
             );
 
             value_store.insert_scoped_value(&new_did.to_string(), PROGRAM_ID, program_id.clone());
