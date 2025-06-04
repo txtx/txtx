@@ -130,11 +130,8 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                     let public_key = item_obj.get("public_key").ok_or("public_key not found")?;
                     let public_key = SvmValue::to_pubkey(public_key)
                         .map_err(|e| diagnosed_error!("invalid 'account' for instruction: {e}"))?;
-                    let is_writable = item_obj
-                        .get("is_writable")
-                        .unwrap_or(&Value::Bool(false))
-                        .as_bool()
-                        .unwrap();
+                let is_writable =
+                    item_obj.get("is_writable").and_then(|v| v.as_bool()).unwrap_or(false);
                     let is_signer =
                         item_obj.get("is_signer").unwrap_or(&Value::Bool(false)).as_bool().unwrap();
 
