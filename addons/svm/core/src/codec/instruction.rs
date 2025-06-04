@@ -63,7 +63,7 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                 let acc_obj = acc.as_array().unwrap(); //acc.expect_object();
                 let _ = acc_obj.iter().try_for_each(|item| {
                     let item_obj = item.as_object().unwrap();
-                    let public_key = item_obj.get("public_key").unwrap();
+                    let public_key = item_obj.get("public_key").ok_or("public_key not found")?;
                     let public_key = SvmValue::to_pubkey(public_key)
                         .map_err(|e| diagnosed_error!("invalid 'account' for instruction: {e}"))?;
                     let is_writable = item_obj
@@ -78,9 +78,9 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                     accounts.push(account_meta);
                     Ok::<(), Diagnostic>(())
                     //println!("account: {:?}", item.as_object());
-                });
+                })?;
                 Ok::<(), Diagnostic>(())
-            });
+            })?;
 
             ix_data = value.to_bytes();
         } else {
