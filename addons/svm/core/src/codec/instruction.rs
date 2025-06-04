@@ -20,6 +20,8 @@ use crate::{
 use super::idl::IdlRef;
 
 pub const RAW_BYTES: &str = "raw_bytes";
+pub const RAW_DATA: &str = "raw_data";
+pub const ACCOUNTS: &str = "account";
 pub const PROGRAM_IDL: &str = "program_idl";
 pub const INSTRUCTION_NAME: &str = "instruction_name";
 pub const INSTRUCTION_ARGS: &str = "instruction_args";
@@ -44,60 +46,107 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
             instructions.push(instruction);
             continue;
         }
+        let mut accounts: Vec<AccountMeta> = Vec::new();
+        let program_id: Pubkey;
+        let mut ix_data = Vec::new();
 
-        let some_program_idl = instruction_data.swap_remove(PROGRAM_IDL);
-        let program_idl = some_program_idl
-            .as_ref()
-            .ok_or(diagnosed_error!("'program_idl' is required for each instruction"))?
-            .as_string()
-            .ok_or(diagnosed_error!("'program_idl' field for an instruction must be a string"))?;
+        if let Some(value) = instruction_data.swap_remove(RAW_DATA) {
+            program_id = instruction_data
+                .swap_remove(PROGRAM_ID)
+                .map(|p| {
+                    SvmValue::to_pubkey(&p)
+                        .map_err(|e| diagnosed_error!("invalid 'program_id' for instruction: {e}"))
+                })
+                .transpose()?
+                .unwrap();
+            let _ = instruction_data.swap_remove(ACCOUNTS).iter().try_for_each(|acc| {
+                let acc_obj = acc.as_array().unwrap(); //acc.expect_object();
+                let _ = acc_obj.iter().try_for_each(|item| {
+                    let item_obj = item.as_object().unwrap();
+                    let public_key = item_obj.get("public_key").unwrap();
+                    let public_key = SvmValue::to_pubkey(public_key)
+                        .map_err(|e| diagnosed_error!("invalid 'account' for instruction: {e}"))?;
+                    let is_writable = item_obj
+                        .get("is_writable")
+                        .unwrap_or(&Value::Bool(false))
+                        .as_bool()
+                        .unwrap();
+                    let is_signer =
+                        item_obj.get("is_signer").unwrap_or(&Value::Bool(false)).as_bool().unwrap();
 
-        let idl = IdlRef::from_str(program_idl)
-            .map_err(|e| diagnosed_error!("failed to parse program idl: {e}"))?;
+                    let account_meta = AccountMeta { pubkey: public_key, is_signer, is_writable };
+                    accounts.push(account_meta);
+                    Ok::<(), Diagnostic>(())
+                    //println!("account: {:?}", item.as_object());
+                });
+                Ok::<(), Diagnostic>(())
+            });
 
-        let idl_pubkey = &idl.get_program_pubkey()?;
+            ix_data = value.to_bytes();
+        } else {
+            let mut instruction_builder: InstructionBuilder;
+            let some_program_idl = instruction_data.swap_remove(PROGRAM_IDL);
+            let program_idl = some_program_idl
+                .as_ref()
+                .ok_or(diagnosed_error!("'program_idl' is required for each instruction"))?
+                .as_string()
+                .ok_or(diagnosed_error!(
+                    "'program_idl' field for an instruction must be a string"
+                ))?;
 
-        let program_id = instruction_data
-            .swap_remove(PROGRAM_ID)
-            .map(|p| {
-                SvmValue::to_pubkey(&p)
-                    .map_err(|e| diagnosed_error!("invalid 'program_id' for instruction: {e}"))
-            })
-            .transpose()?
-            .unwrap_or(idl_pubkey.clone());
+            let idl = IdlRef::from_str(program_idl)
+                .map_err(|e| diagnosed_error!("failed to parse program idl: {e}"))?;
 
-        let some_instruction_name = instruction_data.swap_remove(INSTRUCTION_NAME);
-        let instruction_name = some_instruction_name
-            .as_ref()
-            .ok_or(diagnosed_error!("'instruction_name' is required for each instruction"))?
-            .as_string()
-            .ok_or(diagnosed_error!(
-                "'instruction_name' field for an instruction must be a string"
-            ))?;
+            let idl_pubkey = &idl.get_program_pubkey()?;
 
-        let some_instruction_args = instruction_data.swap_remove(INSTRUCTION_ARGS);
-        let instruction_args = some_instruction_args
-            .as_ref()
-            .map(|v| {
-                v.as_array()
-                    .ok_or(diagnosed_error!(
-                        "'instruction_args' field for an instruction must be an array"
-                    ))
-                    .map(|a| a.to_vec())
-            })
-            .transpose()?
-            .unwrap_or(vec![]);
+            program_id = instruction_data
+                .swap_remove(PROGRAM_ID)
+                .map(|p| {
+                    SvmValue::to_pubkey(&p)
+                        .map_err(|e| diagnosed_error!("invalid 'program_id' for instruction: {e}"))
+                })
+                .transpose()?
+                .unwrap_or(idl_pubkey.clone());
 
-        let mut instruction_builder =
-            InstructionBuilder::new(&idl, &program_id, instruction_name, instruction_args.to_vec())
-                .map_err(|e| {
-                    diagnosed_error!("failed to build instruction '{instruction_name}': {e}")
-                })?;
+            let some_instruction_name = instruction_data.swap_remove(INSTRUCTION_NAME);
+            let instruction_name = some_instruction_name
+                .as_ref()
+                .ok_or(diagnosed_error!("'instruction_name' is required for each instruction"))?
+                .as_string()
+                .ok_or(diagnosed_error!(
+                    "'instruction_name' field for an instruction must be a string"
+                ))?;
 
-        let mut accounts =
-            instruction_builder.get_instruction_accounts(instruction_data).map_err(|e| {
-                diagnosed_error!("failed to get accounts for instruction '{instruction_name}': {e}")
+            let some_instruction_args = instruction_data.swap_remove(INSTRUCTION_ARGS);
+            let instruction_args = some_instruction_args
+                .as_ref()
+                .map(|v| {
+                    v.as_array()
+                        .ok_or(diagnosed_error!(
+                            "'instruction_args' field for an instruction must be an array"
+                        ))
+                        .map(|a| a.to_vec())
+                })
+                .transpose()?
+                .unwrap_or(vec![]);
+
+            instruction_builder = InstructionBuilder::new(
+                &idl,
+                &program_id,
+                instruction_name,
+                instruction_args.to_vec(),
+            )
+            .map_err(|e| {
+                diagnosed_error!("failed to build instruction '{instruction_name}': {e}")
             })?;
+            accounts =
+                instruction_builder.get_instruction_accounts(instruction_data).map_err(|e| {
+                    diagnosed_error!(
+                        "failed to get accounts for instruction '{instruction_name}': {e}"
+                    )
+                })?;
+            ix_data = instruction_builder.get_instruction_data();
+        }
 
         if accounts.is_empty() {
             let signer_value = instruction_data.swap_remove(SIGNER);
@@ -132,11 +181,9 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                 instruction_data.iter().map(|(k, _)| k.as_ref()).collect::<Vec<&str>>().join(", ")
             ));
         }
-        let instruction =
-            Instruction { program_id, accounts, data: instruction_builder.get_instruction_data() };
+        let instruction = Instruction { program_id, accounts, data: ix_data };
         instructions.push(instruction);
     }
-
     Ok(instructions)
 }
 
