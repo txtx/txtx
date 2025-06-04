@@ -20,7 +20,7 @@ use crate::{
 use super::idl::IdlRef;
 
 pub const RAW_BYTES: &str = "raw_bytes";
-pub const RAW_DATA: &str = "raw_data";
+pub const DATA: &str = "data";
 pub const ACCOUNTS: &str = "account";
 pub const PROGRAM_IDL: &str = "program_idl";
 pub const INSTRUCTION_NAME: &str = "instruction_name";
@@ -50,40 +50,7 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
         let program_id: Pubkey;
         let mut ix_data = Vec::new();
 
-        if let Some(value) = instruction_data.swap_remove(RAW_DATA) {
-            program_id = instruction_data
-                .swap_remove(PROGRAM_ID)
-                .map(|p| {
-                    SvmValue::to_pubkey(&p)
-                        .map_err(|e| diagnosed_error!("invalid 'program_id' for instruction: {e}"))
-                })
-                .transpose()?
-                .unwrap();
-            let _ = instruction_data.swap_remove(ACCOUNTS).iter().try_for_each(|acc| {
-                let acc_obj = acc.as_array().unwrap(); //acc.expect_object();
-                let _ = acc_obj.iter().try_for_each(|item| {
-                    let item_obj = item.as_object().unwrap();
-                    let public_key = item_obj.get("public_key").ok_or("public_key not found")?;
-                    let public_key = SvmValue::to_pubkey(public_key)
-                        .map_err(|e| diagnosed_error!("invalid 'account' for instruction: {e}"))?;
-                    let is_writable = item_obj
-                        .get("is_writable")
-                        .unwrap_or(&Value::Bool(false))
-                        .as_bool()
-                        .unwrap();
-                    let is_signer =
-                        item_obj.get("is_signer").unwrap_or(&Value::Bool(false)).as_bool().unwrap();
-
-                    let account_meta = AccountMeta { pubkey: public_key, is_signer, is_writable };
-                    accounts.push(account_meta);
-                    Ok::<(), Diagnostic>(())
-                    //println!("account: {:?}", item.as_object());
-                })?;
-                Ok::<(), Diagnostic>(())
-            })?;
-
-            ix_data = value.to_bytes();
-        } else {
+        if instruction_data.contains_key(PROGRAM_IDL) {
             let mut instruction_builder: InstructionBuilder;
             let some_program_idl = instruction_data.swap_remove(PROGRAM_IDL);
             let program_idl = some_program_idl
@@ -146,6 +113,39 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                     )
                 })?;
             ix_data = instruction_builder.get_instruction_data();
+        } else {
+            let value = instruction_data.swap_remove(DATA).expect("data not found");
+            program_id = instruction_data
+                .swap_remove(PROGRAM_ID)
+                .map(|p| {
+                    SvmValue::to_pubkey(&p)
+                        .map_err(|e| diagnosed_error!("invalid 'program_id' for instruction: {e}"))
+                })
+                .transpose()?
+                .unwrap();
+            let _ = instruction_data.swap_remove(ACCOUNTS).iter().try_for_each(|acc| {
+                let acc_obj = acc.as_array().unwrap(); //acc.expect_object();
+                let _ = acc_obj.iter().try_for_each(|item| {
+                    let item_obj = item.as_object().unwrap();
+                    let public_key = item_obj.get("public_key").ok_or("public_key not found")?;
+                    let public_key = SvmValue::to_pubkey(public_key)
+                        .map_err(|e| diagnosed_error!("invalid 'account' for instruction: {e}"))?;
+                    let is_writable = item_obj
+                        .get("is_writable")
+                        .unwrap_or(&Value::Bool(false))
+                        .as_bool()
+                        .unwrap();
+                    let is_signer =
+                        item_obj.get("is_signer").unwrap_or(&Value::Bool(false)).as_bool().unwrap();
+
+                    let account_meta = AccountMeta { pubkey: public_key, is_signer, is_writable };
+                    accounts.push(account_meta);
+                    Ok::<(), Diagnostic>(())
+                })?;
+                Ok::<(), Diagnostic>(())
+            })?;
+
+            ix_data = value.to_bytes();
         }
 
         if accounts.is_empty() {
