@@ -18,7 +18,9 @@ use alloy_provider::utils::{
     EIP1559_FEE_ESTIMATION_PAST_BLOCKS, EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
 };
 use alloy_provider::Identity;
-use alloy_rpc_types::trace::geth::{GethDebugTracingCallOptions, GethDebugTracingOptions};
+use alloy_rpc_types::trace::geth::{
+    GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
+};
 use alloy_rpc_types::{Block, BlockId, BlockNumberOrTag, FeeHistory};
 use txtx_addon_kit::reqwest::Url;
 
@@ -204,18 +206,33 @@ impl EvmRpc {
         .await
     }
 
-    pub async fn call(&self, tx: &TransactionRequest) -> Result<String, CallFailureResult> {
-        let result = match EvmRpc::retry_async(|| async {
-            self.provider.call(tx.clone()).block(BlockId::pending()).await.map_err(|e| {
+    pub async fn call(
+        &self,
+        tx: &TransactionRequest,
+        retry: bool,
+    ) -> Result<String, CallFailureResult> {
+        let call_res = if retry {
+            EvmRpc::retry_async(|| async {
+                self.provider.call(tx.clone()).block(BlockId::pending()).await.map_err(|e| {
+                    if let Some(e) = e.as_error_resp() {
+                        RpcError::MessageWithCode(e.message.to_string(), e.code)
+                    } else {
+                        RpcError::Message(e.to_string())
+                    }
+                })
+            })
+            .await
+        } else {
+            self.provider.call(tx.clone()).block(BlockId::latest()).await.map_err(|e| {
                 if let Some(e) = e.as_error_resp() {
                     RpcError::MessageWithCode(e.message.to_string(), e.code)
                 } else {
                     RpcError::Message(e.to_string())
                 }
             })
-        })
-        .await
-        {
+        };
+
+        let result = match call_res {
             Ok(res) => res,
             Err(e) => match e {
                 RpcError::MessageWithCode(message, code) => {
@@ -249,7 +266,7 @@ impl EvmRpc {
         .await
     }
 
-    pub async fn trace_transaction(&self, tx_hash: &Vec<u8>) -> Result<String, String> {
+    pub async fn get_transaction_return_value(&self, tx_hash: &Vec<u8>) -> Result<String, String> {
         let result = EvmRpc::retry_async(|| async {
             self.provider
                 .debug_trace_transaction(
@@ -267,9 +284,16 @@ impl EvmRpc {
         .await
         .map_err(|e| e.to_string())?;
 
-        let result = serde_json::to_string(&result)
-            .map_err(|e| format!("failed to serialize debug_trace_transaction response: {}", e))?;
-        Ok(result)
+        match result {
+            GethTrace::Default(default_frame) => {
+                Ok(hex::encode(&default_frame.return_value.to_vec()))
+            }
+            _ => {
+                let result = serde_json::to_string(&result)
+                    .map_err(|e| format!("failed to serialize trace response: {}", e))?;
+                return Ok(result);
+            }
+        }
     }
 
     pub async fn trace_call(&self, tx: &TransactionRequest) -> Result<String, String> {

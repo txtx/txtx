@@ -263,8 +263,13 @@ impl CommandImplementation for CheckEvmConfirmations {
                 }
 
                 if !receipt.status() {
-                    let diag = match rpc.trace_transaction(&tx_hash_bytes).await {
-                        Ok(trace) => diagnosed_error!("transaction reverted with trace: {}", trace),
+                    let diag = match rpc.get_transaction_return_value(&tx_hash_bytes).await {
+                        Ok(return_value) => {
+                            diagnosed_error!(
+                                "transaction reverted with return value: {}",
+                                return_value
+                            )
+                        }
                         Err(_) => diagnosed_error!("transaction reverted"),
                     };
 
