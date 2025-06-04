@@ -132,8 +132,8 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                         .map_err(|e| diagnosed_error!("invalid 'account' for instruction: {e}"))?;
                 let is_writable =
                     item_obj.get("is_writable").and_then(|v| v.as_bool()).unwrap_or(false);
-                    let is_signer =
-                        item_obj.get("is_signer").unwrap_or(&Value::Bool(false)).as_bool().unwrap();
+                let is_signer =
+                    item_obj.get("is_signer").and_then(|v| v.as_bool()).unwrap_or(false);
 
                     let account_meta = AccountMeta { pubkey: public_key, is_signer, is_writable };
                     accounts.push(account_meta);
