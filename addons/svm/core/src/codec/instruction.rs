@@ -126,7 +126,7 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
             let _ = instruction_data.swap_remove(ACCOUNTS).iter().try_for_each(|acc| {
                 let acc_obj = acc.as_array().unwrap(); //acc.expect_object();
                 let _ = acc_obj.iter().try_for_each(|item| {
-                    let item_obj = item.as_object().unwrap();
+                    let item_obj = item.as_object().expect("expected map entry to be an object");
                     let public_key = item_obj.get("public_key").ok_or("public_key not found")?;
                     let public_key = SvmValue::to_pubkey(public_key)
                         .map_err(|e| diagnosed_error!("invalid 'account' for instruction: {e}"))?;
