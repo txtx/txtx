@@ -60,25 +60,25 @@ struct Opts {
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
 enum Command {
-    /// List runbooks present in the current direcoty
+    /// List the runbooks indexed in the txtx manifest
     #[clap(name = "ls", bin_name = "ls")]
     List(ListRunbooks),
-    /// Create a new Runbook
+    /// Create a new runbook
     #[clap(name = "new", bin_name = "new")]
     New(CreateRunbook),
-    /// Check the executability of a runbook
+    /// Check a runbook against a previous execution's statefile to list which actions will be re-executed
     #[clap(name = "check", bin_name = "check")]
     Check(CheckRunbook),
-    /// Run, runbook, run!
+    /// Execute a runbook. Run, runbook, run!
     #[clap(name = "run", bin_name = "run")]
     Run(ExecuteRunbook),
-    /// Display Documentation
+    /// Display documentation
     #[clap(name = "docs", bin_name = "docs")]
     Docs(GetDocumentation),
-    /// Start Txtx Language Server
+    /// Start the txtx language server
     #[clap(name = "lsp", bin_name = "lsp")]
     Lsp,
-    /// Start Txtx Server
+    /// Start a server to listen for requests to execute runbooks
     #[clap(name = "serve", bin_name = "serve")]
     #[cfg(feature = "txtx_serve")]
     Serve(StartServer),
