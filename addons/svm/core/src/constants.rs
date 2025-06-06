@@ -72,6 +72,7 @@ pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
 pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
 pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
 pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
+pub const ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION: &str = "provide_signed_squad_transaction";
 
 // Subgraph endpoints
 pub const MAINNET_SUBGRAPH_ENDPOINT: &str =

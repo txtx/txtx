@@ -4,6 +4,8 @@ use std::{env, path::Path};
 fn main() {
     #[cfg(not(feature = "bypass_supervisor_build"))]
     {
+        println!("cargo:info=1");
+        return;
         use npm_rs::*;
         let out_dir = env::var_os("OUT_DIR").unwrap();
         let out_dir = Path::new(&format!("{}", out_dir.to_str().unwrap())).join("supervisor");

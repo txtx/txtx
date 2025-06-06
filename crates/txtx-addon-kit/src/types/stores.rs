@@ -200,8 +200,32 @@ impl ValueStore {
             .map_or_else(|_| self.defaults.get_uint(key).map_err(|e| e), |val| Ok(val))
     }
 
+    pub fn get_u8(&self, key: &str) -> Result<Option<u8>, String> {
+        self.inputs
+            .get_integer(key)
+            .or(self.defaults.get_integer(key))
+            .map(|v| {
+                u8::try_from(v).map_err(|e| format!("invalid u8 for value '{key}': {e}").into())
+            })
+            .transpose()
+    }
+
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         self.inputs.get_bool(key).or(self.defaults.get_bool(key))
+    }
+
+    pub fn get_integer(&self, key: &str) -> Option<i128> {
+        self.inputs.get_integer(key).or(self.defaults.get_integer(key))
+    }
+
+    pub fn get_i64(&self, key: &str) -> Result<Option<i64>, Diagnostic> {
+        self.inputs
+            .get_integer(key)
+            .or(self.defaults.get_integer(key))
+            .map(|v| {
+                i64::try_from(v).map_err(|e| format!("invalid i64 for value '{key}': {e}").into())
+            })
+            .transpose()
     }
 
     pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {

@@ -99,11 +99,10 @@ impl SignerImplementation for SvmWebWallet {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use crate::{codec::public_key_from_str, constants::NETWORK_ID};
         use txtx_addon_kit::constants::{
             ACTION_ITEM_CHECK_BALANCE, IS_BALANCE_CHECKED, PROVIDE_PUBLIC_KEY_ACTION_RESULT,
         };
-
-        use crate::{codec::public_key_from_str, constants::NETWORK_ID};
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
         let is_balance_checked = values.get_bool(IS_BALANCE_CHECKED);
@@ -136,12 +135,11 @@ impl SignerImplementation for SvmWebWallet {
         let (mut actions, connected_public_key) = if let Ok(public_key_bytes) =
             values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
         {
-            let mut actions: Actions = Actions::none();
-            let mut success = true;
-
             let sol_address = public_key_from_str(&public_key_bytes)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
+            let mut actions: Actions = Actions::none();
+            let mut success = true;
             let mut status_update = ActionItemStatus::Success(Some(sol_address.to_string()));
             if let Some(expected_address) = expected_address.as_ref() {
                 if !expected_address.eq(&sol_address) {
@@ -224,6 +222,7 @@ impl SignerImplementation for SvmWebWallet {
                     action_items,
                 );
             }
+
             Ok((signers, signer_state, actions))
         };
         Ok(Box::pin(future))
@@ -239,8 +238,12 @@ impl SignerImplementation for SvmWebWallet {
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
         let mut result = CommandExecutionResult::new();
-        let public_key = signer_state.get_value(CHECKED_PUBLIC_KEY).unwrap();
-        let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
+        let public_key = signer_state
+            .get_expected_value(CHECKED_PUBLIC_KEY)
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+        let address = signer_state
+            .get_expected_value(CHECKED_ADDRESS)
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
         result.outputs.insert(ADDRESS.into(), address.clone());
         result.outputs.insert(PUBLIC_KEY.into(), public_key.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))

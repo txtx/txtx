@@ -381,6 +381,10 @@ impl GqlActionSubGroup {
 
 #[graphql_object(context = Context)]
 impl GqlActionSubGroup {
+    pub fn title(&self) -> Option<String> {
+        self.sub_group.title.clone()
+    }
+
     pub fn allow_batch_completion(&self) -> bool {
         self.sub_group.allow_batch_completion.clone()
     }

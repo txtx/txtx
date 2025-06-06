@@ -10,6 +10,7 @@ use txtx_addon_kit::constants::{
     DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID, NESTED_CONSTRUCT_INDEX,
     SIGNED_TRANSACTION_BYTES,
 };
+use txtx_addon_kit::futures::future;
 use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
@@ -40,7 +41,7 @@ use crate::typing::{
 };
 
 use super::get_custom_signer_did;
-use super::sign_transaction::SignTransaction;
+use super::sign_transaction::{check_signed_executability, run_signed_execution};
 
 lazy_static! {
     pub static ref DEPLOY_PROGRAM: PreCommandSpecification = {
@@ -381,7 +382,7 @@ impl CommandImplementation for DeployProgram {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -453,15 +454,15 @@ impl CommandImplementation for DeployProgram {
                 values.insert(FORMATTED_TRANSACTION, formatted_transaction);
                 values.insert(DESCRIPTION, Value::string(description));
             }
-            return SignTransaction::check_signed_executability(
+            let res = check_signed_executability(
                 construct_did,
                 instance_name,
-                spec,
                 &values,
                 supervision_context,
                 signers_instances,
                 signers,
             );
+            return Ok(Box::pin(future::ready(res)));
         } else {
             return return_synchronous((signers, authority_signer_state, Actions::none()));
         }
@@ -469,9 +470,9 @@ impl CommandImplementation for DeployProgram {
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         values: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
+        _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
@@ -486,11 +487,8 @@ impl CommandImplementation for DeployProgram {
             .get_scoped_value(&construct_did.to_string(), PROGRAM_IDL)
             .cloned();
 
-        let progress_tx = progress_tx.clone();
         let signers_instances = signers_instances.clone();
         let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
         let mut values = values.clone();
 
         let future = async move {
@@ -559,14 +557,8 @@ impl CommandImplementation for DeployProgram {
             values.insert(IS_DEPLOYMENT, Value::bool(true));
             values.insert(TRANSACTION_BYTES, transaction_value.clone());
 
-            let run_signing_future = SignTransaction::run_signed_execution(
-                &construct_did,
-                &spec,
-                &values,
-                &progress_tx,
-                &signers_instances,
-                signers,
-            );
+            let run_signing_future =
+                run_signed_execution(&construct_did, &values, &signers_instances, signers);
             let (signers, signer_state, mut signin_res) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
