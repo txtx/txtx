@@ -645,35 +645,34 @@ pub async fn handle_run_command(
                                     yellow!("→"),
                                     yellow!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
-                                    if update.new_status.status.starts_with("Pending") {
-                                        ""
-                                    } else {
-                                        "\n"
-                                    }
+                                    if update.new_status.newline { "\n" } else { "" }
                                 );
                             }
                             ProgressBarStatusColor::Green => {
                                 print!(
-                                    "\r{} {} {:<150}\n",
+                                    "\r{} {} {:<150}{}",
                                     green!("✓"),
                                     green!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
+                                    if update.new_status.newline { "\n" } else { "" }
                                 );
                             }
                             ProgressBarStatusColor::Red => {
                                 print!(
-                                    "\r{} {} {:<150}\n",
+                                    "\r{} {} {:<150}{}",
                                     red!("x"),
                                     red!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
+                                    if update.new_status.newline { "\n" } else { "" }
                                 );
                             }
                             ProgressBarStatusColor::Purple => {
                                 print!(
-                                    "\r{} {} {:<150}\n",
+                                    "\r{} {} {:<150}{}",
                                     purple!("→"),
                                     purple!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
+                                    if update.new_status.newline { "\n" } else { "" }
                                 );
                             }
                         };

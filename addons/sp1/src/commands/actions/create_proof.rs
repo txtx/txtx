@@ -197,12 +197,11 @@ impl CommandImplementation for CreateProof {
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
                 &construct_did,
-                &ProgressBarStatus {
-                    status_color: ProgressBarStatusColor::Yellow,
-                    status: format!("Pending {}", progress_symbol[progress]),
-                    message: msg.clone(),
-                    diagnostic: None,
-                },
+                &ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Yellow,
+                    &format!("Pending {}", progress_symbol[progress]),
+                    &msg,
+                ),
             );
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
             // Polling loop to update the user

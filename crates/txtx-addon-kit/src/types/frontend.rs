@@ -442,23 +442,46 @@ pub struct ProgressBarStatus {
     pub status_color: ProgressBarStatusColor,
     pub message: String,
     pub diagnostic: Option<Diagnostic>,
+    /// Indicates if the TUI displaying this update should include a newline at the end of the update
+    pub newline: bool,
 }
 
 impl ProgressBarStatus {
     pub fn new_msg(status_color: ProgressBarStatusColor, status: &str, message: &str) -> Self {
+        let newline = match status_color {
+            ProgressBarStatusColor::Yellow => false,
+            _ => true,
+        };
         ProgressBarStatus {
             status: status.to_string(),
             status_color,
             message: message.to_string(),
             diagnostic: None,
+            newline,
         }
     }
+    pub fn new_msg_newline(
+        status_color: ProgressBarStatusColor,
+        status: &str,
+        message: &str,
+        newline: bool,
+    ) -> Self {
+        ProgressBarStatus {
+            status: status.to_string(),
+            status_color,
+            message: message.to_string(),
+            diagnostic: None,
+            newline,
+        }
+    }
+
     pub fn new_err(status: &str, message: &str, diag: &Diagnostic) -> Self {
         ProgressBarStatus {
             status: status.to_string(),
             status_color: ProgressBarStatusColor::Red,
             message: message.to_string(),
             diagnostic: Some(diag.clone()),
+            newline: true,
         }
     }
 }
@@ -518,7 +541,12 @@ impl StatusUpdater {
         let initial_status = ProgressBarStatusUpdate::new(
             &background_tasks_uuid,
             &construct_did,
-            &&ProgressBarStatus::new_msg(ProgressBarStatusColor::Yellow, &progress.pending(), ""),
+            &&ProgressBarStatus::new_msg_newline(
+                ProgressBarStatusColor::Yellow,
+                &progress.pending(),
+                "",
+                false,
+            ),
         );
         StatusUpdater { status_update: initial_status, tx: tx.clone(), progress }
     }
@@ -545,19 +573,31 @@ impl StatusUpdater {
     }
 
     pub fn propagate_info(&mut self, info: &str) {
-        self.status_update.update_status(&ProgressBarStatus::new_msg(
+        self.status_update.update_status(&ProgressBarStatus::new_msg_newline(
             ProgressBarStatusColor::Purple,
             "Info",
             info,
+            true,
         ));
         let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
     }
 
     pub fn propagate_pending_status(&mut self, new_status_msg: &str) {
-        self.status_update.update_status(&ProgressBarStatus::new_msg(
+        self.status_update.update_status(&ProgressBarStatus::new_msg_newline(
             ProgressBarStatusColor::Yellow,
             &self.progress.pending(),
             new_status_msg,
+            false, // pending status will print repeatedly to the same line, so no newline
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_warning_status(&mut self, new_status_msg: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg_newline(
+            ProgressBarStatusColor::Yellow,
+            "Warning",
+            new_status_msg,
+            true, // warning status will print on a new line
         ));
         let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
     }
@@ -572,10 +612,11 @@ impl StatusUpdater {
     }
 
     pub fn propagate_success_status(&mut self, status: &str, msg: &str) {
-        self.status_update.update_status(&ProgressBarStatus::new_msg(
+        self.status_update.update_status(&ProgressBarStatus::new_msg_newline(
             ProgressBarStatusColor::Green,
             status,
             msg,
+            true, // success status will print on a new line
         ));
         let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
     }
