@@ -364,7 +364,15 @@ pub trait WithEvaluatableInputs {
         input_name: &str,
         prop: &ObjectProperty,
     ) -> Option<Expression>;
-    fn spec_inputs(&self) -> Vec<impl EvaluatableInput>;
+
+    /// Defines the inputs for this trait type with evaluatable inputs
+    fn _spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>>;
+
+    // with those defined specifically for the implementer of this trait
+    fn spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        let mut spec_inputs = self._spec_inputs();
+        spec_inputs
+    }
 }
 
 pub trait EvaluatableInput {

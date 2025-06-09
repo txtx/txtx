@@ -711,8 +711,12 @@ impl WithEvaluatableInputs for CommandInstance {
             None => None,
         }
     }
-    fn spec_inputs(&self) -> Vec<impl EvaluatableInput> {
-        self.specification.inputs.iter().map(|x| x.clone()).collect()
+    fn _spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        self.specification
+            .inputs
+            .iter()
+            .map(|x| Box::new(x.clone()) as Box<dyn EvaluatableInput>)
+            .collect::<Vec<_>>()
     }
 }
 

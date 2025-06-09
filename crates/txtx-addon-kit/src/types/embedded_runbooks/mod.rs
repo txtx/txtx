@@ -107,8 +107,13 @@ impl WithEvaluatableInputs for EmbeddedRunbookInstance {
         }
     }
 
-    fn spec_inputs(&self) -> Vec<impl EvaluatableInput> {
-        self.specification.inputs.iter().filter_map(|i| i.as_value()).collect()
+    fn _spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        self.specification
+            .inputs
+            .iter()
+            .filter_map(|i| i.as_value())
+            .map(|x| Box::new(x.clone()) as Box<dyn EvaluatableInput>)
+            .collect::<Vec<_>>()
     }
 }
 
