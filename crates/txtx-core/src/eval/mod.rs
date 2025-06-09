@@ -236,6 +236,7 @@ impl EvaluationPassResult {
             pending_background_tasks_futures: vec![],
             pending_background_tasks_constructs_uuids: vec![],
             background_tasks_uuid: background_tasks_uuid.clone(),
+            nodes_to_re_execute: vec![],
         }
     }
 

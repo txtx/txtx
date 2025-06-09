@@ -147,6 +147,7 @@ pub async fn start_unsupervised_runbook_runloop(
 
             if !pass_results.actions.has_pending_actions()
                 && background_tasks_contructs_dids.is_empty()
+                && pass_results.nodes_to_re_execute.is_empty()
             {
                 runbook_completed = true;
             }
