@@ -4,7 +4,10 @@ use crate::runbook::{
     RuntimeContext,
 };
 use crate::types::{RunbookExecutionContext, RunbookSources};
-use kit::types::commands::ConstructInstance;
+use kit::constants::RE_EXECUTE_COMMAND;
+use kit::types::commands::{
+    ConstructInstance, PostConditionEvaluationResult, PreConditionEvaluationResult,
+};
 use kit::types::types::ObjectDefinition;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Display;
@@ -226,6 +229,7 @@ pub struct EvaluationPassResult {
     pub pending_background_tasks_futures: Vec<CommandExecutionFuture>,
     pub pending_background_tasks_constructs_uuids: Vec<(ConstructDid, ConstructDid)>,
     pub background_tasks_uuid: Uuid,
+    pub nodes_to_re_execute: Vec<ConstructDid>,
 }
 
 impl EvaluationPassResult {
@@ -310,6 +314,13 @@ impl Display for EvaluationPassResult {
     }
 }
 
+fn should_skip_construct_evaluation(execution_result: &CommandExecutionResult) -> bool {
+    // Check if the execution result indicates that the construct should be skipped
+    let has_re_execute_command =
+        execution_result.outputs.get(RE_EXECUTE_COMMAND).and_then(|v| v.as_bool()).unwrap_or(false);
+    !has_re_execute_command
+}
+
 // When the graph is being traversed, we are evaluating constructs one after the other.
 // After ensuring their executability, we execute them.
 // Unexecutable nodes are tainted.
@@ -361,9 +372,13 @@ pub async fn run_constructs_evaluation(
     let ordered_constructs = runbook_execution_context.order_for_commands_execution.clone();
 
     for construct_did in ordered_constructs.into_iter() {
-        if let Some(_) = runbook_execution_context.commands_execution_results.get(&construct_did) {
-            continue;
-        };
+        if let Some(execution_results) =
+            runbook_execution_context.commands_execution_results.get(&construct_did)
+        {
+            if should_skip_construct_evaluation(execution_results) {
+                continue;
+            }
+        }
 
         if let Some(_) = unexecutable_nodes.get(&construct_did) {
             if let Some(deps) = runbook_execution_context.commands_dependencies.get(&construct_did)
@@ -524,6 +539,39 @@ pub async fn evaluate_command_instance(
         }
     };
 
+    match command_instance.evaluate_pre_conditions(
+        construct_did,
+        &evaluated_inputs,
+        &HashMap::new(),
+        progress_tx,
+        &Uuid::new_v4(),
+    ) {
+        Ok(result) => {
+            match result {
+                PreConditionEvaluationResult::Noop => {}
+                PreConditionEvaluationResult::Halt(diags) => {
+                    pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
+                    return LoopEvaluationResult::Bail;
+                }
+                PreConditionEvaluationResult::SkipDownstream => {
+
+                    if let Some(deps) =
+                        runbook_execution_context.commands_dependencies.get(&construct_did)
+                    {
+                        for dep in deps.iter() {
+                            unexecutable_nodes.insert(dep.clone());
+                        }
+                    }
+                    return LoopEvaluationResult::Continue;
+                }
+            }
+        }
+        Err(diag) => {
+            pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+            return LoopEvaluationResult::Bail;
+        }
+    };
+
     let executions_for_action = if command_instance.specification.implements_signing_capability {
         let signers = runbook_execution_context.signers_state.take().unwrap();
         let signers = update_signer_instances_from_action_response(
@@ -561,10 +609,12 @@ pub async fn evaluate_command_instance(
     };
 
     for (nested_construct_did, nested_evaluation_values) in executions_for_action.iter() {
-        if let Some(_) =
+        if let Some(execution_results) =
             runbook_execution_context.commands_execution_results.get(&nested_construct_did)
         {
-            continue;
+            if should_skip_construct_evaluation(execution_results) {
+                continue;
+            }
         };
 
         let execution_result = if command_instance.specification.implements_signing_capability {
@@ -781,6 +831,56 @@ pub async fn evaluate_command_instance(
         &executions_for_action,
         &runbook_execution_context.commands_execution_results,
     );
+
+    match command_instance.evaluate_post_conditions(
+        construct_did,
+        &evaluated_inputs,
+        runbook_execution_context
+            .commands_execution_results
+            .entry(construct_did.clone())
+            .or_insert(CommandExecutionResult::new()),
+        progress_tx,
+        &Uuid::new_v4(),
+    ) {
+        Ok(result) => {
+            match result {
+                PostConditionEvaluationResult::Noop => {}
+                PostConditionEvaluationResult::Halt(diags) => {
+                    pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
+                    return LoopEvaluationResult::Bail;
+                }
+                PostConditionEvaluationResult::SkipDownstream => {
+
+                    if let Some(deps) =
+                        runbook_execution_context.commands_dependencies.get(&construct_did)
+                    {
+                        for dep in deps.iter() {
+                            unexecutable_nodes.insert(dep.clone());
+                        }
+                    }
+                    return LoopEvaluationResult::Continue;
+                }
+                PostConditionEvaluationResult::Retry(_) => {
+                    // If the post condition requires a retry, we will not continue the execution of this command.
+                    // We will return a Continue result to ensure that the next nested evaluation is not executed.
+                    // Once the retry is completed, it will mark _this_ nested construct as completed and move to the next one.
+                    if let Some(deps) =
+                        runbook_execution_context.commands_dependencies.get(&construct_did)
+                    {
+                        for dep in deps.iter() {
+                            unexecutable_nodes.insert(dep.clone());
+                        }
+                    }
+                    pass_result.nodes_to_re_execute.push(construct_did.clone());
+                    return LoopEvaluationResult::Continue;
+                }
+            }
+        }
+        Err(diag) => {
+            pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+            return LoopEvaluationResult::Bail;
+        }
+    };
 
     match res {
         Ok(result) => {
@@ -2025,7 +2125,7 @@ struct EvaluateMapInputResult {
 /// For a map, it could point to another block, so we need to recursively look inside maps.
 fn evaluate_map_input(
     mut result: CommandInputsEvaluationResult,
-    input_spec: &impl EvaluatableInput,
+    input_spec: &Box<dyn EvaluatableInput>,
     with_evaluatable_inputs: &impl WithEvaluatableInputs,
     dependencies_execution_results: &DependencyExecutionResultCache,
     package_id: &PackageId,

@@ -1,0 +1,213 @@
+use crate::{
+    indoc,
+    types::{frontend::StatusUpdater, types::ObjectProperty},
+};
+use uuid::Uuid;
+
+use super::{CommandSpecification, ASSERTION, BEHAVIOR, PRE_CONDITION};
+use crate::types::{
+    diagnostics::Diagnostic,
+    frontend::BlockEvent,
+    stores::ValueStore,
+    types::{Type, Value},
+    ConstructDid, EvaluatableInput,
+};
+
+lazy_static! {
+    pub static ref PRE_CONDITION_TYPE: Type = Type::strict_map(
+        vec![
+            ObjectProperty {
+                name: "behavior".into(),
+                documentation: indoc! {r#"
+                        The behavior if the pre-condition assertion does not pass. Possible values are:
+                        - "halt": Throws an error and halts execution of the runbook
+                        - "log": Logs a warning and continues execution of the runbook
+                        - "skip": Skips execution of this command and all downstream commands
+                        If not specified, the default is "halt".
+                    "#}
+                .into(),
+                typing: Type::string(),
+                optional: true,
+                tainting: false,
+                internal: false,
+            },
+            ObjectProperty {
+                name: "assertion".into(),
+                documentation: "The assertion to check to determine if the pre-condition behavior should be executed."
+                .into(),
+                typing: Type::bool(),
+                optional: false,
+                tainting: false,
+                internal: false,
+            }
+        ]
+    );
+}
+
+#[derive(Clone)]
+pub struct PreConditionEvaluatableInput;
+impl PreConditionEvaluatableInput {
+    pub fn new() -> impl EvaluatableInput {
+        Self {}
+    }
+}
+impl EvaluatableInput for PreConditionEvaluatableInput {
+    fn optional(&self) -> bool {
+        true
+    }
+
+    fn typing(&self) -> &Type {
+        &PRE_CONDITION_TYPE
+    }
+
+    fn name(&self) -> String {
+        "pre_condition".into()
+    }
+}
+
+// Todo:
+//  - return vec<Diagnostic> instead of a single Diagnostic
+//  - log all before returning errors
+//  - consider passing namespace to function to give additional context to logs
+
+pub enum PreConditionEvaluationResult {
+    Noop,
+    Halt(Vec<Diagnostic>),
+    SkipDownstream,
+}
+
+pub fn evaluate_pre_conditions(
+    construct_did: &ConstructDid,
+    instance_name: &str,
+    spec: &CommandSpecification,
+    values: &ValueStore,
+    progress_tx: &channel::Sender<BlockEvent>,
+    background_tasks_uuid: &Uuid,
+) -> Result<PreConditionEvaluationResult, Diagnostic> {
+    let Some(pre_conditions) = values.get_map(PRE_CONDITION) else {
+        return Ok(PreConditionEvaluationResult::Noop);
+    };
+
+    let pre_conditions = PreCondition::from_map(pre_conditions)?;
+
+    let mut diags = vec![];
+    let mut do_skip = false;
+    let mut status_updater = StatusUpdater::new(background_tasks_uuid, construct_did, progress_tx);
+    for (i, pre_condition) in pre_conditions.iter().enumerate() {
+        if !pre_condition.assertion {
+            match pre_condition.behavior {
+                PreConditionBehavior::Halt => {
+                    // Additional context is already added to diagnostics, so no need to include here
+                    diags.push(Diagnostic::error_from_string(format!(
+                        "pre_condition #{} failed assertion",
+                        i + 1
+                    )));
+                }
+                PreConditionBehavior::Log => {
+                    status_updater.propagate_warning_status(&format!(
+                        "pre_condition #{} failed assertion for '{}' command '{}'",
+                        i + 1,
+                        spec.matcher,
+                        instance_name
+                    ));
+                }
+                PreConditionBehavior::Skip => {
+                    do_skip = true;
+                    status_updater.propagate_warning_status(&format!(
+                        "pre_condition #{} failed assertion for '{}' command '{}': skipping execution of this command and all downstream commands",
+                        i + 1,
+                        spec.matcher,
+                        instance_name
+                    ));
+                }
+            }
+        }
+    }
+    if !diags.is_empty() {
+        return Ok(PreConditionEvaluationResult::Halt(diags));
+    }
+
+    if do_skip {
+        return Ok(PreConditionEvaluationResult::SkipDownstream);
+    }
+
+    Ok(PreConditionEvaluationResult::Noop)
+}
+
+#[derive(Debug, Clone)]
+pub struct PreCondition {
+    pub behavior: PreConditionBehavior,
+    pub assertion: bool,
+}
+
+impl PreCondition {
+    const ERROR_PREFIX: &str = "error evaluating pre conditions";
+
+    pub fn from_map(pre_condition_map_entries: &Vec<Value>) -> Result<Vec<Self>, Diagnostic> {
+        let mut results = Vec::with_capacity(pre_condition_map_entries.len());
+
+        for (i, pre_condition_entry) in pre_condition_map_entries.iter().enumerate() {
+            let err_prefix = format!("{}: error in pre_condition #{}", Self::ERROR_PREFIX, i + 1);
+
+            let pre_condition_values = pre_condition_entry.as_object().ok_or_else(|| {
+                Diagnostic::error_from_string(format!("{err_prefix}: not a valid map type",))
+            })?;
+
+            let behavior = pre_condition_values
+                .get(BEHAVIOR)
+                .map(|v| {
+                    v.as_string()
+                        .ok_or(Diagnostic::error_from_string(format!(
+                            "{err_prefix}: behavior field must be a string",
+                        )))
+                        .and_then(|s| {
+                            PreConditionBehavior::from_str(s).map_err(|e| {
+                                Diagnostic::error_from_string(format!("{err_prefix}: {e}",))
+                            })
+                        })
+                })
+                .transpose()?
+                .unwrap_or_default();
+
+            let assertion = pre_condition_values
+                .get(ASSERTION)
+                .ok_or(Diagnostic::error_from_string(format!(
+                    "{err_prefix}: missing required 'assertion' field"
+                )))?
+                .as_bool()
+                .ok_or(Diagnostic::error_from_string(format!(
+                    "{err_prefix}: 'assertion' field must be a boolean"
+                )))?;
+
+            results.push(Self { behavior, assertion });
+        }
+
+        Ok(results)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PreConditionBehavior {
+    Halt,
+    Log,
+    Skip,
+}
+
+impl Default for PreConditionBehavior {
+    fn default() -> Self {
+        Self::Halt
+    }
+}
+impl PreConditionBehavior {
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "halt" => Ok(PreConditionBehavior::Halt),
+            "log" => Ok(PreConditionBehavior::Log),
+            "skip" => Ok(PreConditionBehavior::Skip),
+            _ => Err(format!(
+                "invalid behavior '{}'; valid options are 'halt', 'log', and 'skip'",
+                s
+            )),
+        }
+    }
+}

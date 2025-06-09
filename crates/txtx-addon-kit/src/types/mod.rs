@@ -3,6 +3,7 @@ use std::env;
 use std::fmt::Display;
 use std::path::PathBuf;
 
+use commands::{PostConditionEvaluatableInput, PreConditionEvaluatableInput};
 use diagnostics::Diagnostic;
 use hcl_edit::expr::Expression;
 use hcl_edit::structure::Block;
@@ -368,9 +369,12 @@ pub trait WithEvaluatableInputs {
     /// Defines the inputs for this trait type with evaluatable inputs
     fn _spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>>;
 
+    // Merges some default inputs that are available for all commands
     // with those defined specifically for the implementer of this trait
     fn spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
         let mut spec_inputs = self._spec_inputs();
+        spec_inputs.push(Box::new(PreConditionEvaluatableInput::new()));
+        spec_inputs.push(Box::new(PostConditionEvaluatableInput::new()));
         spec_inputs
     }
 }

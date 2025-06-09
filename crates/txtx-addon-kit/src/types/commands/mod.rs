@@ -1,3 +1,4 @@
+use execution_conditions::{evaluate_post_conditions, evaluate_pre_conditions};
 use serde::{
     ser::{SerializeMap, SerializeStruct},
     Serialize, Serializer,
@@ -7,6 +8,8 @@ use std::{
     future::{self, Future},
     hash::Hash,
     pin::Pin,
+    thread::sleep,
+    time::Duration,
 };
 use uuid::Uuid;
 
@@ -38,6 +41,10 @@ use super::{
     types::{ObjectDefinition, ObjectProperty, RunbookSupervisionContext, Type, Value},
     ConstructDid, Did, EvaluatableInput, PackageId, WithEvaluatableInputs,
 };
+
+mod execution_conditions;
+pub use execution_conditions::{PostConditionEvaluatableInput, PostConditionEvaluationResult};
+pub use execution_conditions::{PreConditionEvaluatableInput, PreConditionEvaluationResult};
 
 #[derive(Clone, Debug)]
 pub struct CommandExecutionResult {
@@ -351,11 +358,13 @@ pub struct CommandSpecification {
     pub prepare_nested_execution: CommandPrepareNestedExecution,
     pub run_execution: CommandExecutionClosure,
     pub check_signed_executability: CommandCheckSignedExecutabilityClosure,
+    pub evaluate_pre_conditions: CommandEvaluatePreConditions,
     pub prepare_signed_nested_execution: CommandSignedPrepareNestedExecution,
     pub run_signed_execution: CommandSignedExecutionClosure,
     pub build_background_task: CommandBackgroundTaskExecutionClosure,
     pub implements_cloud_service: bool,
     pub aggregate_nested_execution_results: CommandAggregateNestedExecutionResults,
+    pub evaluate_post_conditions: CommandEvaluatePostConditions,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -542,6 +551,26 @@ pub type CommandCheckSignedExecutabilityClosure = fn(
     &HashMap<ConstructDid, SignerInstance>,
     SignersState,
 ) -> SignerActionsFutureResult;
+
+pub type CommandEvaluatePreConditions = fn(
+    &ConstructDid,
+    &str,
+    &CommandSpecification,
+    &ValueStore,
+    &Vec<CommandExecutionResult>,
+    &channel::Sender<BlockEvent>,
+    &Uuid,
+) -> Result<PreConditionEvaluationResult, Diagnostic>;
+
+pub type CommandEvaluatePostConditions = fn(
+    &ConstructDid,
+    &str,
+    &CommandSpecification,
+    &ValueStore,
+    &mut CommandExecutionResult,
+    &channel::Sender<BlockEvent>,
+    &Uuid,
+) -> Result<PostConditionEvaluationResult, Diagnostic>;
 
 pub type CommandSignedPrepareNestedExecution = fn(
     &ConstructDid,
@@ -736,6 +765,30 @@ impl CommandInstance {
             return format!("{} Review", self.specification.name.to_string());
         };
         group.value.to_string()
+    }
+
+    pub fn evaluate_pre_conditions(
+        &mut self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        commands_execution_results: &HashMap<ConstructDid, CommandExecutionResult>,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> Result<PreConditionEvaluationResult, Diagnostic> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+        let vec = vec![];
+        let spec = &self.specification;
+        (spec.evaluate_pre_conditions)(
+            &construct_did,
+            &self.name,
+            &self.specification,
+            &values,
+            &vec,
+            progress_tx,
+            background_tasks_uuid,
+        )
     }
 
     pub fn check_executability(
@@ -1130,6 +1183,39 @@ impl CommandInstance {
             &nested_results,
         )
     }
+
+    pub fn evaluate_post_conditions(
+        &mut self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        command_execution_results: &mut CommandExecutionResult,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> Result<PostConditionEvaluationResult, Diagnostic> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+
+        let spec = &self.specification;
+        let res = (spec.evaluate_post_conditions)(
+            &construct_did,
+            &self.name,
+            &self.specification,
+            &values,
+            command_execution_results,
+            progress_tx,
+            background_tasks_uuid,
+        );
+
+        match res.as_ref() {
+            Ok(PostConditionEvaluationResult::Retry(backoff)) => {
+                sleep(Duration::from_millis(*backoff as u64));
+            }
+            _ => {}
+        }
+
+        res
+    }
 }
 
 impl ConstructInstance for CommandInstance {
@@ -1243,6 +1329,25 @@ pub trait CommandImplementation {
         ))
     }
 
+    fn evaluate_pre_conditions(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        spec: &CommandSpecification,
+        values: &ValueStore,
+        _command_execution_results: &Vec<CommandExecutionResult>,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> Result<PreConditionEvaluationResult, Diagnostic> {
+        evaluate_pre_conditions(
+            construct_did,
+            instance_name,
+            spec,
+            values,
+            progress_tx,
+            background_tasks_uuid,
+        )
+    }
+
     fn prepare_nested_execution(
         construct_did: &ConstructDid,
         _instance_name: &str,
@@ -1288,6 +1393,26 @@ pub trait CommandImplementation {
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
+    }
+
+    fn evaluate_post_conditions(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        spec: &CommandSpecification,
+        values: &ValueStore,
+        execution_results: &mut CommandExecutionResult,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> Result<PostConditionEvaluationResult, Diagnostic> {
+        evaluate_post_conditions(
+            construct_did,
+            instance_name,
+            spec,
+            values,
+            execution_results,
+            progress_tx,
+            background_tasks_uuid,
+        )
     }
 }
 
