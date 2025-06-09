@@ -385,6 +385,22 @@ impl Value {
             _ => None,
         }
     }
+    pub fn as_u8(&self) -> Option<Result<u8, String>> {
+        match &self {
+            Value::Integer(value) => {
+                Some(u8::try_from(*value).map_err(|e| format!("invalid u8: {e}")))
+            }
+            _ => None,
+        }
+    }
+    pub fn as_u16(&self) -> Option<Result<u16, String>> {
+        match &self {
+            Value::Integer(value) => {
+                Some(u16::try_from(*value).map_err(|e| format!("invalid u16: {e}")))
+            }
+            _ => None,
+        }
+    }
     pub fn as_float(&self) -> Option<f64> {
         match &self {
             Value::Float(value) => Some(*value),
