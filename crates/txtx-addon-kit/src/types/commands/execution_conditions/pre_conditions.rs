@@ -4,7 +4,7 @@ use crate::{
 };
 use uuid::Uuid;
 
-use super::{CommandSpecification, ASSERTION, BEHAVIOR, PRE_CONDITION};
+use super::{AssertionResult, CommandSpecification, ASSERTION, BEHAVIOR, PRE_CONDITION};
 use crate::types::{
     diagnostics::Diagnostic,
     frontend::BlockEvent,
@@ -94,30 +94,33 @@ pub fn evaluate_pre_conditions(
     let mut do_skip = false;
     let mut status_updater = StatusUpdater::new(background_tasks_uuid, construct_did, progress_tx);
     for (i, pre_condition) in pre_conditions.iter().enumerate() {
-        if !pre_condition.assertion {
+        if let AssertionResult::Failure(assertion_msg) = &pre_condition.assertion {
             match pre_condition.behavior {
                 PreConditionBehavior::Halt => {
                     // Additional context is already added to diagnostics, so no need to include here
                     diags.push(Diagnostic::error_from_string(format!(
-                        "pre_condition #{} failed assertion",
-                        i + 1
+                        "pre_condition #{}: {}",
+                        i + 1,
+                        assertion_msg
                     )));
                 }
                 PreConditionBehavior::Log => {
                     status_updater.propagate_warning_status(&format!(
-                        "pre_condition #{} failed assertion for '{}' command '{}'",
-                        i + 1,
+                        "'{}' command '{}': pre_condition #{}: {}",
                         spec.matcher,
-                        instance_name
+                        instance_name,
+                        i + 1,
+                        assertion_msg
                     ));
                 }
                 PreConditionBehavior::Skip => {
                     do_skip = true;
                     status_updater.propagate_warning_status(&format!(
-                        "pre_condition #{} failed assertion for '{}' command '{}': skipping execution of this command and all downstream commands",
-                        i + 1,
+                        "'{}' command '{}': pre_condition #{}: {}: skipping execution of this command and all downstream commands",
                         spec.matcher,
-                        instance_name
+                        instance_name,
+                        i + 1,
+                        assertion_msg
                     ));
                 }
             }
@@ -137,7 +140,7 @@ pub fn evaluate_pre_conditions(
 #[derive(Debug, Clone)]
 pub struct PreCondition {
     pub behavior: PreConditionBehavior,
-    pub assertion: bool,
+    pub assertion: AssertionResult,
 }
 
 impl PreCondition {
@@ -171,13 +174,15 @@ impl PreCondition {
 
             let assertion = pre_condition_values
                 .get(ASSERTION)
+                .map(|v| AssertionResult::from_value(v))
                 .ok_or(Diagnostic::error_from_string(format!(
                     "{err_prefix}: missing required 'assertion' field"
                 )))?
-                .as_bool()
-                .ok_or(Diagnostic::error_from_string(format!(
-                    "{err_prefix}: 'assertion' field must be a boolean"
-                )))?;
+                .map_err(|e| {
+                    Diagnostic::error_from_string(format!(
+                        "{err_prefix}: invalid 'assertion' value: {e}"
+                    ))
+                })?;
 
             results.push(Self { behavior, assertion });
         }

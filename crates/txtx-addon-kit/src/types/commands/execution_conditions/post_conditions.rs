@@ -6,8 +6,8 @@ use crate::{
 use uuid::Uuid;
 
 use super::{
-    CommandSpecification, ASSERTION, BACKOFF, BEHAVIOR, POST_CONDITION, POST_CONDITION_ATTEMPTS,
-    RETRIES,
+    AssertionResult, CommandSpecification, ASSERTION, BACKOFF, BEHAVIOR, POST_CONDITION,
+    POST_CONDITION_ATTEMPTS, RETRIES,
 };
 use crate::types::{
     diagnostics::Diagnostic,
@@ -22,7 +22,7 @@ lazy_static! {
         ObjectProperty {
             name: "retries".into(),
             documentation: indoc! {r#"
-                If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior.
+                If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
             "#}
             .into(),
             typing: Type::integer(),
@@ -117,7 +117,7 @@ pub fn evaluate_post_conditions(
     let mut do_skip = false;
     let mut status_updater = StatusUpdater::new(background_tasks_uuid, construct_did, progress_tx);
     for (i, post_condition) in post_conditions.iter().enumerate() {
-        if !post_condition.assertion {
+        if let AssertionResult::Failure(assertion_msg) = &post_condition.assertion {
             if post_condition.retries > 0 {
                 let attempts = execution_results
                     .outputs
@@ -128,12 +128,12 @@ pub fn evaluate_post_conditions(
                 if attempts < post_condition.retries as i128 {
                     // If the assertion is false, we will retry the command
                     status_updater.propagate_warning_status(&format!(
-                        "post_condition #{} attempt {}/{} failed assertion for '{}' command '{}': retrying execution of command in {} milliseconds",
+                        "'{}' command '{}': post_condition #{} attempt {}/{}: retrying execution of command in {} milliseconds",
+                        spec.matcher,
+                        instance_name,
                         i + 1,
                         attempts + 1,
                         post_condition.retries,
-                        spec.matcher,
-                        instance_name,
                         post_condition.backoff
                     ));
 
@@ -153,25 +153,28 @@ pub fn evaluate_post_conditions(
                 PostConditionBehavior::Halt => {
                     // Additional context is already added to diagnostics, so no need to include here
                     diags.push(Diagnostic::error_from_string(format!(
-                        "post_condition #{} failed assertion",
-                        i + 1
+                        "post_condition #{}: {}",
+                        i + 1,
+                        assertion_msg
                     )));
                 }
                 PostConditionBehavior::Log => {
                     status_updater.propagate_warning_status(&format!(
-                        "post_condition #{} failed assertion for '{}' command '{}'",
-                        i + 1,
+                        "'{}' command '{}': post_condition #{}: {}",
                         spec.matcher,
-                        instance_name
+                        instance_name,
+                        i + 1,
+                        assertion_msg
                     ));
                 }
                 PostConditionBehavior::Skip => {
                     do_skip = true;
                     status_updater.propagate_warning_status(&format!(
-                        "post_condition #{} failed assertion for '{}' command '{}': skipping execution of this command and all downstream commands",
-                        i + 1,
+                        "'{}' command '{}': post_condition #{}: {}: skipping execution of this command and all downstream commands",
                         spec.matcher,
-                        instance_name
+                        instance_name,
+                        i + 1,
+                        assertion_msg
                     ));
                 }
                 PostConditionBehavior::Continue => {}
@@ -196,7 +199,7 @@ pub fn evaluate_post_conditions(
 #[derive(Debug, Clone)]
 pub struct PostCondition {
     pub behavior: PostConditionBehavior,
-    pub assertion: bool,
+    pub assertion: AssertionResult,
     pub retries: u8,
     pub backoff: u16,
 }
@@ -231,13 +234,15 @@ impl PostCondition {
 
             let assertion = post_condition_values
                 .get(ASSERTION)
+                .map(|v| AssertionResult::from_value(v))
                 .ok_or(Diagnostic::error_from_string(format!(
                     "{err_prefix}: missing required 'assertion' field"
                 )))?
-                .as_bool()
-                .ok_or(Diagnostic::error_from_string(format!(
-                    "{err_prefix}: 'assertion' field must be a boolean"
-                )))?;
+                .map_err(|e| {
+                    Diagnostic::error_from_string(format!(
+                        "{err_prefix}: invalid 'assertion' value: {e}"
+                    ))
+                })?;
 
             let retries = post_condition_values
                 .get(RETRIES)

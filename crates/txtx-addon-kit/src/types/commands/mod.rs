@@ -43,6 +43,8 @@ use super::{
 };
 
 mod execution_conditions;
+pub use execution_conditions::AssertionResult;
+pub use execution_conditions::ASSERTION_TYPE_ID;
 pub use execution_conditions::{PostConditionEvaluatableInput, PostConditionEvaluationResult};
 pub use execution_conditions::{PreConditionEvaluatableInput, PreConditionEvaluationResult};
 
