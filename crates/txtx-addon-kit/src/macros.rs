@@ -89,6 +89,7 @@ macro_rules! define_command {
                     )?
                     is_sensitive
                 },
+                self_referencing: false
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {
@@ -276,6 +277,7 @@ macro_rules! define_signer {
                 check_required: false,
                 check_performed: false,
                 internal: false,
+                self_referencing: false,
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {

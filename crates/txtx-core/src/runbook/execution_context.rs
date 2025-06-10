@@ -322,6 +322,7 @@ impl RunbookExecutionContext {
             self,
             runtime_context,
             false,
+            false,
         );
 
         let mut evaluated_inputs = match evaluated_inputs_res {
@@ -521,6 +522,7 @@ impl RunbookExecutionContext {
             self,
             runtime_context,
             false,
+            false,
         );
 
         let evaluated_inputs = match evaluated_inputs_res {
@@ -598,6 +600,7 @@ impl RunbookExecutionContext {
             self,
             runtime_context,
             true,
+            false,
         );
 
         let evaluated_inputs = match evaluated_inputs_res {
@@ -664,6 +667,7 @@ impl RunbookExecutionContext {
             self,
             runtime_context,
             true,
+            false,
         );
 
         let evaluated_inputs = match evaluated_inputs_res {

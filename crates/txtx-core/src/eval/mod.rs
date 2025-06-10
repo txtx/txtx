@@ -477,8 +477,10 @@ pub async fn evaluate_command_instance(
     let addon_context_key = (package_id.did(), command_instance.namespace.clone());
     let addon_defaults = runbook_workspace_context.get_addon_defaults(&addon_context_key);
 
-    let input_evaluation_results =
-        runbook_execution_context.commands_inputs_evaluation_results.get(&construct_did.clone());
+    let input_evaluation_results = runbook_execution_context
+        .commands_inputs_evaluation_results
+        .get(&construct_did.clone())
+        .cloned();
 
     let mut cached_dependency_execution_results = genesis_dependency_execution_results.clone();
 
@@ -506,7 +508,7 @@ pub async fn evaluate_command_instance(
     let evaluated_inputs_res = perform_inputs_evaluation(
         command_instance,
         &cached_dependency_execution_results,
-        &input_evaluation_results,
+        &input_evaluation_results.as_ref(),
         addon_defaults,
         &action_item_responses.get(&construct_did),
         &package_id,
@@ -514,13 +516,8 @@ pub async fn evaluate_command_instance(
         runbook_execution_context,
         runtime_context,
         false,
+        false,
     );
-    let Some(command_instance) =
-        runbook_execution_context.commands_instances.get_mut(&construct_did)
-    else {
-        // runtime_context.addons.index_command_instance(namespace, package_did, block)
-        return LoopEvaluationResult::Continue;
-    };
 
     let mut evaluated_inputs = match evaluated_inputs_res {
         Ok(result) => match result {
@@ -539,6 +536,29 @@ pub async fn evaluate_command_instance(
         }
     };
 
+    let command_execution_result = {
+        let Some(command_instance) =
+            runbook_execution_context.commands_instances.get_mut(&construct_did)
+        else {
+            // runtime_context.addons.index_command_instance(namespace, package_did, block)
+            return LoopEvaluationResult::Continue;
+        };
+
+        match command_instance.evaluate_pre_conditions(
+            construct_did,
+            &evaluated_inputs,
+            &HashMap::new(),
+            progress_tx,
+            &Uuid::new_v4(),
+        ) {
+            Ok(result) => {
+                match result {
+                    PreConditionEvaluationResult::Noop => {}
+                    PreConditionEvaluationResult::Halt(diags) => {
+                        pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
+                        return LoopEvaluationResult::Bail;
+                    }
+                    PreConditionEvaluationResult::SkipDownstream => {
     match command_instance.evaluate_pre_conditions(
         construct_did,
         &evaluated_inputs,
@@ -555,93 +575,141 @@ pub async fn evaluate_command_instance(
                 }
                 PreConditionEvaluationResult::SkipDownstream => {
 
-                    if let Some(deps) =
-                        runbook_execution_context.commands_dependencies.get(&construct_did)
-                    {
-                        for dep in deps.iter() {
-                            unexecutable_nodes.insert(dep.clone());
+                        if let Some(deps) =
+                            runbook_execution_context.commands_dependencies.get(&construct_did)
+                        {
+                            for dep in deps.iter() {
+                                unexecutable_nodes.insert(dep.clone());
+                            }
                         }
+                        return LoopEvaluationResult::Continue;
                     }
-                    return LoopEvaluationResult::Continue;
                 }
             }
-        }
-        Err(diag) => {
-            pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
-            return LoopEvaluationResult::Bail;
-        }
-    };
-
-    let executions_for_action = if command_instance.specification.implements_signing_capability {
-        let signers = runbook_execution_context.signers_state.take().unwrap();
-        let signers = update_signer_instances_from_action_response(
-            signers,
-            &construct_did,
-            &action_item_responses.get(&construct_did),
-        );
-        match command_instance
-            .prepare_signed_nested_execution(
-                &construct_did,
-                &evaluated_inputs,
-                signers,
-                &runbook_execution_context.signers_instances,
-            )
-            .await
-        {
-            Ok((updated_signers, executions)) => {
-                runbook_execution_context.signers_state = Some(updated_signers);
-                executions
-            }
-            Err((updated_signers, diag)) => {
-                pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
-                runbook_execution_context.signers_state = Some(updated_signers);
-                return LoopEvaluationResult::Bail;
-            }
-        }
-    } else {
-        match command_instance.prepare_nested_execution(&construct_did, &evaluated_inputs) {
-            Ok(executions) => executions,
             Err(diag) => {
                 pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Bail;
             }
-        }
-    };
-
-    for (nested_construct_did, nested_evaluation_values) in executions_for_action.iter() {
-        if let Some(execution_results) =
-            runbook_execution_context.commands_execution_results.get(&nested_construct_did)
-        {
-            if should_skip_construct_evaluation(execution_results) {
-                continue;
-            }
         };
 
-        let execution_result = if command_instance.specification.implements_signing_capability {
+        let executions_for_action = if command_instance.specification.implements_signing_capability
+        {
             let signers = runbook_execution_context.signers_state.take().unwrap();
             let signers = update_signer_instances_from_action_response(
                 signers,
                 &construct_did,
                 &action_item_responses.get(&construct_did),
             );
-
-            let res = command_instance
-                .check_signed_executability(
+            match command_instance
+                .prepare_signed_nested_execution(
                     &construct_did,
-                    nested_evaluation_values,
                     &evaluated_inputs,
                     signers,
-                    &mut runbook_execution_context.signers_instances,
-                    &action_item_responses.get(&construct_did),
-                    &action_item_requests.get(&construct_did),
-                    supervision_context,
+                    &runbook_execution_context.signers_instances,
                 )
-                .await;
+                .await
+            {
+                Ok((updated_signers, executions)) => {
+                    runbook_execution_context.signers_state = Some(updated_signers);
+                    executions
+                }
+                Err((updated_signers, diag)) => {
+                    pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+                    runbook_execution_context.signers_state = Some(updated_signers);
+                    return LoopEvaluationResult::Bail;
+                }
+            }
+        } else {
+            match command_instance.prepare_nested_execution(&construct_did, &evaluated_inputs) {
+                Ok(executions) => executions,
+                Err(diag) => {
+                    pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+                    return LoopEvaluationResult::Bail;
+                }
+            }
+        };
 
-            let signers = match res {
-                Ok((updated_signers, mut new_actions)) => {
-                    if new_actions.has_pending_actions() {
+        for (nested_construct_did, nested_evaluation_values) in executions_for_action.iter() {
+            if let Some(execution_results) =
+                runbook_execution_context.commands_execution_results.get(&nested_construct_did)
+            {
+                if should_skip_construct_evaluation(execution_results) {
+                    continue;
+                }
+            };
+
+            let execution_result = if command_instance.specification.implements_signing_capability {
+                let signers = runbook_execution_context.signers_state.take().unwrap();
+                let signers = update_signer_instances_from_action_response(
+                    signers,
+                    &construct_did,
+                    &action_item_responses.get(&construct_did),
+                );
+
+                let res = command_instance
+                    .check_signed_executability(
+                        &construct_did,
+                        nested_evaluation_values,
+                        &evaluated_inputs,
+                        signers,
+                        &mut runbook_execution_context.signers_instances,
+                        &action_item_responses.get(&construct_did),
+                        &action_item_requests.get(&construct_did),
+                        supervision_context,
+                    )
+                    .await;
+
+                let signers = match res {
+                    Ok((updated_signers, mut new_actions)) => {
+                        if new_actions.has_pending_actions() {
+                            pass_result.actions.append(&mut new_actions);
+                            runbook_execution_context.signers_state = Some(updated_signers);
+                            if let Some(deps) =
+                                runbook_execution_context.commands_dependencies.get(&construct_did)
+                            {
+                                for dep in deps.iter() {
+                                    unexecutable_nodes.insert(dep.clone());
+                                }
+                            }
+                            return LoopEvaluationResult::Continue;
+                        }
                         pass_result.actions.append(&mut new_actions);
+                        updated_signers
+                    }
+                    Err((updated_signers, diag)) => {
+                        pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+                        runbook_execution_context.signers_state = Some(updated_signers);
+                        return LoopEvaluationResult::Bail;
+                    }
+                };
+
+                runbook_execution_context
+                    .commands_inputs_evaluation_results
+                    .insert(construct_did.clone(), evaluated_inputs.clone());
+
+                let mut empty_vec = vec![];
+                let action_items_requests =
+                    action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
+                let action_items_response = action_item_responses.get(&construct_did);
+
+                let execution_result = command_instance
+                    .perform_signed_execution(
+                        &construct_did,
+                        nested_evaluation_values,
+                        &evaluated_inputs,
+                        signers,
+                        &runbook_execution_context.signers_instances,
+                        action_items_requests,
+                        &action_items_response,
+                        progress_tx,
+                    )
+                    .await;
+                let execution_result = match execution_result {
+                    Ok((updated_signers, result)) => {
+                        runbook_execution_context.signers_state = Some(updated_signers);
+                        Ok(result)
+                    }
+                    Err((updated_signers, diag)) => {
                         runbook_execution_context.signers_state = Some(updated_signers);
                         if let Some(deps) =
                             runbook_execution_context.commands_dependencies.get(&construct_did)
@@ -650,70 +718,65 @@ pub async fn evaluate_command_instance(
                                 unexecutable_nodes.insert(dep.clone());
                             }
                         }
-                        return LoopEvaluationResult::Continue;
+                        Err(diag)
                     }
-                    pass_result.actions.append(&mut new_actions);
-                    updated_signers
-                }
-                Err((updated_signers, diag)) => {
-                    pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
-                    runbook_execution_context.signers_state = Some(updated_signers);
-                    return LoopEvaluationResult::Bail;
-                }
-            };
+                };
 
-            runbook_execution_context
-                .commands_inputs_evaluation_results
-                .insert(construct_did.clone(), evaluated_inputs.clone());
-
-            let mut empty_vec = vec![];
-            let action_items_requests =
-                action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
-            let action_items_response = action_item_responses.get(&construct_did);
-
-            let execution_result = command_instance
-                .perform_signed_execution(
+                execution_result
+            } else {
+                match command_instance.check_executability(
                     &construct_did,
                     nested_evaluation_values,
-                    &evaluated_inputs,
-                    signers,
-                    &runbook_execution_context.signers_instances,
-                    action_items_requests,
-                    &action_items_response,
-                    progress_tx,
-                )
-                .await;
-            let execution_result = match execution_result {
-                Ok((updated_signers, result)) => {
-                    runbook_execution_context.signers_state = Some(updated_signers);
-                    Ok(result)
-                }
-                Err((updated_signers, diag)) => {
-                    runbook_execution_context.signers_state = Some(updated_signers);
-                    if let Some(deps) =
-                        runbook_execution_context.commands_dependencies.get(&construct_did)
-                    {
-                        for dep in deps.iter() {
-                            unexecutable_nodes.insert(dep.clone());
+                    &mut evaluated_inputs,
+                    &mut runbook_execution_context.signers_instances,
+                    &action_item_responses.get(&construct_did),
+                    supervision_context,
+                ) {
+                    Ok(mut new_actions) => {
+                        if new_actions.has_pending_actions() {
+                            pass_result.actions.append(&mut new_actions);
+                            if let Some(deps) =
+                                runbook_execution_context.commands_dependencies.get(&construct_did)
+                            {
+                                for dep in deps.iter() {
+                                    unexecutable_nodes.insert(dep.clone());
+                                }
+                            }
+                            return LoopEvaluationResult::Continue;
                         }
-                    }
-                    Err(diag)
-                }
-            };
-
-            execution_result
-        } else {
-            match command_instance.check_executability(
-                &construct_did,
-                nested_evaluation_values,
-                &mut evaluated_inputs,
-                &mut runbook_execution_context.signers_instances,
-                &action_item_responses.get(&construct_did),
-                supervision_context,
-            ) {
-                Ok(mut new_actions) => {
-                    if new_actions.has_pending_actions() {
                         pass_result.actions.append(&mut new_actions);
+                    }
+                    Err(diag) => {
+                        pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+                        return LoopEvaluationResult::Bail;
+                    }
+                }
+
+                runbook_execution_context
+                    .commands_inputs_evaluation_results
+                    .insert(construct_did.clone(), evaluated_inputs.clone());
+
+                let mut empty_vec = vec![];
+                let action_items_requests =
+                    action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
+                let action_items_response = action_item_responses.get(&construct_did);
+
+                let execution_result = {
+                    command_instance
+                        .perform_execution(
+                            &construct_did,
+                            nested_evaluation_values,
+                            &evaluated_inputs,
+                            action_items_requests,
+                            &action_items_response,
+                            progress_tx,
+                        )
+                        .await
+                };
+
+                let execution_result = match execution_result {
+                    Ok(result) => Ok(result),
+                    Err(e) => {
                         if let Some(deps) =
                             runbook_execution_context.commands_dependencies.get(&construct_did)
                         {
@@ -721,120 +784,125 @@ pub async fn evaluate_command_instance(
                                 unexecutable_nodes.insert(dep.clone());
                             }
                         }
-                        return LoopEvaluationResult::Continue;
+                        Err(e)
                     }
-                    pass_result.actions.append(&mut new_actions);
-                }
+                };
+                execution_result
+            };
+
+            let mut execution_result = match execution_result {
+                Ok(res) => res,
                 Err(diag) => {
                     pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
-                    return LoopEvaluationResult::Bail;
+                    return LoopEvaluationResult::Continue;
                 }
+            };
+
+            if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
+                runbook_execution_context.execution_mode
+            {
+                executed_constructs.push(nested_construct_did.clone());
             }
 
-            runbook_execution_context
-                .commands_inputs_evaluation_results
-                .insert(construct_did.clone(), evaluated_inputs.clone());
-
-            let mut empty_vec = vec![];
-            let action_items_requests =
-                action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
-            let action_items_response = action_item_responses.get(&construct_did);
-
-            let execution_result = {
-                command_instance
-                    .perform_execution(
-                        &construct_did,
-                        nested_evaluation_values,
-                        &evaluated_inputs,
-                        action_items_requests,
-                        &action_items_response,
-                        progress_tx,
-                    )
-                    .await
-            };
-
-            let execution_result = match execution_result {
-                // todo(lgalabru): return Diagnostic instead
-                Ok(result) => Ok(result),
-                Err(e) => {
-                    if let Some(deps) =
-                        runbook_execution_context.commands_dependencies.get(&construct_did)
-                    {
-                        for dep in deps.iter() {
-                            unexecutable_nodes.insert(dep.clone());
-                        }
+            if command_instance.specification.implements_background_task_capability {
+                let future_res = command_instance.build_background_task(
+                    &construct_did,
+                    nested_evaluation_values,
+                    &evaluated_inputs,
+                    &execution_result,
+                    progress_tx,
+                    &pass_result.background_tasks_uuid,
+                    supervision_context,
+                    &runtime_context.cloud_service_context,
+                );
+                let future = match future_res {
+                    Ok(future) => future,
+                    Err(diag) => {
+                        pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
+                        return LoopEvaluationResult::Bail;
                     }
-                    Err(e)
+                };
+                if let Some(deps) =
+                    runbook_execution_context.commands_dependencies.get(&construct_did)
+                {
+                    for dep in deps.iter() {
+                        unexecutable_nodes.insert(dep.clone());
+                    }
                 }
-            };
-            execution_result
-        };
+                pass_result.pending_background_tasks_futures.push(future);
+                pass_result
+                    .pending_background_tasks_constructs_uuids
+                    .push((nested_construct_did.clone(), construct_did.clone()));
 
-        let mut execution_result = match execution_result {
-            Ok(res) => res,
+                // we need to be sure that each background task is completed before continuing the execution.
+                // so we will return a Continue result to ensure that the next nested evaluation is not executed.
+                // once the background task is completed, it will mark _this_ nested construct as completed and move to the next one.
+                return LoopEvaluationResult::Continue;
+            } else {
+                runbook_execution_context
+                    .commands_execution_results
+                    .entry(nested_construct_did.clone())
+                    .or_insert_with(CommandExecutionResult::new)
+                    .append(&mut execution_result);
+            }
+        }
+
+        let res = command_instance.aggregate_nested_execution_results(
+            &construct_did,
+            &executions_for_action,
+            &runbook_execution_context.commands_execution_results,
+        );
+        match res {
+            Ok(result) => result,
             Err(diag) => {
                 pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Continue;
             }
-        };
-
-        if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
-            runbook_execution_context.execution_mode
-        {
-            executed_constructs.push(nested_construct_did.clone());
         }
+    };
 
-        if command_instance.specification.implements_background_task_capability {
-            let future_res = command_instance.build_background_task(
-                &construct_did,
-                nested_evaluation_values,
-                &evaluated_inputs,
-                &execution_result,
-                progress_tx,
-                &pass_result.background_tasks_uuid,
-                supervision_context,
-                &runtime_context.cloud_service_context,
-            );
-            let future = match future_res {
-                Ok(future) => future,
-                Err(diag) => {
-                    pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
-                    return LoopEvaluationResult::Bail;
-                }
-            };
-            if let Some(deps) = runbook_execution_context.commands_dependencies.get(&construct_did)
-            {
-                for dep in deps.iter() {
-                    unexecutable_nodes.insert(dep.clone());
-                }
-            }
-            pass_result.pending_background_tasks_futures.push(future);
-            pass_result
-                .pending_background_tasks_constructs_uuids
-                .push((nested_construct_did.clone(), construct_did.clone()));
+    let command_instance =
+        runbook_execution_context.commands_instances.get(&construct_did).unwrap();
 
-            // we need to be sure that each background task is completed before continuing the execution.
-            // so we will return a Continue result to ensure that the next nested evaluation is not executed.
-            // once the background task is completed, it will mark _this_ nested construct as completed and move to the next one.
-            return LoopEvaluationResult::Continue;
-        } else {
-            runbook_execution_context
-                .commands_execution_results
-                .entry(nested_construct_did.clone())
-                .or_insert_with(CommandExecutionResult::new)
-                .append(&mut execution_result);
-        }
-    }
+    cached_dependency_execution_results.merge(construct_did, &command_execution_result).unwrap();
 
-    let res = command_instance.aggregate_nested_execution_results(
-        &construct_did,
-        &executions_for_action,
-        &runbook_execution_context.commands_execution_results,
+    let self_referencing_inputs = perform_inputs_evaluation(
+        command_instance,
+        &cached_dependency_execution_results,
+        &input_evaluation_results.as_ref(),
+        addon_defaults,
+        &action_item_responses.get(&construct_did),
+        &package_id,
+        runbook_workspace_context,
+        runbook_execution_context,
+        runtime_context,
+        false,
+        true,
     );
+
+    let mut self_referencing_inputs = match self_referencing_inputs {
+        Ok(result) => match result {
+            CommandInputEvaluationStatus::Complete(result) => result,
+            CommandInputEvaluationStatus::NeedsUserInteraction(_) => {
+                return LoopEvaluationResult::Continue;
+            }
+            CommandInputEvaluationStatus::Aborted(_, diags) => {
+                pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
+                return LoopEvaluationResult::Bail;
+            }
+        },
+        Err(diags) => {
+            pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
+            return LoopEvaluationResult::Bail;
+        }
+    };
+
+    self_referencing_inputs.inputs =
+        self_referencing_inputs.inputs.append_inputs(&evaluated_inputs.inputs.inputs);
 
     match command_instance.evaluate_post_conditions(
         construct_did,
-        &evaluated_inputs,
+        &self_referencing_inputs,
         runbook_execution_context
             .commands_execution_results
             .entry(construct_did.clone())
@@ -882,17 +950,9 @@ pub async fn evaluate_command_instance(
         }
     };
 
-    match res {
-        Ok(result) => {
-            runbook_execution_context
-                .commands_execution_results
-                .insert(construct_did.clone(), result);
-        }
-        Err(diag) => {
-            pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
-            return LoopEvaluationResult::Continue;
-        }
-    }
+    runbook_execution_context
+        .commands_execution_results
+        .insert(construct_did.clone(), command_execution_result);
 
     if let RunbookExecutionMode::Partial(ref mut executed_constructs) =
         runbook_execution_context.execution_mode
@@ -963,6 +1023,7 @@ pub async fn evaluate_embedded_runbook_instance(
         runbook_workspace_context,
         runbook_execution_context,
         runtime_context,
+        false,
         false,
     );
     let evaluated_inputs = match evaluated_inputs_res {
@@ -1514,6 +1575,7 @@ pub fn perform_inputs_evaluation(
     runbook_execution_context: &RunbookExecutionContext,
     runtime_context: &RuntimeContext,
     simulation: bool,
+    self_referencing_inputs: bool,
 ) -> Result<CommandInputEvaluationStatus, Vec<Diagnostic>> {
     let mut has_existing_evaluation_results = true;
     let mut results = match *input_evaluation_results {
@@ -1532,7 +1594,13 @@ pub fn perform_inputs_evaluation(
     };
     let mut require_user_interaction = false;
     let mut diags = vec![];
-    let inputs = with_evaluatable_inputs.spec_inputs();
+    let inputs = if self_referencing_inputs {
+        has_existing_evaluation_results = false;
+        with_evaluatable_inputs.self_referencing_inputs()
+    } else {
+        with_evaluatable_inputs.spec_inputs()
+    };
+
     let mut fatal_error = false;
 
     match action_item_response {

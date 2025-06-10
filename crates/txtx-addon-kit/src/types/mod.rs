@@ -374,8 +374,11 @@ pub trait WithEvaluatableInputs {
     fn spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
         let mut spec_inputs = self._spec_inputs();
         spec_inputs.push(Box::new(PreConditionEvaluatableInput::new()));
-        spec_inputs.push(Box::new(PostConditionEvaluatableInput::new()));
         spec_inputs
+    }
+
+    fn self_referencing_inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        vec![Box::new(PostConditionEvaluatableInput::new())]
     }
 }
 

@@ -236,6 +236,7 @@ pub struct CommandInput {
     pub check_performed: bool,
     pub sensitive: bool,
     pub internal: bool,
+    pub self_referencing: bool,
 }
 impl EvaluatableInput for CommandInput {
     fn optional(&self) -> bool {
@@ -391,6 +392,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "labels".into(),
@@ -402,6 +404,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "environments".into(),
@@ -413,6 +416,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "sensitive".into(),
@@ -424,6 +428,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "group".into(),
@@ -435,6 +440,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "depends_on".into(),
@@ -446,6 +452,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
         ]
     }
@@ -744,7 +751,13 @@ impl WithEvaluatableInputs for CommandInstance {
         self.specification
             .inputs
             .iter()
-            .map(|x| Box::new(x.clone()) as Box<dyn EvaluatableInput>)
+            .filter_map(|x| {
+                if x.self_referencing {
+                    None
+                } else {
+                    Some(Box::new(x.clone()) as Box<dyn EvaluatableInput>)
+                }
+            })
             .collect::<Vec<_>>()
     }
 }
@@ -768,7 +781,7 @@ impl CommandInstance {
     }
 
     pub fn evaluate_pre_conditions(
-        &mut self,
+        &self,
         construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         commands_execution_results: &HashMap<ConstructDid, CommandExecutionResult>,
@@ -1185,7 +1198,7 @@ impl CommandInstance {
     }
 
     pub fn evaluate_post_conditions(
-        &mut self,
+        &self,
         construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
         command_execution_results: &mut CommandExecutionResult,
