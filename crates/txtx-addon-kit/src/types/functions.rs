@@ -53,7 +53,7 @@ pub fn fn_diag_with_ctx(
     namespace: String,
 ) -> impl Fn(&FunctionSpecification, String) -> Diagnostic {
     let fn_diag_with_ctx = move |fn_spec: &FunctionSpecification, e: String| -> Diagnostic {
-        Diagnostic::error_from_string(format!("function '{}:{}': {}", namespace, fn_spec.name, e))
+        Diagnostic::error_from_string(format!("function '{}::{}': {}", namespace, fn_spec.name, e))
     };
     return fn_diag_with_ctx;
 }
@@ -104,7 +104,7 @@ pub fn arg_checker_with_ctx(
                                 .collect::<Vec<String>>()
                                 .join(",");
                             return Err(Diagnostic::error_from_string(format!(
-                            "function '{}:{}' argument #{} ({}) should be of type ({}), found {}",
+                            "function '{}::{}' argument #{} ({}) should be of type ({}), found {}",
                             namespace,
                             fn_spec.name,
                             i + 1,
@@ -115,7 +115,7 @@ pub fn arg_checker_with_ctx(
                         }
                     } else {
                         return Err(Diagnostic::error_from_string(format!(
-                            "function '{}:{}' missing required argument #{} ({})",
+                            "function '{}::{}' missing required argument #{} ({})",
                             namespace,
                             fn_spec.name,
                             i + 1,
