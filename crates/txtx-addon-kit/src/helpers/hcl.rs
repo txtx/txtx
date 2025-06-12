@@ -98,19 +98,19 @@ pub fn build_diagnostics_for_unused_fields(
 
 /// Takes an HCL block and traverses all inner expressions and blocks,
 /// recursively collecting all the references to constructs (variables and traversals).
-pub fn collect_constructs_references_from_block<'a, T: EvaluatableInput>(
+pub fn collect_constructs_references_from_block<'a>(
     block: &Block,
-    input: Option<&'a T>,
-    dependencies: &mut Vec<(Option<&'a T>, Expression)>,
+    input: Option<Box<dyn EvaluatableInput>>,
+    dependencies: &mut Vec<(Option<Box<dyn EvaluatableInput>>, Expression)>,
 ) {
     for attribute in block.body.attributes() {
         let expr = attribute.value.clone();
         let mut references = vec![];
-        collect_constructs_references_from_expression(&expr, input, &mut references);
+        collect_constructs_references_from_expression(&expr, input.clone(), &mut references);
         dependencies.append(&mut references);
     }
     for block in block.body.blocks() {
-        collect_constructs_references_from_block(block, input, dependencies);
+        collect_constructs_references_from_block(block, input.clone(), dependencies);
     }
 }
 
@@ -120,49 +120,77 @@ pub fn collect_constructs_references_from_block<'a, T: EvaluatableInput>(
 /// val = [variable.a, variable.b]
 /// ```
 /// will push `variable.a` and `variable.b` to the dependencies vector.
-pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
+pub fn collect_constructs_references_from_expression<'a>(
     expr: &Expression,
-    input: Option<&'a T>,
-    dependencies: &mut Vec<(Option<&'a T>, Expression)>,
+    input: Option<Box<dyn EvaluatableInput>>,
+    dependencies: &mut Vec<(Option<Box<dyn EvaluatableInput>>, Expression)>,
 ) {
     match expr {
         Expression::Variable(_) => {
-            dependencies.push((input, expr.clone()));
+            dependencies.push((input.clone(), expr.clone()));
         }
         Expression::Array(elements) => {
             for element in elements.iter() {
-                collect_constructs_references_from_expression(element, input, dependencies);
+                collect_constructs_references_from_expression(element, input.clone(), dependencies);
             }
         }
         Expression::BinaryOp(op) => {
-            collect_constructs_references_from_expression(&op.lhs_expr, input, dependencies);
-            collect_constructs_references_from_expression(&op.rhs_expr, input, dependencies);
+            collect_constructs_references_from_expression(
+                &op.lhs_expr,
+                input.clone(),
+                dependencies,
+            );
+            collect_constructs_references_from_expression(
+                &op.rhs_expr,
+                input.clone(),
+                dependencies,
+            );
         }
         Expression::Bool(_)
         | Expression::Null(_)
         | Expression::Number(_)
         | Expression::String(_) => return,
         Expression::Conditional(cond) => {
-            collect_constructs_references_from_expression(&cond.cond_expr, input, dependencies);
-            collect_constructs_references_from_expression(&cond.false_expr, input, dependencies);
-            collect_constructs_references_from_expression(&cond.true_expr, input, dependencies);
+            collect_constructs_references_from_expression(
+                &cond.cond_expr,
+                input.clone(),
+                dependencies,
+            );
+            collect_constructs_references_from_expression(
+                &cond.false_expr,
+                input.clone(),
+                dependencies,
+            );
+            collect_constructs_references_from_expression(
+                &cond.true_expr,
+                input.clone(),
+                dependencies,
+            );
         }
         Expression::ForExpr(for_expr) => {
             collect_constructs_references_from_expression(
                 &for_expr.value_expr,
-                input,
+                input.clone(),
                 dependencies,
             );
             if let Some(ref key_expr) = for_expr.key_expr {
-                collect_constructs_references_from_expression(&key_expr, input, dependencies);
+                collect_constructs_references_from_expression(
+                    &key_expr,
+                    input.clone(),
+                    dependencies,
+                );
             }
             if let Some(ref cond) = for_expr.cond {
-                collect_constructs_references_from_expression(&cond.expr, input, dependencies);
+                collect_constructs_references_from_expression(
+                    &cond.expr,
+                    input.clone(),
+                    dependencies,
+                );
             }
         }
         Expression::FuncCall(expr) => {
             for arg in expr.args.iter() {
-                collect_constructs_references_from_expression(arg, input, dependencies);
+                collect_constructs_references_from_expression(arg, input.clone(), dependencies);
             }
         }
         Expression::HeredocTemplate(expr) => {
@@ -172,7 +200,7 @@ pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
                     Element::Interpolation(interpolation) => {
                         collect_constructs_references_from_expression(
                             &interpolation.expr,
-                            input,
+                            input.clone(),
                             dependencies,
                         );
                     }
@@ -183,15 +211,27 @@ pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
             for (k, v) in obj.iter() {
                 match k {
                     ObjectKey::Expression(expr) => {
-                        collect_constructs_references_from_expression(&expr, input, dependencies);
+                        collect_constructs_references_from_expression(
+                            &expr,
+                            input.clone(),
+                            dependencies,
+                        );
                     }
                     ObjectKey::Ident(_) => {}
                 }
-                collect_constructs_references_from_expression(&v.expr(), input, dependencies);
+                collect_constructs_references_from_expression(
+                    &v.expr(),
+                    input.clone(),
+                    dependencies,
+                );
             }
         }
         Expression::Parenthesis(expr) => {
-            collect_constructs_references_from_expression(&expr.inner(), input, dependencies);
+            collect_constructs_references_from_expression(
+                &expr.inner(),
+                input.clone(),
+                dependencies,
+            );
         }
         Expression::StringTemplate(template) => {
             for element in template.iter() {
@@ -200,7 +240,7 @@ pub fn collect_constructs_references_from_expression<'a, T: EvaluatableInput>(
                     Element::Interpolation(interpolation) => {
                         collect_constructs_references_from_expression(
                             &interpolation.expr,
-                            input,
+                            input.clone(),
                             dependencies,
                         );
                     }
@@ -355,7 +395,11 @@ mod tests {
         let raw_hcl = RawHclContent::from_string(input.trim().to_string());
         let block = raw_hcl.into_block_instance().unwrap();
         let mut dependencies = vec![];
-        collect_constructs_references_from_block(&block, None::<&CommandInput>, &mut dependencies);
+        collect_constructs_references_from_block(
+            &block,
+            None::<Box<dyn EvaluatableInput>>,
+            &mut dependencies,
+        );
 
         assert_eq!(dependencies.len(), 7);
     }
@@ -385,7 +429,7 @@ mod tests {
         let mut dependencies = vec![];
         collect_constructs_references_from_expression(
             &attribute.value,
-            None::<&CommandInput>,
+            None::<Box<dyn EvaluatableInput>>,
             &mut dependencies,
         );
 

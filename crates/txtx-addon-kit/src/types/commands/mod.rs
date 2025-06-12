@@ -1237,9 +1237,21 @@ impl ConstructInstance for CommandInstance {
     fn block(&self) -> &Block {
         &self.block
     }
-    fn inputs(&self) -> Vec<&impl EvaluatableInput> {
-        self.specification.inputs.iter().chain(&self.specification.default_inputs).collect()
+    fn inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        let mut res = self
+            .specification
+            .inputs
+            .iter()
+            .chain(&self.specification.default_inputs)
+            .map(|input| Box::new(input.clone()) as Box<dyn EvaluatableInput>)
+            .collect::<Vec<Box<dyn EvaluatableInput>>>();
+
+        res.push(Box::new(PreConditionEvaluatableInput::new()));
+        res.push(Box::new(PostConditionEvaluatableInput::new()));
+
+        res
     }
+
     fn accepts_arbitrary_inputs(&self) -> bool {
         self.specification.accepts_arbitrary_inputs
     }
@@ -1248,21 +1260,18 @@ impl ConstructInstance for CommandInstance {
 pub trait ConstructInstance {
     /// The HCL block of the construct
     fn block(&self) -> &Block;
-    fn inputs(&self) -> Vec<&impl EvaluatableInput>;
+    fn inputs(&self) -> Vec<Box<dyn EvaluatableInput>>;
     fn accepts_arbitrary_inputs(&self) -> bool {
         false
     }
 
     fn get_expressions_referencing_commands_from_inputs(
         &self,
-    ) -> Vec<(Option<&impl EvaluatableInput>, Expression)> {
+    ) -> Vec<(Option<Box<dyn EvaluatableInput>>, Expression)> {
         let mut expressions = vec![];
-        for input in self.inputs() {
-            input.typing().get_expressions_referencing_constructs(
-                &self.block(),
-                input,
-                &mut expressions,
-            );
+        for input in self.inputs().into_iter() {
+            let typing = input.typing().clone();
+            typing.get_expressions_referencing_constructs(&self.block(), input, &mut expressions);
         }
         if self.accepts_arbitrary_inputs() {
             for attribute in self.block().body.attributes() {

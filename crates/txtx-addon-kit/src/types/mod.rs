@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use commands::{PostConditionEvaluatableInput, PreConditionEvaluatableInput};
 use diagnostics::Diagnostic;
+use dyn_clone::DynClone;
 use hcl_edit::expr::Expression;
 use hcl_edit::structure::Block;
 use serde::de::Error;
@@ -382,7 +383,7 @@ pub trait WithEvaluatableInputs {
     }
 }
 
-pub trait EvaluatableInput {
+pub trait EvaluatableInput: DynClone {
     fn optional(&self) -> bool;
     fn typing(&self) -> &Type;
     fn name(&self) -> String;
@@ -399,3 +400,5 @@ pub trait EvaluatableInput {
         self.typing().as_map()
     }
 }
+
+dyn_clone::clone_trait_object!(EvaluatableInput);

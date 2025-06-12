@@ -5,7 +5,10 @@ use hcl_edit::{expr::Expression, structure::Block};
 use crate::helpers::hcl::{get_object_expression_key, visit_optional_untyped_attribute};
 
 use super::{
-    commands::{CommandInput, CommandInstance, ConstructInstance},
+    commands::{
+        CommandInput, CommandInstance, ConstructInstance, PostConditionEvaluatableInput,
+        PreConditionEvaluatableInput,
+    },
     diagnostics::Diagnostic,
     package::Package,
     signers::{SignerInstance, SignersState},
@@ -138,8 +141,17 @@ impl ConstructInstance for EmbeddedRunbookInstance {
         &self.block
     }
 
-    fn inputs(&self) -> Vec<&impl EvaluatableInput> {
-        self.specification.inputs.iter().collect()
+    fn inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        let mut res: Vec<Box<dyn EvaluatableInput>> = self
+            .specification
+            .inputs
+            .iter()
+            .map(|input| Box::new(input.clone()) as Box<dyn EvaluatableInput>)
+            .collect();
+
+        res.push(Box::new(PreConditionEvaluatableInput::new()));
+        res.push(Box::new(PostConditionEvaluatableInput::new()));
+        res
     }
 }
 
