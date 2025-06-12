@@ -1,6 +1,9 @@
 use crate::{
     indoc,
-    types::{frontend::StatusUpdater, types::ObjectProperty},
+    types::{
+        frontend::{Block, Panel, StatusUpdater},
+        types::ObjectProperty,
+    },
 };
 use uuid::Uuid;
 
@@ -65,11 +68,7 @@ impl EvaluatableInput for PreConditionEvaluatableInput {
     }
 }
 
-// Todo:
-//  - return vec<Diagnostic> instead of a single Diagnostic
-//  - log all before returning errors
-//  - consider passing namespace to function to give additional context to logs
-
+#[derive(Debug, Clone)]
 pub enum PreConditionEvaluationResult {
     Noop,
     Halt(Vec<Diagnostic>),
@@ -92,6 +91,11 @@ pub fn evaluate_pre_conditions(
 
     let mut diags = vec![];
     let mut do_skip = false;
+
+    let _ = progress_tx.send(BlockEvent::ProgressBar(Block::new(
+        &background_tasks_uuid,
+        Panel::ProgressBar(vec![]),
+    )));
     let mut status_updater = StatusUpdater::new(background_tasks_uuid, construct_did, progress_tx);
     for (i, pre_condition) in pre_conditions.iter().enumerate() {
         if let AssertionResult::Failure(assertion_msg) = &pre_condition.assertion {

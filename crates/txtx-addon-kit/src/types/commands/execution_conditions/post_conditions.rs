@@ -1,7 +1,11 @@
 use crate::{
     constants::RE_EXECUTE_COMMAND,
     indoc,
-    types::{commands::CommandExecutionResult, frontend::StatusUpdater, types::ObjectProperty},
+    types::{
+        commands::CommandExecutionResult,
+        frontend::{Block, Panel, StatusUpdater},
+        types::ObjectProperty,
+    },
 };
 use uuid::Uuid;
 
@@ -91,6 +95,7 @@ impl EvaluatableInput for PostConditionEvaluatableInput {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum PostConditionEvaluationResult {
     Noop,
     SkipDownstream,
@@ -115,6 +120,12 @@ pub fn evaluate_post_conditions(
 
     let mut diags = vec![];
     let mut do_skip = false;
+
+    let _ = progress_tx.send(BlockEvent::ProgressBar(Block::new(
+        &background_tasks_uuid,
+        Panel::ProgressBar(vec![]),
+    )));
+
     let mut status_updater = StatusUpdater::new(background_tasks_uuid, construct_did, progress_tx);
     for (i, post_condition) in post_conditions.iter().enumerate() {
         if let AssertionResult::Failure(assertion_msg) = &post_condition.assertion {
