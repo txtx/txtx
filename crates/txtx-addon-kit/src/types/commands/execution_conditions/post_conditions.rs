@@ -24,7 +24,7 @@ use crate::types::{
 lazy_static! {
     pub static ref POST_CONDITION_TYPE: Type = Type::strict_map(vec![
         ObjectProperty {
-            name: "retries".into(),
+            name:RETRIES.into(),
             documentation: indoc! {r#"
                 If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
             "#}
@@ -35,7 +35,7 @@ lazy_static! {
             internal: false,
         },
         ObjectProperty {
-            name: "backoff".into(),
+            name: BACKOFF.into(),
             documentation: indoc! {r#"
                 If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
                 If not specified, the default is 1000 milliseconds (1 second).
@@ -47,7 +47,7 @@ lazy_static! {
             internal: false,
         },
         ObjectProperty {
-            name: "behavior".into(),
+            name: BEHAVIOR.into(),
             documentation: indoc! {r#"
                 The behavior if the post-condition assertion does not pass. Possible values are:
                 - "halt": Throws an error and halts execution of the runbook
@@ -63,7 +63,7 @@ lazy_static! {
             internal: false,
         },
         ObjectProperty {
-            name: "assertion".into(),
+            name: ASSERTION.into(),
             documentation: "The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed."
                 .into(),
             typing: Type::bool(),

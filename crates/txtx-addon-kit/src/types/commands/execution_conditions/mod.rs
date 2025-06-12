@@ -13,7 +13,7 @@ const POST_CONDITION: &str = "post_condition";
 const BEHAVIOR: &str = "behavior";
 const ASSERTION: &str = "assertion";
 const RETRIES: &str = "retries";
-const BACKOFF: &str = "backoff";
+const BACKOFF: &str = "backoff_ms";
 const POST_CONDITION_ATTEMPTS: &str = "post_condition_attempts";
 pub const ASSERTION_TYPE_ID: &str = "std::assertion";
 #[derive(Debug, Clone, Serialize, Deserialize)]

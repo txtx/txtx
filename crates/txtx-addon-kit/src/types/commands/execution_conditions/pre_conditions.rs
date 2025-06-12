@@ -20,7 +20,7 @@ lazy_static! {
     pub static ref PRE_CONDITION_TYPE: Type = Type::strict_map(
         vec![
             ObjectProperty {
-                name: "behavior".into(),
+                name: BEHAVIOR.into(),
                 documentation: indoc! {r#"
                         The behavior if the pre-condition assertion does not pass. Possible values are:
                         - "halt": Throws an error and halts execution of the runbook
@@ -35,7 +35,7 @@ lazy_static! {
                 internal: false,
             },
             ObjectProperty {
-                name: "assertion".into(),
+                name: ASSERTION.into(),
                 documentation: "The assertion to check to determine if the pre-condition behavior should be executed."
                 .into(),
                 typing: Type::bool(),
