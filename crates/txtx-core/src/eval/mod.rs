@@ -899,7 +899,6 @@ pub async fn evaluate_command_instance(
                     return LoopEvaluationResult::Bail;
                 }
                 PostConditionEvaluationResult::SkipDownstream => {
-
                     if let Some(deps) =
                         runbook_execution_context.commands_dependencies.get(&construct_did)
                     {
