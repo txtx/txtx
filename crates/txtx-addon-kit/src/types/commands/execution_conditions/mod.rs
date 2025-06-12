@@ -33,7 +33,7 @@ impl AssertionResult {
                 if *bool {
                     Ok(AssertionResult::Success)
                 } else {
-                    Err("assertion failed".to_string())
+                    Ok(AssertionResult::Failure("assertion failed".to_string()))
                 }
             }
             Value::Addon(addon_data) => {
