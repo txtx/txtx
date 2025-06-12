@@ -353,14 +353,23 @@ pub async fn start_supervised_runbook_runloop(
                     // if there were errors, return them to complete execution
                     if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                         let _ = block_tx.send(BlockEvent::Error(error_event));
+                        set_progress_bar_visibility(
+                            &block_tx,
+                            &background_tasks_handle_uuid,
+                            false,
+                        );
                         return Err(pass_results.with_spans_filled(&runbook.sources));
                     }
 
                     let pass_has_pending_bg_tasks =
                         !pass_results.pending_background_tasks_constructs_uuids.is_empty();
                     let pass_has_pending_actions = pass_results.actions.has_pending_actions();
+                    let pass_has_nodes_to_re_execute = !pass_results.nodes_to_re_execute.is_empty();
 
-                    if !pass_has_pending_actions && !pass_has_pending_bg_tasks {
+                    if !pass_has_pending_actions
+                        && !pass_has_pending_bg_tasks
+                        && !pass_has_nodes_to_re_execute
+                    {
                         let flow_context =
                             runbook.flow_contexts.get_mut(current_flow_index).unwrap();
                         let grouped_actions_items =
@@ -427,7 +436,10 @@ pub async fn start_supervised_runbook_runloop(
                             current_flow_index += 1;
                         }
                     }
-                    if !pass_has_pending_bg_tasks && !start_of_loop_had_bg_tasks {
+                    if !pass_has_pending_bg_tasks
+                        && !start_of_loop_had_bg_tasks
+                        && !pass_has_nodes_to_re_execute
+                    {
                         set_progress_bar_visibility(
                             &block_tx,
                             &background_tasks_handle_uuid,
