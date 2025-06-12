@@ -549,7 +549,7 @@ pub async fn evaluate_command_instance(
             &evaluated_inputs,
             &HashMap::new(),
             progress_tx,
-            &Uuid::new_v4(),
+            &pass_result.background_tasks_uuid,
         ) {
             Ok(result) => {
                 match result {
@@ -908,7 +908,7 @@ pub async fn evaluate_command_instance(
             .entry(construct_did.clone())
             .or_insert(CommandExecutionResult::new()),
         progress_tx,
-        &Uuid::new_v4(),
+        &pass_result.background_tasks_uuid,
     ) {
         Ok(result) => {
             match result {
