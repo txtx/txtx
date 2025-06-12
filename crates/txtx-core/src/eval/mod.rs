@@ -550,41 +550,23 @@ pub async fn evaluate_command_instance(
             progress_tx,
             &pass_result.background_tasks_uuid,
         ) {
-            Ok(result) => {
-                match result {
-                    PreConditionEvaluationResult::Noop => {}
-                    PreConditionEvaluationResult::Halt(diags) => {
-                        pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
-                        return LoopEvaluationResult::Bail;
-                    }
-                    PreConditionEvaluationResult::SkipDownstream => {
-    match command_instance.evaluate_pre_conditions(
-        construct_did,
-        &evaluated_inputs,
-        &HashMap::new(),
-        progress_tx,
-        &Uuid::new_v4(),
-    ) {
-        Ok(result) => {
-            match result {
+            Ok(result) => match result {
                 PreConditionEvaluationResult::Noop => {}
                 PreConditionEvaluationResult::Halt(diags) => {
                     pass_result.append_diagnostics(diags, construct_id, &add_ctx_to_diag);
                     return LoopEvaluationResult::Bail;
                 }
                 PreConditionEvaluationResult::SkipDownstream => {
-
-                        if let Some(deps) =
-                            runbook_execution_context.commands_dependencies.get(&construct_did)
-                        {
-                            for dep in deps.iter() {
-                                unexecutable_nodes.insert(dep.clone());
-                            }
+                    if let Some(deps) =
+                        runbook_execution_context.commands_dependencies.get(&construct_did)
+                    {
+                        for dep in deps.iter() {
+                            unexecutable_nodes.insert(dep.clone());
                         }
-                        return LoopEvaluationResult::Continue;
                     }
+                    return LoopEvaluationResult::Continue;
                 }
-            }
+            },
             Err(diag) => {
                 pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
                 return LoopEvaluationResult::Bail;
