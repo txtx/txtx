@@ -547,7 +547,6 @@ pub async fn evaluate_command_instance(
         match command_instance.evaluate_pre_conditions(
             construct_did,
             &evaluated_inputs,
-            &HashMap::new(),
             progress_tx,
             &pass_result.background_tasks_uuid,
         ) {

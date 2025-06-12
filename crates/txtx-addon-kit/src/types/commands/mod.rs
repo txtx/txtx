@@ -566,7 +566,6 @@ pub type CommandEvaluatePreConditions = fn(
     &str,
     &CommandSpecification,
     &ValueStore,
-    &Vec<CommandExecutionResult>,
     &channel::Sender<BlockEvent>,
     &Uuid,
 ) -> Result<PreConditionEvaluationResult, Diagnostic>;
@@ -786,21 +785,18 @@ impl CommandInstance {
         &self,
         construct_did: &ConstructDid,
         evaluated_inputs: &CommandInputsEvaluationResult,
-        commands_execution_results: &HashMap<ConstructDid, CommandExecutionResult>,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
     ) -> Result<PreConditionEvaluationResult, Diagnostic> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
             .with_inputs(&evaluated_inputs.inputs.inputs);
-        let vec = vec![];
         let spec = &self.specification;
         (spec.evaluate_pre_conditions)(
             &construct_did,
             &self.name,
             &self.specification,
             &values,
-            &vec,
             progress_tx,
             background_tasks_uuid,
         )
@@ -1358,7 +1354,6 @@ pub trait CommandImplementation {
         instance_name: &str,
         spec: &CommandSpecification,
         values: &ValueStore,
-        _command_execution_results: &Vec<CommandExecutionResult>,
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
     ) -> Result<PreConditionEvaluationResult, Diagnostic> {
