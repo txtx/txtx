@@ -14831,7 +14831,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
@@ -14968,7 +14968,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.1.18"
+version = "0.1.20"
 dependencies = [
  "anchor-lang-idl",
  "lazy_static",
