@@ -27,8 +27,9 @@ solana_idl = "0.2.0"
 borsh = "1.5.1"
 tiny-bip39 = "0.8.2"
 convert_case = "0.6.0"
-# Solana Record Service Dependencies
-solana-record-service-sdk = { path = "../../../../solana-record-service/sdk/rust" }
+
+### Solana Record Service Dependencies ###
+solana-record-service-client = "0.1.0"
 # srs is using an old version of borsh, so we need to use the same version
 borsh_0_10 = { version = "0.10.4", package = "borsh" }
 kaigan = "0.2.6"

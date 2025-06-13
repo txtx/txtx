@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use kaigan::types::RemainderStr;
 use solana_client::rpc_client::RpcClient;
-use solana_record_service_sdk::accounts::{Class, Record};
-use solana_record_service_sdk::instructions::{
+use solana_record_service_client::accounts::{Class, Record};
+use solana_record_service_client::instructions::{
     CreateRecordBuilder, FreezeRecordBuilder, TransferRecordBuilder, UpdateRecordBuilder,
 };
-use solana_record_service_sdk::programs::SOLANA_RECORD_SERVICE_ID;
+use solana_record_service_client::programs::SOLANA_RECORD_SERVICE_ID;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::message::Message;
 use solana_sdk::pubkey::Pubkey;
