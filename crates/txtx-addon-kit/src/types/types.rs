@@ -385,6 +385,22 @@ impl Value {
             _ => None,
         }
     }
+    pub fn as_u8(&self) -> Option<Result<u8, String>> {
+        match &self {
+            Value::Integer(value) => {
+                Some(u8::try_from(*value).map_err(|e| format!("invalid u8: {e}")))
+            }
+            _ => None,
+        }
+    }
+    pub fn as_u16(&self) -> Option<Result<u16, String>> {
+        match &self {
+            Value::Integer(value) => {
+                Some(u16::try_from(*value).map_err(|e| format!("invalid u16: {e}")))
+            }
+            _ => None,
+        }
+    }
     pub fn as_float(&self) -> Option<f64> {
         match &self {
             Value::Float(value) => Some(*value),
@@ -933,11 +949,11 @@ impl Type {
     ///
     /// For example, while most types will just get the attribute value, the `Object` and `Map` types
     /// need to look for nested blocks and properties.
-    pub fn get_expressions_referencing_constructs<'a, T: EvaluatableInput>(
+    pub fn get_expressions_referencing_constructs<'a>(
         &self,
         block: &Block,
-        input: &'a T,
-        dependencies: &mut Vec<(Option<&'a T>, Expression)>,
+        input: Box<dyn EvaluatableInput>,
+        dependencies: &mut Vec<(Option<Box<dyn EvaluatableInput>>, Expression)>,
     ) {
         let input_name = input.name();
         match self {
@@ -949,7 +965,7 @@ impl Type {
                             if let Some(expr) = res {
                                 collect_constructs_references_from_expression(
                                     &expr,
-                                    Some(input),
+                                    Some(input.clone()),
                                     dependencies,
                                 );
                             }
@@ -958,13 +974,21 @@ impl Type {
                 }
                 ObjectDefinition::Arbitrary(_) => {
                     for block in block.body.get_blocks(&input_name) {
-                        collect_constructs_references_from_block(block, Some(input), dependencies);
+                        collect_constructs_references_from_block(
+                            block,
+                            Some(input.clone()),
+                            dependencies,
+                        );
                     }
                 }
             },
             Type::Object(ref object_def) => {
                 if let Some(expr) = visit_optional_untyped_attribute(&input_name, &block) {
-                    collect_constructs_references_from_expression(&expr, Some(input), dependencies);
+                    collect_constructs_references_from_expression(
+                        &expr,
+                        Some(input.clone()),
+                        dependencies,
+                    );
                 }
                 match object_def {
                     ObjectDefinition::Strict(props) => {
@@ -975,7 +999,7 @@ impl Type {
                                 {
                                     collect_constructs_references_from_expression(
                                         &expr,
-                                        Some(input),
+                                        Some(input.clone()),
                                         dependencies,
                                     );
                                 }
@@ -986,7 +1010,7 @@ impl Type {
                         for block in block.body.get_blocks(&input_name) {
                             collect_constructs_references_from_block(
                                 block,
-                                Some(input),
+                                Some(input.clone()),
                                 dependencies,
                             );
                         }

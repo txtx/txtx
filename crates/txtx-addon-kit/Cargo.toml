@@ -37,6 +37,7 @@ tiny-hderive = { version = "0.3.0" }
 libsecp256k1 = { version = "0.7.0" }
 keccak-hash = "0.11.0"
 dirs = "5.0.1"
+dyn-clone = "1"
 
 [dev-dependencies]
 test-case = "3.3"

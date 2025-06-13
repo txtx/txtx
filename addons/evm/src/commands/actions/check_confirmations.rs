@@ -169,15 +169,14 @@ impl CommandImplementation for CheckEvmConfirmations {
             let status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
                 &construct_did,
-                &ProgressBarStatus {
-                    status_color: ProgressBarStatusColor::Green,
-                    status: format!("Confirmed"),
-                    message: format!(
+                &ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Green,
+                    "Confirmed",
+                    &format!(
                         "Contract deployment transaction already confirmed on Chain {}",
                         chain_name
                     ),
-                    diagnostic: None,
-                },
+                ),
             );
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
             return return_synchronous_result(Ok(result));
@@ -197,12 +196,11 @@ impl CommandImplementation for CheckEvmConfirmations {
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
                 &construct_did,
-                &ProgressBarStatus {
-                    status_color: ProgressBarStatusColor::Yellow,
-                    status: format!("Pending {}", progress_symbol[progress]),
-                    message: receipt_msg.clone(),
-                    diagnostic: None,
-                },
+                &ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Yellow,
+                    &format!("Pending {}", progress_symbol[progress]),
+                    &receipt_msg,
+                ),
             );
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 

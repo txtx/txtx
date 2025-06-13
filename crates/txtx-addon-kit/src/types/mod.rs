@@ -3,7 +3,9 @@ use std::env;
 use std::fmt::Display;
 use std::path::PathBuf;
 
+use commands::{PostConditionEvaluatableInput, PreConditionEvaluatableInput};
 use diagnostics::Diagnostic;
+use dyn_clone::DynClone;
 use hcl_edit::expr::Expression;
 use hcl_edit::structure::Block;
 use serde::de::Error;
@@ -364,10 +366,24 @@ pub trait WithEvaluatableInputs {
         input_name: &str,
         prop: &ObjectProperty,
     ) -> Option<Expression>;
-    fn spec_inputs(&self) -> Vec<impl EvaluatableInput>;
+
+    /// Defines the inputs for this trait type with evaluatable inputs
+    fn _spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>>;
+
+    // Merges some default inputs that are available for all commands
+    // with those defined specifically for the implementer of this trait
+    fn spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        let mut spec_inputs = self._spec_inputs();
+        spec_inputs.push(Box::new(PreConditionEvaluatableInput::new()));
+        spec_inputs
+    }
+
+    fn self_referencing_inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        vec![Box::new(PostConditionEvaluatableInput::new())]
+    }
 }
 
-pub trait EvaluatableInput {
+pub trait EvaluatableInput: DynClone {
     fn optional(&self) -> bool;
     fn typing(&self) -> &Type;
     fn name(&self) -> String;
@@ -384,3 +400,5 @@ pub trait EvaluatableInput {
         self.typing().as_map()
     }
 }
+
+dyn_clone::clone_trait_object!(EvaluatableInput);

@@ -14815,6 +14815,7 @@ version = "0.2.12"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
+ "dyn-clone",
  "futures",
  "getrandom 0.2.15",
  "hcl-edit",

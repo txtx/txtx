@@ -465,8 +465,13 @@ impl ConstructInstance for SignerInstance {
     fn block(&self) -> &Block {
         &self.block
     }
-    fn inputs(&self) -> Vec<&impl EvaluatableInput> {
-        self.specification.inputs.iter().chain(&self.specification.default_inputs).collect()
+    fn inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        self.specification
+            .inputs
+            .iter()
+            .chain(&self.specification.default_inputs)
+            .map(|input| Box::new(input.clone()) as Box<dyn EvaluatableInput>)
+            .collect()
     }
 }
 
