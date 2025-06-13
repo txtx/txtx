@@ -6767,6 +6767,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kaigan"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ba15de5aeb137f0f65aa3bf82187647f1285abfe5b20c80c2c37f7007ad519a"
+dependencies = [
+ "borsh 0.10.4",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11766,6 +11775,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-record-service-client"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccf8d878040f2ed9ca3dc78781fc902f6d1b2af6d7d917cc7979c9b37ccff3e6"
+dependencies = [
+ "borsh 0.10.4",
+ "kaigan",
+ "solana-program",
+]
+
+[[package]]
 name = "solana-rent"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14811,7 +14831,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
@@ -14925,13 +14945,16 @@ version = "0.1.23"
 dependencies = [
  "async-recursion",
  "bincode",
+ "borsh 0.10.4",
  "borsh 1.5.6",
  "convert_case 0.6.0",
+ "kaigan",
  "lazy_static",
  "serde",
  "serde_derive",
  "serde_json",
  "solana-client",
+ "solana-record-service-client",
  "solana-sdk",
  "solana_idl",
  "spl-associated-token-account",
@@ -14945,7 +14968,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.1.18"
+version = "0.1.20"
 dependencies = [
  "anchor-lang-idl",
  "lazy_static",

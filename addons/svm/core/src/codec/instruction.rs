@@ -48,7 +48,7 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
         }
         let mut accounts: Vec<AccountMeta> = Vec::new();
         let program_id: Pubkey;
-        let mut ix_data = Vec::new();
+        let ix_data;
 
         if instruction_data.contains_key(PROGRAM_IDL) {
             let mut instruction_builder: InstructionBuilder;
@@ -124,16 +124,17 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                 .transpose()?
                 .unwrap();
             let _ = instruction_data.swap_remove(ACCOUNTS).iter().try_for_each(|acc| {
-                let acc_obj = acc.as_map().ok_or(diagnosed_error!("each account field must be a map"))?;
+                let acc_obj =
+                    acc.as_map().ok_or(diagnosed_error!("each account field must be a map"))?;
                 let _ = acc_obj.iter().try_for_each(|item| {
                     let item_obj = item.as_object().expect("expected map entry to be an object");
                     let public_key = item_obj.get("public_key").ok_or("public_key not found")?;
                     let public_key = SvmValue::to_pubkey(public_key)
                         .map_err(|e| diagnosed_error!("invalid 'account' for instruction: {e}"))?;
-                let is_writable =
-                    item_obj.get("is_writable").and_then(|v| v.as_bool()).unwrap_or(false);
-                let is_signer =
-                    item_obj.get("is_signer").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let is_writable =
+                        item_obj.get("is_writable").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let is_signer =
+                        item_obj.get("is_signer").and_then(|v| v.as_bool()).unwrap_or(false);
 
                     let account_meta = AccountMeta { pubkey: public_key, is_signer, is_writable };
                     accounts.push(account_meta);
