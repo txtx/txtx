@@ -241,6 +241,9 @@ pub struct CommandInput {
     pub self_referencing: bool,
 }
 impl EvaluatableInput for CommandInput {
+    fn documentation(&self) -> String {
+        self.documentation.clone()
+    }
     fn optional(&self) -> bool {
         self.optional
     }

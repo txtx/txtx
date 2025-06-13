@@ -1119,6 +1119,24 @@ impl ObjectDefinition {
     pub fn documented_arbitrary(props: Vec<ObjectProperty>) -> Self {
         ObjectDefinition::Arbitrary(Some(props))
     }
+
+    pub fn join_documentation(&self, recursion_depth: usize) -> String {
+        match self {
+            ObjectDefinition::Strict(props) | ObjectDefinition::Arbitrary(Some(props)) => props
+                .iter()
+                .map(|prop| {
+                    format!(
+                        "{}- **{}**: {}",
+                        " ".repeat((recursion_depth + 1) * 2),
+                        prop.name,
+                        prop.join_documentation(recursion_depth + 1)
+                    )
+                })
+                .collect::<Vec<String>>()
+                .join("\n"),
+            ObjectDefinition::Arbitrary(None) => String::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -1129,6 +1147,28 @@ pub struct ObjectProperty {
     pub optional: bool,
     pub tainting: bool,
     pub internal: bool,
+}
+
+impl ObjectProperty {
+    pub fn join_documentation(&self, recursion_depth: usize) -> String {
+        match &self.typing {
+            Type::Object(object_definition) => {
+                format!(
+                    "{} This is an object type containing the keys:\n{}",
+                    self.documentation,
+                    object_definition.join_documentation(recursion_depth)
+                )
+            }
+            Type::Map(object_definition) => {
+                format!(
+                    "{} This is a map type containing the keys:\n{}",
+                    self.documentation,
+                    object_definition.join_documentation(recursion_depth)
+                )
+            }
+            _ => self.documentation.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

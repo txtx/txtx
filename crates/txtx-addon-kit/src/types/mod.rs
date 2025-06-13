@@ -384,6 +384,7 @@ pub trait WithEvaluatableInputs {
 }
 
 pub trait EvaluatableInput: DynClone {
+    fn documentation(&self) -> String;
     fn optional(&self) -> bool;
     fn typing(&self) -> &Type;
     fn name(&self) -> String;

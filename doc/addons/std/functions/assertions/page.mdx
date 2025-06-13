@@ -1,0 +1,367 @@
+export const metadata = {
+    title: "Standard Library Assertions Functions",
+    description: "Functions for Standard Library Assertions",
+};
+
+# Standard Library Assertions Functions {{ id: "std-functions" }}
+
+
+## assert_eq {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`assert_eq` asserts that two values are equal.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="left" required="required" type="null | integer | float | integer | string | bool | addon() | array[null] | object">
+    A value to compare.
+  </Property>
+
+
+  <Property name="right" required="required" type="null | integer | float | integer | string | bool | addon() | array[null] | object">
+    The value to compare against.
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="addon(std::assertion)">
+    The result of the assertion.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using assert_eq">
+
+
+```hcl {{ title: 'main.tx' }}
+output "assertion" { 
+    value = std::assert_eq(action.example.result, 1)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## assert_ne {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`assert_ne` asserts that two values are not equal.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="left" required="required" type="null | integer | float | integer | string | bool | addon() | array[null] | object">
+    A value to compare.
+  </Property>
+
+
+  <Property name="right" required="required" type="null | integer | float | integer | string | bool | addon() | array[null] | object">
+    The value to compare against.
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="addon(std::assertion)">
+    The result of the assertion.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using assert_ne">
+
+
+```hcl {{ title: 'main.tx' }}
+output "assertion" { 
+    value = std::assert_ne(action.example.result, 1)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## assert_gt {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`assert_gt` asserts that the left value is greater than the right value.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="left" required="required" type="integer | float">
+    An integer or float to compare.
+  </Property>
+
+
+  <Property name="right" required="required" type="integer | float">
+    An integer or float to compare against.
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="addon(std::assertion)">
+    The result of the assertion.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using assert_gt">
+
+
+```hcl {{ title: 'main.tx' }}
+output "assertion" { 
+    value = std::assert_gt(action.example.result, 1)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## assert_gte {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`assert_gte` asserts that the left value is greater than or equal to the right value.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="left" required="required" type="integer | float">
+    An integer or float to compare.
+  </Property>
+
+
+  <Property name="right" required="required" type="integer | float">
+    An integer or float to compare against.
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="addon(std::assertion)">
+    The result of the assertion.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using assert_gte">
+
+
+```hcl {{ title: 'main.tx' }}
+output "assertion" { 
+    value = std::assert_gte(action.example.result, 1)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## assert_lt {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`assert_lt` asserts that the left value is less than the right value.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="left" required="required" type="integer | float">
+    An integer or float to compare.
+  </Property>
+
+
+  <Property name="right" required="required" type="integer | float">
+    An integer or float to compare against.
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="addon(std::assertion)">
+    The result of the assertion.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using assert_lt">
+
+
+```hcl {{ title: 'main.tx' }}
+output "assertion" { 
+    value = std::assert_lt(action.example.result, 1)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## assert_lte {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`assert_lte` asserts that the left value is less than or equal to the right value.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="left" required="required" type="integer | float">
+    An integer or float to compare.
+  </Property>
+
+
+  <Property name="right" required="required" type="integer | float">
+    An integer or float to compare against.
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="addon(std::assertion)">
+    The result of the assertion.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using assert_lte">
+
+
+```hcl {{ title: 'main.tx' }}
+output "assertion" { 
+    value = std::assert_lte(action.example.result, 1)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+

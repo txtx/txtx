@@ -172,6 +172,17 @@ pub enum EmbeddedRunbookInputSpecification {
 }
 
 impl EvaluatableInput for EmbeddedRunbookInputSpecification {
+    fn documentation(&self) -> String {
+        match self {
+            EmbeddedRunbookInputSpecification::Value(value_spec) => {
+                value_spec.documentation.clone()
+            }
+            EmbeddedRunbookInputSpecification::Signer(signer_spec) => {
+                signer_spec.documentation.clone()
+            }
+        }
+    }
+
     fn name(&self) -> String {
         match self {
             EmbeddedRunbookInputSpecification::Value(value_spec) => value_spec.name.clone(),

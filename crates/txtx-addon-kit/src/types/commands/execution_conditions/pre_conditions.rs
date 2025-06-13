@@ -23,10 +23,9 @@ lazy_static! {
                 name: BEHAVIOR.into(),
                 documentation: indoc! {r#"
                         The behavior if the pre-condition assertion does not pass. Possible values are:
-                        - "halt": Throws an error and halts execution of the runbook
-                        - "log": Logs a warning and continues execution of the runbook
-                        - "skip": Skips execution of this command and all downstream commands
-                        If not specified, the default is "halt".
+                            - **halt** (default): Throws an error and halts execution of the runbook
+                            - **log**: Logs a warning and continues execution of the runbook
+                            - **skip**: Skips execution of this command and all downstream commands
                     "#}
                 .into(),
                 typing: Type::string(),
@@ -36,7 +35,7 @@ lazy_static! {
             },
             ObjectProperty {
                 name: ASSERTION.into(),
-                documentation: "The assertion to check to determine if the pre-condition behavior should be executed."
+                documentation: "The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used."
                 .into(),
                 typing: Type::bool(),
                 optional: false,
@@ -55,6 +54,10 @@ impl PreConditionEvaluatableInput {
     }
 }
 impl EvaluatableInput for PreConditionEvaluatableInput {
+    fn documentation(&self) -> String {
+        "Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion.".into()
+    }
+
     fn optional(&self) -> bool {
         true
     }
