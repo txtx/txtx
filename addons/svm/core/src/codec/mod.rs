@@ -3,8 +3,11 @@ pub mod idl;
 pub mod instruction;
 pub mod native;
 pub mod send_transaction;
+pub mod ui_encode;
 pub mod utils;
 
+use crate::codec::ui_encode::get_formatted_transaction_description;
+use crate::codec::ui_encode::message_data_to_formatted_value;
 use anchor::AnchorProgramArtifacts;
 use bip39::Language;
 use bip39::Mnemonic;
@@ -330,31 +333,10 @@ impl DeploymentTransaction {
             DeploymentTransactionType::SkipCloseTempAuthority => return Ok(None),
         };
 
-        let mut signer_names = String::new();
-        let signer_count = signer_dids.len();
-        for (i, did) in signer_dids.iter().enumerate() {
-            let signer_instance = signers_instances.get(did).unwrap();
-            let name = format!("'{}'", signer_instance.name);
-            if i == 0 {
-                signer_names = name;
-            } else {
-                if signer_count > 2 {
-                    if i == signer_count - 1 {
-                        signer_names = format!("{} & {}", signer_names, name);
-                    } else {
-                        signer_names = format!("{}, {}", signer_names, name);
-                    }
-                } else {
-                    signer_names = format!("{} & {}", signer_names, name);
-                }
-            }
-        }
-
-        let description = format!(
-            "{} Signed by the {} signer{}.",
-            description,
-            signer_names,
-            if signer_count > 1 { "s" } else { "" }
+        let description = get_formatted_transaction_description(
+            &vec![description.to_string()],
+            &signer_dids,
+            signers_instances,
         );
 
         let mut instructions = vec![];
@@ -388,27 +370,14 @@ impl DeploymentTransaction {
                 .to_value(),
             );
         }
-        let formatted_transaction = ObjectType::from(vec![
-            ("instructions", Value::array(instructions)),
-            (
-                "num_required_signatures",
-                Value::integer(self.transaction.message.header.num_required_signatures as i128),
-            ),
-            (
-                "num_readonly_signed_accounts",
-                Value::integer(
-                    self.transaction.message.header.num_readonly_signed_accounts as i128,
-                ),
-            ),
-            (
-                "num_readonly_unsigned_accounts",
-                Value::integer(
-                    self.transaction.message.header.num_readonly_unsigned_accounts as i128,
-                ),
-            ),
-        ]);
+        let formatted_transaction = message_data_to_formatted_value(
+            &instructions,
+            self.transaction.message.header.num_required_signatures,
+            self.transaction.message.header.num_readonly_signed_accounts,
+            self.transaction.message.header.num_readonly_unsigned_accounts,
+        );
 
-        Ok(Some((formatted_transaction.to_value(), description)))
+        Ok(Some((formatted_transaction, description)))
     }
 
     pub fn get_keypairs(&self) -> Result<Vec<Keypair>, Diagnostic> {

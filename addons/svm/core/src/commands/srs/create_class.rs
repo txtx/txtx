@@ -31,9 +31,12 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::send_transaction::send_transaction_background_task;
+use crate::codec::ui_encode::{
+    get_formatted_transaction_description, ix_to_formatted_value, message_data_to_formatted_value,
+};
 use crate::commands::get_signer_did;
 use crate::commands::sign_transaction::SignTransaction;
-use crate::constants::{CHECKED_PUBLIC_KEY, RPC_API_URL, TRANSACTION_BYTES};
+use crate::constants::{CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, RPC_API_URL, TRANSACTION_BYTES};
 use crate::typing::SvmValue;
 
 use super::to_u8_prefix_string;
@@ -255,24 +258,33 @@ impl CommandImplementation for ProcessInstructions {
         );
         let mut class_action = ClassAction::None;
 
-        let instructions = if let Ok(Some(account)) =
+        let (instructions, descriptions, formatted_instructions) = if let Ok(Some(account)) =
             client.get_account_with_commitment(&class, CommitmentConfig::default()).map(|a| a.value)
         {
             let existing_class = Class::from_bytes(&account.data)
                     .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("class PDA '{class}' exists on chain, but the on-chain account is not a valid class: {e}")))?;
 
             let mut instructions = vec![];
+            let mut descriptions = vec![];
+            let mut formatted_instructions = vec![];
 
             // if the user is changing the `is_frozen` flag, push that instruction
             if existing_class.is_frozen != is_frozen {
                 class_action = ClassAction::Freeze;
-                instructions.push(
-                    FreezeClassBuilder::new()
-                        .authority(authority)
-                        .class(class)
-                        .is_frozen(is_frozen)
-                        .instruction(),
-                );
+                let ix = FreezeClassBuilder::new()
+                    .authority(authority)
+                    .class(class)
+                    .is_frozen(is_frozen)
+                    .instruction();
+                let formatted_ix = ix_to_formatted_value(&ix);
+                instructions.push(ix);
+                descriptions.push(format!(
+                    "Instruction #{} will freeze the '{}' class at address '{}'.",
+                    instructions.len(),
+                    name_str,
+                    class.to_string()
+                ));
+                formatted_instructions.push(formatted_ix);
             }
 
             // if the user set the is_permissioned flag, we need to check if it matches the existing class
@@ -293,52 +305,63 @@ impl CommandImplementation for ProcessInstructions {
             }
 
             // if the user is changing the metadata, push that instruction
-            let instructions = if existing_class.metadata.eq(&metadata) {
-                instructions
-            } else {
+            if !existing_class.metadata.eq(&metadata) {
                 if ClassAction::Freeze == class_action {
                     class_action = ClassAction::FreezeAndUpdateMetadata;
                 } else {
                     class_action = ClassAction::UpdateMetadata;
                 }
-                instructions.push(
-                    UpdateClassMetadataBuilder::new()
-                        .authority(authority)
-                        .class(class)
-                        .system_program(system_program::ID)
-                        .metadata(metadata)
-                        .instruction(),
-                );
-                instructions
-            };
+                let ix = UpdateClassMetadataBuilder::new()
+                    .authority(authority)
+                    .class(class)
+                    .system_program(system_program::ID)
+                    .metadata(metadata.clone())
+                    .instruction();
+                let formatted_ix = ix_to_formatted_value(&ix);
+                instructions.push(ix);
+                descriptions.push(format!(
+                    "Instruction #{} will update the '{}' class metadata at address '{}'.",
+                    instructions.len(),
+                    name_str,
+                    class.to_string()
+                ));
+                formatted_instructions.push(formatted_ix);
+            }
 
-            if instructions.is_empty() {
-                instructions
-            } else {
+            if !instructions.is_empty() && existing_class.is_frozen {
                 // todo: can you unfreeze a class? if so, this needs to change
                 // currently, if we have some instructions updating our class, we throw if the existing class is frozen
-                if existing_class.is_frozen {
-                    return Err((
+                return Err((
                         signers.clone(),
                         signer_state.clone(),
                         diagnosed_error!(
                             "class PDA '{class}' exists on chain, but the class is frozen so changes cannot be made"
                         ),
                     ));
-                }
-                instructions
             }
+
+            (instructions, descriptions, formatted_instructions)
         } else {
             class_action = ClassAction::Create;
-            vec![CreateClassBuilder::new()
+            let ix = CreateClassBuilder::new()
                 .authority(authority)
                 .class(class)
                 .system_program(system_program::ID)
                 .is_permissioned(is_permissioned.unwrap_or(true))
                 .is_frozen(is_frozen)
-                .metadata(metadata)
-                .name(name)
-                .instruction()]
+                .metadata(metadata.clone())
+                .name(name.clone())
+                .instruction();
+            let formatted_ix = ix_to_formatted_value(&ix);
+            (
+                vec![ix],
+                vec![format!(
+                    "Instruction #1 will create the '{}' class at address '{}'.",
+                    name_str,
+                    class.to_string()
+                )],
+                vec![formatted_ix],
+            )
         };
 
         signer_state.insert_scoped_value(
@@ -356,11 +379,27 @@ impl CommandImplementation for ProcessInstructions {
                     diagnosed_error!("failed to get latest blockhash: {e}"),
                 )
             })?;
+
+            let formatted_transaction = message_data_to_formatted_value(
+                &formatted_instructions,
+                message.header.num_required_signatures,
+                message.header.num_readonly_signed_accounts,
+                message.header.num_readonly_unsigned_accounts,
+            );
+
             let transaction = SvmValue::transaction(&Transaction::new_unsigned(message))
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
+            let description = get_formatted_transaction_description(
+                &descriptions,
+                &vec![signer_did],
+                signers_instances,
+            );
+
             let mut args = args.clone();
             args.insert(TRANSACTION_BYTES, transaction);
+            args.insert(FORMATTED_TRANSACTION, formatted_transaction);
+            args.insert(DESCRIPTION, Value::string(description));
 
             signers.push_signer_state(signer_state);
             SignTransaction::check_signed_executability(

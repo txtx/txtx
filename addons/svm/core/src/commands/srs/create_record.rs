@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 
 use kaigan::types::RemainderStr;
 use solana_client::rpc_client::RpcClient;
@@ -13,6 +14,7 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::system_program;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::constants::DESCRIPTION;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
@@ -30,10 +32,14 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::send_transaction::send_transaction_background_task;
+use crate::codec::ui_encode::{
+    get_formatted_transaction_description, ix_to_formatted_value, message_data_to_formatted_value,
+};
 use crate::commands::get_custom_signer_did;
 use crate::commands::sign_transaction::SignTransaction;
 use crate::constants::{
-    AUTHORITY, CHECKED_PUBLIC_KEY, OWNER, RPC_API_URL, SIGNERS, TRANSACTION_BYTES,
+    AUTHORITY, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, OWNER, RPC_API_URL, SIGNERS,
+    TRANSACTION_BYTES,
 };
 use crate::typing::SvmValue;
 
@@ -221,7 +227,7 @@ impl CommandImplementation for ProcessInstructions {
         let mut signer_dids = vec![];
         let owner_signer_did = get_custom_signer_did(&args, OWNER).unwrap();
         let mut owner_signer_state = signers.pop_signer_state(&owner_signer_did).unwrap().clone();
-        signer_dids.push(Value::string(owner_signer_did.to_string()));
+        signer_dids.push(owner_signer_did.clone());
 
         let owner_pubkey = owner_signer_state
             .get_expected_value(CHECKED_PUBLIC_KEY)
@@ -232,9 +238,9 @@ impl CommandImplementation for ProcessInstructions {
             if owner_signer_did.ne(&authority_did) {
                 // if the authority is the same as the owner, it's already been tracked above,
                 // and we've already popped the owner signer state so we can't get it again
-                signer_dids.push(Value::string(authority_did.to_string()));
                 let authority_signer_state =
                     signers.get_signer_state(&authority_did).unwrap().clone();
+                signer_dids.push(authority_did);
 
                 Some(
                     authority_signer_state
@@ -308,6 +314,8 @@ impl CommandImplementation for ProcessInstructions {
 
         let mut record_actions = vec![];
         let mut instructions = vec![];
+        let mut descriptions = vec![];
+        let mut formatted_instructions = vec![];
 
         // check if the record already exists
         if let Ok(Some(account)) = client
@@ -338,39 +346,61 @@ impl CommandImplementation for ProcessInstructions {
                 }
 
                 record_actions.push(RecordAction::Transfer);
-                instructions.push(
-                    TransferRecordBuilder::new()
-                        .authority(authority_pubkey.unwrap())
-                        .record(record)
-                        .new_owner(owner_pubkey)
-                        .instruction(),
-                );
+                let ix = TransferRecordBuilder::new()
+                    .authority(authority_pubkey.unwrap())
+                    .record(record)
+                    .new_owner(owner_pubkey)
+                    .instruction();
+                let formatted_ix = ix_to_formatted_value(&ix);
+                instructions.push(ix);
+                descriptions.push(format!(
+                    "Instruction #{} will transfer record '{record}' at address '{record_address}' to '{owner_pubkey}'",
+                    instructions.len(),
+                    record = name_str,
+                    record_address = record.to_string(),
+                    owner_pubkey = owner_pubkey
+                ));
+                formatted_instructions.push(formatted_ix);
             }
 
             // check if the data is different, and push that instruction if so
             if existing_record.data != data {
                 record_actions.push(RecordAction::UpdateData);
-                instructions.push(
-                    UpdateRecordBuilder::new()
-                        .record(record)
-                        .system_program(system_program::ID)
-                        .authority(authority_pubkey.unwrap_or(owner_pubkey))
-                        .data(data)
-                        .instruction(),
-                );
+                let ix = UpdateRecordBuilder::new()
+                    .record(record)
+                    .system_program(system_program::ID)
+                    .authority(authority_pubkey.unwrap_or(owner_pubkey))
+                    .data(data.clone())
+                    .instruction();
+                let formatted_ix = ix_to_formatted_value(&ix);
+                instructions.push(ix);
+                descriptions.push(format!(
+                    "Instruction #{} will update record '{record}' at address '{record_address}' with new data",
+                    instructions.len(),
+                    record = name_str,
+                    record_address = record.to_string()
+                ));
+                formatted_instructions.push(formatted_ix);
             }
 
             // if the user is changing the `is_frozen` flag, push that instruction
             if let Some(inner_is_frozen) = is_frozen {
                 if existing_record.is_frozen != inner_is_frozen {
                     record_actions.push(RecordAction::Freeze);
-                    instructions.push(
-                        FreezeRecordBuilder::new()
-                            .record(record)
-                            .authority(authority_pubkey.unwrap_or(owner_pubkey))
-                            .is_frozen(inner_is_frozen)
-                            .instruction(),
-                    );
+                    let ix = FreezeRecordBuilder::new()
+                        .record(record)
+                        .authority(authority_pubkey.unwrap_or(owner_pubkey))
+                        .is_frozen(inner_is_frozen)
+                        .instruction();
+                    let formatted_ix = ix_to_formatted_value(&ix);
+                    instructions.push(ix);
+                    descriptions.push(format!(
+                        "Instruction #{} will freeze record '{record}' at address '{record_address}'",
+                        instructions.len(),
+                        record = name_str,
+                        record_address = record.to_string()
+                    ));
+                    formatted_instructions.push(formatted_ix);
                 }
             }
 
@@ -387,28 +417,43 @@ impl CommandImplementation for ProcessInstructions {
         } else {
             // if the record doesn't exist, create it
             record_actions.push(RecordAction::Create);
-            instructions.push(
-                CreateRecordBuilder::new()
-                    .owner(owner_pubkey)
-                    .class(class)
-                    .record(record)
-                    .system_program(system_program::ID)
-                    .authority(authority_pubkey)
-                    .expiration(expiration)
-                    .name(name)
-                    .data(data)
-                    .instruction(),
-            );
+            let ix = CreateRecordBuilder::new()
+                .owner(owner_pubkey)
+                .class(class)
+                .record(record)
+                .system_program(system_program::ID)
+                .authority(authority_pubkey)
+                .expiration(expiration)
+                .name(name.clone())
+                .data(data.clone())
+                .instruction();
+            let formatted_ix = ix_to_formatted_value(&ix);
+            instructions.push(ix);
+            descriptions.push(format!(
+                "Instruction #{} will create record '{record}' at address '{record_address}' with data '{data}'",
+                instructions.len(),
+                record = name_str,
+                record_address = record.to_string(),
+                data = data.deref()
+            ));
+            formatted_instructions.push(formatted_ix);
             // and if the user is trying to freeze it, push that instruction after the create
             if is_frozen.unwrap_or(false) {
                 record_actions.push(RecordAction::Freeze);
-                instructions.push(
-                    FreezeRecordBuilder::new()
-                        .record(record)
-                        .authority(owner_pubkey)
-                        .is_frozen(true)
-                        .instruction(),
-                );
+                let ix = FreezeRecordBuilder::new()
+                    .record(record)
+                    .authority(authority_pubkey.unwrap_or(owner_pubkey))
+                    .is_frozen(true)
+                    .instruction();
+                let formatted_ix = ix_to_formatted_value(&ix);
+                instructions.push(ix);
+                descriptions.push(format!(
+                    "Instruction #{} will freeze record '{record}' at address '{record_address}'",
+                    instructions.len(),
+                    record = name_str,
+                    record_address = record.to_string()
+                ));
+                formatted_instructions.push(formatted_ix);
             }
         };
 
@@ -450,12 +495,30 @@ impl CommandImplementation for ProcessInstructions {
                 )
             })?;
 
+            let formatted_transaction = message_data_to_formatted_value(
+                &formatted_instructions,
+                message.header.num_required_signatures,
+                message.header.num_readonly_signed_accounts,
+                message.header.num_readonly_unsigned_accounts,
+            );
+
+            let description = get_formatted_transaction_description(
+                &descriptions,
+                &signer_dids,
+                signers_instances,
+            );
+
             let transaction = SvmValue::transaction(&Transaction::new_unsigned(message))
                 .map_err(|e| (signers.clone(), owner_signer_state.clone(), e))?;
 
             let mut args = args.clone();
             args.insert(TRANSACTION_BYTES, transaction);
-            args.insert(SIGNERS, Value::array(signer_dids));
+            args.insert(
+                SIGNERS,
+                Value::array(signer_dids.iter().map(|d| Value::string(d.to_string())).collect()),
+            );
+            args.insert(FORMATTED_TRANSACTION, formatted_transaction);
+            args.insert(DESCRIPTION, Value::string(description));
 
             signers.push_signer_state(owner_signer_state);
             SignTransaction::check_signed_executability(
