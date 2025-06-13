@@ -14811,7 +14811,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.2.12"
+version = "0.3.0"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
@@ -14921,7 +14921,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "async-recursion",
  "bincode",
@@ -14985,7 +14985,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.2.19"
+version = "0.3.0"
 dependencies = [
  "actix-web",
  "ansi_term",
@@ -15058,7 +15058,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.2.14"
+version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -15100,7 +15100,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.2.19"
+version = "0.3.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
