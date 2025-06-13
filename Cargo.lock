@@ -15053,7 +15053,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cloud"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -15110,7 +15110,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "async-stream",
  "futures",
