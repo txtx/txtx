@@ -15110,7 +15110,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "async-stream",
  "futures",
