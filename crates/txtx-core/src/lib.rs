@@ -65,17 +65,13 @@ use types::Runbook;
 
 lazy_static! {
     // create this action so we can reference its `id` property, which is built from the immutable data
-     pub static ref SET_ENV_ACTION: ActionItemRequest = ActionItemRequest ::new(
-        &None,
-        "Select the environment to target",
-        None,
-        ActionItemStatus::Success(None),
-        ActionItemRequestType::PickInputOption(PickInputOptionRequest {
+     pub static ref SET_ENV_ACTION: ActionItemRequest =ActionItemRequestType::PickInputOption(PickInputOptionRequest {
             options: vec![],
             selected: InputOption::default(),
-        }),
-        ACTION_ITEM_ENV,
-      );
+        }).to_request("", ACTION_ITEM_ENV)
+        .with_meta_description("Select the environment to target")
+        .with_status(ActionItemStatus::Success(None))
+      ;
 }
 
 pub async fn start_unsupervised_runbook_runloop(
@@ -385,16 +381,10 @@ pub async fn start_supervised_runbook_runloop(
                         validated_blocks = validated_blocks + 1;
                         pass_results.actions.push_sub_group(
                             None,
-                            vec![ActionItemRequest::new(
-                                &None,
-                                "Validate",
-                                None,
-                                ActionItemStatus::Todo,
-                                ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
-                                    validated_blocks,
-                                )),
-                                ACTION_ITEM_VALIDATE_BLOCK,
-                            )],
+                            vec![ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
+                                validated_blocks,
+                            ))
+                            .to_request("Validate", ACTION_ITEM_VALIDATE_BLOCK)],
                         );
                     }
 
@@ -707,17 +697,15 @@ pub async fn build_genesis_panel(
                 let k = environments.iter().next().unwrap();
                 InputOption { value: k.clone(), displayed_value: k.clone() }
             });
-        let action_request = ActionItemRequest::new(
-            &None,
-            "Select the environment to target",
-            None,
-            ActionItemStatus::Success(None),
-            ActionItemRequestType::PickInputOption(PickInputOptionRequest {
-                options: input_options,
-                selected: selected_option,
-            }),
-            ACTION_ITEM_ENV,
-        );
+
+        let action_request = ActionItemRequestType::PickInputOption(PickInputOptionRequest {
+            options: input_options,
+            selected: selected_option,
+        })
+        .to_request("", ACTION_ITEM_ENV)
+        .with_meta_description("Select the environment to target")
+        .with_status(ActionItemStatus::Success(None));
+
         actions.push_sub_group(None, vec![action_request]);
     }
 
@@ -738,14 +726,10 @@ pub async fn build_genesis_panel(
 
     actions.append(&mut pass_result.actions);
 
-    let validate_action = ActionItemRequest::new(
-        &None,
-        "start runbook".into(),
-        None,
-        ActionItemStatus::Todo,
-        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(validated_blocks)),
-        ACTION_ITEM_GENESIS,
-    );
+    let validate_action =
+        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(validated_blocks))
+            .to_request("start runbook", ACTION_ITEM_GENESIS);
+
     actions.push_sub_group(None, vec![validate_action]);
 
     register_action_items_from_actions(&actions, action_item_requests);

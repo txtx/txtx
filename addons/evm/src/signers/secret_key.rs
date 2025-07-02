@@ -7,7 +7,7 @@ use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::SIGNATURE_APPROVED;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
+    ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
@@ -130,6 +130,8 @@ impl SignerImplementation for EvmSecretKeySigner {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use txtx_addon_kit::constants::DESCRIPTION;
+
         use crate::{
             codec::crypto::{mnemonic_to_secret_key_signer, secret_key_to_secret_key_signer},
             constants::CHECKED_ADDRESS,
@@ -140,6 +142,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         if signer_state.get_value(PUBLIC_KEYS).is_some() {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
+        let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
 
         let expected_signer =
             if let Ok(secret_key_bytes) = values.get_expected_buffer_bytes("secret_key") {
@@ -169,15 +172,15 @@ impl SignerImplementation for EvmSecretKeySigner {
             } else {
                 actions.push_sub_group(
                     None,
-                    vec![ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        &format!("Check {} expected address", instance_name),
-                        None,
-                        ActionItemStatus::Todo,
-                        ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
-                            .to_action_type(),
-                        ACTION_ITEM_CHECK_ADDRESS,
-                    )],
+                    vec![ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                        .to_action_type()
+                        .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
+                        .with_construct_did(construct_did)
+                        .with_some_description(description.clone())
+                        .with_meta_description(&format!(
+                            "Check {} expected address",
+                            instance_name
+                        ))],
                 );
             }
         } else {
@@ -213,6 +216,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         construct_did: &ConstructDid,
         title: &str,
         description: &Option<String>,
+        meta_description: &Option<String>,
         payload: &Value,
         _spec: &SignerSpecification,
         values: &ValueStore,
@@ -236,23 +240,22 @@ impl SignerImplementation for EvmSecretKeySigner {
             let formatted_payload =
                 signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
 
-            let request = ActionItemRequest::new(
-                &Some(construct_did.clone()),
-                title,
-                description.clone(),
-                status,
-                ProvideSignedTransactionRequest::new(
-                    &signer_state.uuid,
-                    &payload,
-                    NAMESPACE,
-                    &chain_id.to_string(),
-                )
-                .check_expectation_action_uuid(construct_did)
-                .only_approval_needed()
-                .formatted_payload(formatted_payload)
-                .to_action_type(),
-                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
-            );
+            let request = ProvideSignedTransactionRequest::new(
+                &signer_state.uuid,
+                &payload,
+                NAMESPACE,
+                &chain_id.to_string(),
+            )
+            .check_expectation_action_uuid(construct_did)
+            .only_approval_needed()
+            .formatted_payload(formatted_payload)
+            .to_action_type()
+            .to_request(title, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION)
+            .with_construct_did(construct_did)
+            .with_some_description(description.clone())
+            .with_some_meta_description(meta_description.clone())
+            .with_status(status);
+
             Actions::append_item(
                 request,
                 Some("Review and sign the transactions from the list below"),

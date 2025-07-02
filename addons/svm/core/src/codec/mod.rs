@@ -6,7 +6,7 @@ pub mod send_transaction;
 pub mod ui_encode;
 pub mod utils;
 
-use crate::codec::ui_encode::get_formatted_transaction_description;
+use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::codec::ui_encode::message_data_to_formatted_value;
 use anchor::AnchorProgramArtifacts;
 use bip39::Language;
@@ -317,7 +317,7 @@ impl DeploymentTransaction {
         signer_dids: Vec<ConstructDid>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> Result<Option<(Value, String)>, Diagnostic> {
-        let description = match &self.transaction_type {
+        let meta_description = match &self.transaction_type {
             DeploymentTransactionType::CreateTempAuthority(_) => {
                 "This transaction creates an ephemeral account that will execute the deployment."
             }
@@ -333,8 +333,8 @@ impl DeploymentTransaction {
             DeploymentTransactionType::SkipCloseTempAuthority => return Ok(None),
         };
 
-        let description = get_formatted_transaction_description(
-            &vec![description.to_string()],
+        let meta_description = get_formatted_transaction_meta_description(
+            &vec![meta_description.to_string()],
             &signer_dids,
             signers_instances,
         );
@@ -377,7 +377,7 @@ impl DeploymentTransaction {
             self.transaction.message.header.num_readonly_unsigned_accounts,
         );
 
-        Ok(Some((formatted_transaction, description)))
+        Ok(Some((formatted_transaction, meta_description)))
     }
 
     pub fn get_keypairs(&self) -> Result<Vec<Keypair>, Diagnostic> {

@@ -21,6 +21,7 @@ pub async fn get_additional_actions_for_address(
     expected_address: &Option<Address>,
     signer_did: &ConstructDid,
     instance_name: &str,
+    description: Option<String>,
     rpc_api_url: &str,
     chain_id: u64,
     do_request_public_key: bool,
@@ -42,32 +43,29 @@ pub async fn get_additional_actions_for_address(
     }
 
     if do_request_public_key {
-        action_items.push(ActionItemRequest::new(
-            &Some(signer_did.clone()),
-            &format!("Connect wallet '{instance_name}'"),
-            None,
-            ActionItemStatus::Todo,
+        action_items.push(
             ActionItemRequestType::ProvidePublicKey(ProvidePublicKeyRequest {
                 check_expectation_action_uuid: Some(signer_did.clone()),
                 message: DEFAULT_MESSAGE.to_string(),
                 network_id: chain_id.to_string(),
                 namespace: NAMESPACE.to_string(),
-            }),
-            ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-        ));
+            })
+            .to_request(instance_name, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
+            .with_construct_did(signer_did)
+            .with_some_description(description)
+            .with_meta_description(&format!("Connect wallet '{instance_name}'")),
+        );
     }
 
     if let Some(ref expected_address) = expected_address {
         if do_request_address_check {
-            action_items.push(ActionItemRequest::new(
-                &Some(signer_did.clone()),
-                &format!("Check '{}' expected address", instance_name),
-                None,
-                ActionItemStatus::Todo,
+            action_items.push(
                 ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
-                    .to_action_type(),
-                ACTION_ITEM_CHECK_ADDRESS,
-            ))
+                    .to_action_type()
+                    .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
+                    .with_construct_did(signer_did)
+                    .with_meta_description(&format!("Check '{}' expected address", instance_name)),
+            );
         }
         if do_request_balance {
             let (action_status, value) = match rpc.get_balance(&expected_address).await {
@@ -85,26 +83,22 @@ pub async fn get_additional_actions_for_address(
                     Value::string("N/A".to_string()),
                 ),
             };
-            let check_balance = ActionItemRequest::new(
-                &Some(signer_did.clone()),
-                "Check signer balance (ETH)",
-                None,
-                action_status,
-                ReviewInputRequest::new("", &value).to_action_type(),
-                ACTION_ITEM_CHECK_BALANCE,
-            );
+            let check_balance = ReviewInputRequest::new("", &value)
+                .to_action_type()
+                .to_request(instance_name, ACTION_ITEM_CHECK_BALANCE)
+                .with_construct_did(signer_did)
+                .with_meta_description(&format!("Check '{}' signer balance", instance_name))
+                .with_status(action_status);
             action_items.push(check_balance);
         }
     } else {
         if do_request_balance {
-            let check_balance = ActionItemRequest::new(
-                &Some(signer_did.clone()),
-                "Check signer balance (ETH)",
-                None,
-                ActionItemStatus::Todo,
-                ReviewInputRequest::new("", &Value::string("N/A".to_string())).to_action_type(),
-                ACTION_ITEM_CHECK_BALANCE,
-            );
+            let check_balance = ReviewInputRequest::new("", &Value::string("N/A".to_string()))
+                .to_action_type()
+                .to_request(instance_name, ACTION_ITEM_CHECK_BALANCE)
+                .with_construct_did(signer_did)
+                .with_meta_description(&format!("Check '{}' signer balance", instance_name));
+
             action_items.push(check_balance);
         }
     }

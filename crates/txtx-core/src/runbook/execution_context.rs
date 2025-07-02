@@ -1,3 +1,4 @@
+use kit::constants::DESCRIPTION;
 use kit::types::commands::ConstructInstance;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -14,7 +15,6 @@ use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInstance;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::frontend::ActionItemRequestType;
-use txtx_addon_kit::types::frontend::ActionItemStatus;
 use txtx_addon_kit::types::frontend::BlockEvent;
 use txtx_addon_kit::types::frontend::DisplayOutputRequest;
 use txtx_addon_kit::types::signers::SignerInstance;
@@ -163,24 +163,18 @@ impl RunbookExecutionContext {
                 return LoopEvaluationResult::Continue;
             };
 
-            let description = input_evaluations
-                .inputs
-                .get_string("description")
-                .and_then(|d| Some(d.to_string()));
+            let description =
+                input_evaluations.inputs.get_string(DESCRIPTION).and_then(|d| Some(d.to_string()));
 
             action_items.entry(command_instance.get_group()).or_insert_with(Vec::new).push(
-                ActionItemRequest::new(
-                    &Some(construct_did.clone()),
-                    &command_instance.name,
-                    description.clone(),
-                    ActionItemStatus::Todo,
-                    ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
-                        name: command_instance.name.to_string(),
-                        description,
-                        value: value.clone(),
-                    }),
-                    "output".into(),
-                ),
+                ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                    name: command_instance.name.to_string(),
+                    description: description.clone(),
+                    value: value.clone(),
+                })
+                .to_request(&command_instance.name, "output")
+                .with_construct_did(construct_did)
+                .with_some_description(description),
             );
         }
         LoopEvaluationResult::Continue

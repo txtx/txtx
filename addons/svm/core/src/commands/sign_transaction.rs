@@ -108,10 +108,14 @@ impl CommandImplementation for SignTransaction {
         let signers_instances = signers_instances.clone();
 
         let future = async move {
+            use txtx_addon_kit::constants::META_DESCRIPTION;
+
             let mut actions = Actions::none();
 
             let description =
                 values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+            let meta_description =
+                values.get_expected_string(META_DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
 
             let signers_dids_with_instances =
                 get_signers_and_instance(&values, &signers_instances).unwrap();
@@ -144,6 +148,7 @@ impl CommandImplementation for SignTransaction {
                             &construct_did,
                             &instance_name,
                             &description,
+                            &meta_description,
                             &payload,
                             &signer_instance.specification,
                             &values,

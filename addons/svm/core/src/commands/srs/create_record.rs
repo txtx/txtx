@@ -14,7 +14,7 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::system_program;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::DESCRIPTION;
+use txtx_addon_kit::constants::META_DESCRIPTION;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
@@ -33,7 +33,8 @@ use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::ui_encode::{
-    get_formatted_transaction_description, ix_to_formatted_value, message_data_to_formatted_value,
+    get_formatted_transaction_meta_description, ix_to_formatted_value,
+    message_data_to_formatted_value,
 };
 use crate::commands::get_custom_signer_did;
 use crate::commands::sign_transaction::SignTransaction;
@@ -502,7 +503,7 @@ impl CommandImplementation for ProcessInstructions {
                 message.header.num_readonly_unsigned_accounts,
             );
 
-            let description = get_formatted_transaction_description(
+            let meta_description = get_formatted_transaction_meta_description(
                 &descriptions,
                 &signer_dids,
                 signers_instances,
@@ -518,7 +519,7 @@ impl CommandImplementation for ProcessInstructions {
                 Value::array(signer_dids.iter().map(|d| Value::string(d.to_string())).collect()),
             );
             args.insert(FORMATTED_TRANSACTION, formatted_transaction);
-            args.insert(DESCRIPTION, Value::string(description));
+            args.insert(META_DESCRIPTION, Value::string(meta_description));
 
             signers.push_signer_state(owner_signer_state);
             SignTransaction::check_signed_executability(

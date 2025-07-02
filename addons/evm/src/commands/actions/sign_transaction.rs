@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest,
-};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent, ReviewInputRequest};
 use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
@@ -118,6 +116,8 @@ impl CommandImplementation for SignEvmTransaction {
         let signers_instances = signers_instances.clone();
 
         let future = async move {
+            use txtx_addon_kit::constants::{DESCRIPTION, META_DESCRIPTION};
+
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
@@ -127,7 +127,9 @@ impl CommandImplementation for SignEvmTransaction {
             }
 
             let description =
-                values.get_expected_string("description").ok().and_then(|d| Some(d.to_string()));
+                values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+            let meta_description =
+                values.get_expected_string(META_DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
 
             let already_deployed = signer_state
                 .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
@@ -190,15 +192,12 @@ impl CommandImplementation for SignEvmTransaction {
                     display_payload,
                 );
 
-                let mut action_items = vec![ActionItemRequest::new(
-                    &Some(construct_did.clone()),
-                    "".into(),
-                    Some(format!("Check account nonce")),
-                    ActionItemStatus::Todo,
-                    ReviewInputRequest::new("", &Value::integer(transaction.nonce().into()))
-                        .to_action_type(),
-                    ACTION_ITEM_CHECK_NONCE,
-                )];
+                let mut action_items =
+                    vec![ReviewInputRequest::new("", &Value::integer(transaction.nonce().into()))
+                        .to_action_type()
+                        .to_request(&instance_name, ACTION_ITEM_CHECK_NONCE)
+                        .with_construct_did(&construct_did)
+                        .with_meta_description("Check transaction nonce")];
 
                 if let Some(tx_cost) =
                     signer_state.get_scoped_integer(&construct_did.to_string(), TRANSACTION_COST)
@@ -210,15 +209,13 @@ impl CommandImplementation for SignEvmTransaction {
                             diagnosed_error!("failed to format transaction cost: {e}"),
                         )
                     })?;
-                    action_items.push(ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        "Check transaction cost (Wei)",
-                        None,
-                        ActionItemStatus::Todo,
+                    action_items.push(
                         ReviewInputRequest::new("", &Value::string(formatted_cost))
-                            .to_action_type(),
-                        ACTION_ITEM_CHECK_FEE,
-                    ));
+                            .to_action_type()
+                            .to_request(&instance_name, ACTION_ITEM_CHECK_FEE)
+                            .with_meta_description("Check transaction cost (Wei)")
+                            .with_construct_did(&construct_did),
+                    );
                 }
                 if supervision_context.review_input_values {
                     actions.push_panel("Transaction Execution", "");
@@ -231,6 +228,7 @@ impl CommandImplementation for SignEvmTransaction {
                     &construct_did,
                     &instance_name,
                     &description,
+                    &meta_description,
                     &Value::null(), // null payload because we want to signer to pull the appropriate one from the state
                     &signer.specification,
                     &values,
