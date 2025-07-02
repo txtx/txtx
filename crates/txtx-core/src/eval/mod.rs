@@ -1963,14 +1963,16 @@ pub fn perform_signer_inputs_evaluation(
         CommandInputsEvaluationResult::new(&signer_instance.name, &addon_defaults.store);
     let mut require_user_interaction = false;
     let mut diags = vec![];
-    let inputs = signer_instance.specification.inputs.clone();
+    let inputs = signer_instance.inputs();
     let mut fatal_error = false;
 
     for input in inputs.into_iter() {
+        let input_name = input.name();
+
         // todo(micaiah): this value still needs to be for inputs that are objects
         let previously_evaluated_input = match input_evaluation_results {
             Some(input_evaluation_results) => {
-                input_evaluation_results.inputs.get_value(&input.name)
+                input_evaluation_results.inputs.get_value(&input_name)
             }
             None => None,
         };
@@ -1994,7 +1996,7 @@ pub fn perform_signer_inputs_evaluation(
                         }
 
                         let Some(expr) =
-                            signer_instance.get_expression_from_object_property(&input, &prop)
+                            signer_instance.get_expression_from_object_property(&input_name, &prop)
                         else {
                             continue;
                         };
@@ -2047,7 +2049,7 @@ pub fn perform_signer_inputs_evaluation(
             }
 
             if !object_values.is_empty() {
-                results.insert(&input.name, Value::Object(object_values));
+                results.insert(&input_name, Value::Object(object_values));
             }
         } else if let Some(_) = input.as_array() {
             let mut array_values = vec![];
@@ -2062,7 +2064,7 @@ pub fn perform_signer_inputs_evaluation(
                 }
             }
 
-            let Some(expr) = signer_instance.get_expression_from_input(&input) else {
+            let Some(expr) = signer_instance.get_expression_from_input(&input_name) else {
                 continue;
             };
             let value = match eval_expression(
@@ -2107,16 +2109,16 @@ pub fn perform_signer_inputs_evaluation(
                             references.push(Value::string(construct_did.value().to_string()));
                         }
                     }
-                    results.inputs.insert(&input.name, Value::array(references));
+                    results.inputs.insert(&input_name, Value::array(references));
                     continue;
                 }
             };
-            results.insert(&input.name, value);
+            results.insert(&input_name, value);
         } else {
             let value = if let Some(value) = previously_evaluated_input {
                 value.clone()
             } else {
-                let Some(expr) = signer_instance.get_expression_from_input(&input) else {
+                let Some(expr) = signer_instance.get_expression_from_input(&input_name) else {
                     continue;
                 };
                 match eval_expression(
@@ -2149,7 +2151,7 @@ pub fn perform_signer_inputs_evaluation(
                 }
             };
 
-            results.insert(&input.name, value);
+            results.insert(&input_name, value);
         }
     }
 
