@@ -10,6 +10,8 @@ pub const NESTED_CONSTRUCT_INDEX: &str = "nested_construct_index";
 pub const NESTED_CONSTRUCT_COUNT: &str = "nested_construct_count";
 pub const DESCRIPTION: &str = "description";
 pub const META_DESCRIPTION: &str = "meta_description";
+pub const MARKDOWN: &str = "markdown";
+pub const MARKDOWN_FILEPATH: &str = "markdown_filepath";
 
 pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
 pub const CHECKED_ADDRESS: &str = "checked_address";

@@ -253,6 +253,7 @@ impl SignerImplementation for SvmWebWallet {
         title: &str,
         description: &Option<String>,
         meta_description: &Option<String>,
+        markdown: &Option<String>,
         payload: &Value,
         _spec: &SignerSpecification,
         values: &ValueStore,
@@ -306,6 +307,7 @@ impl SignerImplementation for SvmWebWallet {
         .with_construct_did(construct_did)
         .with_some_description(description.clone())
         .with_some_meta_description(meta_description.clone())
+        .with_some_markdown(markdown.clone())
         .with_status(status);
 
         Ok((

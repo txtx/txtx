@@ -8,6 +8,8 @@ use txtx_addon_kit::types::signers::{
     return_synchronous_ok, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
 use txtx_addon_kit::types::stores::ValueStore;
+#[cfg(not(feature = "wasm"))]
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
@@ -91,6 +93,7 @@ impl CommandImplementation for SignEvmTransaction {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
+        auth_ctx: &AuthorizationContext,
     ) -> SignerActionsFutureResult {
         use alloy::{
             network::TransactionBuilder, primitives::TxKind, rpc::types::TransactionRequest,
@@ -114,6 +117,7 @@ impl CommandImplementation for SignEvmTransaction {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
+        let auth_ctx = auth_ctx.clone();
 
         let future = async move {
             use txtx_addon_kit::constants::{DESCRIPTION, META_DESCRIPTION};
@@ -128,6 +132,9 @@ impl CommandImplementation for SignEvmTransaction {
 
             let description =
                 values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+            let markdown = values
+                .get_markdown(&auth_ctx)
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
             let meta_description =
                 values.get_expected_string(META_DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
 
@@ -229,6 +236,7 @@ impl CommandImplementation for SignEvmTransaction {
                     &instance_name,
                     &description,
                     &meta_description,
+                    &markdown,
                     &Value::null(), // null payload because we want to signer to pull the appropriate one from the state
                     &signer.specification,
                     &values,

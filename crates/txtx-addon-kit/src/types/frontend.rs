@@ -889,6 +889,7 @@ pub struct ActionItemRequest {
     pub construct_instance_name: String,
     pub meta_description: Option<String>,
     pub description: Option<String>,
+    pub markdown: Option<String>,
     pub action_status: ActionItemStatus,
     pub action_type: ActionItemRequestType,
     pub internal_key: String,
@@ -907,6 +908,7 @@ impl ActionItemRequest {
             construct_instance_name: construct_instance_name.to_string(),
             description: None,
             meta_description: None,
+            markdown: None,
             action_status: ActionItemStatus::Todo,
             action_type,
             internal_key: internal_key.to_string(),
@@ -931,7 +933,10 @@ impl ActionItemRequest {
     }
     pub fn with_some_meta_description(mut self, meta_description: Option<String>) -> Self {
         self.meta_description = meta_description;
-        self.recompute_id();
+        self
+    }
+    pub fn with_some_markdown(mut self, markdown: Option<String>) -> Self {
+        self.markdown = markdown;
         self
     }
     pub fn with_construct_did(mut self, construct_did: &ConstructDid) -> Self {

@@ -223,6 +223,7 @@ impl CommandImplementation for ProcessInstructions {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         // used to track all of the signers that need to sign the transaction
         let mut signer_dids = vec![];
@@ -530,6 +531,7 @@ impl CommandImplementation for ProcessInstructions {
                 supervision_context,
                 signers_instances,
                 signers,
+                auth_context,
             )
         }
     }

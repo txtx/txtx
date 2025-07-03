@@ -211,6 +211,7 @@ impl CommandImplementation for ProcessInstructions {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         let signer_did = get_signer_did(args).unwrap();
         let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
@@ -411,6 +412,7 @@ impl CommandImplementation for ProcessInstructions {
                 supervision_context,
                 signers_instances,
                 signers,
+                auth_context,
             )
         } else {
             return_synchronous_actions(Ok((signers, signer_state, Actions::none())))

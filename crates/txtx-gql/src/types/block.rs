@@ -424,6 +424,10 @@ impl GqlActionItemRequest {
         self.action_item.meta_description.clone()
     }
 
+    pub fn markdown(&self) -> Option<String> {
+        self.action_item.markdown.clone()
+    }
+
     pub fn action_status(&self) -> String {
         serde_json::to_string(&self.action_item.action_status).unwrap()
     }

@@ -369,7 +369,9 @@ pub async fn start_supervised_runbook_runloop(
                         let flow_context =
                             runbook.flow_contexts.get_mut(current_flow_index).unwrap();
                         let grouped_actions_items =
-                            flow_context.execution_context.collect_outputs_constructs_results();
+                            flow_context.execution_context.collect_outputs_constructs_results(
+                                &runbook.runtime_context.authorization_context,
+                            );
                         let mut actions = Actions::new_panel("output review", "");
                         for (key, action_items) in grouped_actions_items.into_iter() {
                             actions.push_group(key.as_str(), action_items);

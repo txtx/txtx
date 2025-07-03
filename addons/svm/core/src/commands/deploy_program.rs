@@ -388,6 +388,7 @@ impl CommandImplementation for DeployProgram {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         let nested_construct_did = values.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
 
@@ -463,6 +464,7 @@ impl CommandImplementation for DeployProgram {
                 supervision_context,
                 signers_instances,
                 signers,
+                auth_context,
             );
         } else {
             return return_synchronous((signers, authority_signer_state, Actions::none()));

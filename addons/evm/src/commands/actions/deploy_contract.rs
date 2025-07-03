@@ -291,6 +291,7 @@ impl CommandImplementation for DeployContract {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         use crate::{
             codec::contract_deployment::{
@@ -312,6 +313,7 @@ impl CommandImplementation for DeployContract {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
+        let auth_context = auth_context.clone();
 
         let future = async move {
             let mut actions = Actions::none();
@@ -435,6 +437,7 @@ impl CommandImplementation for DeployContract {
                 &supervision_context,
                 &signers_instances,
                 signers,
+                &auth_context,
             );
             let (signers, signer_state, mut signing_actions) = match future_result {
                 Ok(future) => match future.await {

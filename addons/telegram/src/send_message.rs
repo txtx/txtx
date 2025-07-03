@@ -79,6 +79,7 @@ impl CommandImplementation for TelegramSendMessage {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none()) // todo
     }

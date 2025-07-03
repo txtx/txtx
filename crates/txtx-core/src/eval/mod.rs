@@ -637,6 +637,7 @@ pub async fn evaluate_command_instance(
                         &action_item_responses.get(&construct_did),
                         &action_item_requests.get(&construct_did),
                         supervision_context,
+                        &runtime_context.authorization_context,
                     )
                     .await;
 
@@ -712,6 +713,7 @@ pub async fn evaluate_command_instance(
                     &mut runbook_execution_context.signers_instances,
                     &action_item_responses.get(&construct_did),
                     supervision_context,
+                    &runtime_context.authorization_context,
                 ) {
                     Ok(mut new_actions) => {
                         if new_actions.has_pending_actions() {
