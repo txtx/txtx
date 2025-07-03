@@ -456,6 +456,21 @@ lazy_static! {
             tainting: true
         }
     };
+
+    pub static ref SET_PROGRAM_AUTHORITY: Type = define_strict_map_type! {
+        program_id: {
+            documentation: "The public key of the program to set the authority for.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        authority: {
+            documentation: "The new authority for the program. If not provided, program's authority will be set to None.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        }
+    };
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
