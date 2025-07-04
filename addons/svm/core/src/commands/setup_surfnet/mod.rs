@@ -1,5 +1,6 @@
 pub mod clone_program_account;
 mod set_account;
+mod set_program_authority;
 mod set_token_account;
 mod tokens;
 
@@ -22,8 +23,11 @@ use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_network_svm_types::{CLONE_PROGRAM_ACCOUNT, SET_ACCOUNT_MAP, SET_TOKEN_ACCOUNT_MAP};
+use txtx_addon_network_svm_types::{
+    CLONE_PROGRAM_ACCOUNT, SET_ACCOUNT_MAP, SET_PROGRAM_AUTHORITY, SET_TOKEN_ACCOUNT_MAP,
+};
 
+use crate::commands::setup_surfnet::set_program_authority::SurfpoolSetProgramAuthority;
 use crate::constants::RPC_API_URL;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -92,6 +96,14 @@ lazy_static! {
                         tainting: false,
                         internal: false,
                         sensitive: false
+                    },
+                    set_program_authority: {
+                        documentation: "The program authority data to set.",
+                        typing: SET_PROGRAM_AUTHORITY.clone(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
                     }
                 ],
                 outputs: [],
@@ -109,6 +121,10 @@ lazy_static! {
                         clone_program_account {
                             source_program_id = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC program id
                             destination_program_id = variable.my_program_id
+                        }
+                        set_program_authority {
+                            program_id = variable.my_program_id
+                            authority = signer.caller.public_key
                         }
                     }
                 "#},
@@ -194,6 +210,14 @@ impl CommandImplementation for SetupSurfpool {
             let program_account_clones = SurfpoolProgramCloning::parse_value_store(&values)?;
             SurfpoolProgramCloning::process_updates(
                 program_account_clones,
+                &rpc_client,
+                &mut status_updater,
+            )
+            .await?;
+
+            let set_authorities = SurfpoolSetProgramAuthority::parse_value_store(&values)?;
+            SurfpoolSetProgramAuthority::process_updates(
+                set_authorities,
                 &rpc_client,
                 &mut status_updater,
             )
