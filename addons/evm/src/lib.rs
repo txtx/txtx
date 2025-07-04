@@ -11,6 +11,7 @@ mod codec;
 mod commands;
 #[allow(dead_code)]
 mod constants;
+mod errors;
 mod functions;
 pub mod rpc;
 mod signers;
