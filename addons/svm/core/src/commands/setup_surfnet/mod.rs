@@ -28,7 +28,7 @@ use txtx_addon_network_svm_types::{
 };
 
 use crate::commands::setup_surfnet::set_program_authority::SurfpoolSetProgramAuthority;
-use crate::constants::{NETWORK_ID, RPC_API_URL};
+use crate::constants::RPC_API_URL;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
@@ -67,14 +67,6 @@ lazy_static! {
                     },
                     rpc_api_url: {
                         documentation: "The URL to use when making API requests.",
-                        typing: Type::string(),
-                        optional: false,
-                        tainting: false,
-                        internal: false,
-                        sensitive: false
-                    },
-                    network_id: {
-                        documentation: "The ID of the network type. Can be `localnet`, `devnet`, or `mainnet-beta`.",
                         typing: Type::string(),
                         optional: false,
                         tainting: false,
@@ -179,11 +171,6 @@ impl CommandImplementation for SetupSurfpool {
 
             let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
 
-            let network_id = values.get_expected_string(NETWORK_ID)?;
-
-            if !network_id.eq("localnet") {
-                return Err(diagnosed_error!("`network_id` must be `localnet`"));
-            }
             let rpc_client = RpcClient::new(rpc_api_url.to_string());
 
             let version = rpc_client
