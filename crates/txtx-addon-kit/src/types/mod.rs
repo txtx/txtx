@@ -20,6 +20,7 @@ pub mod cloud_interface;
 pub mod commands;
 pub mod diagnostics;
 pub mod embedded_runbooks;
+pub mod errors;
 pub mod frontend;
 pub mod functions;
 pub mod package;
