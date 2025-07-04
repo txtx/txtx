@@ -15035,6 +15035,7 @@ dependencies = [
  "ctrlc",
  "dialoguer",
  "dotenvy",
+ "error-stack",
  "hiro-system-kit 0.3.4",
  "itertools 0.12.1",
  "openssl",
