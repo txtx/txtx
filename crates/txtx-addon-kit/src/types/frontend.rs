@@ -279,7 +279,7 @@ impl Display for Block {
                     for sub_group in group.sub_groups.iter() {
                         writeln!(f, "    sub_group: {{")?;
                         for item in sub_group.action_items.iter() {
-                            writeln!(f, "          title: {:?}", item.title)?;
+                            writeln!(f, "          title: {:?}", item.construct_instance_name)?;
                             writeln!(f, "          consctruct: {:?}", item.construct_did)?;
                             writeln!(f, "          status: {:?}", item.action_status)?;
                             writeln!(f, "          action: {:?}", item.action_type)?;
@@ -298,7 +298,7 @@ impl Display for Block {
                     for sub_group in group.sub_groups.iter() {
                         writeln!(f, "    sub_group: {{")?;
                         for item in sub_group.action_items.iter() {
-                            writeln!(f, "          title: {:?}", item.title)?;
+                            writeln!(f, "          title: {:?}", item.construct_instance_name)?;
                             writeln!(f, "          consctruct: {:?}", item.construct_did)?;
                             writeln!(f, "          status: {:?}", item.action_status)?;
                             writeln!(f, "          action: {:?}", item.action_type)?;
@@ -715,16 +715,12 @@ impl ErrorPanelData {
     pub fn from_diagnostics(diagnostics: &Vec<Diagnostic>) -> Self {
         let mut diag_actions = vec![];
         for (i, diag) in diagnostics.iter().enumerate() {
-            let mut action = ActionItemRequest::new(
-                &None,
-                "",
-                None,
-                ActionItemStatus::Error(diag.clone()),
-                ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
-                    diagnostic: diag.clone(),
-                }),
-                "diagnostic",
-            );
+            let mut action = ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
+                diagnostic: diag.clone(),
+            })
+            .to_request("", "diagnostic")
+            .with_status(ActionItemStatus::Error(diag.clone()));
+
             action.index = (i + 1) as u16;
             diag_actions.push(action);
         }
@@ -890,41 +886,78 @@ pub struct ActionItemRequest {
     pub id: BlockId,
     pub construct_did: Option<ConstructDid>,
     pub index: u16,
-    pub title: String,
+    pub construct_instance_name: String,
+    pub meta_description: Option<String>,
     pub description: Option<String>,
+    pub markdown: Option<String>,
     pub action_status: ActionItemStatus,
     pub action_type: ActionItemRequestType,
     pub internal_key: String,
 }
 
 impl ActionItemRequest {
-    pub fn new(
-        construct_did: &Option<ConstructDid>,
-        title: &str,
-        description: Option<String>,
-        action_status: ActionItemStatus,
-        action_type: ActionItemRequestType,
+    fn new(
+        construct_instance_name: &str,
         internal_key: &str,
+        action_type: ActionItemRequestType,
     ) -> Self {
-        let data = format!(
-            "{}-{}-{}-{}-{}",
-            title,
-            description.clone().unwrap_or("".into()),
-            internal_key,
-            construct_did.as_ref().and_then(|did| Some(did.to_string())).unwrap_or("".into()),
-            action_type.get_block_id_string()
-        );
-        let id = BlockId::new(data.as_bytes());
-        ActionItemRequest {
-            id,
-            construct_did: construct_did.clone(),
+        let mut req = ActionItemRequest {
+            id: BlockId::new("empty".as_bytes()),
+            construct_did: None,
             index: 0,
-            title: title.to_string(),
-            description,
-            action_status,
+            construct_instance_name: construct_instance_name.to_string(),
+            description: None,
+            meta_description: None,
+            markdown: None,
+            action_status: ActionItemStatus::Todo,
             action_type,
             internal_key: internal_key.to_string(),
-        }
+        };
+        req.recompute_id();
+        req
+    }
+    pub fn with_description(mut self, description: &str) -> Self {
+        self.description = Some(description.to_string());
+        self.recompute_id();
+        self
+    }
+    pub fn with_some_description(mut self, description: Option<String>) -> Self {
+        self.description = description;
+        self.recompute_id();
+        self
+    }
+    pub fn with_meta_description(mut self, meta_description: &str) -> Self {
+        self.meta_description = Some(meta_description.to_string());
+        self.recompute_id();
+        self
+    }
+    pub fn with_some_meta_description(mut self, meta_description: Option<String>) -> Self {
+        self.meta_description = meta_description;
+        self
+    }
+    pub fn with_some_markdown(mut self, markdown: Option<String>) -> Self {
+        self.markdown = markdown;
+        self
+    }
+    pub fn with_construct_did(mut self, construct_did: &ConstructDid) -> Self {
+        self.construct_did = Some(construct_did.clone());
+        self.recompute_id();
+        self
+    }
+    pub fn with_status(mut self, action_status: ActionItemStatus) -> Self {
+        self.action_status = action_status;
+        self
+    }
+    pub fn recompute_id(&mut self) {
+        let data = format!(
+            "{}-{}-{}-{}-{}",
+            self.construct_instance_name,
+            self.description.clone().unwrap_or("".into()),
+            self.internal_key,
+            self.construct_did.as_ref().and_then(|did| Some(did.to_string())).unwrap_or("".into()),
+            self.action_type.get_block_id_string()
+        );
+        self.id = BlockId::new(data.as_bytes());
     }
 }
 
@@ -1052,18 +1085,13 @@ impl Actions {
                 title: "".to_string(),
                 sub_groups: vec![ActionSubGroup {
                     title: None,
-                    action_items: vec![ActionItemRequest::new(
-                        &None,
-                        "",
-                        None,
-                        ActionItemStatus::Success(None),
-                        ActionItemRequestType::BeginFlow(FlowBlockData {
-                            index: flow_index,
-                            name: flow_name.to_string(),
-                            description: flow_description.clone(),
-                        }),
-                        ACTION_ITEM_BEGIN_FLOW,
-                    )],
+                    action_items: vec![ActionItemRequestType::BeginFlow(FlowBlockData {
+                        index: flow_index,
+                        name: flow_name.to_string(),
+                        description: flow_description.clone(),
+                    })
+                    .to_request("", ACTION_ITEM_BEGIN_FLOW)
+                    .with_status(ActionItemStatus::Success(None))],
                     allow_batch_completion: false,
                 }],
             }],
@@ -1493,6 +1521,13 @@ pub enum ActionItemRequestType {
 }
 
 impl ActionItemRequestType {
+    pub fn to_request(
+        self,
+        construct_instance_name: &str,
+        internal_key: &str,
+    ) -> ActionItemRequest {
+        ActionItemRequest::new(construct_instance_name, internal_key, self)
+    }
     pub fn as_review_input(&self) -> Option<&ReviewInputRequest> {
         match &self {
             ActionItemRequestType::ReviewInput(value) => Some(value),

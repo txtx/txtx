@@ -408,12 +408,24 @@ impl GqlActionItemRequest {
         self.action_item.index.clone() as i32
     }
 
-    pub fn title(&self) -> String {
-        self.action_item.title.clone()
+    pub fn construct_instance_name(&self) -> String {
+        self.action_item.construct_instance_name.clone()
+    }
+
+    pub fn internal_key(&self) -> String {
+        self.action_item.internal_key.clone()
     }
 
     pub fn description(&self) -> Option<String> {
         self.action_item.description.clone()
+    }
+
+    pub fn meta_description(&self) -> Option<String> {
+        self.action_item.meta_description.clone()
+    }
+
+    pub fn markdown(&self) -> Option<String> {
+        self.action_item.markdown.clone()
     }
 
     pub fn action_status(&self) -> String {

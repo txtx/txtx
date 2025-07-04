@@ -47,7 +47,7 @@ fn test_signer_runbook_no_env() {
     };
 
     let start_runbook = &action_panel_data.groups[0].sub_groups[1].action_items[0];
-    assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
+    assert_eq!(start_runbook.construct_instance_name.to_uppercase(), "START RUNBOOK");
 
     // Complete start_runbook action
     let _ = harness.send_and_expect_action_item_update(
@@ -199,14 +199,20 @@ fn test_multisig_runbook_no_env() {
         else {
             panic!("expected provide public key request");
         };
-        assert_eq!(&get_public_key_alice.title.to_uppercase(), "CONNECT WALLET 'ALICE'");
+        assert_eq!(
+            &get_public_key_alice.construct_instance_name.to_uppercase(),
+            "CONNECT WALLET 'ALICE'"
+        );
 
         assert_eq!(get_public_key_bob.action_status, ActionItemStatus::Todo);
         let ActionItemRequestType::ProvidePublicKey(_request) = &get_public_key_bob.action_type
         else {
             panic!("expected provide public key request");
         };
-        assert_eq!(&get_public_key_bob.title.to_uppercase(), "CONNECT WALLET 'BOB'");
+        assert_eq!(
+            &get_public_key_bob.construct_instance_name.to_uppercase(),
+            "CONNECT WALLET 'BOB'"
+        );
     }
 
     let verify_address_alice = &action_panel_data.groups[1].sub_groups[0].action_items[0];
@@ -214,7 +220,10 @@ fn test_multisig_runbook_no_env() {
     let compute_multisig = &action_panel_data.groups[1].sub_groups[1].action_items[0];
     let verify_balance = &action_panel_data.groups[1].sub_groups[1].action_items[1];
     assert_eq!(compute_multisig.action_status, ActionItemStatus::Todo);
-    assert_eq!(compute_multisig.title.to_uppercase(), "COMPUTED MULTISIG ADDRESS");
+    assert_eq!(
+        compute_multisig.construct_instance_name.to_uppercase(),
+        "COMPUTED MULTISIG ADDRESS"
+    );
 
     harness.send_and_expect_action_item_update(
         ActionItemResponse {

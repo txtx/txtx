@@ -75,7 +75,7 @@ pub fn get_formatted_signer_names(
     signer_names
 }
 
-pub fn get_formatted_transaction_description(
+pub fn get_formatted_transaction_meta_description(
     descriptions: &Vec<String>,
     signer_dids: &Vec<ConstructDid>,
     signers_instances: &HashMap<ConstructDid, SignerInstance>,

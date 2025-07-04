@@ -1,4 +1,7 @@
+use kit::constants::DESCRIPTION;
 use kit::types::commands::ConstructInstance;
+use kit::types::frontend::DisplayErrorLogRequest;
+use kit::types::AuthorizationContext;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use txtx_addon_kit::channel::unbounded;
@@ -14,7 +17,6 @@ use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInstance;
 use txtx_addon_kit::types::frontend::ActionItemRequest;
 use txtx_addon_kit::types::frontend::ActionItemRequestType;
-use txtx_addon_kit::types::frontend::ActionItemStatus;
 use txtx_addon_kit::types::frontend::BlockEvent;
 use txtx_addon_kit::types::frontend::DisplayOutputRequest;
 use txtx_addon_kit::types::signers::SignerInstance;
@@ -107,7 +109,10 @@ impl RunbookExecutionContext {
         false
     }
 
-    pub fn collect_outputs_constructs_results(&self) -> IndexMap<String, Vec<ActionItemRequest>> {
+    pub fn collect_outputs_constructs_results(
+        &self,
+        auth_context: &AuthorizationContext,
+    ) -> IndexMap<String, Vec<ActionItemRequest>> {
         let mut action_items = IndexMap::new();
 
         for construct_did in self.order_for_commands_execution.iter() {
@@ -116,6 +121,7 @@ impl RunbookExecutionContext {
                     &construct_did,
                     command_instance,
                     &mut action_items,
+                    auth_context,
                 ) {
                     LoopEvaluationResult::Continue => continue,
                     LoopEvaluationResult::Bail => return action_items,
@@ -132,6 +138,7 @@ impl RunbookExecutionContext {
                         construct_did,
                         command_instance,
                         &mut action_items,
+                        auth_context,
                     );
                     match res {
                         LoopEvaluationResult::Continue => continue,
@@ -148,6 +155,7 @@ impl RunbookExecutionContext {
         construct_did: &ConstructDid,
         command_instance: &CommandInstance,
         action_items: &mut IndexMap<String, Vec<ActionItemRequest>>,
+        auth_context: &AuthorizationContext,
     ) -> LoopEvaluationResult {
         if command_instance.specification.name.to_lowercase().eq("output") {
             let Some(execution_result) = self.commands_execution_results.get(&construct_did) else {
@@ -163,24 +171,36 @@ impl RunbookExecutionContext {
                 return LoopEvaluationResult::Continue;
             };
 
-            let description = input_evaluations
-                .inputs
-                .get_string("description")
-                .and_then(|d| Some(d.to_string()));
+            let description =
+                input_evaluations.inputs.get_string(DESCRIPTION).and_then(|d| Some(d.to_string()));
+            let markdown = match input_evaluations.inputs.get_markdown(&auth_context) {
+                Ok(md) => md,
+                Err(e) => {
+                    action_items.entry(command_instance.get_group()).or_insert_with(Vec::new).push(
+                        ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
+                            diagnostic: diagnosed_error!(
+                                "Error displaying output markdown documentation for `{}`: {}",
+                                command_instance.name,
+                                e.message
+                            ),
+                        })
+                        .to_request(&command_instance.name, "output")
+                        .with_construct_did(construct_did),
+                    );
+                    None
+                }
+            };
 
             action_items.entry(command_instance.get_group()).or_insert_with(Vec::new).push(
-                ActionItemRequest::new(
-                    &Some(construct_did.clone()),
-                    &command_instance.name,
-                    description.clone(),
-                    ActionItemStatus::Todo,
-                    ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
-                        name: command_instance.name.to_string(),
-                        description,
-                        value: value.clone(),
-                    }),
-                    "output".into(),
-                ),
+                ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                    name: command_instance.name.to_string(),
+                    description: description.clone(),
+                    value: value.clone(),
+                })
+                .to_request(&command_instance.name, "output")
+                .with_construct_did(construct_did)
+                .with_some_description(description)
+                .with_some_markdown(markdown),
             );
         }
         LoopEvaluationResult::Continue
@@ -381,6 +401,7 @@ impl RunbookExecutionContext {
                 &mut self.signers_instances,
                 &None,
                 supervision_context,
+                &runtime_context.authorization_context,
             ) {
                 Ok(new_actions) => {
                     if new_actions.has_pending_actions() {

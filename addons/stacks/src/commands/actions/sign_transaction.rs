@@ -228,30 +228,22 @@ impl CommandImplementation for SignStacksTransaction {
                         .clone()
                         .unwrap_or("Review and sign the transactions from the list below".into()),
                     vec![
-                        ActionItemRequest::new(
-                            &Some(construct_did.clone()),
+                        ReviewInputRequest::new(
+                            "",
+                            &Value::integer(transaction.get_origin_nonce() as i128),
+                        )
+                        .to_action_type()
+                        .to_request(&instance_name, ACTION_ITEM_CHECK_NONCE)
+                        .with_construct_did(&construct_did)
+                        .with_meta_description("Check account nonce"),
+                        ReviewInputRequest::new(
                             "".into(),
-                            Some(format!("Check account nonce")),
-                            ActionItemStatus::Todo,
-                            ReviewInputRequest::new(
-                                "",
-                                &Value::integer(transaction.get_origin_nonce() as i128),
-                            )
-                            .to_action_type(),
-                            ACTION_ITEM_CHECK_NONCE,
-                        ),
-                        ActionItemRequest::new(
-                            &Some(construct_did.clone()),
-                            "µSTX".into(),
-                            Some(format!("Check transaction fee")),
-                            ActionItemStatus::Todo,
-                            ReviewInputRequest::new(
-                                "".into(),
-                                &Value::integer(transaction.get_tx_fee() as i128),
-                            )
-                            .to_action_type(),
-                            ACTION_ITEM_CHECK_FEE,
-                        ),
+                            &Value::integer(transaction.get_tx_fee() as i128),
+                        )
+                        .to_action_type()
+                        .to_request("µSTX", ACTION_ITEM_CHECK_FEE)
+                        .with_construct_did(&construct_did)
+                        .with_meta_description("Check transaction fee"),
                     ],
                 )
             }

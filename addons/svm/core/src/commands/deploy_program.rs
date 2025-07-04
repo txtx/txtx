@@ -7,7 +7,7 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
-    DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID, NESTED_CONSTRUCT_INDEX,
+    META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID, NESTED_CONSTRUCT_INDEX,
     SIGNED_TRANSACTION_BYTES,
 };
 use txtx_addon_kit::indexmap::IndexMap;
@@ -388,6 +388,7 @@ impl CommandImplementation for DeployProgram {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         let nested_construct_did = values.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
 
@@ -451,9 +452,9 @@ impl CommandImplementation for DeployProgram {
                         diagnosed_error!("failed to get formatted transaction: {}", e),
                     )
                 })?;
-            if let Some((formatted_transaction, description)) = formatted_transaction {
+            if let Some((formatted_transaction, meta_description)) = formatted_transaction {
                 values.insert(FORMATTED_TRANSACTION, formatted_transaction);
-                values.insert(DESCRIPTION, Value::string(description));
+                values.insert(META_DESCRIPTION, Value::string(meta_description));
             }
             return SignTransaction::check_signed_executability(
                 construct_did,
@@ -463,6 +464,7 @@ impl CommandImplementation for DeployProgram {
                 supervision_context,
                 signers_instances,
                 signers,
+                auth_context,
             );
         } else {
             return return_synchronous((signers, authority_signer_state, Actions::none()));

@@ -14,6 +14,8 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
+#[cfg(not(feature = "wasm"))]
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 
@@ -96,6 +98,7 @@ impl CommandImplementation for SignTransaction {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
+        auth_context: &AuthorizationContext,
     ) -> SignerActionsFutureResult {
         use txtx_addon_kit::constants::{DESCRIPTION, SIGNATURE_APPROVED};
 
@@ -106,12 +109,18 @@ impl CommandImplementation for SignTransaction {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
+        let auth_context = auth_context.clone();
 
         let future = async move {
+            use txtx_addon_kit::constants::META_DESCRIPTION;
+
             let mut actions = Actions::none();
 
             let description =
                 values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+            let markdown_res = values.get_markdown(&auth_context);
+            let meta_description =
+                values.get_expected_string(META_DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
 
             let signers_dids_with_instances =
                 get_signers_and_instance(&values, &signers_instances).unwrap();
@@ -139,11 +148,17 @@ impl CommandImplementation for SignTransaction {
                         );
                     };
 
+                    let markdown = markdown_res
+                        .clone()
+                        .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
                     let (new_signers, new_signer_state, mut signer_actions) =
                         (signer_instance.specification.check_signability)(
                             &construct_did,
                             &instance_name,
                             &description,
+                            &meta_description,
+                            &markdown,
                             &payload,
                             &signer_instance.specification,
                             &values,

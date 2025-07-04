@@ -17,10 +17,13 @@ use hcl_edit::{expr::Expression, structure::Block, Span};
 use indexmap::IndexMap;
 
 use crate::{
-    constants::{SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES},
+    constants::{
+        DESCRIPTION, MARKDOWN, MARKDOWN_FILEPATH, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
+    },
     helpers::hcl::{
         collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
+    types::AuthorizationContext,
 };
 use crate::{helpers::hcl::get_object_expression_key, types::stores::ValueStore};
 
@@ -388,11 +391,35 @@ impl CommandSpecification {
     pub fn default_inputs() -> Vec<CommandInput> {
         vec![
             CommandInput {
-                name: "description".into(),
+                name: DESCRIPTION.into(),
                 documentation: "Allows you to describe and comment steps of your runbook".into(),
                 typing: Type::string(),
                 optional: true,
-                tainting: true,
+                tainting: false,
+                internal: false,
+                check_performed: false,
+                check_required: false,
+                sensitive: false,
+                self_referencing: false,
+            },
+            CommandInput {
+                name: MARKDOWN.into(),
+                documentation: "Allows you to describe and comment steps of your runbook with in-line markdown".into(),
+                typing: Type::string(),
+                optional: true,
+                tainting: false,
+                internal: false,
+                check_performed: false,
+                check_required: false,
+                sensitive: false,
+                self_referencing: false,
+            },
+            CommandInput {
+                name: MARKDOWN_FILEPATH.into(),
+                documentation: "Allows you to describe and comment steps of your runbook with a reference to a markdown file in the filesystem".into(),
+                typing: Type::string(),
+                optional: true,
+                tainting: false,
                 internal: false,
                 check_performed: false,
                 check_required: false,
@@ -552,6 +579,7 @@ pub type CommandCheckExecutabilityClosure = fn(
     &CommandSpecification,
     &ValueStore,
     &RunbookSupervisionContext,
+    &AuthorizationContext,
 ) -> Result<Actions, Diagnostic>;
 
 pub type CommandCheckSignedExecutabilityClosure = fn(
@@ -562,6 +590,7 @@ pub type CommandCheckSignedExecutabilityClosure = fn(
     &RunbookSupervisionContext,
     &HashMap<ConstructDid, SignerInstance>,
     SignersState,
+    &AuthorizationContext,
 ) -> SignerActionsFutureResult;
 
 pub type CommandEvaluatePreConditions = fn(
@@ -755,6 +784,7 @@ impl WithEvaluatableInputs for CommandInstance {
         self.specification
             .inputs
             .iter()
+            .chain(self.specification.default_inputs.iter())
             .filter_map(|x| {
                 if x.self_referencing {
                     None
@@ -813,6 +843,7 @@ impl CommandInstance {
         _signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         supervision_context: &RunbookSupervisionContext,
+        auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         let mut values = ValueStore::new(
             &format!("{}_inputs", self.specification.matcher),
@@ -894,6 +925,7 @@ impl CommandInstance {
                 &spec,
                 &values,
                 &supervision_context,
+                auth_context,
             )?;
             consolidated_actions.append(&mut actions);
         }
@@ -1003,6 +1035,7 @@ impl CommandInstance {
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         supervision_context: &RunbookSupervisionContext,
+        auth_ctx: &AuthorizationContext,
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
@@ -1071,6 +1104,7 @@ impl CommandInstance {
             &supervision_context,
             signer_instances,
             signers,
+            auth_ctx,
         );
         let (signer_state, mut actions) =
             consolidate_signer_future_result(future, self.block.span()).await?;
@@ -1307,6 +1341,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
@@ -1328,6 +1363,7 @@ pub trait CommandImplementation {
         _supervision_context: &RunbookSupervisionContext,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _signers_state: SignersState,
+        _auth_ctx: &AuthorizationContext,
     ) -> SignerActionsFutureResult {
         unimplemented!()
     }

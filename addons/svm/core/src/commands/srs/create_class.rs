@@ -13,7 +13,7 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::system_program;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::DESCRIPTION;
+use txtx_addon_kit::constants::META_DESCRIPTION;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
@@ -32,7 +32,8 @@ use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::ui_encode::{
-    get_formatted_transaction_description, ix_to_formatted_value, message_data_to_formatted_value,
+    get_formatted_transaction_meta_description, ix_to_formatted_value,
+    message_data_to_formatted_value,
 };
 use crate::commands::get_signer_did;
 use crate::commands::sign_transaction::SignTransaction;
@@ -210,6 +211,7 @@ impl CommandImplementation for ProcessInstructions {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         let signer_did = get_signer_did(args).unwrap();
         let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
@@ -390,7 +392,7 @@ impl CommandImplementation for ProcessInstructions {
             let transaction = SvmValue::transaction(&Transaction::new_unsigned(message))
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-            let description = get_formatted_transaction_description(
+            let meta_description = get_formatted_transaction_meta_description(
                 &descriptions,
                 &vec![signer_did],
                 signers_instances,
@@ -399,7 +401,7 @@ impl CommandImplementation for ProcessInstructions {
             let mut args = args.clone();
             args.insert(TRANSACTION_BYTES, transaction);
             args.insert(FORMATTED_TRANSACTION, formatted_transaction);
-            args.insert(DESCRIPTION, Value::string(description));
+            args.insert(META_DESCRIPTION, Value::string(meta_description));
 
             signers.push_signer_state(signer_state);
             SignTransaction::check_signed_executability(
@@ -410,6 +412,7 @@ impl CommandImplementation for ProcessInstructions {
                 supervision_context,
                 signers_instances,
                 signers,
+                auth_context,
             )
         } else {
             return_synchronous_actions(Ok((signers, signer_state, Actions::none())))

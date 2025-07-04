@@ -177,6 +177,8 @@ pub type SignerCheckSignabilityClosure = fn(
     &ConstructDid,
     &str,
     &Option<String>,
+    &Option<String>,
+    &Option<String>,
     &Value,
     &SignerSpecification,
     &ValueStore,
@@ -326,8 +328,8 @@ impl SignerInstance {
     }
 
     /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
-    pub fn get_expression_from_input(&self, input: &CommandInput) -> Option<Expression> {
-        visit_optional_untyped_attribute(&input.name, &self.block)
+    pub fn get_expression_from_input(&self, input_name: &str) -> Option<Expression> {
+        visit_optional_untyped_attribute(&input_name, &self.block)
     }
 
     pub fn get_group(&self) -> String {
@@ -339,10 +341,10 @@ impl SignerInstance {
 
     pub fn get_expression_from_object_property(
         &self,
-        input: &CommandInput,
+        input_name: &str,
         prop: &ObjectProperty,
     ) -> Option<Expression> {
-        let object = self.block.body.get_blocks(&input.name).next();
+        let object = self.block.body.get_blocks(&input_name).next();
         match object {
             Some(block) => {
                 let expr_res = visit_optional_untyped_attribute(&prop.name, &block);
@@ -513,6 +515,8 @@ pub trait SignerImplementation {
         _caller_uuid: &ConstructDid,
         _title: &str,
         _description: &Option<String>,
+        _meta_description: &Option<String>,
+        _markdown: &Option<String>,
         _payload: &Value,
         _spec: &SignerSpecification,
         _values: &ValueStore,

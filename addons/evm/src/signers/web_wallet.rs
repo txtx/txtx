@@ -4,8 +4,8 @@ use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::TX_HASH;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestUpdate, ActionItemStatus, Actions, BlockEvent,
-    ReviewInputRequest, SendTransactionRequest,
+    ActionItemRequestUpdate, ActionItemStatus, Actions, BlockEvent, ReviewInputRequest,
+    SendTransactionRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous_actions, return_synchronous_result, CheckSignabilityOk, SignerActionErr,
@@ -108,7 +108,7 @@ impl SignerImplementation for EvmWebWallet {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::constants::PROVIDE_PUBLIC_KEY_ACTION_RESULT;
+        use txtx_addon_kit::constants::{DESCRIPTION, PROVIDE_PUBLIC_KEY_ACTION_RESULT};
 
         use crate::{
             codec::{
@@ -150,6 +150,7 @@ impl SignerImplementation for EvmWebWallet {
             .get_expected_string(RPC_API_URL)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
+        let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
 
         if let Ok(ref signed_message_hex) =
             values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
@@ -206,6 +207,7 @@ impl SignerImplementation for EvmWebWallet {
                 &expected_address,
                 &signer_did,
                 &instance_name,
+                description,
                 &rpc_api_url,
                 chain_id,
                 do_request_public_key,
@@ -262,6 +264,8 @@ impl SignerImplementation for EvmWebWallet {
         construct_did: &ConstructDid,
         title: &str,
         description: &Option<String>,
+        meta_description: &Option<String>,
+        markdown: &Option<String>,
         _payload: &Value,
         _spec: &SignerSpecification,
         values: &ValueStore,
@@ -286,14 +290,15 @@ impl SignerImplementation for EvmWebWallet {
             let contract_address = signer_state
                 .get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS)
                 .unwrap();
-            let request = ActionItemRequest::new(
-                &Some(construct_did.clone()),
-                title,
-                description.clone(),
-                ActionItemStatus::Todo,
-                ReviewInputRequest::new("", contract_address).force_execution().to_action_type(),
-                "action_item_review_deployed_contract",
-            );
+
+            let request = ReviewInputRequest::new("", contract_address)
+                .force_execution()
+                .to_action_type()
+                .to_request(title, "action_item_review_deployed_contract")
+                .with_construct_did(construct_did)
+                .with_some_description(description.clone())
+                .with_some_meta_description(meta_description.clone());
+
             Actions::append_item(
                 request,
                 Some("The following contract has already been deployed"),
@@ -325,23 +330,23 @@ impl SignerImplementation for EvmWebWallet {
             let formatted_payload =
                 signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
 
-            let request = ActionItemRequest::new(
-                &Some(construct_did.clone()),
-                title,
-                description.clone(),
-                status,
-                SendTransactionRequest::new(
-                    &signer_state.uuid,
-                    &payload,
-                    NAMESPACE,
-                    &chain_id.to_string(),
-                )
-                .expected_signer_address(expected_signer_address)
-                .check_expectation_action_uuid(construct_did)
-                .formatted_payload(formatted_payload)
-                .to_action_type(),
-                ACTION_ITEM_SEND_TRANSACTION,
-            );
+            let request = SendTransactionRequest::new(
+                &signer_state.uuid,
+                &payload,
+                NAMESPACE,
+                &chain_id.to_string(),
+            )
+            .expected_signer_address(expected_signer_address)
+            .check_expectation_action_uuid(construct_did)
+            .formatted_payload(formatted_payload)
+            .to_action_type()
+            .to_request(title, ACTION_ITEM_SEND_TRANSACTION)
+            .with_construct_did(construct_did)
+            .with_some_description(description.clone())
+            .with_some_meta_description(meta_description.clone())
+            .with_some_markdown(markdown.clone())
+            .with_status(status);
+
             Actions::append_item(
                 request,
                 Some("Review and send the transactions from the list below"),

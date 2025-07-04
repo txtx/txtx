@@ -591,8 +591,9 @@ impl Runbook {
     pub fn collect_formatted_outputs(&self) -> RunbookOutputs {
         let mut runbook_outputs = RunbookOutputs::new();
         for flow_context in self.flow_contexts.iter() {
-            let grouped_actions_items =
-                flow_context.execution_context.collect_outputs_constructs_results();
+            let grouped_actions_items = flow_context
+                .execution_context
+                .collect_outputs_constructs_results(&self.runtime_context.authorization_context);
             for (_, items) in grouped_actions_items.iter() {
                 for item in items.iter() {
                     if let ActionItemRequestType::DisplayOutput(ref output) = item.action_type {

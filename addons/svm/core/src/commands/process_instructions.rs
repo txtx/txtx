@@ -130,6 +130,7 @@ impl CommandImplementation for ProcessInstructions {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         let signers_did = get_signers_did(args).unwrap();
         let first_signer_did = signers_did.first().unwrap();
@@ -172,6 +173,7 @@ impl CommandImplementation for ProcessInstructions {
             supervision_context,
             signers_instances,
             signers,
+            auth_context,
         )
     }
 
