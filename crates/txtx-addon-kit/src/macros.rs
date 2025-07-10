@@ -182,7 +182,7 @@ macro_rules! define_documented_arbitrary_object_type {
             tainting: $tainting:expr
         }),*
     ] => {
-        Type::strict_object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+        Type::documented_arbitrary_object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
             name: String::from(stringify!($input_name)),
             documentation: String::from($input_doc),
             typing: $input_ts,
