@@ -3,7 +3,7 @@ use txtx_addon_kit::{
     helpers::fs::get_path_from_components, hex, indexmap::IndexMap, types::types::Value,
 };
 
-use crate::codec::foundry::FoundryCompiledOutputJson;
+use crate::codec::foundry::{BytecodeData, FoundryCompiledOutputJson};
 
 pub const OUT_DIR: &str = env!("OUT_DIR");
 
@@ -70,6 +70,7 @@ pub const ABI_ENCODED_RESULT: &str = "abi_encoded_result";
 pub const LOGS: &str = "logs";
 pub const RAW_LOGS: &str = "raw_logs";
 pub const VERIFICATION_RESULTS: &str = "verification_results";
+pub const LINKED_LIBRARIES: &str = "linked_libraries";
 
 // Default values
 pub const DEFAULT_CONFIRMATIONS_NUMBER: u64 = 1;
@@ -111,7 +112,7 @@ lazy_static! {
     static ref PROXY_OUTPUT_PATH: String = get_path_from_components(vec![&CONTRACTS_BUILD_DIR, "out", "ERC1967Proxy.sol", "ERC1967Proxy.json"]);
     static ref PROXY_FACTORY_PATH: String = get_path_from_components(vec![&CONTRACTS_BUILD_DIR, "out", "AtomicProxyDeploymentFactory.sol", "AtomicProxyDeploymentFactory.json"]);
     pub static ref ERC1967_PROXY_COMPILED_OUTPUT: FoundryCompiledOutputJson = serde_json::from_str(&std::fs::read_to_string(PROXY_OUTPUT_PATH.to_string()).unwrap()).unwrap();
-    pub static ref ERC1967_PROXY_BYTECODE: String = ERC1967_PROXY_COMPILED_OUTPUT.bytecode.object.clone();
+    pub static ref ERC1967_PROXY_BYTECODE: BytecodeData = ERC1967_PROXY_COMPILED_OUTPUT.bytecode.clone();
     pub static ref ERC1967_PROXY_ABI: JsonAbi = ERC1967_PROXY_COMPILED_OUTPUT.abi.clone();
     pub static ref ERC_1967_PROXY_ABI_VALUE: Value = Value::string(serde_json::to_string(&ERC1967_PROXY_COMPILED_OUTPUT.abi).unwrap());
     pub static ref ERC1967_PROXY_ABI_INTERFACE: Interface = Interface::new(ERC1967_PROXY_ABI.clone());

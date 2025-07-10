@@ -6,7 +6,11 @@ use foundry_config::figment::{
 };
 pub use foundry_config::Config as FoundryConfig;
 use serde_json::Value as JsonValue;
-use std::{collections::HashMap, path::PathBuf, str::FromStr};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    str::FromStr,
+};
 use txtx_addon_kit::helpers::fs::FileLocation;
 
 use crate::constants::DEFAULT_FOUNDRY_OUT_DIR;
@@ -15,8 +19,8 @@ use crate::constants::DEFAULT_FOUNDRY_OUT_DIR;
 #[serde(rename_all = "camelCase")]
 pub struct FoundryCompiledOutputJson {
     pub abi: JsonAbi,
-    pub bytecode: ContractBytecode,
-    pub deployed_bytecode: ContractBytecode,
+    pub bytecode: BytecodeData,
+    pub deployed_bytecode: BytecodeData,
     pub method_identifiers: JsonValue,
     pub raw_metadata: String,
     pub metadata: Metadata,
@@ -62,6 +66,21 @@ impl FoundryCompiledOutputJson {
 #[serde(rename_all = "camelCase")]
 pub struct ContractBytecode {
     pub object: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BytecodeData {
+    pub object: String,
+    pub link_references: BTreeMap<String, BTreeMap<String, Vec<Offsets>>>,
+    pub immutable_references: Option<BTreeMap<String, Vec<Offsets>>>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Offsets {
+    pub start: u32,
+    pub length: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

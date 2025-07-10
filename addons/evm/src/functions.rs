@@ -1,5 +1,6 @@
 use std::{path::Path, str::FromStr};
 
+use crate::typing::LINKED_LIBRARIES_TYPE;
 use alloy::{
     dyn_abi::DynSolValue,
     hex::FromHex,
@@ -37,7 +38,8 @@ use crate::{
     },
     typing::{
         decode_hex, EvmValue, CHAIN_DEFAULTS, DEPLOYMENT_ARTIFACTS_TYPE, EVM_ADDRESS, EVM_BYTES,
-        EVM_BYTES32, EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT256, EVM_UINT32, EVM_UINT8,
+        EVM_BYTES32, EVM_FOUNDRY_BYTECODE_DATA, EVM_FUNCTION_CALL, EVM_INIT_CODE, EVM_UINT256,
+        EVM_UINT32, EVM_UINT8,
     },
 };
 const INFURA_API_KEY: &str = "";
@@ -348,11 +350,16 @@ lazy_static! {
                 inputs: [
                     bytecode: {
                         documentation: "Coming Soon",
-                        typing: vec![Type::string()]
+                        typing: vec![Type::string(), Type::addon(EVM_FOUNDRY_BYTECODE_DATA)]
                     },
                     constructor_args: {
                         documentation: "Coming Soon",
                         typing: vec![Type::array(Type::string())]
+                    },
+                    linked_libraries: {
+                        documentation: "Coming Soon",
+                        typing: vec![LINKED_LIBRARIES_TYPE.clone()],
+                        optional: true
                     }
                 ],
                 output: {
@@ -849,11 +856,14 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
                 format!("invalid compilation target path for contract {}", contract_name),
             )
         })?;
-        let bytecode = Value::string(compiled_output.bytecode.object);
+        let bytecode = EvmValue::foundry_bytecode_data(&compiled_output.bytecode)
+            .map_err(|e| to_diag(fn_spec, e.message))?;
         let abi = Value::string(abi_string);
         let source = Value::string(source);
         let contract_name = Value::string(contract_name.to_string());
         let contract_target_path = Value::string(target_path.to_string());
+        let deployed_bytecode = EvmValue::foundry_bytecode_data(&compiled_output.deployed_bytecode)
+            .map_err(|e| to_diag(fn_spec, e.message))?;
 
         let metadata = EvmValue::foundry_compiled_metadata(&compiled_output.metadata)
             .map_err(|e| to_diag(fn_spec, e.message))?;
@@ -865,6 +875,7 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
 
         let obj_props = ObjectType::from([
             ("bytecode", bytecode),
+            ("deployed_bytecode", deployed_bytecode),
             ("abi", abi),
             ("source", source),
             ("contract_name", contract_name),
@@ -978,13 +989,20 @@ impl FunctionImplementation for CreateInitCode {
     }
 
     fn run(
-        _fn_spec: &FunctionSpecification,
+        fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
         let prefix = "command 'evm::create_init_code'";
         let bytecode = match args.get(0) {
-            Some(Value::String(val)) => val.clone(),
+            Some(Value::String(val)) => {
+                crate::codec::foundry::BytecodeData { object: val.clone(), ..Default::default() }
+            }
+            Some(Value::Addon(addon_data)) => {
+                EvmValue::to_foundry_bytecode_data(&Value::Addon(addon_data.clone()))
+                    .map_err(|d| to_diag(fn_spec, d.to_string()))?
+            }
             other => return Err(format_fn_error(&prefix, 1, "string", other)),
         };
         let constructor_args = match args.get(1) {
@@ -1005,7 +1023,20 @@ impl FunctionImplementation for CreateInitCode {
             }
             other => return Err(format_fn_error(&prefix, 2, "array", other)),
         };
-        let init_code = create_init_code(bytecode, Some(constructor_args), &None)
+
+        let linked_libraries = args
+            .get(2)
+            .map(|lib| {
+                let lib = lib.as_object().unwrap();
+                lib.iter()
+                    .map(|(k, v)| EvmValue::to_address(v).map(|a| (k.clone(), a)))
+                    .collect::<Result<IndexMap<String, Address>, _>>()
+            })
+            .transpose()
+            .map_err(|d| {
+                to_diag(fn_spec, format!("each entry of a linked library must be an address: {d}"))
+            })?;
+        let init_code = create_init_code(bytecode, Some(constructor_args), &None, linked_libraries)
             .map_err(|e| diagnosed_error!("{}: {}", prefix, e))?;
         Ok(EvmValue::init_code(init_code))
     }

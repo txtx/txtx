@@ -42,7 +42,8 @@ use crate::rpc::EvmRpc;
 use crate::signers::common::get_signer_nonce;
 use crate::typing::{
     EvmValue, CONTRACT_METADATA, CONTRACT_VERIFICATION_OPTS_TYPE, CREATE2_OPTS, DECODED_LOG_OUTPUT,
-    PROXIED_CONTRACT_INITIALIZER, PROXY_CONTRACT_OPTS, RAW_LOG_OUTPUT, VERIFICATION_RESULT_TYPE,
+    LINKED_LIBRARIES_TYPE, PROXIED_CONTRACT_INITIALIZER, PROXY_CONTRACT_OPTS, RAW_LOG_OUTPUT,
+    VERIFICATION_RESULT_TYPE,
 };
 
 use super::call_contract::{
@@ -226,6 +227,13 @@ lazy_static! {
                         optional: true,
                         tainting: false,
                         internal: false
+                    },
+                    linked_libraries: {
+                        documentation: "A map of contract name to contract address to specify the linked libraries for the deployed contract.",
+                        typing: LINKED_LIBRARIES_TYPE.clone(),
+                        optional: true,
+                        tainting: false,
+                        internal: false
                     }
                 ],
                 outputs: [
@@ -306,7 +314,6 @@ impl CommandImplementation for DeployContract {
         };
 
         let signer_did = get_signer_did(values).unwrap();
-
         let construct_did = construct_did.clone();
         let instance_name = instance_name.to_string();
         let spec = spec.clone();
@@ -699,10 +706,13 @@ impl ContractDeploymentTransactionRequestBuilder {
             None
         };
 
+        let linked_libraries = EvmValue::parse_linked_libraries(values)?;
+
         let init_code = create_init_code(
             compiled_contract_artifacts.bytecode,
             constructor_args,
             &compiled_contract_artifacts.abi,
+            linked_libraries,
         )?;
 
         let (amount, gas_limit, nonce) = get_common_tx_params_from_args(values)?;
