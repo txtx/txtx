@@ -145,6 +145,9 @@ impl SignerImplementation for SvmSecretKey {
         }
 
         let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let markdown = values
+            .get_markdown(auth_ctx)
+            .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
 
         let secret_key_bytes = match values.get_value(SECRET_KEY) {
             None => match values.get_string(MNEMONIC) {
@@ -242,10 +245,8 @@ impl SignerImplementation for SvmSecretKey {
                         .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
                         .with_construct_did(construct_did)
                         .with_some_description(description)
-                        .with_meta_description(&format!(
-                            "Check {} expected address",
-                            instance_name
-                        ))],
+                        .with_meta_description(&format!("Check {} expected address", instance_name))
+                        .with_some_markdown(markdown)],
                 );
             }
         } else {

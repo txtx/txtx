@@ -27,6 +27,7 @@ use crate::codec::contract_deployment::compiled_artifacts::CompiledContractArtif
 use crate::codec::contract_deployment::create_opts::ContractCreationOpts;
 use crate::codec::contract_deployment::{
     create_init_code, AddressAbiMap, ContractDeploymentTransaction,
+    ContractDeploymentTransactionStatus,
 };
 use crate::codec::verify::verify_contracts;
 use crate::codec::{
@@ -323,6 +324,8 @@ impl CommandImplementation for DeployContract {
         let auth_context = auth_context.clone();
 
         let future = async move {
+            use crate::commands::actions::get_meta_description;
+
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
@@ -356,6 +359,10 @@ impl CommandImplementation for DeployContract {
                 .get_implementation_deployment_transaction(&values)
                 .await
                 .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
+
+            let meta_description = deployer
+                .description(&impl_deploy_tx)
+                .map(|d| get_meta_description(d, &signer_did, &signers_instances));
 
             let payload = match impl_deploy_tx {
                 ContractDeploymentTransaction::Create(status)
@@ -434,6 +441,10 @@ impl CommandImplementation for DeployContract {
 
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload);
+            if let Some(meta_description) = meta_description {
+                use txtx_addon_kit::constants::META_DESCRIPTION;
+                values.insert(META_DESCRIPTION, Value::string(meta_description));
+            }
             signers.push_signer_state(signer_state);
 
             let future_result = SignEvmTransaction::check_signed_executability(
@@ -654,6 +665,7 @@ pub struct ContractDeploymentTransactionRequestBuilder {
     tx_type: TransactionType,
     contract_creation_opts: ContractCreationOpts,
     abi: Option<JsonAbi>,
+    contract_name: Option<String>,
 }
 
 impl ContractDeploymentTransactionRequestBuilder {
@@ -674,6 +686,8 @@ impl ContractDeploymentTransactionRequestBuilder {
             &values.get_expected_object("contract").map_err(|e| e.to_string())?,
         )
         .map_err(|d| d.to_string())?;
+
+        let contract_name = compiled_contract_artifacts.contract_name.clone();
 
         let constructor_args = if let Some(function_args) =
             values.get_value(CONTRACT_CONSTRUCTOR_ARGS)
@@ -748,7 +762,46 @@ impl ContractDeploymentTransactionRequestBuilder {
             tx_type,
             contract_creation_opts,
             abi: compiled_contract_artifacts.abi.clone(),
+            contract_name,
         })
+    }
+
+    fn description(&self, deployment_tx: &ContractDeploymentTransaction) -> Option<String> {
+        match deployment_tx {
+            ContractDeploymentTransaction::Create2(status) => match status {
+                ContractDeploymentTransactionStatus::AlreadyDeployed(_) => None,
+                ContractDeploymentTransactionStatus::NotYetDeployed(data) => Some(format!(
+                    "The transaction will deploy the{} contract via Create2 to the address {} .",
+                    self.contract_name
+                        .as_deref()
+                        .map(|name| format!(" '{name}'"))
+                        .unwrap_or("".into()),
+                    data.expected_address
+                )),
+            },
+            ContractDeploymentTransaction::Create(status) => match status {
+                ContractDeploymentTransactionStatus::AlreadyDeployed(_) => None,
+                ContractDeploymentTransactionStatus::NotYetDeployed(data) => Some(format!(
+                    "The transaction will deploy the{} contract to the address {}.",
+                    self.contract_name
+                        .as_deref()
+                        .map(|name| format!(" '{name}'"))
+                        .unwrap_or("".into()),
+                    data.expected_address
+                )),
+            },
+            ContractDeploymentTransaction::Proxied(data) => {
+                Some(format!(
+                    "The transaction will deploy a proxy and implementation contract{}. The proxy contract will be deployed to the address {} and the implementation contract will be deployed to the address {}.",
+                    self.contract_name
+                        .as_deref()
+                        .map(|name| format!("for the '{name}' contract"))
+                        .unwrap_or("".into()),
+                    data.expected_proxy_address,
+                    data.expected_impl_address
+                ))
+            },
+        }
     }
 
     async fn get_implementation_deployment_transaction(

@@ -83,7 +83,7 @@ impl SignerImplementation for SvmSecretKey {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
-        _auth_ctx: &AuthorizationContext,
+        auth_ctx: &AuthorizationContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
@@ -107,6 +107,9 @@ impl SignerImplementation for SvmSecretKey {
         let pubkey_value = SvmValue::pubkey(pubkey.to_bytes().to_vec());
         let pubkey_string_value = Value::string(pubkey.to_string());
         let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let markdown = values
+            .get_markdown(auth_ctx)
+            .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
 
         if supervision_context.review_input_values {
             if let Ok(_) = values.get_expected_string(CHECKED_ADDRESS) {
@@ -120,10 +123,8 @@ impl SignerImplementation for SvmSecretKey {
                         .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
                         .with_construct_did(construct_did)
                         .with_some_description(description)
-                        .with_meta_description(&format!(
-                            "Check {} expected address",
-                            instance_name
-                        ))],
+                        .with_meta_description(&format!("Check {} expected address", instance_name))
+                        .with_some_markdown(markdown)],
                 );
             }
         } else {
