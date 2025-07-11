@@ -104,7 +104,7 @@ impl SignerImplementation for EvmWebWallet {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
-        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
+        auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
@@ -151,6 +151,9 @@ impl SignerImplementation for EvmWebWallet {
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
         let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let markdown = values
+            .get_markdown(auth_ctx)
+            .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
 
         if let Ok(ref signed_message_hex) =
             values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
@@ -208,6 +211,7 @@ impl SignerImplementation for EvmWebWallet {
                 &signer_did,
                 &instance_name,
                 description,
+                markdown,
                 &rpc_api_url,
                 chain_id,
                 do_request_public_key,

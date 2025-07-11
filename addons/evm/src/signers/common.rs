@@ -22,6 +22,7 @@ pub async fn get_additional_actions_for_address(
     signer_did: &ConstructDid,
     instance_name: &str,
     description: Option<String>,
+    markdown: Option<String>,
     rpc_api_url: &str,
     chain_id: u64,
     do_request_public_key: bool,
@@ -53,7 +54,8 @@ pub async fn get_additional_actions_for_address(
             .to_request(instance_name, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
             .with_construct_did(signer_did)
             .with_some_description(description)
-            .with_meta_description(&format!("Connect wallet '{instance_name}'")),
+            .with_meta_description(&format!("Connect wallet '{instance_name}'"))
+            .with_some_markdown(markdown),
         );
     }
 

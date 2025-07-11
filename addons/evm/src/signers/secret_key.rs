@@ -126,7 +126,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
-        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
+        auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
@@ -143,6 +143,9 @@ impl SignerImplementation for EvmSecretKeySigner {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
         let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let markdown = values
+            .get_markdown(auth_ctx)
+            .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
 
         let expected_signer =
             if let Ok(secret_key_bytes) = values.get_expected_buffer_bytes("secret_key") {
@@ -177,10 +180,8 @@ impl SignerImplementation for EvmSecretKeySigner {
                         .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
                         .with_construct_did(construct_did)
                         .with_some_description(description.clone())
-                        .with_meta_description(&format!(
-                            "Check {} expected address",
-                            instance_name
-                        ))],
+                        .with_meta_description(&format!("Check {} expected address", instance_name))
+                        .with_some_markdown(markdown.clone())],
                 );
             }
         } else {
