@@ -209,18 +209,16 @@ impl CommandImplementation for CheckEvmConfirmations {
 
             let backoff_ms = 500;
 
-            let rpc = EvmRpc::new(&rpc_api_url)
-                .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
+            let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{e}"))?;
 
             let mut included_block = u64::MAX - confirmations_required as u64;
             let mut latest_block = 0;
             let _receipt = loop {
                 progress = (progress + 1) % progress_symbol.len();
 
-                let Some(receipt) = rpc
-                    .get_receipt(&tx_hash_bytes)
-                    .await
-                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?
+                let Some(receipt) = rpc.get_receipt(&tx_hash_bytes).await.map_err(|e| {
+                    diagnosed_error!("failed to verify transaction {}: {}", tx_hash, e)
+                })?
                 else {
                     // loop to update our progress symbol every 500ms, but still waiting 5000ms before refetching for receipt
                     let mut count = 0;
@@ -318,10 +316,7 @@ impl CommandImplementation for CheckEvmConfirmations {
                     let _ = progress_tx
                         .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
-                    latest_block = rpc
-                        .get_block_number()
-                        .await
-                        .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
+                    latest_block = rpc.get_block_number().await.unwrap_or(latest_block);
                     sleep_ms(backoff_ms);
                     continue;
                 }
