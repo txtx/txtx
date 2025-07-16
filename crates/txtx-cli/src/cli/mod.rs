@@ -9,6 +9,7 @@ use txtx_cloud::{LoginCommand, PublishRunbook};
 
 mod docs;
 mod env;
+mod errors;
 mod lsp;
 mod runbooks;
 mod snapshots;
