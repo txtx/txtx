@@ -15053,7 +15053,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cloud"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -15081,7 +15081,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -15178,7 +15178,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-supervisor-ui"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "actix-cors",
  "actix-web",
