@@ -79,7 +79,9 @@ impl RunbookGraphContext {
                         if let Some(_) =
                             execution_context.signers_instances.get(&resolved_construct_did)
                         {
-                            signers.push_front((resolved_construct_did.clone(), false));
+                            if !signers.iter().any(|(d, _)| d == &resolved_construct_did) {
+                                signers.push_front((resolved_construct_did.clone(), false));
+                            }
                             instantiated_signers.insert(resolved_construct_did.clone());
                         }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
@@ -111,7 +113,9 @@ impl RunbookGraphContext {
                         if let Some(_) =
                             execution_context.signers_instances.get(&resolved_construct_did)
                         {
-                            signers.push_front((resolved_construct_did.clone(), false));
+                            if !signers.iter().any(|(d, _)| d == &resolved_construct_did) {
+                                signers.push_front((resolved_construct_did.clone(), false));
+                            }
                             instantiated_signers.insert(resolved_construct_did.clone());
                         }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
@@ -143,7 +147,9 @@ impl RunbookGraphContext {
                         if let Some(_) =
                             execution_context.signers_instances.get(&resolved_construct_did)
                         {
-                            signers.push_front((resolved_construct_did.clone(), false));
+                            if !signers.iter().any(|(d, _)| d == &resolved_construct_did) {
+                                signers.push_front((resolved_construct_did.clone(), false));
+                            }
                             instantiated_signers.insert(resolved_construct_did.clone());
                         }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
@@ -184,7 +190,16 @@ impl RunbookGraphContext {
                         if let Some(_) =
                             execution_context.signers_instances.get(&resolved_construct_did)
                         {
-                            signers.push_front((resolved_construct_did.clone(), true));
+                            if !signers.iter_mut().any(|(d, instantiated)| {
+                                if d == &resolved_construct_did {
+                                    *instantiated = true;
+                                    return true;
+                                }
+                                false
+                            }) {
+                                // If the resolved construct is not already in signers, add it
+                                signers.push_front((resolved_construct_did.clone(), true));
+                            }
                             instantiated_signers.insert(resolved_construct_did.clone());
                         }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
