@@ -332,7 +332,7 @@ impl EvmRpc {
     pub async fn get_block_number(&self) -> Result<u64, RpcError> {
         EvmRpc::retry_async(|| async {
             self.provider.get_block_number().await.map_err(|e| {
-                RpcError::Message(format!("error getting transaction receipt: {}", e.to_string()))
+                RpcError::Message(format!("error getting block number: {}", e.to_string()))
             })
         })
         .await
