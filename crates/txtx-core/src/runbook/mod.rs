@@ -723,6 +723,9 @@ impl RunbookTopLevelInputsMap {
         };
 
         for (selector, inputs) in environments_map.iter() {
+            if selector.eq(GLOBAL_TOP_LEVEL_INPUTS_NAME) {
+                continue; // Skip global inputs, their values are added to all environments but should not be listed as an environment
+            }
             let mut env_values = vec![];
             // Add global values to all environments
             for (key, value) in global_values.iter() {
