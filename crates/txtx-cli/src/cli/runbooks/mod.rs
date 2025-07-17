@@ -399,7 +399,16 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
         println!(
             "{:<35}\t{}",
             runbook.name,
-            yellow!(format!("{}", runbook.description.unwrap_or("".into())))
+            yellow!(format!(
+                "{}",
+                runbook
+                    .description
+                    .unwrap_or("".into())
+                    .split("\n")
+                    .collect::<Vec<_>>()
+                    .first()
+                    .unwrap()
+            ))
         );
     }
     Ok(())
