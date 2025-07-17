@@ -812,6 +812,17 @@ pub async fn evaluate_command_instance(
                         unexecutable_nodes.insert(dep.clone());
                     }
                 }
+                // if this construct has no execution results stored, and the construct is re-evaluated
+                // before this bg future we're pushing is awaited, we'll end up pushing this future twice.
+                // so we need to push some execution results, which will cue this loop to fix future evaluations
+                // of this construct.
+                runbook_execution_context.append_commands_execution_result(
+                    &nested_construct_did,
+                    &CommandExecutionResult::from([(
+                        "background_task_uuid",
+                        Value::string(pass_result.background_tasks_uuid.to_string()),
+                    )]),
+                );
                 pass_result.pending_background_tasks_futures.push(future);
                 pass_result
                     .pending_background_tasks_constructs_uuids
