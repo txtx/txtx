@@ -331,6 +331,42 @@ lazy_static! {
         }
     };
 
+    pub static ref  PDA_ACCOUNT_SUBGRAPH: Type = define_strict_map_type! {
+        type: {
+            documentation: "The type field of the account, as indexed by the IDL. This type definition will be used to parse the PDA account data.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        instruction: {
+            documentation: "An instruction that contains the account to index in the subgraph.",
+            typing: PDA_ACCOUNT_INSTRUCTION_SUBGRAPH.clone(),
+            optional: false,
+            tainting: true
+        },
+        field: {
+            documentation: "A map of fields to index.",
+            typing: SUBGRAPH_EVENT_FIELD.clone(),
+            optional: false,
+            tainting: true
+        }
+    };
+
+    pub static ref  PDA_ACCOUNT_INSTRUCTION_SUBGRAPH: Type = define_strict_map_type! {
+        name: {
+            documentation: "The name of the instruction that contains the account to index in the subgraph.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        account_name: {
+            documentation: "The name of the account in the instruction that contains the account to index in the subgraph.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        }
+    };
+
     pub static ref SUBGRAPH_EVENT_FIELD: Type = define_strict_map_type! {
         name: {
             documentation: "The name of the field as it should appear in the subgraph.",

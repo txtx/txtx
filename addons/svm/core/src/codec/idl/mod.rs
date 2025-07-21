@@ -563,7 +563,7 @@ fn borsh_encode_bytes_to_idl_type(
 
 /// Parses a byte array into a JSON value based on the expected IDL type.
 /// **Not used internally, but is used by crate consumers.**
-pub fn parse_bytes_to_value_with_expected_idl_type(
+pub fn parse_bytes_to_value_with_expected_idl_type_def_ty(
     mut data: &[u8],
     expected_type: &IdlTypeDefTy,
 ) -> Result<Value, String> {
@@ -726,85 +726,88 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
             }
         }
         IdlTypeDefTy::Enum { variants } => todo!(),
-        IdlTypeDefTy::Type { alias } => match alias {
-            IdlType::Bool => {
-                let value = borsh::from_slice::<bool>(&data)
-                    .map_err(|e| format!("unable to decode bool: {e}"))?;
-                Ok(Value::bool(value))
-            }
-            IdlType::U8 => Ok(Value::integer(
-                borsh::from_slice::<u8>(&data)
-                    .map_err(|e| format!("unable to decode u8: {e}"))?
-                    .into(),
-            )),
-            IdlType::I8 => Ok(Value::integer(
-                borsh::from_slice::<i8>(&data)
-                    .map_err(|e| format!("unable to decode i8: {e}"))?
-                    .into(),
-            )),
-            IdlType::U16 => Ok(Value::integer(
-                borsh::from_slice::<u16>(&data)
-                    .map_err(|e| format!("unable to decode u16: {e}"))?
-                    .into(),
-            )),
-            IdlType::I16 => Ok(Value::integer(
-                borsh::from_slice::<i16>(&data)
-                    .map_err(|e| format!("unable to decode i16: {e}"))?
-                    .into(),
-            )),
-            IdlType::U32 => Ok(Value::integer(
-                borsh::from_slice::<u32>(&data)
-                    .map_err(|e| format!("unable to decode u32: {e}"))?
-                    .into(),
-            )),
-            IdlType::I32 => Ok(Value::integer(
-                borsh::from_slice::<i32>(&data)
-                    .map_err(|e| format!("unable to decode i32: {e}"))?
-                    .into(),
-            )),
-            IdlType::U64 => Ok(Value::integer(
-                borsh::from_slice::<u64>(&data)
-                    .map_err(|e| format!("unable to decode u64: {e}"))?
-                    .into(),
-            )),
-            IdlType::I64 => Ok(Value::integer(
-                borsh::from_slice::<i64>(&data)
-                    .map_err(|e| format!("unable to decode i64: {e}"))?
-                    .into(),
-            )),
-            IdlType::F64 => Ok(Value::integer(
-                borsh::from_slice::<i64>(&data)
-                    .map_err(|e| format!("unable to decode i64: {e}"))?
-                    .into(),
-            )),
-            // IdlType::I128 => Ok(JsonValue::Number(
-            //     borsh::from_slice::<i128>(&data)
-            //         .map_err(|e| format!("unable to decode i128: {e}"))?
-            //         .into(),
-            // )),
-            IdlType::Bytes => {
-                let bytes = borsh::from_slice::<Vec<u8>>(&data)
-                    .map_err(|e| format!("unable to decode bytes: {e}"))?;
+        IdlTypeDefTy::Type { alias } => parse_bytes_to_value_with_expected_idl_type(data, alias),
+    }
+}
 
-                Ok(Value::buffer(bytes))
-            }
-            IdlType::String => borsh::from_slice::<String>(&data)
-                .map(Value::string)
-                .map_err(|e| format!("unable to decode string: {e}")),
-            IdlType::Pubkey => {
-                let value = borsh::from_slice::<Pubkey>(&data)
-                    .map_err(|e| format!("unable to decode pubkey: {e}"))?;
-                Ok(SvmValue::pubkey(value.to_bytes().to_vec()))
-            }
-            IdlType::Option(idl_type) => todo!(),
-            IdlType::Vec(idl_type) => {
-                todo!()
-            }
-            IdlType::Array(idl_type, idl_array_len) => todo!(),
-            IdlType::Defined { name, generics } => todo!(),
-            IdlType::Generic(_) => todo!(),
-            _ => return Err(format!("Unsupported type: {:?}", alias)),
-        },
+pub fn parse_bytes_to_value_with_expected_idl_type(
+    data: &[u8],
+    expected_type: &IdlType,
+) -> Result<Value, String> {
+    match expected_type {
+        IdlType::Bool => {
+            let value = borsh::from_slice::<bool>(&data)
+                .map_err(|e| format!("unable to decode bool: {e}"))?;
+            Ok(Value::bool(value))
+        }
+        IdlType::U8 => Ok(Value::integer(
+            borsh::from_slice::<u8>(&data).map_err(|e| format!("unable to decode u8: {e}"))?.into(),
+        )),
+        IdlType::I8 => Ok(Value::integer(
+            borsh::from_slice::<i8>(&data).map_err(|e| format!("unable to decode i8: {e}"))?.into(),
+        )),
+        IdlType::U16 => Ok(Value::integer(
+            borsh::from_slice::<u16>(&data)
+                .map_err(|e| format!("unable to decode u16: {e}"))?
+                .into(),
+        )),
+        IdlType::I16 => Ok(Value::integer(
+            borsh::from_slice::<i16>(&data)
+                .map_err(|e| format!("unable to decode i16: {e}"))?
+                .into(),
+        )),
+        IdlType::U32 => Ok(Value::integer(
+            borsh::from_slice::<u32>(&data)
+                .map_err(|e| format!("unable to decode u32: {e}"))?
+                .into(),
+        )),
+        IdlType::I32 => Ok(Value::integer(
+            borsh::from_slice::<i32>(&data)
+                .map_err(|e| format!("unable to decode i32: {e}"))?
+                .into(),
+        )),
+        IdlType::U64 => Ok(Value::integer(
+            borsh::from_slice::<u64>(&data)
+                .map_err(|e| format!("unable to decode u64: {e}"))?
+                .into(),
+        )),
+        IdlType::I64 => Ok(Value::integer(
+            borsh::from_slice::<i64>(&data)
+                .map_err(|e| format!("unable to decode i64: {e}"))?
+                .into(),
+        )),
+        IdlType::F64 => Ok(Value::integer(
+            borsh::from_slice::<i64>(&data)
+                .map_err(|e| format!("unable to decode i64: {e}"))?
+                .into(),
+        )),
+        // IdlType::I128 => Ok(JsonValue::Number(
+        //     borsh::from_slice::<i128>(&data)
+        //         .map_err(|e| format!("unable to decode i128: {e}"))?
+        //         .into(),
+        // )),
+        IdlType::Bytes => {
+            let bytes = borsh::from_slice::<Vec<u8>>(&data)
+                .map_err(|e| format!("unable to decode bytes: {e}"))?;
+
+            Ok(Value::buffer(bytes))
+        }
+        IdlType::String => borsh::from_slice::<String>(&data)
+            .map(Value::string)
+            .map_err(|e| format!("unable to decode string: {e}")),
+        IdlType::Pubkey => {
+            let value = borsh::from_slice::<Pubkey>(&data)
+                .map_err(|e| format!("unable to decode pubkey: {e}"))?;
+            Ok(SvmValue::pubkey(value.to_bytes().to_vec()))
+        }
+        IdlType::Option(idl_type) => todo!(),
+        IdlType::Vec(idl_type) => {
+            todo!()
+        }
+        IdlType::Array(idl_type, idl_array_len) => todo!(),
+        IdlType::Defined { name, generics } => todo!(),
+        IdlType::Generic(_) => todo!(),
+        _ => return Err(format!("Unsupported type: {:?}", expected_type)),
     }
 }
 

@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use anchor_lang_idl::types::{Idl, IdlDefinedFields, IdlType, IdlTypeDefTy};
+use anchor_lang_idl::types::{
+    Idl, IdlDefinedFields, IdlInstruction, IdlInstructionAccount, IdlInstructionAccountItem,
+    IdlType, IdlTypeDefTy,
+};
 use serde::{Deserialize, Serialize};
 use solana_pubkey::Pubkey;
 use txtx_addon_kit::{
@@ -216,36 +219,50 @@ impl IndexedSubgraphField {
         data_source: IndexedSubgraphSourceType,
         field_values: &Option<Vec<Value>>,
     ) -> Result<Vec<Self>, Diagnostic> {
-        let mut fields = vec![];
         match data_source {
             IndexedSubgraphSourceType::Instruction(_) => {
-                return Err(diagnosed_error!("instruction subgraph not supported yet"))
+                Err(diagnosed_error!("instruction subgraph not supported yet"))
             }
             IndexedSubgraphSourceType::Event(event_subgraph_source) => {
-                if let Some(field_values) = field_values {
-                    for field_value in field_values.iter() {
-                        let field_value = field_value.as_object().ok_or(diagnosed_error!(
-                            "each entry of a subgraph field should contain an object"
-                        ))?;
-                        let name = field_value.get("name").ok_or(diagnosed_error!(
-                            "could not deserialize subgraph field: expected 'name' key"
-                        ))?;
-                        let name = name.as_string().ok_or(diagnosed_error!(
-                            "could not deserialize subgraph field: expected 'name' to be a string"
-                        ))?;
-                        let idl_key = field_value
-                            .get("idl_key")
-                            .and_then(|v| v.as_string().map(|s| s.to_string()))
-                            .unwrap_or(name.to_string());
+                IndexedSubgraphField::parse_fields(field_values, &event_subgraph_source.ty.ty)
+            }
+            IndexedSubgraphSourceType::Pda(pda_subgraph_source) => {
+                IndexedSubgraphField::parse_fields(
+                    field_values,
+                    &pda_subgraph_source.account_type.ty,
+                )
+            }
+        }
+    }
 
-                        let description = field_value
-                            .get("description")
-                            .and_then(|v| v.as_string().map(|s| s.to_string()));
+    fn parse_fields(
+        field_values: &Option<Vec<Value>>,
+        idl_type_def_ty: &IdlTypeDefTy,
+    ) -> Result<Vec<Self>, Diagnostic> {
+        let mut fields = vec![];
 
-                        let expected_type = get_expected_field_type_from_idl_type_def_ty(
-                            &idl_key,
-                            &event_subgraph_source.ty.ty,
-                        )
+        if let Some(field_values) = field_values {
+            for field_value in field_values.iter() {
+                let field_value = field_value.as_object().ok_or(diagnosed_error!(
+                    "each entry of a subgraph field should contain an object"
+                ))?;
+                let name = field_value.get("name").ok_or(diagnosed_error!(
+                    "could not deserialize subgraph field: expected 'name' key"
+                ))?;
+                let name = name.as_string().ok_or(diagnosed_error!(
+                    "could not deserialize subgraph field: expected 'name' to be a string"
+                ))?;
+                let idl_key = field_value
+                    .get("idl_key")
+                    .and_then(|v| v.as_string().map(|s| s.to_string()))
+                    .unwrap_or(name.to_string());
+
+                let description = field_value
+                    .get("description")
+                    .and_then(|v| v.as_string().map(|s| s.to_string()));
+
+                let expected_type =
+                    get_expected_field_type_from_idl_type_def_ty(&idl_key, &idl_type_def_ty)
                         .map_err(|e| {
                             diagnosed_error!(
                                 "could not determine expected type for subgraph field '{}': {e}",
@@ -253,49 +270,63 @@ impl IndexedSubgraphField {
                             )
                         })?;
 
-                        fields.push(Self {
-                            display_name: name.to_string(),
-                            source_key: idl_key,
-                            expected_type,
-                            description,
-                        });
-                    }
-                } else {
-                    match event_subgraph_source.ty.ty {
-                        IdlTypeDefTy::Struct { fields: idl_fields } => {
-                            if let Some(idl_fields) = idl_fields {
-                                match idl_fields {
-                                    IdlDefinedFields::Named(idl_fields) => {
-                                        fields.append(
-                                            &mut idl_fields
-                                                .iter()
-                                                .map(|f| Self {
-                                                    display_name: f.name.clone(),
-                                                    source_key: f.name.clone(),
-                                                    expected_type: idl_type_to_txtx_type(
-                                                        f.ty.clone(),
-                                                    ),
-                                                    description: if f.docs.is_empty() {
-                                                        None
-                                                    } else {
-                                                        Some(f.docs.join(" "))
-                                                    },
-                                                })
-                                                .collect(),
-                                        );
-                                    }
-
-                                    IdlDefinedFields::Tuple(_) => todo!(),
-                                }
-                            } else {
-                                todo!()
+                fields.push(Self {
+                    display_name: name.to_string(),
+                    source_key: idl_key,
+                    expected_type,
+                    description,
+                });
+            }
+        } else {
+            match idl_type_def_ty {
+                IdlTypeDefTy::Struct { fields: idl_fields } => {
+                    if let Some(idl_fields) = idl_fields {
+                        match idl_fields {
+                            IdlDefinedFields::Named(idl_fields) => {
+                                fields.append(
+                                    &mut idl_fields
+                                        .iter()
+                                        .map(|f| Self {
+                                            display_name: f.name.clone(),
+                                            source_key: f.name.clone(),
+                                            expected_type: idl_type_to_txtx_type(f.ty.clone()),
+                                            description: if f.docs.is_empty() {
+                                                None
+                                            } else {
+                                                Some(f.docs.join(" "))
+                                            },
+                                        })
+                                        .collect(),
+                                );
                             }
+
+                            IdlDefinedFields::Tuple(_) => todo!(),
                         }
-                        IdlTypeDefTy::Enum { .. } => todo!(),
-                        IdlTypeDefTy::Type { .. } => todo!(),
+                    } else {
+                        todo!()
                     }
                 }
+                IdlTypeDefTy::Enum { .. } => todo!(),
+                IdlTypeDefTy::Type { .. } => todo!(),
             }
+            fields.push(IndexedSubgraphField {
+                display_name: "pubkey".into(),
+                source_key: "pubkey".into(),
+                expected_type: Type::addon(SVM_PUBKEY),
+                description: Some("The public key of the account.".into()),
+            });
+            fields.push(IndexedSubgraphField {
+                display_name: "lamports".into(),
+                source_key: "lamports".into(),
+                expected_type: Type::integer(),
+                description: Some("The lamports of the account.".into()),
+            });
+            fields.push(IndexedSubgraphField {
+                display_name: "owner".into(),
+                source_key: "owner".into(),
+                expected_type: Type::addon(SVM_PUBKEY),
+                description: Some("The owner of the account.".into()),
+            });
         }
         Ok(fields)
     }
@@ -308,6 +339,25 @@ pub enum IndexedSubgraphSourceType {
     /// Index a program event
     Event(EventSubgraphSource),
     // Account(AccountSubgraphSource),
+    /// Index a program derived account
+    Pda(PdaSubgraphSource),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum IndexedSubgraphSourceTypeName {
+    Instruction,
+    Event,
+    Pda,
+}
+
+impl From<&IndexedSubgraphSourceType> for IndexedSubgraphSourceTypeName {
+    fn from(value: &IndexedSubgraphSourceType) -> Self {
+        match value {
+            IndexedSubgraphSourceType::Instruction(_) => Self::Instruction,
+            IndexedSubgraphSourceType::Event(_) => Self::Event,
+            IndexedSubgraphSourceType::Pda(_) => Self::Pda,
+        }
+    }
 }
 
 impl IndexedSubgraphSourceType {
@@ -340,6 +390,54 @@ impl IndexedSubgraphSourceType {
             return Err(diagnosed_error!("subgraph instruction not supported yet"));
         } else if let Some(_) = values.get_value("account") {
             return Err(diagnosed_error!("subgraph account not supported yet"));
+        } else if let Some(pda) = values.get_value("pda_account") {
+            let pda_map =
+                pda.as_map().ok_or(diagnosed_error!("subgraph 'pda' field must be a map"))?;
+
+            if pda_map.len() != 1 {
+                return Err(diagnosed_error!("exactly one 'pda' map should be defined"));
+            }
+            let entry = pda_map.get(0).unwrap();
+
+            let entry = entry
+                .as_object()
+                .ok_or(diagnosed_error!("a subgraph 'pda' field should contain an object"))?;
+
+            let type_name = entry
+                .get("type")
+                .ok_or(diagnosed_error!("a subgraph 'pda' field must have a 'type' key"))?;
+            let type_name = type_name.as_string().ok_or(diagnosed_error!(
+                "a subgraph 'pda' field's 'type' value must be a string"
+            ))?;
+            let instruction_account_path = entry
+                .get("instruction")
+                .and_then(|v| v.as_map())
+                .ok_or(diagnosed_error!("a subgraph 'pda' field must have an 'instruction' map"))?;
+
+            let mut instruction_values = Vec::with_capacity(instruction_account_path.len());
+            for instruction_value in instruction_account_path.iter() {
+                let instruction_value = instruction_value.as_object().ok_or(diagnosed_error!(
+                    "each entry of a subgraph 'pda' instruction should contain an object"
+                ))?;
+                let instruction_name = instruction_value.get("name").ok_or(diagnosed_error!(
+                    "a subgraph 'pda' instruction must have a 'name' key"
+                ))?;
+                let instruction_name = instruction_name.as_string().ok_or(diagnosed_error!(
+                    "a subgraph 'pda' instruction's 'name' value must be a string"
+                ))?;
+                let account_name =
+                    instruction_value.get("account_name").ok_or(diagnosed_error!(
+                        "a subgraph 'pda' instruction must have an 'account_name' key"
+                    ))?;
+                let account_name = account_name.as_string().ok_or(diagnosed_error!(
+                    "a subgraph 'pda' instruction's 'account_name' value must be a string"
+                ))?;
+                instruction_values.push((instruction_name, account_name));
+            }
+
+            let pda_source = PdaSubgraphSource::new(type_name, &instruction_values, idl)?;
+            let fields = entry.get("field").and_then(|v| v.as_map().map(|s| s.to_vec()));
+            return Ok((Self::Pda(pda_source), fields));
         }
 
         Err(diagnosed_error!("no event, instruction, or account map provided"))
@@ -361,6 +459,13 @@ impl IndexedSubgraphSourceType {
                     Some(event_subgraph_source.ty.docs.join(" "))
                 }
             } // IndexedSubgraphSourceType::Account(_) => None,
+            IndexedSubgraphSourceType::Pda(pda_subgraph_source) => {
+                if pda_subgraph_source.account_type.docs.is_empty() {
+                    None
+                } else {
+                    Some(pda_subgraph_source.account_type.docs.join(" "))
+                }
+            }
         }
     }
 
@@ -371,6 +476,9 @@ impl IndexedSubgraphSourceType {
             }
             IndexedSubgraphSourceType::Event(event_subgraph_source) => {
                 event_subgraph_source.event.name.clone()
+            }
+            IndexedSubgraphSourceType::Pda(pda_subgraph_source) => {
+                pda_subgraph_source.account.name.clone()
             }
         }
     }
@@ -408,3 +516,137 @@ impl EventSubgraphSource {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountSubgraphSource {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PdaSubgraphSource {
+    /// The account being indexed
+    pub account: anchor_lang_idl::types::IdlAccount,
+    /// The type of the account
+    pub account_type: anchor_lang_idl::types::IdlTypeDef,
+    /// The account definitions from the instructions that use this account type.
+    /// Each account definition should have the same `pda` definition.
+    pub instruction_accounts: Vec<(
+        anchor_lang_idl::types::IdlInstruction,
+        anchor_lang_idl::types::IdlInstructionAccount,
+    )>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParsablePdaData {
+    /// The account being indexed
+    pub account: anchor_lang_idl::types::IdlAccount,
+    /// The type of the account
+    pub account_type: anchor_lang_idl::types::IdlTypeDef,
+}
+
+impl PdaSubgraphSource {
+    pub fn new(
+        account_name: &str,
+        instruction_account_path: &[(&str, &str)],
+        idl: &Idl,
+    ) -> Result<Self, Diagnostic> {
+        let account = idl
+            .accounts
+            .iter()
+            .find(|a| a.name == account_name)
+            .cloned()
+            .ok_or(diagnosed_error!("could not find account '{}' in IDL", account_name))?;
+        let account_type = idl
+            .types
+            .iter()
+            .find(|t| t.name == account_name)
+            .cloned()
+            .ok_or(diagnosed_error!("could not find type '{}' in IDL", account_name))?;
+
+        let mut instruction_accounts = vec![];
+        for (instruction_name, account_name) in instruction_account_path {
+            let instruction = idl.instructions.iter().find(|i| i.name.eq(instruction_name)).ok_or(
+                diagnosed_error!("could not find instruction '{}' in IDL", instruction_name),
+            )?;
+            let account_item = instruction
+                .accounts
+                .iter()
+                .find_map(|a| find_idl_instruction_account(a, account_name))
+                .ok_or(diagnosed_error!(
+                    "could not find account '{}' in instruction '{}' in IDL",
+                    account_name,
+                    instruction_name
+                ))?;
+
+            if account_item.pda.is_none() {
+                return Err(diagnosed_error!(
+                    "account '{}' in instruction '{}' is not a PDA",
+                    account_name,
+                    instruction_name
+                ));
+            }
+
+            if instruction_accounts.len() > 1 {
+                let last: &(IdlInstruction, IdlInstructionAccount) =
+                    instruction_accounts.last().unwrap();
+                if last.1.pda != account_item.pda {
+                    return Err(diagnosed_error!(
+                        "account '{}' in instruction '{}' has different PDA definitions",
+                        account_name,
+                        instruction_name
+                    ));
+                }
+            }
+
+            instruction_accounts.push((instruction.clone(), account_item));
+        }
+        Ok(Self { account, account_type, instruction_accounts })
+    }
+}
+
+/// Recursively find an `IdlInstructionAccount` by name in an `IdlInstructionAccountItem`.
+fn find_idl_instruction_account(
+    account_item: &IdlInstructionAccountItem,
+    name: &str,
+) -> Option<anchor_lang_idl::types::IdlInstructionAccount> {
+    match account_item {
+        IdlInstructionAccountItem::Composite(idl_instruction_accounts) => idl_instruction_accounts
+            .accounts
+            .iter()
+            .find_map(|a| find_idl_instruction_account(a, name)),
+        IdlInstructionAccountItem::Single(idl_instruction_account) => {
+            if idl_instruction_account.name == name {
+                Some(idl_instruction_account.clone())
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// Flattens nested account items into a flat ordered list
+fn flatten_accounts(accounts: &[IdlInstructionAccountItem]) -> Vec<String> {
+    let mut result = Vec::new();
+    for item in accounts {
+        match item {
+            IdlInstructionAccountItem::Single(account) => {
+                result.push(account.name.clone());
+            }
+            IdlInstructionAccountItem::Composite(nested) => {
+                // Prepend the parent name as a prefix if desired
+                result.extend(flatten_accounts(&nested.accounts));
+            }
+        }
+    }
+    result
+}
+
+/// Given a message account key list and a CompiledInstruction, return a mapping from IDL account names to pubkeys
+pub fn match_idl_accounts(
+    idl_instruction: &IdlInstruction,
+    instruction_account_indices: &[u8],
+    message_account_keys: &[Pubkey],
+) -> Vec<(String, Pubkey)> {
+    let flat_idl_account_names = flatten_accounts(&idl_instruction.accounts);
+
+    flat_idl_account_names
+        .into_iter()
+        .zip(instruction_account_indices.iter())
+        .map(|(name, &index)| (name, message_account_keys[index as usize]))
+        .collect()
+}
