@@ -11,6 +11,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
+use solana_signature::Signature;
 use solana_transaction::Transaction;
 
 use txtx_addon_kit::{
@@ -113,6 +114,28 @@ impl SvmValue {
 
     pub fn signature(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_SIGNATURE)
+    }
+
+    pub fn to_signature(value: &Value) -> Result<Signature, String> {
+        match value.as_string() {
+            Some(s) => {
+                if is_hex(s) {
+                    let hex = decode_hex(s).map_err(|e| e.message)?;
+                    let bytes: [u8; 64] = hex[0..64]
+                        .try_into()
+                        .map_err(|e| format!("could not convert value to pubkey: {e}"))?;
+                    return Ok(Signature::from(bytes));
+                }
+                return Signature::from_str(s)
+                    .map_err(|e| format!("could not convert value to pubkey: {e}"));
+            }
+            None => {}
+        };
+        let bytes = value.to_bytes();
+        let bytes: [u8; 64] = bytes[0..64]
+            .try_into()
+            .map_err(|e| format!("could not convert value to pubkey: {e}"))?;
+        Ok(Signature::from(bytes))
     }
 
     pub fn init_code(bytes: Vec<u8>) -> Value {

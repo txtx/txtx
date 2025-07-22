@@ -4,6 +4,7 @@ use anchor_lang_idl::types::{
     Idl, IdlConst, IdlDefinedFields, IdlInstruction, IdlInstructionAccount,
     IdlInstructionAccountItem, IdlTypeDef, IdlTypeDefTy,
 };
+use convert_case::{Case, Casing};
 use serde::{Deserialize, Serialize};
 use solana_clock::Slot;
 use solana_pubkey::Pubkey;
@@ -215,7 +216,7 @@ pub struct IntrinsicField {
 impl IntrinsicField {
     pub fn to_indexed_field(&self) -> IndexedSubgraphField {
         IndexedSubgraphField {
-            display_name: self.name.clone(),
+            display_name: self.name.to_case(Case::Camel),
             source_key: self.name.clone(),
             expected_type: self.expected_type.clone(),
             description: Some(self.description.clone()),
@@ -249,20 +250,19 @@ impl IndexedSubgraphField {
         write_version: Option<u64>,
     ) -> Option<(String, Value)> {
         match self.source_key.as_str() {
-            "slot" => slot.map(|s| ("slot".to_string(), Value::integer(s as i128))),
+            "slot" => slot.map(|s| (self.display_name.clone(), Value::integer(s as i128))),
             "transaction_signature" => transaction_signature.map(|s| {
-                (
-                    "transaction_signature".to_string(),
-                    Value::addon(s.as_ref().to_vec(), SVM_SIGNATURE),
-                )
+                (self.display_name.clone(), Value::addon(s.as_ref().to_vec(), SVM_SIGNATURE))
             }),
-            "pubkey" => pubkey
-                .map(|p| ("pubkey".to_string(), Value::addon(p.to_bytes().to_vec(), SVM_PUBKEY))),
-            "owner" => owner
-                .map(|o| ("owner".to_string(), Value::addon(o.to_bytes().to_vec(), SVM_PUBKEY))),
-            "lamports" => lamports.map(|l| ("lamports".to_string(), Value::integer(l as i128))),
+            "pubkey" => pubkey.map(|p| {
+                (self.display_name.clone(), Value::addon(p.to_bytes().to_vec(), SVM_PUBKEY))
+            }),
+            "owner" => owner.map(|o| {
+                (self.display_name.clone(), Value::addon(o.to_bytes().to_vec(), SVM_PUBKEY))
+            }),
+            "lamports" => lamports.map(|l| (self.display_name.clone(), Value::integer(l as i128))),
             "write_version" => {
-                write_version.map(|w| ("write_version".to_string(), Value::integer(w as i128)))
+                write_version.map(|w| (self.display_name.clone(), Value::integer(w as i128)))
             }
             _ => None,
         }
@@ -331,10 +331,18 @@ impl IndexedSubgraphField {
                 let name = name.as_string().ok_or(diagnosed_error!(
                     "could not deserialize subgraph field: expected 'name' to be a string"
                 ))?;
-                let idl_key = field_value
-                    .get("idl_key")
+
+                let idl_key_value = field_value.get("idl_key");
+                let idl_key = idl_key_value
                     .and_then(|v| v.as_string().map(|s| s.to_string()))
                     .unwrap_or(name.to_string());
+
+                let display_name = if idl_key_value.is_some() {
+                    // key and name were specified, meaning the `name` field is an intentional renam
+                    name.to_string()
+                } else {
+                    name.to_case(Case::Camel)
+                };
 
                 let description = field_value
                     .get("description")
@@ -361,7 +369,7 @@ impl IndexedSubgraphField {
                     field_value.get("is_indexed").and_then(|v| v.as_bool()).unwrap_or(false);
 
                 fields.push(Self {
-                    display_name: name.to_string(),
+                    display_name,
                     source_key: idl_key,
                     expected_type,
                     description,
@@ -390,7 +398,7 @@ impl IndexedSubgraphField {
                                                     f.name
                                                 )
                                             }).map(|expected_type| Self {
-                                            display_name: f.name.clone(),
+                                            display_name: f.name.to_case(Case::Camel),
                                             source_key: f.name.clone(),
                                             expected_type ,
                                             description: if f.docs.is_empty() {
@@ -439,10 +447,13 @@ trait SubgraphSourceType {
                     let name = name.as_string().ok_or(diagnosed_error!(
                         "could not deserialize subgraph intrinsic field: expected 'name' to be a string"
                     ))?;
+
+                    let default_display_name = name.to_case(Case::Camel);
+
                     let display_name = field_value
                         .get("display_name")
                         .and_then(|v| v.as_string().map(|s| s.to_string()))
-                        .unwrap_or(name.to_string());
+                        .unwrap_or(default_display_name);
 
                     let description = field_value
                         .get("description")
@@ -505,6 +516,7 @@ impl IndexedSubgraphSourceType {
             let name = name.as_string().ok_or(diagnosed_error!(
                 "could not deserialize subgraph event: expected 'name' to be a string"
             ))?;
+
             let fields = entry.get("field").and_then(|v| v.as_map().map(|s| s.to_vec()));
             let intrinsic_fields =
                 entry.get("intrinsic_field").and_then(|v| v.as_map().map(|s| s.to_vec()));
