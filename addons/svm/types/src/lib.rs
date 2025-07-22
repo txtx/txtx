@@ -31,6 +31,7 @@ pub const SVM_INSTRUCTION: &str = "svm::instruction";
 pub const SVM_ACCOUNT: &str = "svm::account";
 pub const SVM_MESSAGE: &str = "svm::message";
 pub const SVM_TX_HASH: &str = "svm::tx_hash";
+pub const SVM_SIGNATURE: &str = "svm::signature";
 pub const SVM_INIT_CODE: &str = "svm::init_code";
 pub const SVM_BINARY: &str = "svm::binary";
 pub const SVM_IDL: &str = "svm::idl";
@@ -108,6 +109,10 @@ impl SvmValue {
 
     pub fn tx_hash(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_TX_HASH)
+    }
+
+    pub fn signature(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_SIGNATURE)
     }
 
     pub fn init_code(bytes: Vec<u8>) -> Value {

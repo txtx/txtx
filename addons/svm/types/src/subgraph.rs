@@ -5,7 +5,9 @@ use anchor_lang_idl::types::{
     IdlType, IdlTypeDefTy,
 };
 use serde::{Deserialize, Serialize};
+use solana_clock::Slot;
 use solana_pubkey::Pubkey;
+use solana_signature::Signature;
 use txtx_addon_kit::{
     diagnosed_error,
     types::{
@@ -16,7 +18,7 @@ use txtx_addon_kit::{
     },
 };
 
-use crate::{SVM_I256, SVM_PUBKEY, SVM_U128, SVM_U256};
+use crate::{SVM_I256, SVM_PUBKEY, SVM_SIGNATURE, SVM_U128, SVM_U256};
 
 // Subgraph keys
 pub const SVM_SUBGRAPH_REQUEST: &str = "svm::subgraph_request";
@@ -31,7 +33,7 @@ lazy_static! {
     };
     pub static ref TRANSACTION_SIGNATURE_INTRINSIC_FIELD: IntrinsicField = IntrinsicField {
         name: "transaction_signature".into(),
-        expected_type: Type::string(),
+        expected_type: Type::addon(SVM_SIGNATURE),
         description: "The transaction signature in which the event was emitted.".into(),
         is_indexed: true,
     };
@@ -206,10 +208,12 @@ impl SubgraphRequest {
         let (data_source, defined_field_values, intrinsic_field_values) =
             IndexedSubgraphSourceType::parse_values(values, &idl)?;
 
-        let defined_fields =
-            IndexedSubgraphField::parse_defined_fields(data_source.clone(), &defined_field_values)?;
+        let defined_fields = IndexedSubgraphField::parse_defined_field_values(
+            data_source.clone(),
+            &defined_field_values,
+        )?;
 
-        let intrinsic_fields = IndexedSubgraphField::parse_intrinsic_fields(
+        let intrinsic_fields = IndexedSubgraphField::parse_intrinsic_field_values(
             data_source.clone(),
             intrinsic_field_values,
         )?;
@@ -290,14 +294,43 @@ pub struct IndexedSubgraphField {
 }
 
 impl IndexedSubgraphField {
-    pub fn parse_intrinsic_fields(
+    pub fn extract_intrinsic(
+        &self,
+        slot: Option<Slot>,
+        transaction_signature: Option<Signature>,
+        pubkey: Option<Pubkey>,
+        owner: Option<Pubkey>,
+        lamports: Option<u64>,
+        write_version: Option<u64>,
+    ) -> Option<(String, Value)> {
+        match self.source_key.as_str() {
+            "slot" => slot.map(|s| ("slot".to_string(), Value::integer(s as i128))),
+            "transaction_signature" => transaction_signature.map(|s| {
+                (
+                    "transaction_signature".to_string(),
+                    Value::addon(s.as_ref().to_vec(), SVM_SIGNATURE),
+                )
+            }),
+            "pubkey" => pubkey
+                .map(|p| ("pubkey".to_string(), Value::addon(p.to_bytes().to_vec(), SVM_PUBKEY))),
+            "owner" => owner
+                .map(|o| ("owner".to_string(), Value::addon(o.to_bytes().to_vec(), SVM_PUBKEY))),
+            "lamports" => lamports.map(|l| ("lamports".to_string(), Value::integer(l as i128))),
+            "write_version" => {
+                write_version.map(|w| ("write_version".to_string(), Value::integer(w as i128)))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn parse_intrinsic_field_values(
         data_source: IndexedSubgraphSourceType,
         intrinsic_field_values: Option<Vec<Value>>,
     ) -> Result<Vec<Self>, Diagnostic> {
         data_source.index_intrinsics(intrinsic_field_values)
     }
 
-    pub fn parse_defined_fields(
+    pub fn parse_defined_field_values(
         data_source: IndexedSubgraphSourceType,
         field_values: &Option<Vec<Value>>,
     ) -> Result<Vec<Self>, Diagnostic> {
@@ -306,13 +339,13 @@ impl IndexedSubgraphField {
                 Err(diagnosed_error!("instruction subgraph not supported yet"))
             }
             IndexedSubgraphSourceType::Event(event_subgraph_source) => {
-                IndexedSubgraphField::parse_idl_defined_fields(
+                IndexedSubgraphField::parse_user_defined_field_values_against_idl(
                     field_values,
                     &event_subgraph_source.ty.ty,
                 )
             }
             IndexedSubgraphSourceType::Pda(pda_subgraph_source) => {
-                IndexedSubgraphField::parse_idl_defined_fields(
+                IndexedSubgraphField::parse_user_defined_field_values_against_idl(
                     field_values,
                     &pda_subgraph_source.account_type.ty,
                 )
@@ -320,7 +353,7 @@ impl IndexedSubgraphField {
         }
     }
 
-    fn parse_idl_defined_fields(
+    fn parse_user_defined_field_values_against_idl(
         field_values: &Option<Vec<Value>>,
         idl_type_def_ty: &IdlTypeDefTy,
     ) -> Result<Vec<Self>, Diagnostic> {
