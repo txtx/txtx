@@ -22,6 +22,45 @@ use crate::{SVM_I256, SVM_PUBKEY, SVM_U128, SVM_U256};
 pub const SVM_SUBGRAPH_REQUEST: &str = "svm::subgraph_request";
 pub const FIELD: &str = "field";
 
+lazy_static! {
+    pub static ref SLOT_INTRINSIC_FIELD: IntrinsicField = IntrinsicField {
+        name: "slot".into(),
+        expected_type: Type::integer(),
+        description: "The slot in which the event was emitted.".into(),
+        is_indexed: true,
+    };
+    pub static ref TRANSACTION_SIGNATURE_INTRINSIC_FIELD: IntrinsicField = IntrinsicField {
+        name: "transaction_signature".into(),
+        expected_type: Type::string(),
+        description: "The transaction signature in which the event was emitted.".into(),
+        is_indexed: true,
+    };
+    pub static ref PUBKEY_INTRINSIC_FIELD: IntrinsicField = IntrinsicField {
+        name: "pubkey".into(),
+        expected_type: Type::addon(SVM_PUBKEY),
+        description: "The public key of the account.".into(),
+        is_indexed: true,
+    };
+    pub static ref OWNER_INTRINSIC_FIELD: IntrinsicField = IntrinsicField {
+        name: "owner".into(),
+        expected_type: Type::addon(SVM_PUBKEY),
+        description: "The owner of the account.".into(),
+        is_indexed: false,
+    };
+    pub static ref LAMPORTS_INTRINSIC_FIELD: IntrinsicField = IntrinsicField {
+        name: "lamports".into(),
+        expected_type: Type::integer(),
+        description: "The lamports of the account.".into(),
+        is_indexed: false,
+    };
+    pub static ref WRITE_VERSION_INTRINSIC_FIELD: IntrinsicField = IntrinsicField {
+        name: "write_version".into(),
+        expected_type: Type::integer(),
+        description: "A monotonically increasing index of the account update.".into(),
+        is_indexed: true,
+    };
+}
+
 pub fn get_expected_field_type_from_idl_type_def_ty(
     field_name: &str,
     idl_type_def_ty: &IdlTypeDefTy,
@@ -125,8 +164,11 @@ pub struct SubgraphRequest {
     pub subgraph_description: Option<String>,
     /// The data source to index, with the IDL context needed for the data source type.
     pub data_source: IndexedSubgraphSourceType,
-    /// The metadata of the fields to index.
-    pub fields: Vec<IndexedSubgraphField>,
+    /// The metadata of the fields to index. These fields are intrinsic to the data source type.
+    /// For example, an event subgraph will include `slot`, while a PDA subgraph will include `pubkey`, `lamports`, and `owner`.
+    pub intrinsic_fields: Vec<IndexedSubgraphField>,
+    /// The metadata of the fields to index. These fields are defined in the IDL.
+    pub defined_fields: Vec<IndexedSubgraphField>,
     /// The Construct Did of the subgraph request action.
     pub construct_did: ConstructDid,
     /// The network to index. This is used to determine the network of the subgraph.
@@ -161,9 +203,16 @@ impl SubgraphRequest {
         let idl = serde_json::from_str(idl_str)
             .map_err(|e| diagnosed_error!("could not deserialize IDL: {e}"))?;
 
-        let (data_source, field_values) = IndexedSubgraphSourceType::parse_values(values, &idl)?;
+        let (data_source, defined_field_values, intrinsic_field_values) =
+            IndexedSubgraphSourceType::parse_values(values, &idl)?;
 
-        let fields = IndexedSubgraphField::new(data_source.clone(), &field_values)?;
+        let defined_fields =
+            IndexedSubgraphField::parse_defined_fields(data_source.clone(), &defined_field_values)?;
+
+        let intrinsic_fields = IndexedSubgraphField::parse_intrinsic_fields(
+            data_source.clone(),
+            intrinsic_field_values,
+        )?;
 
         Ok(Self {
             program_id: *program_id,
@@ -172,7 +221,8 @@ impl SubgraphRequest {
             subgraph_description: subgraph_description.or(data_source.description()),
             data_source,
             construct_did: construct_did.clone(),
-            fields,
+            defined_fields,
+            intrinsic_fields,
             network: "solana-devnet".into(),
         })
     }
@@ -203,6 +253,29 @@ impl SubgraphRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntrinsicField {
+    /// The name of the intrinsic field.
+    pub name: String,
+    /// The expected type of the intrinsic field.
+    pub expected_type: Type,
+    /// A description of the intrinsic field.
+    pub description: String,
+    /// Whether the intrinsic field is indexed in the subgraph.
+    pub is_indexed: bool,
+}
+impl IntrinsicField {
+    pub fn to_indexed_field(&self) -> IndexedSubgraphField {
+        IndexedSubgraphField {
+            display_name: self.name.clone(),
+            source_key: self.name.clone(),
+            expected_type: self.expected_type.clone(),
+            description: Some(self.description.clone()),
+            is_indexed: self.is_indexed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexedSubgraphField {
     /// The name of the field, as it will be indexed in the graphql database.
     pub display_name: String,
@@ -212,10 +285,19 @@ pub struct IndexedSubgraphField {
     pub expected_type: Type,
     /// A description of the field. If not provided, the docs in the IDL Event's field will be used, if available.
     pub description: Option<String>,
+    /// Whether the field is indexed in the subgraph.
+    pub is_indexed: bool,
 }
 
 impl IndexedSubgraphField {
-    pub fn new(
+    pub fn parse_intrinsic_fields(
+        data_source: IndexedSubgraphSourceType,
+        intrinsic_field_values: Option<Vec<Value>>,
+    ) -> Result<Vec<Self>, Diagnostic> {
+        data_source.index_intrinsics(intrinsic_field_values)
+    }
+
+    pub fn parse_defined_fields(
         data_source: IndexedSubgraphSourceType,
         field_values: &Option<Vec<Value>>,
     ) -> Result<Vec<Self>, Diagnostic> {
@@ -224,10 +306,13 @@ impl IndexedSubgraphField {
                 Err(diagnosed_error!("instruction subgraph not supported yet"))
             }
             IndexedSubgraphSourceType::Event(event_subgraph_source) => {
-                IndexedSubgraphField::parse_fields(field_values, &event_subgraph_source.ty.ty)
+                IndexedSubgraphField::parse_idl_defined_fields(
+                    field_values,
+                    &event_subgraph_source.ty.ty,
+                )
             }
             IndexedSubgraphSourceType::Pda(pda_subgraph_source) => {
-                IndexedSubgraphField::parse_fields(
+                IndexedSubgraphField::parse_idl_defined_fields(
                     field_values,
                     &pda_subgraph_source.account_type.ty,
                 )
@@ -235,7 +320,7 @@ impl IndexedSubgraphField {
         }
     }
 
-    fn parse_fields(
+    fn parse_idl_defined_fields(
         field_values: &Option<Vec<Value>>,
         idl_type_def_ty: &IdlTypeDefTy,
     ) -> Result<Vec<Self>, Diagnostic> {
@@ -270,11 +355,15 @@ impl IndexedSubgraphField {
                             )
                         })?;
 
+                let is_indexed =
+                    field_value.get("is_indexed").and_then(|v| v.as_bool()).unwrap_or(false);
+
                 fields.push(Self {
                     display_name: name.to_string(),
                     source_key: idl_key,
                     expected_type,
                     description,
+                    is_indexed,
                 });
             }
         } else {
@@ -295,6 +384,7 @@ impl IndexedSubgraphField {
                                             } else {
                                                 Some(f.docs.join(" "))
                                             },
+                                            is_indexed: false,
                                         })
                                         .collect(),
                                 );
@@ -309,26 +399,60 @@ impl IndexedSubgraphField {
                 IdlTypeDefTy::Enum { .. } => todo!(),
                 IdlTypeDefTy::Type { .. } => todo!(),
             }
-            fields.push(IndexedSubgraphField {
-                display_name: "pubkey".into(),
-                source_key: "pubkey".into(),
-                expected_type: Type::addon(SVM_PUBKEY),
-                description: Some("The public key of the account.".into()),
-            });
-            fields.push(IndexedSubgraphField {
-                display_name: "lamports".into(),
-                source_key: "lamports".into(),
-                expected_type: Type::integer(),
-                description: Some("The lamports of the account.".into()),
-            });
-            fields.push(IndexedSubgraphField {
-                display_name: "owner".into(),
-                source_key: "owner".into(),
-                expected_type: Type::addon(SVM_PUBKEY),
-                description: Some("The owner of the account.".into()),
-            });
         }
         Ok(fields)
+    }
+}
+
+trait SubgraphSourceType {
+    fn intrinsic_fields() -> Vec<IntrinsicField>;
+    fn index_intrinsics(
+        &self,
+        intrinsic_field_values: Option<Vec<Value>>,
+    ) -> Result<Vec<IndexedSubgraphField>, Diagnostic> {
+        let available_fields = Self::intrinsic_fields();
+        match intrinsic_field_values {
+            Some(intrinsic_field_values) => {
+                let mut indexed = vec![];
+                for field_value in intrinsic_field_values {
+                    let field_value = field_value.as_object().ok_or(diagnosed_error!(
+                        "each entry of a subgraph intrinsic field should contain an object"
+                    ))?;
+                    let name = field_value.get("name").ok_or(diagnosed_error!(
+                        "could not deserialize subgraph intrinsic field: expected 'name' key"
+                    ))?;
+                    let name = name.as_string().ok_or(diagnosed_error!(
+                        "could not deserialize subgraph intrinsic field: expected 'name' to be a string"
+                    ))?;
+                    let display_name = field_value
+                        .get("display_name")
+                        .and_then(|v| v.as_string().map(|s| s.to_string()))
+                        .unwrap_or(name.to_string());
+
+                    let description = field_value
+                        .get("description")
+                        .and_then(|v| v.as_string().map(|s| s.to_string()));
+
+                    let is_indexed = field_value.get("is_indexed").and_then(|v| v.as_bool());
+
+                    let matching = available_fields.iter().find(|f| f.name == name).ok_or(
+                        diagnosed_error!(
+                            "could not find intrinsic field '{}' in subgraph source type",
+                            name
+                        ),
+                    )?;
+                    indexed.push(IndexedSubgraphField {
+                        display_name,
+                        source_key: name.to_string(),
+                        expected_type: matching.expected_type.clone(),
+                        description: description.or(Some(matching.description.clone())),
+                        is_indexed: is_indexed.unwrap_or(matching.is_indexed),
+                    })
+                }
+                Ok(indexed)
+            }
+            None => Ok(available_fields.into_iter().map(|f| f.to_indexed_field()).collect()),
+        }
     }
 }
 
@@ -343,28 +467,11 @@ pub enum IndexedSubgraphSourceType {
     Pda(PdaSubgraphSource),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum IndexedSubgraphSourceTypeName {
-    Instruction,
-    Event,
-    Pda,
-}
-
-impl From<&IndexedSubgraphSourceType> for IndexedSubgraphSourceTypeName {
-    fn from(value: &IndexedSubgraphSourceType) -> Self {
-        match value {
-            IndexedSubgraphSourceType::Instruction(_) => Self::Instruction,
-            IndexedSubgraphSourceType::Event(_) => Self::Event,
-            IndexedSubgraphSourceType::Pda(_) => Self::Pda,
-        }
-    }
-}
-
 impl IndexedSubgraphSourceType {
     pub fn parse_values(
         values: &ValueStore,
         idl: &Idl,
-    ) -> Result<(Self, Option<Vec<Value>>), Diagnostic> {
+    ) -> Result<(Self, Option<Vec<Value>>, Option<Vec<Value>>), Diagnostic> {
         if let Some(event) = values.get_value("event") {
             let event_map =
                 event.as_map().ok_or(diagnosed_error!("subgraph event must be a map"))?;
@@ -384,8 +491,10 @@ impl IndexedSubgraphSourceType {
                 "could not deserialize subgraph event: expected 'name' to be a string"
             ))?;
             let fields = entry.get("field").and_then(|v| v.as_map().map(|s| s.to_vec()));
+            let intrinsic_fields =
+                entry.get("intrinsic_field").and_then(|v| v.as_map().map(|s| s.to_vec()));
             let event = EventSubgraphSource::new(name, idl)?;
-            return Ok((Self::Event(event), fields));
+            return Ok((Self::Event(event), fields, intrinsic_fields));
         } else if let Some(_) = values.get_value("instruction") {
             return Err(diagnosed_error!("subgraph instruction not supported yet"));
         } else if let Some(_) = values.get_value("account") {
@@ -437,7 +546,9 @@ impl IndexedSubgraphSourceType {
 
             let pda_source = PdaSubgraphSource::new(type_name, &instruction_values, idl)?;
             let fields = entry.get("field").and_then(|v| v.as_map().map(|s| s.to_vec()));
-            return Ok((Self::Pda(pda_source), fields));
+            let intrinsic_fields =
+                entry.get("intrinsic_field").and_then(|v| v.as_map().map(|s| s.to_vec()));
+            return Ok((Self::Pda(pda_source), fields, intrinsic_fields));
         }
 
         Err(diagnosed_error!("no event, instruction, or account map provided"))
@@ -482,6 +593,23 @@ impl IndexedSubgraphSourceType {
             }
         }
     }
+
+    pub fn index_intrinsics(
+        &self,
+        intrinsic_field_values: Option<Vec<Value>>,
+    ) -> Result<Vec<IndexedSubgraphField>, Diagnostic> {
+        match self {
+            IndexedSubgraphSourceType::Instruction(_) => {
+                Err(diagnosed_error!("instruction subgraph not supported yet"))
+            }
+            IndexedSubgraphSourceType::Event(event_subgraph_source) => {
+                event_subgraph_source.index_intrinsics(intrinsic_field_values)
+            }
+            IndexedSubgraphSourceType::Pda(pda_subgraph_source) => {
+                pda_subgraph_source.index_intrinsics(intrinsic_field_values)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -514,6 +642,12 @@ impl EventSubgraphSource {
     }
 }
 
+impl SubgraphSourceType for EventSubgraphSource {
+    fn intrinsic_fields() -> Vec<IntrinsicField> {
+        vec![SLOT_INTRINSIC_FIELD.clone(), TRANSACTION_SIGNATURE_INTRINSIC_FIELD.clone()]
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountSubgraphSource {}
 
@@ -529,6 +663,19 @@ pub struct PdaSubgraphSource {
         anchor_lang_idl::types::IdlInstruction,
         anchor_lang_idl::types::IdlInstructionAccount,
     )>,
+}
+
+impl SubgraphSourceType for PdaSubgraphSource {
+    fn intrinsic_fields() -> Vec<IntrinsicField> {
+        vec![
+            SLOT_INTRINSIC_FIELD.clone(),
+            TRANSACTION_SIGNATURE_INTRINSIC_FIELD.clone(),
+            PUBKEY_INTRINSIC_FIELD.clone(),
+            LAMPORTS_INTRINSIC_FIELD.clone(),
+            OWNER_INTRINSIC_FIELD.clone(),
+            WRITE_VERSION_INTRINSIC_FIELD.clone(),
+        ]
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

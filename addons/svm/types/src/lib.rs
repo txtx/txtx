@@ -325,13 +325,21 @@ lazy_static! {
         },
         field: {
             documentation: "A map of fields to index.",
-            typing: SUBGRAPH_EVENT_FIELD.clone(),
+            typing: SUBGRAPH_DEFINED_FIELD.clone(),
             optional: false,
+            tainting: true
+        },
+        intrinsic_fields: {
+            documentation: indoc!{r#"A map of intrinsic fields to index. For PDA subgraphs, intrinsics are:
+                - `slot`(indexed): The slot in which the event was emitted.
+                - `transactionSignature`(indexed): The transaction signature in which the event was emitted."#},
+            typing: Type::array(SUBGRAPH_INTRINSIC_FIELD.clone()),
+            optional: true,
             tainting: true
         }
     };
 
-    pub static ref  PDA_ACCOUNT_SUBGRAPH: Type = define_strict_map_type! {
+    pub static ref PDA_ACCOUNT_SUBGRAPH: Type = define_strict_map_type! {
         type: {
             documentation: "The type field of the account, as indexed by the IDL. This type definition will be used to parse the PDA account data.",
             typing: Type::string(),
@@ -346,13 +354,52 @@ lazy_static! {
         },
         field: {
             documentation: "A map of fields to index.",
-            typing: SUBGRAPH_EVENT_FIELD.clone(),
+            typing: SUBGRAPH_DEFINED_FIELD.clone(),
+            optional: false,
+            tainting: true
+        },
+        intrinsic_fields: {
+            documentation: indoc!{r#"A map of intrinsic fields to index. For PDA subgraphs, intrinsics are:
+                - `slot`(indexed): The slot in which the event was emitted.
+                - `transactionSignature`(indexed): The transaction signature in which the event was emitted.
+                - `pubkey`(indexed): The public key of the account.
+                - `owner`(not indexed): The owner of the account.
+                - `lamports`(not indexed): The lamports of the account.
+                - `writeVersion`(indexed): A monotonically increasing index of the account update."#},
+            typing: Type::array(SUBGRAPH_INTRINSIC_FIELD.clone()),
+            optional: true,
+            tainting: true
+        }
+    };
+
+    pub static ref SUBGRAPH_INTRINSIC_FIELD: Type = define_strict_map_type! {
+        name: {
+            documentation: "The name of the intrinsic field to index.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        description: {
+            documentation: "A description of the field as it should appear in the subgraph schema.",
+            typing: Type::string(),
+            optional: true,
+            tainting: false
+        },
+        display_name: {
+            documentation: "The name of the field as it should appear in the subgraph schema. By default the intrinsic field name will be used.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        indexed: {
+            documentation: "Whether this field should be indexed in the subgraph. If true, the field will be indexed and can be used as a filter in the subgraph. Sensible defaults are provided for intrinsic fields.",
+            typing: Type::bool(),
             optional: false,
             tainting: true
         }
     };
 
-    pub static ref  PDA_ACCOUNT_INSTRUCTION_SUBGRAPH: Type = define_strict_map_type! {
+    pub static ref PDA_ACCOUNT_INSTRUCTION_SUBGRAPH: Type = define_strict_map_type! {
         name: {
             documentation: "The name of the instruction that contains the account to index in the subgraph.",
             typing: Type::string(),
@@ -367,7 +414,7 @@ lazy_static! {
         }
     };
 
-    pub static ref SUBGRAPH_EVENT_FIELD: Type = define_strict_map_type! {
+    pub static ref SUBGRAPH_DEFINED_FIELD: Type = define_strict_map_type! {
         name: {
             documentation: "The name of the field as it should appear in the subgraph.",
             typing: Type::string(),
@@ -384,6 +431,12 @@ lazy_static! {
             documentation: "A key from the event's type in the IDL, indicating which argument from the IDL type to map to this field. By default, the field name is used.",
             typing: Type::string(),
             optional: true,
+            tainting: true
+        },
+        indexed: {
+            documentation: "Whether this field should be indexed in the subgraph. If true, the field will be indexed and can be used as a filter in the subgraph. The default is false.",
+            typing: Type::bool(),
+            optional: false,
             tainting: true
         }
     };
