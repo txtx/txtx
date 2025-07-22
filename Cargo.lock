@@ -14985,6 +14985,7 @@ dependencies = [
  "solana-transaction",
  "solana-transaction-context",
  "solana-transaction-error",
+ "test-case",
  "txtx-addon-kit",
 ]
 

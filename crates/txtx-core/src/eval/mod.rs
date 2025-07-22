@@ -1834,6 +1834,9 @@ pub fn perform_inputs_evaluation(
                         object_values.insert(object_key, value);
                     }
                 }
+                ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+                    unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
+                }
             }
 
             if !object_values.is_empty() {
@@ -2059,6 +2062,9 @@ pub fn perform_signer_inputs_evaluation(
                         "Warning: arbitrary object definition is not supported for signer inputs"
                     );
                 }
+                ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+                    unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
+                }
             }
 
             if !object_values.is_empty() {
@@ -2232,6 +2238,9 @@ fn evaluate_map_input(
             runtime_context,
         )
         .map_err(|diag| vec![diag])?,
+        ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+            unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
+        }
     };
 
     result.insert(&input_name, Value::array(res.entries));
@@ -2461,6 +2470,9 @@ fn evaluate_map_object_prop(
                         runbook_execution_context,
                         runtime_context,
                     )?,
+                    ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+                        unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
+                    }
                 };
 
                 parent_result.unevaluated_inputs = res.unevaluated_inputs;

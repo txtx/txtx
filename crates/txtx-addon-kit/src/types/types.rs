@@ -910,6 +910,9 @@ impl Type {
                 ObjectDefinition::Arbitrary(_) => {
                     let _ = value.as_object().ok_or_else(|| mismatch_err("object"))?;
                 }
+                ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+                    unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
+                }
             }, //  => todo!(),
         };
         Ok(())
@@ -981,6 +984,9 @@ impl Type {
                         );
                     }
                 }
+                ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+                    unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
+                }
             },
             Type::Object(ref object_def) => {
                 if let Some(expr) = visit_optional_untyped_attribute(&input_name, &block) {
@@ -1014,6 +1020,9 @@ impl Type {
                                 dependencies,
                             );
                         }
+                    }
+                    ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+                        unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
                     }
                 }
             }
@@ -1105,6 +1114,12 @@ pub enum ObjectDefinition {
     /// The optional list of object properties is used for documenting
     /// Some of the potential properties.
     Arbitrary(Option<Vec<ObjectProperty>>),
+    /// Tuple variant for representing tuple types. This means that the 'name' field will be ignored.
+    /// Instead, the index of the property will be used to create the tuple.
+    Tuple(Vec<ObjectProperty>),
+    /// Enum variant for representing enum types. This means that the value
+    /// will have one of the specified properties.
+    Enum(Vec<ObjectProperty>),
 }
 
 impl ObjectDefinition {
@@ -1118,6 +1133,14 @@ impl ObjectDefinition {
 
     pub fn documented_arbitrary(props: Vec<ObjectProperty>) -> Self {
         ObjectDefinition::Arbitrary(Some(props))
+    }
+
+    pub fn tuple(props: Vec<ObjectProperty>) -> Self {
+        ObjectDefinition::Tuple(props)
+    }
+
+    pub fn enum_type(props: Vec<ObjectProperty>) -> Self {
+        ObjectDefinition::Enum(props)
     }
 
     pub fn join_documentation(&self, recursion_depth: usize) -> String {
@@ -1135,6 +1158,11 @@ impl ObjectDefinition {
                 .collect::<Vec<String>>()
                 .join("\n"),
             ObjectDefinition::Arbitrary(None) => String::new(),
+            _ => {
+                // For Tuple and Enum, we don't have a specific documentation format
+                // so we return an empty string.
+                String::new()
+            }
         }
     }
 }

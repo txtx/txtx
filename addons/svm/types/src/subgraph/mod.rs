@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use anchor_lang_idl::types::{
-    Idl, IdlDefinedFields, IdlInstruction, IdlInstructionAccount, IdlInstructionAccountItem,
-    IdlType, IdlTypeDefTy,
+    Idl, IdlConst, IdlDefinedFields, IdlInstruction, IdlInstructionAccount,
+    IdlInstructionAccountItem, IdlTypeDef, IdlTypeDefTy,
 };
 use serde::{Deserialize, Serialize};
 use solana_clock::Slot;
@@ -13,12 +13,17 @@ use txtx_addon_kit::{
     types::{
         diagnostics::Diagnostic,
         stores::ValueStore,
-        types::{Type, Value},
+        types::{ObjectDefinition, Type, Value},
         ConstructDid,
     },
 };
 
-use crate::{SVM_I256, SVM_PUBKEY, SVM_SIGNATURE, SVM_U128, SVM_U256};
+pub mod idl;
+
+use crate::{
+    subgraph::idl::{get_expected_type_from_idl_type_def_ty, idl_type_to_txtx_type},
+    SVM_PUBKEY, SVM_SIGNATURE,
+};
 
 // Subgraph keys
 pub const SVM_SUBGRAPH_REQUEST: &str = "svm::subgraph_request";
@@ -61,68 +66,6 @@ lazy_static! {
         description: "A monotonically increasing index of the account update.".into(),
         is_indexed: true,
     };
-}
-
-pub fn get_expected_field_type_from_idl_type_def_ty(
-    field_name: &str,
-    idl_type_def_ty: &IdlTypeDefTy,
-) -> Result<Type, String> {
-    let ty = match idl_type_def_ty {
-        IdlTypeDefTy::Struct { fields } => {
-            let ty = if let Some(fields) = fields {
-                let field = match fields {
-                    IdlDefinedFields::Named(idl_fields) => idl_fields
-                        .iter()
-                        .find(|f| f.name == field_name)
-                        .ok_or(format!("unable to find field '{}' in struct", field_name))?,
-                    IdlDefinedFields::Tuple(_) => {
-                        return Err("cannot find field by name for tuple type".to_string())
-                    }
-                };
-                field.ty.clone()
-            } else {
-                return Err(format!("unable to find field '{}' in struct", field_name));
-            };
-            ty
-        }
-        IdlTypeDefTy::Enum { variants } => {
-            return Err(format!("unsupported enum type: {:?}", variants)); // todo
-        }
-        IdlTypeDefTy::Type { alias } => {
-            return Err(format!("unsupported type alias: {:?}", alias)); // todo
-        }
-    };
-
-    Ok(idl_type_to_txtx_type(ty))
-}
-
-pub fn idl_type_to_txtx_type(idl_type: IdlType) -> Type {
-    match idl_type {
-        IdlType::Bool => Type::bool(),
-        IdlType::U8 => Type::integer(),
-        IdlType::I8 => Type::integer(),
-        IdlType::U16 => Type::integer(),
-        IdlType::I16 => Type::integer(),
-        IdlType::U32 => Type::integer(),
-        IdlType::I32 => Type::integer(),
-        IdlType::U64 => Type::integer(),
-        IdlType::I64 => Type::integer(),
-        IdlType::I128 => Type::integer(),
-        IdlType::F32 => Type::float(),
-        IdlType::F64 => Type::float(),
-        IdlType::U128 => Type::addon(SVM_U128),
-        IdlType::U256 => Type::addon(SVM_U256),
-        IdlType::I256 => Type::addon(SVM_I256),
-        IdlType::Bytes => Type::buffer(),
-        IdlType::String => Type::string(),
-        IdlType::Pubkey => Type::addon(SVM_PUBKEY),
-        IdlType::Option(idl_type) => idl_type_to_txtx_type(*idl_type),
-        IdlType::Vec(idl_type) => Type::array(idl_type_to_txtx_type(*idl_type)),
-        IdlType::Array(idl_type, ..) => Type::array(idl_type_to_txtx_type(*idl_type)),
-        IdlType::Defined { .. } => todo!(),
-        IdlType::Generic(_) => todo!(),
-        _ => todo!(),
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +154,8 @@ impl SubgraphRequest {
         let defined_fields = IndexedSubgraphField::parse_defined_field_values(
             data_source.clone(),
             &defined_field_values,
+            &idl.types,
+            &idl.constants,
         )?;
 
         let intrinsic_fields = IndexedSubgraphField::parse_intrinsic_field_values(
@@ -333,6 +278,8 @@ impl IndexedSubgraphField {
     pub fn parse_defined_field_values(
         data_source: IndexedSubgraphSourceType,
         field_values: &Option<Vec<Value>>,
+        idl_types: &Vec<IdlTypeDef>,
+        idl_constants: &Vec<IdlConst>,
     ) -> Result<Vec<Self>, Diagnostic> {
         match data_source {
             IndexedSubgraphSourceType::Instruction(_) => {
@@ -342,12 +289,16 @@ impl IndexedSubgraphField {
                 IndexedSubgraphField::parse_user_defined_field_values_against_idl(
                     field_values,
                     &event_subgraph_source.ty.ty,
+                    idl_types,
+                    idl_constants,
                 )
             }
             IndexedSubgraphSourceType::Pda(pda_subgraph_source) => {
                 IndexedSubgraphField::parse_user_defined_field_values_against_idl(
                     field_values,
                     &pda_subgraph_source.account_type.ty,
+                    idl_types,
+                    idl_constants,
                 )
             }
         }
@@ -356,8 +307,18 @@ impl IndexedSubgraphField {
     fn parse_user_defined_field_values_against_idl(
         field_values: &Option<Vec<Value>>,
         idl_type_def_ty: &IdlTypeDefTy,
+        idl_types: &Vec<IdlTypeDef>,
+        idl_constants: &Vec<IdlConst>,
     ) -> Result<Vec<Self>, Diagnostic> {
         let mut fields = vec![];
+
+        let expected_type_for_type_def = get_expected_type_from_idl_type_def_ty(
+            idl_type_def_ty,
+            idl_types,
+            idl_constants,
+            &vec![],
+            &vec![],
+        )?;
 
         if let Some(field_values) = field_values {
             for field_value in field_values.iter() {
@@ -379,14 +340,22 @@ impl IndexedSubgraphField {
                     .get("description")
                     .and_then(|v| v.as_string().map(|s| s.to_string()));
 
-                let expected_type =
-                    get_expected_field_type_from_idl_type_def_ty(&idl_key, &idl_type_def_ty)
-                        .map_err(|e| {
-                            diagnosed_error!(
-                                "could not determine expected type for subgraph field '{}': {e}",
-                                idl_key
-                            )
-                        })?;
+                let expected_type = expected_type_for_type_def
+                    .as_object()
+                    .and_then(|obj| match obj {
+                        ObjectDefinition::Strict(items) => items
+                            .iter()
+                            .find(|item| item.name == idl_key)
+                            .map(|item| item.typing.clone()),
+                        other => unreachable!(
+                            "Strict object definition expected for subgraph field, found {:?}",
+                            other
+                        ),
+                    })
+                    .ok_or(diagnosed_error!(
+                        "could not find field '{}' in expected type for subgraph field",
+                        idl_key
+                    ))?;
 
                 let is_indexed =
                     field_value.get("is_indexed").and_then(|v| v.as_bool()).unwrap_or(false);
@@ -408,10 +377,22 @@ impl IndexedSubgraphField {
                                 fields.append(
                                     &mut idl_fields
                                         .iter()
-                                        .map(|f| Self {
+                                        .map(|f|{
+                                            idl_type_to_txtx_type(
+                                                f.ty.clone(),
+                                                idl_types,
+                                                idl_constants,
+                                                &vec![],
+                                                &vec![],
+                                            ).map_err(|e| {
+                                                diagnosed_error!(
+                                                    "could not determine expected type for subgraph field '{}': {e}",
+                                                    f.name
+                                                )
+                                            }).map(|expected_type| Self {
                                             display_name: f.name.clone(),
                                             source_key: f.name.clone(),
-                                            expected_type: idl_type_to_txtx_type(f.ty.clone()),
+                                            expected_type ,
                                             description: if f.docs.is_empty() {
                                                 None
                                             } else {
@@ -419,7 +400,8 @@ impl IndexedSubgraphField {
                                             },
                                             is_indexed: false,
                                         })
-                                        .collect(),
+                                    })
+                                    .collect::<Result<Vec<_>, _>>()?,
                                 );
                             }
 
@@ -830,3 +812,6 @@ pub fn match_idl_accounts(
         .map(|(name, &index)| (name, message_account_keys[index as usize]))
         .collect()
 }
+
+#[cfg(test)]
+mod tests;
