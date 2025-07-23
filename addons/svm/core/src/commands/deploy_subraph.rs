@@ -100,7 +100,7 @@ lazy_static! {
                         internal: false,
                         sensitive: false
                     },
-                    pda_account: {
+                    pda: {
                         documentation: "The PDA account to index in the subgraph",
                         typing: PDA_ACCOUNT_SUBGRAPH.clone(),
                         optional: true,
@@ -124,7 +124,7 @@ lazy_static! {
                         program_id = action.deploy.program_id
                         program_idl = action.deploy.program_idl
                         slot = action.deploy.slot
-                        pda_account {
+                        pda {
                             type = "CustomAccount"
                             instruction {
                                 name = "<instruction-using-this-account>"

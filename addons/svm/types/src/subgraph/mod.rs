@@ -526,7 +526,7 @@ impl IndexedSubgraphSourceType {
             return Err(diagnosed_error!("subgraph instruction not supported yet"));
         } else if let Some(_) = values.get_value("account") {
             return Err(diagnosed_error!("subgraph account not supported yet"));
-        } else if let Some(pda) = values.get_value("pda_account") {
+        } else if let Some(pda) = values.get_value("pda") {
             let pda_map =
                 pda.as_map().ok_or(diagnosed_error!("subgraph 'pda' field must be a map"))?;
 
