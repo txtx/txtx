@@ -62,6 +62,7 @@ pub const SET_PROGRAM_AUTHORITY: &str = "set_program_authority";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
+pub const SLOT: &str = "slot";
 pub const EVENT: &str = "event";
 pub const SUBGRAPH_NAME: &str = "subgraph_name";
 pub const SUBGRAPH_REQUEST: &str = "subgraph_request";

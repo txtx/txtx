@@ -102,8 +102,8 @@ pub struct SubgraphRequest {
     /// The program id of the program to index.
     #[serde(serialize_with = "pubkey_serialize", deserialize_with = "pubkey_deserialize")]
     pub program_id: Pubkey,
-    /// The block height at which the subgraph begins indexing.
-    pub block_height: u64,
+    /// The slot at which the subgraph begins indexing.
+    pub slot: u64,
     /// The name of the subgraph. Either provided in the `deploy_subgraph` action, or the name of the data source.
     pub subgraph_name: String,
     /// The description of the subgraph. Either provided in the `deploy_subgraph` action, or the docs from the IDL for the associated data source.
@@ -142,7 +142,7 @@ impl SubgraphRequest {
         subgraph_description: Option<String>,
         program_id: &Pubkey,
         idl_str: &str,
-        block_height: u64,
+        slot: u64,
         construct_did: &ConstructDid,
         values: &ValueStore,
     ) -> Result<Self, Diagnostic> {
@@ -166,7 +166,7 @@ impl SubgraphRequest {
 
         Ok(Self {
             program_id: *program_id,
-            block_height,
+            slot,
             subgraph_name: subgraph_name.unwrap_or(data_source.name()),
             subgraph_description: subgraph_description.or(data_source.description()),
             data_source,

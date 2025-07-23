@@ -76,10 +76,18 @@ lazy_static! {
                         internal: false,
                         sensitive: false
                     },
-                    block_height: {
-                        documentation: "The block height to start indexing from.",
+                    slot: {
+                        documentation: "The slot to start indexing from.",
                         typing: Type::integer(),
-                        optional: false,
+                        optional: true,
+                        tainting: true,
+                        internal: false,
+                        sensitive: false
+                    },
+                    block_height: {
+                        documentation: "Deprecated. Use slot instead.",
+                        typing: Type::integer(),
+                        optional: true,
                         tainting: true,
                         internal: false,
                         sensitive: false
@@ -107,10 +115,27 @@ lazy_static! {
                     action "transfer_event_subgraph" "svm::deploy_subgraph" {
                         program_id = action.deploy.program_id
                         program_idl = action.deploy.program_idl
-                        block_height = action.deploy.block_height
+                        slot = action.deploy.slot
                         event {
                             name = "TransferEvent"
                         }
+                    }
+                    action "account_index" "svm::deploy_subgraph" {
+                        program_id = action.deploy.program_id
+                        program_idl = action.deploy.program_idl
+                        slot = action.deploy.slot
+                        pda_account {
+                            type = "CustomAccount"
+                            instruction {
+                                name = "<instruction-using-this-account>"
+                                account_name = "<name-of-account-in-instruction>"
+                            }
+                            instruction {
+                                name = "<another-instruction-using-this-account>"
+                                account_name = "<name-of-account-in-instruction>"
+                            }
+                        }
+                    }
                 "#},
             }
         };
@@ -152,7 +177,8 @@ impl CommandImplementation for DeployProgram {
 
         use crate::{
             constants::{
-                BLOCK_HEIGHT, PROGRAM_IDL, SUBGRAPH_ENDPOINT_URL, SUBGRAPH_NAME, SUBGRAPH_REQUEST,
+                BLOCK_HEIGHT, PROGRAM_IDL, SLOT, SUBGRAPH_ENDPOINT_URL, SUBGRAPH_NAME,
+                SUBGRAPH_REQUEST,
             },
             typing::subgraph::SubgraphRequest,
         };
@@ -166,7 +192,18 @@ impl CommandImplementation for DeployProgram {
 
         let idl_str = values.get_expected_string(PROGRAM_IDL)?;
 
-        let block_height = values.get_expected_uint(BLOCK_HEIGHT)?;
+        let some_slot = values.get_uint(SLOT)?;
+        let some_block_height = values.get_uint(BLOCK_HEIGHT)?;
+        if some_slot.is_some() && some_block_height.is_some() {
+            return Err(diagnosed_error!(
+                "Both slot and block height are provided. The block height field is deprecated and should not be used. Use slot instead."
+            ));
+        }
+        if some_slot.is_none() && some_block_height.is_none() {
+            return Err(diagnosed_error!("Missing expected 'slot' value."));
+        }
+        let slot = some_slot.unwrap_or_else(|| some_block_height.unwrap());
+
         let program_id = SvmValue::to_pubkey(values.get_expected_value(PROGRAM_ID)?)
             .map_err(|e| diagnosed_error!("{e}"))?;
 
@@ -178,7 +215,7 @@ impl CommandImplementation for DeployProgram {
             description,
             &program_id,
             idl_str,
-            block_height,
+            slot,
             construct_did,
             values,
         )?;
