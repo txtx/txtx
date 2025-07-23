@@ -15,3 +15,4 @@ addons/sp1/examples/fibonacci-target/program/target
 addons/sp1/examples/fibonacci/program/target
 addons/ovm/examples/cache/*
 addons/ovm/examples/out/*
+tarpaulin-report.html

@@ -62,6 +62,7 @@ pub const SET_PROGRAM_AUTHORITY: &str = "set_program_authority";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
+pub const SLOT: &str = "slot";
 pub const EVENT: &str = "event";
 pub const SUBGRAPH_NAME: &str = "subgraph_name";
 pub const SUBGRAPH_REQUEST: &str = "subgraph_request";
@@ -76,6 +77,5 @@ pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
 pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
 
 // Subgraph endpoints
-pub const MAINNET_SUBGRAPH_ENDPOINT: &str =
-    "http://127.0.0.1:9000/lambda-url/svm-subgraph-crud-api/subgraphs";
-pub const DEVNET_SUBGRAPH_ENDPOINT: &str = "http://localhost:3000";
+pub const MAINNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";
+pub const DEVNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";

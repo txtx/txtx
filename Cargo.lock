@@ -6685,9 +6685,9 @@ dependencies = [
 
 [[package]]
 name = "juniper"
-version = "0.16.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "943306315b1a7a03d27af9dfb0c288d9f4da8830c17df4bceb7d50a47da0982c"
+checksum = "3478f4a8a2a1c7679944f5f4f08c60d6440f9970da481d79c8f8931201424403"
 dependencies = [
  "async-trait",
  "auto_enums",
@@ -14831,7 +14831,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
@@ -14941,7 +14941,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.1.25"
+version = "0.2.0"
 dependencies = [
  "async-recursion",
  "bincode",
@@ -14968,9 +14968,10 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.1.22"
+version = "0.2.0"
 dependencies = [
  "anchor-lang-idl",
+ "convert_case 0.6.0",
  "lazy_static",
  "serde",
  "serde_derive",
@@ -14985,6 +14986,7 @@ dependencies = [
  "solana-transaction",
  "solana-transaction-context",
  "solana-transaction-error",
+ "test-case",
  "txtx-addon-kit",
 ]
 
@@ -15081,7 +15083,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "base64 0.22.1",
  "better-debug",

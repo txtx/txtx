@@ -1,0 +1,917 @@
+{
+    "address": "2e6tZJbYevCm3jhgjbSFbmVbuDfErmMz32sMGSzZHgiN",
+    "metadata": {
+        "name": "split_token_transfer",
+        "version": "0.1.0",
+        "spec": "0.1.0",
+        "description": "Created with Anchor"
+    },
+    "instructions": [
+        {
+            "name": "split_token_transfer",
+            "discriminator": [
+                204,
+                245,
+                152,
+                176,
+                168,
+                246,
+                220,
+                39
+            ],
+            "accounts": [
+                {
+                    "name": "sender",
+                    "writable": true,
+                    "signer": true
+                },
+                {
+                    "name": "recipient_1",
+                    "writable": true
+                },
+                {
+                    "name": "recipient_2",
+                    "writable": true
+                },
+                {
+                    "name": "mint"
+                },
+                {
+                    "name": "sender_token_account",
+                    "writable": true,
+                    "pda": {
+                        "seeds": [
+                            {
+                                "kind": "account",
+                                "path": "sender"
+                            },
+                            {
+                                "kind": "account",
+                                "path": "token_program"
+                            },
+                            {
+                                "kind": "account",
+                                "path": "mint"
+                            }
+                        ],
+                        "program": {
+                            "kind": "const",
+                            "value": [
+                                140,
+                                151,
+                                37,
+                                143,
+                                78,
+                                36,
+                                137,
+                                241,
+                                187,
+                                61,
+                                16,
+                                41,
+                                20,
+                                142,
+                                13,
+                                131,
+                                11,
+                                90,
+                                19,
+                                153,
+                                218,
+                                255,
+                                16,
+                                132,
+                                4,
+                                142,
+                                123,
+                                216,
+                                219,
+                                233,
+                                248,
+                                89
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "custom",
+                    "writable": true,
+                    "pda": {
+                        "seeds": [
+                            {
+                                "kind": "const",
+                                "value": [
+                                    99,
+                                    117,
+                                    115,
+                                    116,
+                                    111,
+                                    109
+                                ]
+                            },
+                            {
+                                "kind": "account",
+                                "path": "sender_token_account"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "recipient_1_token_account",
+                    "writable": true,
+                    "pda": {
+                        "seeds": [
+                            {
+                                "kind": "account",
+                                "path": "recipient_1"
+                            },
+                            {
+                                "kind": "account",
+                                "path": "token_program"
+                            },
+                            {
+                                "kind": "account",
+                                "path": "mint"
+                            }
+                        ],
+                        "program": {
+                            "kind": "const",
+                            "value": [
+                                140,
+                                151,
+                                37,
+                                143,
+                                78,
+                                36,
+                                137,
+                                241,
+                                187,
+                                61,
+                                16,
+                                41,
+                                20,
+                                142,
+                                13,
+                                131,
+                                11,
+                                90,
+                                19,
+                                153,
+                                218,
+                                255,
+                                16,
+                                132,
+                                4,
+                                142,
+                                123,
+                                216,
+                                219,
+                                233,
+                                248,
+                                89
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "recipient_2_token_account",
+                    "writable": true,
+                    "pda": {
+                        "seeds": [
+                            {
+                                "kind": "account",
+                                "path": "recipient_2"
+                            },
+                            {
+                                "kind": "account",
+                                "path": "token_program"
+                            },
+                            {
+                                "kind": "account",
+                                "path": "mint"
+                            }
+                        ],
+                        "program": {
+                            "kind": "const",
+                            "value": [
+                                140,
+                                151,
+                                37,
+                                143,
+                                78,
+                                36,
+                                137,
+                                241,
+                                187,
+                                61,
+                                16,
+                                41,
+                                20,
+                                142,
+                                13,
+                                131,
+                                11,
+                                90,
+                                19,
+                                153,
+                                218,
+                                255,
+                                16,
+                                132,
+                                4,
+                                142,
+                                123,
+                                216,
+                                219,
+                                233,
+                                248,
+                                89
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "system_program",
+                    "address": "11111111111111111111111111111111"
+                },
+                {
+                    "name": "associated_token_program",
+                    "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+                },
+                {
+                    "name": "token_program"
+                },
+                {
+                    "name": "event_authority",
+                    "pda": {
+                        "seeds": [
+                            {
+                                "kind": "const",
+                                "value": [
+                                    95,
+                                    95,
+                                    101,
+                                    118,
+                                    101,
+                                    110,
+                                    116,
+                                    95,
+                                    97,
+                                    117,
+                                    116,
+                                    104,
+                                    111,
+                                    114,
+                                    105,
+                                    116,
+                                    121
+                                ]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "name": "program"
+                }
+            ],
+            "args": [
+                {
+                    "name": "bool",
+                    "type": "bool"
+                },
+                {
+                    "name": "u8",
+                    "type": "u8"
+                },
+                {
+                    "name": "u16",
+                    "type": "u16"
+                },
+                {
+                    "name": "u32",
+                    "type": "u32"
+                },
+                {
+                    "name": "u64",
+                    "type": "u64"
+                },
+                {
+                    "name": "i8",
+                    "type": "i8"
+                },
+                {
+                    "name": "i16",
+                    "type": "i16"
+                },
+                {
+                    "name": "i32",
+                    "type": "i32"
+                },
+                {
+                    "name": "i64",
+                    "type": "i64"
+                },
+                {
+                    "name": "f32",
+                    "type": "f32"
+                },
+                {
+                    "name": "f64",
+                    "type": "f64"
+                },
+                {
+                    "name": "i128",
+                    "type": "i128"
+                },
+                {
+                    "name": "string",
+                    "type": "string"
+                },
+                {
+                    "name": "bytes",
+                    "type": "bytes"
+                },
+                {
+                    "name": "pubkey",
+                    "type": "pubkey"
+                },
+                {
+                    "name": "option",
+                    "type": {
+                        "option": "u64"
+                    }
+                },
+                {
+                    "name": "vec",
+                    "type": {
+                        "vec": "u64"
+                    }
+                },
+                {
+                    "name": "data",
+                    "type": "u64"
+                },
+                {
+                    "name": "additional_data",
+                    "type": {
+                        "defined": {
+                            "name": "AdditionalData",
+                            "generics": [
+                                {
+                                    "kind": "type",
+                                    "type": "u64"
+                                },
+                                {
+                                    "kind": "type",
+                                    "type": "u32"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "array",
+                    "type": {
+                        "array": [
+                            "u8",
+                            32
+                        ]
+                    }
+                },
+                {
+                    "name": "wrapper_with_const",
+                    "type": {
+                        "defined": {
+                            "name": "WrapperWithConst",
+                            "generics": [
+                                {
+                                    "kind": "const",
+                                    "value": "16"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "my_tuple_enum",
+                    "type": {
+                        "defined": {
+                            "name": "MyTupleEnum"
+                        }
+                    }
+                },
+                {
+                    "name": "empty",
+                    "type": {
+                        "defined": {
+                            "name": "Empty"
+                        }
+                    }
+                },
+                {
+                    "name": "amount",
+                    "type": "u64"
+                },
+                {
+                    "name": "_aliased",
+                    "type": {
+                        "defined": {
+                            "name": "MyTupleEnum"
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "accounts": [
+        {
+            "name": "CustomAccount",
+            "discriminator": [
+                99,
+                151,
+                198,
+                27,
+                164,
+                9,
+                6,
+                138
+            ]
+        }
+    ],
+    "events": [
+        {
+            "name": "SplitTransferEvent",
+            "discriminator": [
+                49,
+                77,
+                41,
+                29,
+                220,
+                239,
+                9,
+                66
+            ]
+        }
+    ],
+    "types": [
+        {
+            "name": "AdditionalData",
+            "generics": [
+                {
+                    "kind": "type",
+                    "name": "T"
+                },
+                {
+                    "kind": "type",
+                    "name": "U"
+                }
+            ],
+            "type": {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "my_generic_field",
+                        "docs": [
+                            "Generic field of type T"
+                        ],
+                        "type": {
+                            "generic": "T"
+                        }
+                    },
+                    {
+                        "name": "my_other_generic_field",
+                        "docs": [
+                            "Generic field of type U"
+                        ],
+                        "type": {
+                            "generic": "U"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "CustomAccount",
+            "docs": [
+                "Custom account to store additional data"
+            ],
+            "type": {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "bool",
+                        "type": "bool"
+                    },
+                    {
+                        "name": "u8",
+                        "type": "u8"
+                    },
+                    {
+                        "name": "u16",
+                        "type": "u16"
+                    },
+                    {
+                        "name": "u32",
+                        "type": "u32"
+                    },
+                    {
+                        "name": "u64",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "u128",
+                        "type": "u128"
+                    },
+                    {
+                        "name": "i8",
+                        "type": "i8"
+                    },
+                    {
+                        "name": "i16",
+                        "type": "i16"
+                    },
+                    {
+                        "name": "i32",
+                        "type": "i32"
+                    },
+                    {
+                        "name": "i64",
+                        "type": "i64"
+                    },
+                    {
+                        "name": "f32",
+                        "type": "f32"
+                    },
+                    {
+                        "name": "f64",
+                        "type": "f64"
+                    },
+                    {
+                        "name": "i128",
+                        "type": "i128"
+                    },
+                    {
+                        "name": "string",
+                        "type": "string"
+                    },
+                    {
+                        "name": "bytes",
+                        "type": "bytes"
+                    },
+                    {
+                        "name": "pubkey",
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "option",
+                        "type": {
+                            "option": "u64"
+                        }
+                    },
+                    {
+                        "name": "vec",
+                        "type": {
+                            "vec": "u64"
+                        }
+                    },
+                    {
+                        "name": "data",
+                        "docs": [
+                            "The data field to store a u64 value"
+                        ],
+                        "type": "u64"
+                    },
+                    {
+                        "name": "additional_data",
+                        "docs": [
+                            "Additional generic data field"
+                        ],
+                        "type": {
+                            "defined": {
+                                "name": "AdditionalData",
+                                "generics": [
+                                    {
+                                        "kind": "type",
+                                        "type": "u64"
+                                    },
+                                    {
+                                        "kind": "type",
+                                        "type": "u32"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "name": "array",
+                        "docs": [
+                            "A constant generic field"
+                        ],
+                        "type": {
+                            "array": [
+                                "u8",
+                                32
+                            ]
+                        }
+                    },
+                    {
+                        "name": "wrapper_with_const",
+                        "docs": [
+                            "A wrapper with a constant size"
+                        ],
+                        "type": {
+                            "defined": {
+                                "name": "WrapperWithConst",
+                                "generics": [
+                                    {
+                                        "kind": "const",
+                                        "value": "16"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "name": "my_tuple_enum",
+                        "type": {
+                            "defined": {
+                                "name": "MyTupleEnum"
+                            }
+                        }
+                    },
+                    {
+                        "name": "empty",
+                        "docs": [
+                            "An empty struct field"
+                        ],
+                        "type": {
+                            "defined": {
+                                "name": "Empty"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "Empty",
+            "type": {
+                "kind": "struct"
+            }
+        },
+        {
+            "name": "MyTupleEnum",
+            "type": {
+                "kind": "enum",
+                "variants": [
+                    {
+                        "name": "UnitVariant"
+                    },
+                    {
+                        "name": "NamedVariant",
+                        "fields": [
+                            {
+                                "name": "foo",
+                                "type": "u64"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "TupleVariant",
+                        "fields": [
+                            "u8",
+                            "string"
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "name": "SplitTransferEvent",
+            "docs": [
+                "The split transfer event."
+            ],
+            "type": {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "recipient_1_amount",
+                        "docs": [
+                            "The amount transferred to recipient 1."
+                        ],
+                        "type": "u64"
+                    },
+                    {
+                        "name": "recipient_1",
+                        "docs": [
+                            "The amount transferred to recipient 2."
+                        ],
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "recipient_2_amount",
+                        "docs": [
+                            "The amount transferred to recipient 2."
+                        ],
+                        "type": "u64"
+                    },
+                    {
+                        "name": "recipient_2",
+                        "docs": [
+                            "The amount transferred to recipient 2."
+                        ],
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "mint",
+                        "docs": [
+                            "Token mint address."
+                        ],
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "token_program_id",
+                        "docs": [
+                            "The program ID of the token program."
+                        ],
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "bool",
+                        "type": "bool"
+                    },
+                    {
+                        "name": "u8",
+                        "type": "u8"
+                    },
+                    {
+                        "name": "u16",
+                        "type": "u16"
+                    },
+                    {
+                        "name": "u32",
+                        "type": "u32"
+                    },
+                    {
+                        "name": "u64",
+                        "type": "u64"
+                    },
+                    {
+                        "name": "i8",
+                        "type": "i8"
+                    },
+                    {
+                        "name": "i16",
+                        "type": "i16"
+                    },
+                    {
+                        "name": "i32",
+                        "type": "i32"
+                    },
+                    {
+                        "name": "i64",
+                        "type": "i64"
+                    },
+                    {
+                        "name": "f32",
+                        "type": "f32"
+                    },
+                    {
+                        "name": "f64",
+                        "type": "f64"
+                    },
+                    {
+                        "name": "i128",
+                        "type": "i128"
+                    },
+                    {
+                        "name": "string",
+                        "type": "string"
+                    },
+                    {
+                        "name": "bytes",
+                        "type": "bytes"
+                    },
+                    {
+                        "name": "pubkey",
+                        "type": "pubkey"
+                    },
+                    {
+                        "name": "option",
+                        "type": {
+                            "option": "u64"
+                        }
+                    },
+                    {
+                        "name": "vec",
+                        "type": {
+                            "vec": "u64"
+                        }
+                    },
+                    {
+                        "name": "data",
+                        "docs": [
+                            "The data field to store a u64 value"
+                        ],
+                        "type": "u64"
+                    },
+                    {
+                        "name": "additional_data",
+                        "docs": [
+                            "Additional generic data field"
+                        ],
+                        "type": {
+                            "defined": {
+                                "name": "AdditionalData",
+                                "generics": [
+                                    {
+                                        "kind": "type",
+                                        "type": "u64"
+                                    },
+                                    {
+                                        "kind": "type",
+                                        "type": "u32"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "name": "array",
+                        "docs": [
+                            "A constant generic field"
+                        ],
+                        "type": {
+                            "array": [
+                                "u8",
+                                32
+                            ]
+                        }
+                    },
+                    {
+                        "name": "wrapper_with_const",
+                        "docs": [
+                            "A wrapper with a constant size"
+                        ],
+                        "type": {
+                            "defined": {
+                                "name": "WrapperWithConst",
+                                "generics": [
+                                    {
+                                        "kind": "const",
+                                        "value": "16"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "name": "my_tuple_enum",
+                        "type": {
+                            "defined": {
+                                "name": "MyTupleEnum"
+                            }
+                        }
+                    },
+                    {
+                        "name": "empty",
+                        "docs": [
+                            "An empty struct field"
+                        ],
+                        "type": {
+                            "defined": {
+                                "name": "Empty"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "WrapperWithConst",
+            "generics": [
+                {
+                    "kind": "const",
+                    "name": "N",
+                    "type": "usize"
+                }
+            ],
+            "type": {
+                "kind": "struct",
+                "fields": [
+                    {
+                        "name": "data",
+                        "type": {
+                            "array": [
+                                "u8",
+                                {
+                                    "generic": "N"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

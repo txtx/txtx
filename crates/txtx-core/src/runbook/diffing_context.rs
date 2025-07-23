@@ -391,6 +391,10 @@ impl RunbookSnapshotContext {
                                                 .map(|p| critical && p.tainting)
                                                 .unwrap_or(false),
                                             ObjectDefinition::Arbitrary(_) => false,
+                                            ObjectDefinition::Tuple(_)
+                                            | ObjectDefinition::Enum(_) => {
+                                                unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
+                                            }
                                         },
 
                                         None => critical,
@@ -419,6 +423,10 @@ impl RunbookSnapshotContext {
                                                             .map(|p| critical && p.tainting)
                                                             .unwrap_or(false),
                                                         ObjectDefinition::Arbitrary(_) => false,
+                                                        ObjectDefinition::Tuple(_)
+                                                        | ObjectDefinition::Enum(_) => {
+                                                            unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
+                                                        }
                                                     },
 
                                                     None => critical,

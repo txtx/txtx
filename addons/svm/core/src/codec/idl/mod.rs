@@ -10,12 +10,15 @@ use anchor_lang_idl::types::{
 };
 use convert_idl::classic_idl_to_anchor_idl;
 use solana_sdk::pubkey::Pubkey;
+use std::fmt::Display;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     indexmap::IndexMap,
     types::types::{ObjectType, Value},
 };
+use txtx_addon_network_svm_types::I256;
+use txtx_addon_network_svm_types::U256;
 
 #[derive(Debug, Clone)]
 pub struct IdlRef {
@@ -178,7 +181,7 @@ fn borsh_encode_value_to_idl_type(
             value.get_type().to_string()
         )
     };
-    let encode_err = |expected: &str, e| {
+    let encode_err = |expected: &str, e: &dyn Display| {
         format!("unable to encode value ({}) as borsh {}: {}", value.to_string(), expected, e)
     };
 
@@ -193,87 +196,67 @@ fn borsh_encode_value_to_idl_type(
     match idl_type {
         IdlType::Bool => value
             .as_bool()
-            .and_then(|b| Some(borsh::to_vec(&b).map_err(|e| encode_err("bool", e))))
+            .and_then(|b| Some(borsh::to_vec(&b).map_err(|e| encode_err("bool", &e))))
             .transpose()?
             .ok_or(mismatch_err("bool")),
-        IdlType::U8 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&(i as u8)).map_err(|e| encode_err("u8", e))))
-            .transpose()?
-            .ok_or(mismatch_err("u8")),
-        IdlType::I8 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&(i as i8)).map_err(|e| encode_err("i8", e))))
-            .transpose()?
-            .ok_or(mismatch_err("i8")),
-        IdlType::U16 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&(i as u16)).map_err(|e| encode_err("u8", e))))
-            .transpose()?
-            .ok_or(mismatch_err("u16")),
-        IdlType::I16 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&(i as i16)).map_err(|e| encode_err("i16", e))))
-            .transpose()?
-            .ok_or(mismatch_err("i16")),
-        IdlType::U32 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&(i as u32)).map_err(|e| encode_err("u32", e))))
-            .transpose()?
-            .ok_or(mismatch_err("u32")),
-        IdlType::I32 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&(i as i32)).map_err(|e| encode_err("i32", e))))
-            .transpose()?
-            .ok_or(mismatch_err("i32")),
-        IdlType::F32 => value
-            .as_float()
-            .and_then(|i| Some(borsh::to_vec(&(i as f32)).map_err(|e| encode_err("f32", e))))
-            .transpose()?
-            .ok_or(mismatch_err("f32")),
-        IdlType::U64 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&(i as u64)).map_err(|e| encode_err("u64", e))))
-            .transpose()?
-            .ok_or(mismatch_err("u64")),
-        IdlType::I64 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&(i as i64)).map_err(|e| encode_err("i64", e))))
-            .transpose()?
-            .ok_or(mismatch_err("i64")),
-        IdlType::F64 => value
-            .as_float()
-            .and_then(|i| Some(borsh::to_vec(&(i as f64)).map_err(|e| encode_err("f64", e))))
-            .transpose()?
-            .ok_or(mismatch_err("f64")),
-        IdlType::U128 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&(i as u128)).map_err(|e| encode_err("u128", e))))
-            .transpose()?
-            .ok_or(mismatch_err("u128")),
-        IdlType::I128 => value
-            .as_integer()
-            .and_then(|i| Some(borsh::to_vec(&i).map_err(|e| encode_err("i128", e))))
-            .transpose()?
-            .ok_or(mismatch_err("i128")),
-        IdlType::U256 => return Err("IDL type U256 is not yet supported".to_string()),
-        IdlType::I256 => return Err("IDL type I256 is not yet supported".to_string()),
+        IdlType::U8 => SvmValue::to_number::<u8>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("u8", &e)),
+        IdlType::U16 => SvmValue::to_number::<u16>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("u16", &e)),
+        IdlType::U32 => SvmValue::to_number::<u32>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("u32", &e)),
+        IdlType::U64 => SvmValue::to_number::<u64>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("u64", &e)),
+        IdlType::U128 => SvmValue::to_number::<u128>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("u128", &e)),
+        IdlType::U256 => SvmValue::to_number::<U256>(value)
+            .and_then(|num| borsh::to_vec(&num.0).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("u256", &e)),
+        IdlType::I8 => SvmValue::to_number::<i8>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("i8", &e)),
+        IdlType::I16 => SvmValue::to_number::<i16>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("i16", &e)),
+        IdlType::I32 => SvmValue::to_number::<i32>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("i32", &e)),
+        IdlType::I64 => SvmValue::to_number::<i64>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("i64", &e)),
+        IdlType::I128 => SvmValue::to_number::<i128>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("i128", &e)),
+        IdlType::I256 => SvmValue::to_number::<I256>(value)
+            .and_then(|num| borsh::to_vec(&num.0).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("i256", &e)),
+        IdlType::F32 => SvmValue::to_number::<f32>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("f32", &e)),
+        IdlType::F64 => SvmValue::to_number::<f64>(value)
+            .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
+            .map_err(|e| encode_err("f64", &e)),
         IdlType::Bytes => Ok(value.to_bytes().clone()),
         IdlType::String => value
             .as_string()
-            .and_then(|s| Some(borsh::to_vec(&s).map_err(|e| encode_err("string", e))))
+            .and_then(|s| Some(borsh::to_vec(&s).map_err(|e| encode_err("string", &e))))
             .transpose()?
             .ok_or(mismatch_err("string")),
         IdlType::Pubkey => SvmValue::to_pubkey(value)
             .map_err(|_| mismatch_err("pubkey"))
             .map(|p| borsh::to_vec(&p))?
-            .map_err(|e| encode_err("pubkey", e)),
+            .map_err(|e| encode_err("pubkey", &e)),
         IdlType::Option(idl_type) => {
             if let Some(_) = value.as_null() {
-                borsh::to_vec(&None::<u8>).map_err(|e| encode_err("Optional", e))
+                borsh::to_vec(&None::<u8>).map_err(|e| encode_err("Optional", &e))
             } else {
                 let encoded_arg = borsh_encode_value_to_idl_type(value, idl_type, idl_types, None)?;
-                borsh::to_vec(&Some(encoded_arg)).map_err(|e| encode_err("Optional", e))
+                borsh::to_vec(&Some(encoded_arg)).map_err(|e| encode_err("Optional", &e))
             }
         }
         IdlType::Vec(idl_type) => match value {
@@ -563,7 +546,7 @@ fn borsh_encode_bytes_to_idl_type(
 
 /// Parses a byte array into a JSON value based on the expected IDL type.
 /// **Not used internally, but is used by crate consumers.**
-pub fn parse_bytes_to_value_with_expected_idl_type(
+pub fn parse_bytes_to_value_with_expected_idl_type_def_ty(
     mut data: &[u8],
     expected_type: &IdlTypeDefTy,
 ) -> Result<Value, String> {
@@ -580,16 +563,12 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
                                     IdlType::U8 => {
                                         let (v, rest) = data.split_at(1);
                                         data = rest;
-                                        Ok(Value::integer(
-                                            u8::try_from(v[0])
-                                                .map_err(|e| format!("unable to decode u8: {e}"))?
-                                                .into(),
-                                        ))
+                                        Ok(SvmValue::u8(v[0]))
                                     }
                                     IdlType::U16 => {
                                         let (v, rest) = data.split_at(2);
                                         data = rest;
-                                        Ok(Value::integer(
+                                        Ok(SvmValue::u16(
                                             u16::from_le_bytes(<[u8; 2]>::try_from(v).map_err(
                                                 |e| format!("unable to decode u16: {e}"),
                                             )?)
@@ -599,7 +578,7 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
                                     IdlType::U32 => {
                                         let (v, rest) = data.split_at(4);
                                         data = rest;
-                                        Ok(Value::integer(
+                                        Ok(SvmValue::u32(
                                             u32::from_le_bytes(<[u8; 4]>::try_from(v).map_err(
                                                 |e| format!("unable to decode u32: {e}"),
                                             )?)
@@ -609,7 +588,7 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
                                     IdlType::U64 => {
                                         let (v, rest) = data.split_at(8);
                                         data = rest;
-                                        Ok(Value::integer(
+                                        Ok(SvmValue::u64(
                                             u64::from_le_bytes(<[u8; 8]>::try_from(v).map_err(
                                                 |e| format!("unable to decode u64: {e}"),
                                             )?)
@@ -619,7 +598,7 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
                                     IdlType::U128 => {
                                         let (v, rest) = data.split_at(16);
                                         data = rest;
-                                        Ok(Value::integer(
+                                        Ok(SvmValue::u128(
                                             u128::from_le_bytes(<[u8; 16]>::try_from(v).map_err(
                                                 |e| format!("unable to decode u128: {e}"),
                                             )?)
@@ -629,10 +608,19 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
                                             })?,
                                         ))
                                     }
+                                    IdlType::U256 => {
+                                        let (v, rest) = data.split_at(32);
+                                        data = rest;
+                                        Ok(SvmValue::u256(
+                                            v.try_into().map_err(|e| {
+                                                format!("unable to decode u256: {e}")
+                                            })?,
+                                        ))
+                                    }
                                     IdlType::I8 => {
                                         let (v, rest) = data.split_at(1);
                                         data = rest;
-                                        Ok(Value::integer(
+                                        Ok(SvmValue::i8(
                                             i8::try_from(v[0])
                                                 .map_err(|e| format!("unable to decode i8: {e}"))?
                                                 .into(),
@@ -641,7 +629,7 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
                                     IdlType::I16 => {
                                         let (v, rest) = data.split_at(2);
                                         data = rest;
-                                        Ok(Value::integer(
+                                        Ok(SvmValue::i16(
                                             i16::from_le_bytes(<[u8; 2]>::try_from(v).map_err(
                                                 |e| format!("unable to decode i16: {e}"),
                                             )?)
@@ -651,7 +639,7 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
                                     IdlType::I32 => {
                                         let (v, rest) = data.split_at(4);
                                         data = rest;
-                                        Ok(Value::integer(
+                                        Ok(SvmValue::i32(
                                             i32::from_le_bytes(<[u8; 4]>::try_from(v).map_err(
                                                 |e| format!("unable to decode i32: {e}"),
                                             )?)
@@ -661,7 +649,7 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
                                     IdlType::I64 => {
                                         let (v, rest) = data.split_at(8);
                                         data = rest;
-                                        Ok(Value::integer(
+                                        Ok(SvmValue::i64(
                                             i64::from_le_bytes(<[u8; 8]>::try_from(v).map_err(
                                                 |e| format!("unable to decode i64: {e}"),
                                             )?)
@@ -671,11 +659,40 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
                                     IdlType::I128 => {
                                         let (v, rest) = data.split_at(16);
                                         data = rest;
-                                        Ok(Value::integer(i128::from_le_bytes(
+                                        Ok(SvmValue::i128(i128::from_le_bytes(
                                             <[u8; 16]>::try_from(v).map_err(|e| {
                                                 format!("unable to decode i128: {e}")
                                             })?,
                                         )))
+                                    }
+                                    IdlType::I256 => {
+                                        let (v, rest) = data.split_at(32);
+                                        data = rest;
+                                        Ok(SvmValue::i256(
+                                            v.try_into().map_err(|e| {
+                                                format!("unable to decode i256: {e}")
+                                            })?,
+                                        ))
+                                    }
+                                    IdlType::F32 => {
+                                        let (v, rest) = data.split_at(4);
+                                        data = rest;
+                                        Ok(SvmValue::f32(
+                                            f32::from_le_bytes(<[u8; 4]>::try_from(v).map_err(
+                                                |e| format!("unable to decode f32: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
+                                    }
+                                    IdlType::F64 => {
+                                        let (v, rest) = data.split_at(8);
+                                        data = rest;
+                                        Ok(SvmValue::f64(
+                                            f64::from_le_bytes(<[u8; 8]>::try_from(v).map_err(
+                                                |e| format!("unable to decode f64: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
                                     }
                                     IdlType::Bool => {
                                         let (v, rest) = data.split_at(1);
@@ -726,85 +743,86 @@ pub fn parse_bytes_to_value_with_expected_idl_type(
             }
         }
         IdlTypeDefTy::Enum { variants } => todo!(),
-        IdlTypeDefTy::Type { alias } => match alias {
-            IdlType::Bool => {
-                let value = borsh::from_slice::<bool>(&data)
-                    .map_err(|e| format!("unable to decode bool: {e}"))?;
-                Ok(Value::bool(value))
-            }
-            IdlType::U8 => Ok(Value::integer(
-                borsh::from_slice::<u8>(&data)
-                    .map_err(|e| format!("unable to decode u8: {e}"))?
-                    .into(),
-            )),
-            IdlType::I8 => Ok(Value::integer(
-                borsh::from_slice::<i8>(&data)
-                    .map_err(|e| format!("unable to decode i8: {e}"))?
-                    .into(),
-            )),
-            IdlType::U16 => Ok(Value::integer(
-                borsh::from_slice::<u16>(&data)
-                    .map_err(|e| format!("unable to decode u16: {e}"))?
-                    .into(),
-            )),
-            IdlType::I16 => Ok(Value::integer(
-                borsh::from_slice::<i16>(&data)
-                    .map_err(|e| format!("unable to decode i16: {e}"))?
-                    .into(),
-            )),
-            IdlType::U32 => Ok(Value::integer(
-                borsh::from_slice::<u32>(&data)
-                    .map_err(|e| format!("unable to decode u32: {e}"))?
-                    .into(),
-            )),
-            IdlType::I32 => Ok(Value::integer(
-                borsh::from_slice::<i32>(&data)
-                    .map_err(|e| format!("unable to decode i32: {e}"))?
-                    .into(),
-            )),
-            IdlType::U64 => Ok(Value::integer(
-                borsh::from_slice::<u64>(&data)
-                    .map_err(|e| format!("unable to decode u64: {e}"))?
-                    .into(),
-            )),
-            IdlType::I64 => Ok(Value::integer(
-                borsh::from_slice::<i64>(&data)
-                    .map_err(|e| format!("unable to decode i64: {e}"))?
-                    .into(),
-            )),
-            IdlType::F64 => Ok(Value::integer(
-                borsh::from_slice::<i64>(&data)
-                    .map_err(|e| format!("unable to decode i64: {e}"))?
-                    .into(),
-            )),
-            // IdlType::I128 => Ok(JsonValue::Number(
-            //     borsh::from_slice::<i128>(&data)
-            //         .map_err(|e| format!("unable to decode i128: {e}"))?
-            //         .into(),
-            // )),
-            IdlType::Bytes => {
-                let bytes = borsh::from_slice::<Vec<u8>>(&data)
-                    .map_err(|e| format!("unable to decode bytes: {e}"))?;
+        IdlTypeDefTy::Type { alias } => parse_bytes_to_value_with_expected_idl_type(data, alias),
+    }
+}
 
-                Ok(Value::buffer(bytes))
-            }
-            IdlType::String => borsh::from_slice::<String>(&data)
-                .map(Value::string)
-                .map_err(|e| format!("unable to decode string: {e}")),
-            IdlType::Pubkey => {
-                let value = borsh::from_slice::<Pubkey>(&data)
-                    .map_err(|e| format!("unable to decode pubkey: {e}"))?;
-                Ok(SvmValue::pubkey(value.to_bytes().to_vec()))
-            }
-            IdlType::Option(idl_type) => todo!(),
-            IdlType::Vec(idl_type) => {
-                todo!()
-            }
-            IdlType::Array(idl_type, idl_array_len) => todo!(),
-            IdlType::Defined { name, generics } => todo!(),
-            IdlType::Generic(_) => todo!(),
-            _ => return Err(format!("Unsupported type: {:?}", alias)),
-        },
+pub fn parse_bytes_to_value_with_expected_idl_type(
+    data: &[u8],
+    expected_type: &IdlType,
+) -> Result<Value, String> {
+    match expected_type {
+        IdlType::Bool => {
+            let value = borsh::from_slice::<bool>(&data)
+                .map_err(|e| format!("unable to decode bool: {e}"))?;
+            Ok(Value::bool(value))
+        }
+        IdlType::U8 => Ok(SvmValue::u8(
+            borsh::from_slice::<u8>(&data).map_err(|e| format!("unable to decode u8: {e}"))?,
+        )),
+        IdlType::U16 => Ok(SvmValue::u16(
+            borsh::from_slice::<u16>(&data).map_err(|e| format!("unable to decode u16: {e}"))?,
+        )),
+        IdlType::U32 => Ok(SvmValue::u32(
+            borsh::from_slice::<u32>(&data).map_err(|e| format!("unable to decode u32: {e}"))?,
+        )),
+        IdlType::U64 => Ok(SvmValue::u64(
+            borsh::from_slice::<u64>(&data).map_err(|e| format!("unable to decode u64: {e}"))?,
+        )),
+        IdlType::U128 => Ok(SvmValue::u128(
+            borsh::from_slice::<u128>(&data).map_err(|e| format!("unable to decode u128: {e}"))?,
+        )),
+        IdlType::U256 => Ok(SvmValue::u256(
+            borsh::from_slice::<[u8; 32]>(&data)
+                .map_err(|e| format!("unable to decode u256: {e}"))?,
+        )),
+        IdlType::I8 => Ok(SvmValue::i8(
+            borsh::from_slice::<i8>(&data).map_err(|e| format!("unable to decode i8: {e}"))?,
+        )),
+        IdlType::I16 => Ok(SvmValue::i16(
+            borsh::from_slice::<i16>(&data).map_err(|e| format!("unable to decode i16: {e}"))?,
+        )),
+        IdlType::I32 => Ok(SvmValue::i32(
+            borsh::from_slice::<i32>(&data).map_err(|e| format!("unable to decode i32: {e}"))?,
+        )),
+        IdlType::I64 => Ok(SvmValue::i64(
+            borsh::from_slice::<i64>(&data).map_err(|e| format!("unable to decode i64: {e}"))?,
+        )),
+        IdlType::I128 => Ok(SvmValue::i128(
+            borsh::from_slice::<i128>(&data).map_err(|e| format!("unable to decode i128: {e}"))?,
+        )),
+        IdlType::I256 => Ok(SvmValue::i256(
+            borsh::from_slice::<[u8; 32]>(&data)
+                .map_err(|e| format!("unable to decode i256: {e}"))?,
+        )),
+        IdlType::F32 => Ok(SvmValue::f32(
+            borsh::from_slice::<f32>(&data).map_err(|e| format!("unable to decode f32: {e}"))?,
+        )),
+        IdlType::F64 => Ok(SvmValue::f64(
+            borsh::from_slice::<f64>(&data).map_err(|e| format!("unable to decode f64: {e}"))?,
+        )),
+        IdlType::Bytes => {
+            let bytes = borsh::from_slice::<Vec<u8>>(&data)
+                .map_err(|e| format!("unable to decode bytes: {e}"))?;
+
+            Ok(Value::buffer(bytes))
+        }
+        IdlType::String => borsh::from_slice::<String>(&data)
+            .map(Value::string)
+            .map_err(|e| format!("unable to decode string: {e}")),
+        IdlType::Pubkey => {
+            let value = borsh::from_slice::<Pubkey>(&data)
+                .map_err(|e| format!("unable to decode pubkey: {e}"))?;
+            Ok(SvmValue::pubkey(value.to_bytes().to_vec()))
+        }
+        IdlType::Option(idl_type) => todo!(),
+        IdlType::Vec(idl_type) => {
+            todo!()
+        }
+        IdlType::Array(idl_type, idl_array_len) => todo!(),
+        IdlType::Defined { name, generics } => todo!(),
+        IdlType::Generic(_) => todo!(),
+        _ => return Err(format!("Unsupported type: {:?}", expected_type)),
     }
 }
 
