@@ -45,9 +45,109 @@ pub const SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS: &str =
 pub const SVM_PAYER_SIGNED_TRANSACTION: &str = "svm::payer_signed_transaction";
 pub const SVM_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::authority_signed_transaction";
 pub const SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::temp_authority_signed_transaction";
+pub const SVM_U8: &str = "svm::u8";
+pub const SVM_U16: &str = "svm::u16";
+pub const SVM_U32: &str = "svm::u32";
+pub const SVM_U64: &str = "svm::u64";
 pub const SVM_U128: &str = "svm::u128";
 pub const SVM_U256: &str = "svm::u256";
+pub const SVM_I8: &str = "svm::i8";
+pub const SVM_I16: &str = "svm::i16";
+pub const SVM_I32: &str = "svm::i32";
+pub const SVM_I64: &str = "svm::i64";
+pub const SVM_I128: &str = "svm::i128";
 pub const SVM_I256: &str = "svm::i256";
+pub const SVM_F32: &str = "svm::f32";
+pub const SVM_F64: &str = "svm::f64";
+
+use std::convert::TryFrom;
+use std::fmt::Debug;
+
+pub trait ValueNumber: Sized + Debug {
+    const SVM_ID: &'static str;
+    fn try_from_i128(i: i128) -> Result<Self, String>;
+    fn from_le_bytes(bytes: &[u8]) -> Result<Self, String>;
+}
+
+macro_rules! impl_value_number {
+    ($t:ty, $id:expr) => {
+        impl ValueNumber for $t {
+            const SVM_ID: &'static str = $id;
+
+            fn try_from_i128(i: i128) -> Result<Self, String> {
+                <$t>::try_from(i)
+                    .map_err(|e| format!("could not convert value to {}: {:?}", stringify!($t), e))
+            }
+
+            fn from_le_bytes(bytes: &[u8]) -> Result<Self, String> {
+                let arr: [u8; std::mem::size_of::<$t>()] = bytes.try_into().map_err(|e| {
+                    format!("could not convert bytes to {}: {:?}", stringify!($t), e)
+                })?;
+                Ok(<$t>::from_le_bytes(arr))
+            }
+        }
+    };
+}
+
+impl_value_number!(u8, SVM_U8);
+impl_value_number!(u16, SVM_U16);
+impl_value_number!(u32, SVM_U32);
+impl_value_number!(u64, SVM_U64);
+impl_value_number!(u128, SVM_U128);
+impl_value_number!(i8, SVM_I8);
+impl_value_number!(i16, SVM_I16);
+impl_value_number!(i32, SVM_I32);
+impl_value_number!(i64, SVM_I64);
+impl_value_number!(i128, SVM_I128);
+impl ValueNumber for f32 {
+    const SVM_ID: &'static str = SVM_F32;
+    fn try_from_i128(i: i128) -> Result<Self, String> {
+        Ok(i as f32)
+    }
+    fn from_le_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let arr: [u8; 4] = bytes.try_into().map_err(|_| "Invalid bytes for f32".to_string())?;
+        Ok(f32::from_le_bytes(arr))
+    }
+}
+
+impl ValueNumber for f64 {
+    const SVM_ID: &'static str = SVM_F64;
+    fn try_from_i128(i: i128) -> Result<Self, String> {
+        Ok(i as f64)
+    }
+    fn from_le_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let arr: [u8; 8] = bytes.try_into().map_err(|_| "Invalid bytes for f64".to_string())?;
+        Ok(f64::from_le_bytes(arr))
+    }
+}
+#[derive(Debug, Clone)]
+pub struct U256(pub [u8; 32]);
+impl ValueNumber for U256 {
+    const SVM_ID: &'static str = SVM_U256;
+
+    fn try_from_i128(_i: i128) -> Result<Self, String> {
+        Err(format!("cannot convert i128 to {}", Self::SVM_ID))
+    }
+
+    fn from_le_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let arr: [u8; 32] = bytes.try_into().map_err(|_| "Invalid bytes for U256".to_string())?;
+        Ok(U256(arr))
+    }
+}
+#[derive(Debug, Clone)]
+pub struct I256(pub [u8; 32]);
+impl ValueNumber for I256 {
+    const SVM_ID: &'static str = SVM_I256;
+
+    fn try_from_i128(_i: i128) -> Result<Self, String> {
+        Err(format!("cannot convert i128 to {}", Self::SVM_ID))
+    }
+
+    fn from_le_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let arr: [u8; 32] = bytes.try_into().map_err(|_| "Invalid bytes for I256".to_string())?;
+        Ok(I256(arr))
+    }
+}
 
 pub struct SvmValue {}
 
@@ -74,16 +174,77 @@ impl SvmValue {
         Value::addon(bytes, SVM_BYTES32)
     }
 
-    pub fn u128(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_U128)
+    pub fn u8(value: u8) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_U8)
     }
 
-    pub fn u256(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_U256)
+    pub fn u16(value: u16) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_U16)
     }
 
-    pub fn i256(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_I256)
+    pub fn u32(value: u32) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_U32)
+    }
+
+    pub fn u64(value: u64) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_U64)
+    }
+
+    pub fn u128(value: u128) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_U128)
+    }
+
+    pub fn u256(value: [u8; 32]) -> Value {
+        Value::addon(value.to_vec(), SVM_U256)
+    }
+
+    pub fn i8(value: i8) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_I8)
+    }
+
+    pub fn i16(value: i16) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_I16)
+    }
+
+    pub fn i32(value: i32) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_I32)
+    }
+
+    pub fn i64(value: i64) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_I64)
+    }
+
+    pub fn i128(value: i128) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_I128)
+    }
+
+    pub fn i256(value: [u8; 32]) -> Value {
+        Value::addon(value.to_vec(), SVM_I256)
+    }
+
+    pub fn f32(value: f32) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_F32)
+    }
+
+    pub fn f64(value: f64) -> Value {
+        Value::addon(value.to_le_bytes().to_vec(), SVM_F64)
+    }
+
+    pub fn to_number<T: ValueNumber>(value: &Value) -> Result<T, String> {
+        match value {
+            Value::Integer(i) => T::try_from_i128(*i),
+            Value::Addon(addon_data) => {
+                if addon_data.id != T::SVM_ID {
+                    return Err(format!(
+                        "expected addon type {}, found {}",
+                        T::SVM_ID,
+                        addon_data.id
+                    ));
+                }
+                T::from_le_bytes(&addon_data.bytes)
+            }
+            _ => Err(format!("expected {}, found {}", T::SVM_ID, value.get_type().to_string())),
+        }
     }
 
     pub fn transaction_from_bytes(bytes: Vec<u8>) -> Value {

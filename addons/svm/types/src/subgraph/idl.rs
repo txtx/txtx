@@ -3,7 +3,7 @@ use anchor_lang_idl::types::{
 };
 use txtx_addon_kit::types::types::{ObjectDefinition, ObjectProperty, Type};
 
-use crate::{SVM_I256, SVM_PUBKEY, SVM_U128, SVM_U256};
+use crate::SVM_PUBKEY;
 
 pub fn get_expected_type_from_idl_defined_fields(
     fields: &IdlDefinedFields,
@@ -128,20 +128,20 @@ pub fn idl_type_to_txtx_type(
 ) -> Result<Type, String> {
     let res = match idl_type {
         IdlType::Bool => Type::bool(),
-        IdlType::U8 => Type::integer(),
-        IdlType::I8 => Type::integer(),
-        IdlType::U16 => Type::integer(),
-        IdlType::I16 => Type::integer(),
-        IdlType::U32 => Type::integer(),
-        IdlType::I32 => Type::integer(),
-        IdlType::U64 => Type::integer(),
-        IdlType::I64 => Type::integer(),
-        IdlType::I128 => Type::integer(),
-        IdlType::F32 => Type::float(),
-        IdlType::F64 => Type::float(),
-        IdlType::U128 => Type::addon(SVM_U128),
-        IdlType::U256 => Type::addon(SVM_U256),
-        IdlType::I256 => Type::addon(SVM_I256),
+        IdlType::U8 => Type::addon(crate::SVM_U8),
+        IdlType::U16 => Type::addon(crate::SVM_U16),
+        IdlType::U32 => Type::addon(crate::SVM_U32),
+        IdlType::U64 => Type::addon(crate::SVM_U64),
+        IdlType::U128 => Type::addon(crate::SVM_U128),
+        IdlType::U256 => Type::addon(crate::SVM_U256),
+        IdlType::I8 => Type::addon(crate::SVM_I8),
+        IdlType::I16 => Type::addon(crate::SVM_I16),
+        IdlType::I32 => Type::addon(crate::SVM_I32),
+        IdlType::I64 => Type::addon(crate::SVM_I64),
+        IdlType::I128 => Type::addon(crate::SVM_I128),
+        IdlType::I256 => Type::addon(crate::SVM_I256),
+        IdlType::F32 => Type::addon(crate::SVM_F32),
+        IdlType::F64 => Type::addon(crate::SVM_F64),
         IdlType::Bytes => Type::buffer(),
         IdlType::String => Type::string(),
         IdlType::Pubkey => Type::addon(SVM_PUBKEY),
