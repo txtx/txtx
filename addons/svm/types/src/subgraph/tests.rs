@@ -1,3 +1,5 @@
+use crate::SVM_U64;
+
 use super::*;
 use anchor_lang_idl::types::{IdlAccount, IdlEvent};
 use test_case::test_case;
@@ -150,37 +152,40 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
             assert_eq!(expected_type, Type::bool());
         }
         "u8" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(crate::SVM_U8));
         }
         "u16" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(crate::SVM_U16));
         }
         "u32" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(crate::SVM_U32));
         }
         "u64" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(crate::SVM_U64));
+        }
+        "u128" => {
+            assert_eq!(expected_type, Type::addon(crate::SVM_U128));
         }
         "i8" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(crate::SVM_I8));
         }
         "i16" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(crate::SVM_I16));
         }
         "i32" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(crate::SVM_I32));
         }
         "i64" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(crate::SVM_I64));
         }
         "f32" => {
-            assert_eq!(expected_type, Type::float());
+            assert_eq!(expected_type, Type::addon(crate::SVM_F32));
         }
         "f64" => {
-            assert_eq!(expected_type, Type::float());
+            assert_eq!(expected_type, Type::addon(crate::SVM_F64));
         }
         "i128" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(crate::SVM_I128));
         }
         "string" => {
             assert_eq!(expected_type, Type::string());
@@ -192,10 +197,10 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
             assert_eq!(expected_type, Type::addon(SVM_PUBKEY));
         }
         "data" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(SVM_U64));
         }
         "option" => {
-            assert_eq!(expected_type, Type::integer());
+            assert_eq!(expected_type, Type::addon(SVM_U64));
         }
         "additional_data" => {
             assert_eq!(
@@ -204,7 +209,7 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
                     ObjectProperty {
                         name: "my_generic_field".into(),
                         documentation: "Generic field of type T".into(),
-                        typing: Type::integer(),
+                        typing: Type::addon(crate::SVM_U64),
                         optional: false,
                         tainting: false,
                         internal: false
@@ -212,7 +217,7 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
                     ObjectProperty {
                         name: "my_other_generic_field".into(),
                         documentation: "Generic field of type U".into(),
-                        typing: Type::integer(),
+                        typing: Type::addon(crate::SVM_U32),
                         optional: false,
                         tainting: false,
                         internal: false
@@ -221,7 +226,7 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
             );
         }
         "array" => {
-            assert_eq!(expected_type, Type::array(Type::integer()));
+            assert_eq!(expected_type, Type::array(Type::addon(crate::SVM_U8)));
         }
         "wrapper_with_const" => {
             assert_eq!(
@@ -229,7 +234,7 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
                 Type::object(ObjectDefinition::Strict(vec![ObjectProperty {
                     name: "data".into(),
                     documentation: "".into(),
-                    typing: Type::array(Type::integer()),
+                    typing: Type::array(Type::addon(crate::SVM_U8)),
                     optional: false,
                     tainting: false,
                     internal: false
@@ -254,7 +259,7 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
                         typing: Type::object(ObjectDefinition::Strict(vec![ObjectProperty {
                             name: "foo".into(),
                             documentation: "".into(),
-                            typing: Type::integer(),
+                            typing: Type::addon(crate::SVM_U64),
                             optional: false,
                             tainting: false,
                             internal: false,
@@ -270,7 +275,7 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
                             ObjectProperty {
                                 name: "field_0".into(),
                                 documentation: "".into(),
-                                typing: Type::integer(),
+                                typing: Type::addon(crate::SVM_U8),
                                 optional: false,
                                 tainting: false,
                                 internal: false,
