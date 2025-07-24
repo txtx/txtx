@@ -1,7 +1,9 @@
 use crate::SVM_U64;
 
 use super::*;
-use anchor_lang_idl::types::{IdlAccount, IdlEvent};
+use anchor_lang_idl::types::{
+    IdlAccount, IdlEvent, IdlInstruction, IdlInstructionAccount, IdlInstructionAccountItem,
+};
 use test_case::test_case;
 use txtx_addon_kit::types::types::{ObjectProperty, ObjectType};
 
