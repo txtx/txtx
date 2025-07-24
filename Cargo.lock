@@ -14971,6 +14971,7 @@ name = "txtx-addon-network-svm-types"
 version = "0.2.0"
 dependencies = [
  "anchor-lang-idl",
+ "borsh 1.5.6",
  "convert_case 0.6.0",
  "lazy_static",
  "serde",
@@ -14986,6 +14987,7 @@ dependencies = [
  "solana-transaction",
  "solana-transaction-context",
  "solana-transaction-error",
+ "solana-transaction-status-client-types",
  "test-case",
  "txtx-addon-kit",
 ]
