@@ -18,8 +18,8 @@ use crate::{
     codec::{anchor::AnchorProgramArtifacts, idl::IdlRef, native::NativeProgramArtifacts},
     constants::{DEFAULT_ANCHOR_TARGET_PATH, NAMESPACE},
     typing::{
-        SvmValue, ANCHOR_PROGRAM_ARTIFACTS, CLASSIC_RUST_PROGRAM_ARTIFACTS, PDA_RESULT,
-        SVM_ADDRESS, SVM_IDL, SVM_PUBKEY,
+        SvmValue, ANCHOR_PROGRAM_ARTIFACTS, CLASSIC_RUST_PROGRAM_ARTIFACTS, PDA_RESULT, SVM_IDL,
+        SVM_PUBKEY,
     },
 };
 
@@ -282,7 +282,7 @@ lazy_static! {
                 inputs: [
                     program_id: {
                         documentation: "The address of the program the PDA is derived from.",
-                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
                         optional: false
                     },
                     seeds: {
@@ -309,12 +309,12 @@ lazy_static! {
                 inputs: [
                     wallet_address: {
                         documentation: "The address of the wallet to compute the associated token account for.",
-                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
                         optional: false
                     },
                     token_mint_address: {
                         documentation: "The address of the token mint used to compute the token account.",
-                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
                         optional: true
                     }
                 ],
@@ -345,22 +345,22 @@ lazy_static! {
                 inputs: [
                     funding_address: {
                         documentation: "The address of the funding account.",
-                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
                         optional: false
                     },
                     wallet_address: {
                         documentation: "The address of the wallet to compute the associated token account for.",
-                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
                         optional: false
                     },
                     token_mint_address: {
                         documentation: "The address of the token mint used to compute the token account.",
-                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
                         optional: true
                     },
                     token_program_id: {
                         documentation: "The address of the token program used to compute the token account.",
-                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into()), Type::addon(SVM_ADDRESS.into())],
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
                         optional: true
                     }
                 ],
