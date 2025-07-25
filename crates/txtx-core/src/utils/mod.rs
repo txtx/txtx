@@ -1,4 +1,4 @@
-use kit::helpers::fs::FileLocation;
+use kit::{helpers::fs::FileLocation, types::types::AddonJsonConverter};
 
 use crate::runbook::RunbookOutputs;
 
@@ -8,8 +8,9 @@ pub fn try_write_outputs_to_file(
     workspace_location: &FileLocation,
     runbook_id: &str,
     environment: &str,
+    addon_converters: &Vec<AddonJsonConverter>,
 ) -> Result<FileLocation, String> {
-    let json_outputs = runbook_outputs.to_json();
+    let json_outputs = runbook_outputs.to_json(addon_converters);
     let output = serde_json::to_string_pretty(&json_outputs)
         .map_err(|e| format!("failed to serialize outputs: {e}"))?;
 
