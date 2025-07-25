@@ -219,6 +219,8 @@ impl<'de> Deserialize<'de> for Value {
     }
 }
 
+pub type AddonJsonConverter<'a> = Box<dyn Fn(&Value) -> Result<Option<JsonValue>, Diagnostic> + 'a>;
+
 impl Value {
     pub fn string(value: String) -> Value {
         Value::String(value.to_string())
@@ -568,24 +570,35 @@ impl Value {
         Did::from_components(vec![bytes])
     }
 
-    pub fn to_json(&self) -> JsonValue {
+    pub fn to_json(&self, addon_converters: Option<&Vec<AddonJsonConverter>>) -> JsonValue {
         let json = match self {
             Value::Bool(b) => JsonValue::Bool(*b),
             Value::Null => JsonValue::Null,
             Value::Integer(i) => JsonValue::Number(serde_json::Number::from(*i as i64)),
             Value::Float(f) => JsonValue::Number(serde_json::Number::from_f64(*f).unwrap()),
             Value::String(s) => JsonValue::String(s.to_string()),
-            Value::Array(vec) => {
-                JsonValue::Array(vec.iter().map(|v| v.to_json()).collect::<Vec<JsonValue>>())
-            }
+            Value::Array(vec) => JsonValue::Array(
+                vec.iter().map(|v| v.to_json(addon_converters)).collect::<Vec<JsonValue>>(),
+            ),
             Value::Object(index_map) => JsonValue::Object(
                 index_map
                     .iter()
-                    .map(|(k, v)| (k.clone(), v.to_json()))
+                    .map(|(k, v)| (k.clone(), v.to_json(addon_converters)))
                     .collect::<Map<String, JsonValue>>(),
             ),
             Value::Buffer(vec) => JsonValue::String(format!("0x{}", hex::encode(&vec))),
-            Value::Addon(addon_data) => JsonValue::String(addon_data.to_string()),
+            Value::Addon(addon_data) => {
+                if let Some(addon_converters) = addon_converters.as_ref() {
+                    let parsed_values = addon_converters
+                        .iter()
+                        .filter_map(|converter| converter(self).ok().flatten())
+                        .collect::<Vec<_>>();
+                    if let Some(parsed_value) = parsed_values.first() {
+                        return parsed_value.clone();
+                    }
+                }
+                JsonValue::String(addon_data.to_string())
+            }
         };
         json
     }

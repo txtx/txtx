@@ -40,6 +40,8 @@ pub use serde;
 pub use serde_json;
 pub use sha2;
 
+use crate::types::types::Value;
+
 pub mod crypto;
 pub mod helpers;
 pub mod types;
@@ -76,6 +78,9 @@ pub trait Addon: Debug + Sync + Send {
     ///
     fn get_signers(&self) -> Vec<SignerSpecification> {
         vec![]
+    }
+    fn to_json(&self, _value: &Value) -> Result<Option<serde_json::Value>, Diagnostic> {
+        Ok(None)
     }
     ///
     fn build_function_lookup(self: &Self) -> HashMap<String, FunctionSpecification> {

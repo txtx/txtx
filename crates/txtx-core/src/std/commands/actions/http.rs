@@ -145,7 +145,7 @@ impl CommandImplementation for SendHttpRequest {
 
             if let Some(request_body) = request_body {
                 if request_body.as_object().is_some() {
-                    req_builder = req_builder.json(&request_body.to_json());
+                    req_builder = req_builder.json(&request_body.to_json(None));
                 } else {
                     req_builder = req_builder.body(request_body.encode_to_string());
                 }

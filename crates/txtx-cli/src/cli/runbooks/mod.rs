@@ -50,7 +50,7 @@ use txtx_core::{
     runbook::flow_context::FlowContext,
     templates::{build_manifest_data, build_runbook_data},
 };
-use txtx_gql::kit::types::cloud_interface::CloudServiceContext;
+use txtx_gql::kit::types::{cloud_interface::CloudServiceContext, types::AddonJsonConverter};
 
 #[cfg(feature = "supervisor_ui")]
 use actix_web::dev::ServerHandle;
@@ -1030,6 +1030,16 @@ fn process_runbook_execution_output(
     } else {
         let runbook_outputs = runbook.collect_formatted_outputs();
 
+        let converters = runbook
+            .runtime_context
+            .addons_context
+            .registered_addons
+            .values()
+            .map(|(addon, _)| {
+                Box::new(move |value: &Value| addon.to_json(value)) as AddonJsonConverter
+            })
+            .collect::<Vec<_>>();
+
         if !runbook_outputs.is_empty() {
             if let Some(some_output_loc) = output_json {
                 if let Some(output_loc) = some_output_loc {
@@ -1039,6 +1049,7 @@ fn process_runbook_execution_output(
                         &runbook.runtime_context.authorization_context.workspace_location,
                         &runbook.runbook_id.name,
                         &runbook.top_level_inputs_map.current_top_level_input_name(),
+                        &converters,
                     ) {
                         Ok(output_location) => {
                             println!(
@@ -1054,7 +1065,8 @@ fn process_runbook_execution_output(
                 } else {
                     println!(
                         "{}",
-                        serde_json::to_string_pretty(&runbook_outputs.to_json()).unwrap()
+                        serde_json::to_string_pretty(&runbook_outputs.to_json(&converters))
+                            .unwrap()
                     );
                 }
             } else {

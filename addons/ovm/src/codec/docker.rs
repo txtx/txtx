@@ -221,7 +221,7 @@ impl RollupDeployer {
             &self
                 .l1_deployment_addresses
                 .iter()
-                .map(|(k, v)| (k, v.to_json()))
+                .map(|(k, v)| (k, v.to_json(None)))
                 .collect::<IndexMap<&String, JsonValue>>(),
         )
         .map_err(|e| diagnosed_error!("failed to serialize L1 deployment addresses: {}", e))?;

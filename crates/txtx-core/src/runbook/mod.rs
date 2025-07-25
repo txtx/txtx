@@ -3,6 +3,7 @@ use flow_context::FlowContext;
 use kit::indexmap::IndexMap;
 use kit::types::cloud_interface::CloudServiceContext;
 use kit::types::frontend::ActionItemRequestType;
+use kit::types::types::AddonJsonConverter;
 use kit::types::ConstructDid;
 use serde_json::{json, Value as JsonValue};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -659,14 +660,14 @@ impl RunbookOutputs {
         output_row_data
     }
 
-    pub fn to_json(&self) -> JsonValue {
+    pub fn to_json(&self, addon_converters: &Vec<AddonJsonConverter>) -> JsonValue {
         let mut json = json!({});
         let only_one_flow = self.outputs.len() == 1;
         for (flow_name, flow_outputs) in self.outputs.iter() {
             let mut flow_json = json!({});
             for (output_name, (output_value, output_description)) in flow_outputs.iter() {
                 let mut output_json = json!({});
-                output_json["value"] = output_value.to_json();
+                output_json["value"] = output_value.to_json(Some(&addon_converters));
                 if let Some(ref output_description) = output_description {
                     output_json["description"] = output_description.clone().into();
                 }
