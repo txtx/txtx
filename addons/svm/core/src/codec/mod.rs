@@ -819,6 +819,18 @@ impl UpgradeableProgramDeployer {
                     UpgradeableLoaderState::size_of_programdata(program_data_length),
                 )
                 .unwrap();
+
+            // if this is a program upgrade, we also need to add in rent lamports for extending the program data account
+            if self.is_program_upgrade {
+                if let Some(additional_bytes) = self.get_extend_program_additional_bytes()? {
+                    lamports += self
+                        .rpc_client
+                        .get_minimum_balance_for_rent_exemption(
+                            UpgradeableLoaderState::size_of_programdata(additional_bytes as usize),
+                        )
+                        .unwrap();
+                }
+            }
         }
 
         // add 20% buffer
@@ -886,6 +898,21 @@ impl UpgradeableProgramDeployer {
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2807
     fn get_extend_program_instruction(&self) -> Result<Option<Instruction>, Diagnostic> {
+        let some_instruction =
+            if let Some(additional_bytes) = self.get_extend_program_additional_bytes()? {
+                let instruction = bpf_loader_upgradeable::extend_program(
+                    &self.program_pubkey,
+                    Some(&self.temp_upgrade_authority_pubkey),
+                    additional_bytes,
+                );
+                Some(instruction)
+            } else {
+                None
+            };
+        Ok(some_instruction)
+    }
+
+    fn get_extend_program_additional_bytes(&self) -> Result<Option<u32>, Diagnostic> {
         let program_data_address = get_program_data_address(&self.program_pubkey);
 
         let Some(program_data_account) = self
@@ -923,13 +950,7 @@ impl UpgradeableProgramDeployer {
 
         let additional_bytes =
             u32::try_from(additional_bytes).expect("`u32` is big enough to hold an account size");
-        let instruction = bpf_loader_upgradeable::extend_program(
-            &self.program_pubkey,
-            Some(&self.temp_upgrade_authority_pubkey),
-            additional_bytes,
-        );
-
-        Ok(Some(instruction))
+        Ok(Some(additional_bytes))
     }
 
     fn get_prepare_program_upgrade_transaction(
