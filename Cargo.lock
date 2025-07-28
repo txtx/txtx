@@ -14831,7 +14831,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
@@ -14941,7 +14941,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-recursion",
  "bincode",
@@ -14968,7 +14968,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anchor-lang-idl",
  "convert_case 0.6.0",
@@ -15083,7 +15083,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
