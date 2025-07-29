@@ -799,6 +799,8 @@ pub enum DeploymentTransactionType {
     UpgradeProgram,
     CloseTempAuthority,
     SkipCloseTempAuthority,
+    CheatcodeDeployment,
+    CheatcodeUpgrade,
 }
 
 impl DeploymentTransactionType {
@@ -813,6 +815,8 @@ impl DeploymentTransactionType {
             DeploymentTransactionType::UpgradeProgram => "upgrade_program",
             DeploymentTransactionType::CloseTempAuthority => "close_temp_authority",
             DeploymentTransactionType::SkipCloseTempAuthority => "skip_close_temp_authority",
+            DeploymentTransactionType::CheatcodeDeployment => "cheatcode_deployment",
+            DeploymentTransactionType::CheatcodeUpgrade => "cheatcode_upgrade",
         }
         .into()
     }
@@ -827,6 +831,8 @@ impl DeploymentTransactionType {
             "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
             "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
             "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
+            "cheatcode_deployment" => DeploymentTransactionType::CheatcodeDeployment,
+            "cheatcode_upgrade" => DeploymentTransactionType::CheatcodeUpgrade,
             _ => unreachable!(),
         }
     }
