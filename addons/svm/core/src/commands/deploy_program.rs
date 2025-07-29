@@ -128,6 +128,7 @@ lazy_static! {
 
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
             spec.create_critical_output = Some(PROGRAM_ID.to_string());
+            spec.implements_cloud_service = true;
         }
         command
     };
@@ -698,6 +699,50 @@ impl CommandImplementation for DeployProgram {
                 .insert(format!("{}:{}", &nested_construct_did.to_string(), SIGNATURE), signature);
 
             deployment_transaction.post_send_status_updates(&mut status_updater, program_id);
+
+            if transaction_index == transaction_count - 1 {
+                let network_id = inputs.get_expected_string(NETWORK_ID)?;
+                // Todo: eventually fill in for mainnet and remove optional url
+                let (idl_registration_url, do_include_token) = match network_id {
+                    "mainnet" | "mainnet-beta" => (None, false),
+                    "devnet" => (inputs.get_expected_string(RPC_API_URL).ok(), false),
+                    "localnet" | _ => (inputs.get_expected_string(RPC_API_URL).ok(), false),
+                };
+
+                let is_surfnet = inputs
+                    .get_scoped_value(&nested_construct_did.to_string(), IS_SURFNET)
+                    .unwrap()
+                    .as_bool()
+                    .unwrap();
+
+                if let Some(idl_registration_url) = idl_registration_url {
+                    if let Some(idl) = inputs
+                        .get_scoped_value(&nested_construct_did.to_string(), PROGRAM_IDL)
+                        .and_then(|v| v.as_string())
+                    {
+                        if let Ok(idl_ref) = IdlRef::from_str(idl) {
+                            let value = serde_json::to_value(&idl_ref.idl).unwrap();
+                            let params = serde_json::to_value(&vec![value]).unwrap();
+
+                            let router = cloud_service_context
+                                .expect("cloud service context not found")
+                                .authenticated_cloud_service_router
+                                .expect("authenticated cloud service router not found");
+                            let _ = router
+                                .route(CloudService::svm_register_idl(
+                                    idl_registration_url,
+                                    params,
+                                    do_include_token,
+                                    is_surfnet,
+                                ))
+                                .await
+                                .map_err(|e| {
+                                    diagnosed_error!("failed to register program IDL: {}", e)
+                                })?;
+                        }
+                    };
+                }
+            }
 
             Ok(result)
         };

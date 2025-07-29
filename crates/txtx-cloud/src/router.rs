@@ -4,7 +4,8 @@ use serde_json::Value as JsonValue;
 use txtx_addon_kit::{
     reqwest::{self, Client},
     types::cloud_interface::{
-        AuthenticatedCloudServiceRouter, CloudService, DeploySubgraphCommand, SvmService,
+        AuthenticatedCloudServiceRouter, CloudService, DeploySubgraphCommand, RegisterIdlCommand,
+        SvmService,
     },
 };
 
@@ -74,6 +75,27 @@ impl TxtxCloudServiceRouter {
                             .map_err(|e| {
                                 format!("Failed to send request to deploy subgraph: {}", e)
                             })?;
+
+                    return Ok(res.to_string());
+                }
+                SvmService::RegisterIdl(RegisterIdlCommand {
+                    url,
+                    params,
+                    do_include_token,
+                    ..
+                }) => {
+                    let token = if *do_include_token { token } else { None };
+                    let client = Client::new();
+
+                    let res = rpc_call::<JsonValue>(
+                        &client,
+                        url,
+                        "surfnet_registerIdl",
+                        params,
+                        token.as_ref(),
+                    )
+                    .await
+                    .map_err(|e| format!("Failed to send request to register IDL: {}", e))?;
 
                     return Ok(res.to_string());
                 }
