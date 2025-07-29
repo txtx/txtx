@@ -37,7 +37,7 @@ use crate::constants::{
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, CHEATCODE_DEPLOYMENT,
     CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, FORMATTED_TRANSACTION,
     IS_DEPLOYMENT, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR,
-    PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, TRANSACTION_BYTES,
+    PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, SLOT, TRANSACTION_BYTES,
 };
 use crate::typing::{
     DeploymentTransactionType, SvmValue, ANCHOR_PROGRAM_ARTIFACTS,
@@ -126,6 +126,10 @@ lazy_static! {
                     program_idl: {
                         documentation: "The program ID of the deployed program.",
                         typing: Type::string()
+                    },
+                    slot: {
+                        documentation: "The slot at which the program was deployed.",
+                        typing: Type::integer()
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
@@ -729,7 +733,7 @@ impl CommandImplementation for DeployProgram {
                 _ => {}
             }
 
-            let result = match deployment_transaction.transaction_type {
+            let mut result = match deployment_transaction.transaction_type {
                 DeploymentTransactionType::CheatcodeDeployment
                 | DeploymentTransactionType::CheatcodeUpgrade => {
                     let (upgrade_authority, data) =
@@ -787,6 +791,12 @@ impl CommandImplementation for DeployProgram {
             deployment_transaction.post_send_status_updates(&mut status_updater, program_id);
 
             if transaction_index == transaction_count - 1 {
+                let rpc_client = RpcClient::new(rpc_api_url);
+                if let Ok(slot) = rpc_client.get_slot() {
+                    println!("Program deployed at slot: {}", slot);
+                    result.insert(SLOT, Value::integer(slot as i128));
+                };
+
                 let network_id = inputs.get_expected_string(NETWORK_ID)?;
                 // Todo: eventually fill in for mainnet and remove optional url
                 let (idl_registration_url, do_include_token) = match network_id {
@@ -851,6 +861,7 @@ impl CommandImplementation for DeployProgram {
             .last()
             .and_then(|(id, values)| values.get_scoped_value(&id.to_string(), PROGRAM_IDL))
             .cloned();
+        let slot = nested_results.last().and_then(|res| res.outputs.get(SLOT)).cloned();
 
         for (res, (nested_construct_did, values)) in nested_results.iter().zip(nested_values) {
             let tx_type = values
@@ -877,6 +888,9 @@ impl CommandImplementation for DeployProgram {
         result.outputs.insert(PROGRAM_ID.into(), program_id.clone());
         if let Some(program_idl) = program_idl {
             result.outputs.insert(PROGRAM_IDL.into(), program_idl);
+        }
+        if let Some(slot) = slot {
+            result.outputs.insert(SLOT.into(), slot);
         }
         Ok(result)
     }
