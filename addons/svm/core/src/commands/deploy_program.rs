@@ -793,7 +793,6 @@ impl CommandImplementation for DeployProgram {
             if transaction_index == transaction_count - 1 {
                 let rpc_client = RpcClient::new(rpc_api_url);
                 if let Ok(slot) = rpc_client.get_slot() {
-                    println!("Program deployed at slot: {}", slot);
                     result.insert(SLOT, Value::integer(slot as i128));
                 };
 
