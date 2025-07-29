@@ -171,6 +171,9 @@ impl CommandImplementation for DeployProgram {
         let rpc_client =
             RpcClient::new_with_commitment(rpc_api_url.clone(), CommitmentConfig::finalized());
 
+        let is_surfnet = UpgradeableProgramDeployer::check_is_surfnet(&rpc_client)
+            .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?;
+
         let auto_extend = values.get_bool(AUTO_EXTEND);
 
         if let Some(keypair_bytes) = program_artifacts.keypair_bytes() {
@@ -358,6 +361,12 @@ impl CommandImplementation for DeployProgram {
                     );
                 }
             }
+
+            value_store.insert_scoped_value(
+                &new_did.to_string(),
+                IS_SURFNET,
+                Value::bool(is_surfnet),
+            );
 
             value_store.insert_scoped_value(
                 &new_did.to_string(),

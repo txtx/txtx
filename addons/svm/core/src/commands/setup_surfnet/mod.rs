@@ -1,16 +1,13 @@
 pub mod clone_program_account;
-mod set_account;
+pub mod set_account;
 mod set_program_authority;
 mod set_token_account;
 mod tokens;
 
 use clone_program_account::SurfpoolProgramCloning;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
 use set_account::SurfpoolAccountUpdate;
 use set_token_account::SurfpoolTokenAccountUpdate;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_client::rpc_request::RpcRequest;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
@@ -28,18 +25,8 @@ use txtx_addon_network_svm_types::{
 };
 
 use crate::commands::setup_surfnet::set_program_authority::SurfpoolSetProgramAuthority;
+use crate::commands::RpcVersionInfo;
 use crate::constants::RPC_API_URL;
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub struct RpcVersionInfo {
-    /// The current version of surfnet, if RPC is a surfnet
-    pub surfnet_version: Option<String>,
-    /// The current version of solana-core
-    pub solana_core: String,
-    /// first 4 bytes of the FeatureSet identifier
-    pub feature_set: Option<u32>,
-}
 
 lazy_static! {
     pub static ref SETUP_SURFNET: PreCommandSpecification = {
@@ -174,10 +161,7 @@ impl CommandImplementation for SetupSurfpool {
 
             let rpc_client = RpcClient::new(rpc_api_url.to_string());
 
-            let version = rpc_client
-                .send::<RpcVersionInfo>(RpcRequest::Custom { method: "getVersion" }, json!([]))
-                .await
-                .map_err(|e| diagnosed_error!("failed to fetch RPC endpoint version: {e}"))?;
+            let version = RpcVersionInfo::fetch_non_blocking(&rpc_client).await?;
             if version.surfnet_version.is_none() {
                 return Err(diagnosed_error!(
                     "RPC endpoint is not a surfnet, setup_surfnet is not supported"
