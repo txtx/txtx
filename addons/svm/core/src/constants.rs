@@ -59,6 +59,7 @@ pub const SET_ACCOUNT: &str = "set_account";
 pub const SET_TOKEN_ACCOUNT: &str = "set_token_account";
 pub const CLONE_PROGRAM_ACCOUNT: &str = "clone_program_account";
 pub const SET_PROGRAM_AUTHORITY: &str = "set_program_authority";
+pub const IS_SURFNET: &str = "is_surfnet";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";

@@ -8,6 +8,7 @@ pub mod utils;
 
 use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::codec::ui_encode::message_data_to_formatted_value;
+use crate::commands::RpcVersionInfo;
 use anchor::AnchorProgramArtifacts;
 use bip39::Language;
 use bip39::Mnemonic;
@@ -1203,6 +1204,11 @@ impl UpgradeableProgramDeployer {
         let transaction = Transaction::new_unsigned(message);
 
         DeploymentTransaction::upgrade_program(&transaction, vec![]).to_value()
+    }
+
+    pub fn check_is_surfnet(rpc_client: &RpcClient) -> Result<bool, Diagnostic> {
+        let version = RpcVersionInfo::fetch_blocking(rpc_client)?;
+        Ok(version.surfnet_version.is_some())
     }
 
     /// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
