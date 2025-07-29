@@ -81,7 +81,7 @@ impl TxtxDeploymentSigner {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeploymentTransaction {
     pub signers: Option<Vec<TxtxDeploymentSigner>>,
-    pub transaction: Transaction,
+    pub transaction: Option<Transaction>,
     pub keypairs_bytes: Vec<Vec<u8>>,
     pub transaction_type: DeploymentTransactionType,
     pub commitment_level: CommitmentLevel,
@@ -100,7 +100,7 @@ impl DeploymentTransaction {
         let keypairs_bytes = keypairs.iter().map(|k| k.to_bytes().to_vec()).collect();
         Self {
             signers,
-            transaction: transaction.clone(),
+            transaction: Some(transaction.clone()),
             keypairs_bytes,
             transaction_type,
             commitment_level,
@@ -224,7 +224,7 @@ impl DeploymentTransaction {
     pub fn skip_temp_authority_close() -> Self {
         Self {
             signers: None,
-            transaction: Transaction::new_unsigned(Message::new(&[], None)),
+            transaction: None,
             keypairs_bytes: vec![],
             transaction_type: DeploymentTransactionType::SkipCloseTempAuthority,
             commitment_level: CommitmentLevel::Confirmed,
@@ -341,8 +341,10 @@ impl DeploymentTransaction {
         );
 
         let mut instructions = vec![];
-        let message_account_keys = self.transaction.message.account_keys.clone();
-        for instruction in self.transaction.message.instructions.iter() {
+
+        let transaction = self.transaction.as_ref().unwrap();
+        let message_account_keys = transaction.message.account_keys.clone();
+        for instruction in transaction.message.instructions.iter() {
             let Some(account) = message_account_keys.get(instruction.program_id_index as usize)
             else {
                 continue;
@@ -373,9 +375,9 @@ impl DeploymentTransaction {
         }
         let formatted_transaction = message_data_to_formatted_value(
             &instructions,
-            self.transaction.message.header.num_required_signatures,
-            self.transaction.message.header.num_readonly_signed_accounts,
-            self.transaction.message.header.num_readonly_unsigned_accounts,
+            transaction.message.header.num_required_signatures,
+            transaction.message.header.num_readonly_signed_accounts,
+            transaction.message.header.num_readonly_unsigned_accounts,
         );
 
         Ok(Some((formatted_transaction, meta_description)))
@@ -402,7 +404,7 @@ impl DeploymentTransaction {
             .get_latest_blockhash()
             .map_err(|e| diagnosed_error!("failed to get latest blockhash: {e}"))?;
 
-        let mut transaction: Transaction = self.transaction.clone();
+        let mut transaction: Transaction = self.transaction.as_ref().unwrap().clone();
 
         transaction.message.recent_blockhash = blockhash;
         let keypairs =

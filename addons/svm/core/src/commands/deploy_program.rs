@@ -438,14 +438,15 @@ impl CommandImplementation for DeployProgram {
         // we only need to check signability if there are signers for this transaction
         if let Some(signers_dids) = signers_dids {
             let mut values = values.clone();
-            let transaction_value = SvmValue::transaction(&deployment_transaction.transaction)
-                .map_err(|e| {
-                    (
-                        signers.clone(),
-                        authority_signer_state.clone(),
-                        diagnosed_error!("failed to serialize deployment transaction: {}", e),
-                    )
-                })?;
+            let transaction_value =
+                SvmValue::transaction(&deployment_transaction.transaction.as_ref().unwrap())
+                    .map_err(|e| {
+                        (
+                            signers.clone(),
+                            authority_signer_state.clone(),
+                            diagnosed_error!("failed to serialize deployment transaction: {}", e),
+                        )
+                    })?;
             values.insert(TRANSACTION_BYTES, transaction_value);
             values.insert(IS_DEPLOYMENT, Value::bool(true));
             values.insert(

@@ -425,7 +425,8 @@ impl SignerImplementation for SvmSecretKey {
                         )
                     })?;
 
-                let mut transaction: Transaction = deployment_transaction.transaction.clone();
+                let mut transaction: Transaction =
+                    deployment_transaction.transaction.as_ref().unwrap().clone();
 
                 transaction.message.recent_blockhash = blockhash;
 
