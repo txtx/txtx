@@ -7,17 +7,19 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
-    META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID, NESTED_CONSTRUCT_INDEX,
-    SIGNED_TRANSACTION_BYTES,
+    DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID,
+    NESTED_CONSTRUCT_INDEX, SIGNATURE_APPROVED, SIGNED_TRANSACTION_BYTES,
 };
 use txtx_addon_kit::indexmap::IndexMap;
-use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
+use txtx_addon_kit::types::cloud_interface::{CloudService, CloudServiceContext};
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     CommandSpecification, PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent, StatusUpdater};
+use txtx_addon_kit::types::frontend::{
+    Actions, BlockEvent, ProvideSignedTransactionRequest, StatusUpdater,
+};
 use txtx_addon_kit::types::signers::{
     return_synchronous, PrepareSignedNestedExecutionResult, SignerActionsFutureResult,
     SignerInstance, SignerSignFutureResult, SignersState,
@@ -27,12 +29,15 @@ use txtx_addon_kit::types::types::{ObjectType, RunbookSupervisionContext, Type, 
 use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
 
+use crate::codec::idl::IdlRef;
 use crate::codec::send_transaction::send_transaction_background_task;
+use crate::codec::utils::cheatcode_deploy_program;
 use crate::codec::{DeploymentTransaction, ProgramArtifacts, UpgradeableProgramDeployer};
 use crate::constants::{
-    AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION,
-    FORMATTED_TRANSACTION, IS_DEPLOYMENT, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID,
-    PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, TRANSACTION_BYTES,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY,
+    COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, FORMATTED_TRANSACTION, INSTANT_SURFNET_DEPLOYMENT,
+    IS_DEPLOYMENT, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR,
+    PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, SLOT, TRANSACTION_BYTES,
 };
 use crate::typing::{
     DeploymentTransactionType, SvmValue, ANCHOR_PROGRAM_ARTIFACTS,
@@ -99,6 +104,14 @@ lazy_static! {
                         tainting: false,
                         internal: false,
                         sensitive: false
+                    },
+                    instant_surfnet_deployment: {
+                        documentation: "If set to `true`, deployments to a Surfnet will be instantaneous, deploying via a cheatcode to directly write to the program account, rather than sending transactions. Defaults to `false`.",
+                        typing: Type::bool(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
                     }
                 ],
                 outputs: [
@@ -113,6 +126,10 @@ lazy_static! {
                     program_idl: {
                         documentation: "The program ID of the deployed program.",
                         typing: Type::string()
+                    },
+                    slot: {
+                        documentation: "The slot at which the program was deployed.",
+                        typing: Type::integer()
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
@@ -128,6 +145,7 @@ lazy_static! {
 
         if let PreCommandSpecification::Atomic(ref mut spec) = command {
             spec.create_critical_output = Some(PROGRAM_ID.to_string());
+            spec.implements_cloud_service = true;
         }
         command
     };
@@ -168,8 +186,13 @@ impl CommandImplementation for DeployProgram {
             .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?
             .to_string();
 
+        let do_cheatcode_deployment = values.get_bool(INSTANT_SURFNET_DEPLOYMENT).unwrap_or(false);
+
         let rpc_client =
             RpcClient::new_with_commitment(rpc_api_url.clone(), CommitmentConfig::finalized());
+
+        let is_surfnet = UpgradeableProgramDeployer::check_is_surfnet(&rpc_client)
+            .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?;
 
         let auto_extend = values.get_bool(AUTO_EXTEND);
 
@@ -277,6 +300,8 @@ impl CommandImplementation for DeployProgram {
                     rpc_client,
                     None,
                     auto_extend,
+                    is_surfnet,
+                    do_cheatcode_deployment,
                 )
                 .map_err(|e| {
                     (
@@ -328,6 +353,7 @@ impl CommandImplementation for DeployProgram {
         let mut cursor = 0;
         let mut res = vec![];
         let transaction_array = transactions.as_array().unwrap();
+        let transaction_count = transaction_array.len();
         for (i, transaction_value) in transaction_array.iter().enumerate() {
             let new_did = ConstructDid(Did::from_components(vec![
                 construct_did.as_bytes(),
@@ -349,7 +375,7 @@ impl CommandImplementation for DeployProgram {
             );
 
             value_store.insert_scoped_value(&new_did.to_string(), PROGRAM_ID, program_id.clone());
-            if i == 0 {
+            if i == transaction_count - 1 {
                 if let Some(idl) = &program_idl {
                     value_store.insert_scoped_value(
                         &new_did.to_string(),
@@ -358,6 +384,12 @@ impl CommandImplementation for DeployProgram {
                     );
                 }
             }
+
+            value_store.insert_scoped_value(
+                &new_did.to_string(),
+                IS_SURFNET,
+                Value::bool(is_surfnet),
+            );
 
             value_store.insert_scoped_value(
                 &new_did.to_string(),
@@ -372,7 +404,7 @@ impl CommandImplementation for DeployProgram {
             value_store.insert_scoped_value(
                 &new_did.to_string(),
                 NESTED_CONSTRUCT_COUNT,
-                Value::integer(transaction_array.len() as i128),
+                Value::integer(transaction_count as i128),
             );
             res.push((new_did, value_store));
             cursor += 1;
@@ -414,6 +446,49 @@ impl CommandImplementation for DeployProgram {
             return return_synchronous((signers, authority_signer_state, Actions::none()));
         }
 
+        // cheatcode deployments don't go into the transaction signing flow,
+        // but we will return an action item to verify the deployment
+        if match deployment_transaction.transaction_type {
+            DeploymentTransactionType::CheatcodeDeployment
+            | DeploymentTransactionType::CheatcodeUpgrade => true,
+            _ => false,
+        } {
+            if authority_signer_state
+                .get_scoped_value(&&construct_did.to_string(), SIGNATURE_APPROVED)
+                .is_some()
+                || !supervision_context.review_input_values
+            {
+                return return_synchronous((signers, authority_signer_state, Actions::none()));
+            }
+            let network_id = match values.get_expected_string(NETWORK_ID) {
+                Ok(value) => value,
+                Err(diag) => return Err((signers, authority_signer_state, diag)),
+            };
+            let description =
+                values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+            let request = ProvideSignedTransactionRequest::new(
+                &construct_did.0,
+                &Value::null(),
+                NAMESPACE,
+                &network_id,
+            )
+            .check_expectation_action_uuid(construct_did)
+            .formatted_payload(Some(&Value::string("The program binary will be written to the program data address.".into())))
+            .only_approval_needed()
+            .to_action_type()
+            .to_request(instance_name, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION)
+            .with_construct_did(construct_did)
+            .with_some_description(description)
+            .with_meta_description("The `surfnet_setAccount` cheatcode will be used to instantly deploy the program without sending any transactions.");
+
+            let actions = Actions::append_item(
+                request,
+                Some("Verify the deployment below."),
+                Some("Cheatcode Deployment"),
+            );
+            return return_synchronous((signers, authority_signer_state, actions));
+        }
+
         let (authority_signer_did, payer_signer_did) = get_deployment_dids(&values);
         let signers_dids = deployment_transaction
             .get_signers_dids(authority_signer_did, payer_signer_did)
@@ -428,14 +503,15 @@ impl CommandImplementation for DeployProgram {
         // we only need to check signability if there are signers for this transaction
         if let Some(signers_dids) = signers_dids {
             let mut values = values.clone();
-            let transaction_value = SvmValue::transaction(&deployment_transaction.transaction)
-                .map_err(|e| {
-                    (
-                        signers.clone(),
-                        authority_signer_state.clone(),
-                        diagnosed_error!("failed to serialize deployment transaction: {}", e),
-                    )
-                })?;
+            let transaction_value =
+                SvmValue::transaction(&deployment_transaction.transaction.as_ref().unwrap())
+                    .map_err(|e| {
+                        (
+                            signers.clone(),
+                            authority_signer_state.clone(),
+                            diagnosed_error!("failed to serialize deployment transaction: {}", e),
+                        )
+                    })?;
             values.insert(TRANSACTION_BYTES, transaction_value);
             values.insert(IS_DEPLOYMENT, Value::bool(true));
             values.insert(
@@ -516,9 +592,12 @@ impl CommandImplementation for DeployProgram {
             let deployment_transaction =
                 DeploymentTransaction::from_value(&transaction_value).unwrap();
 
-            if let DeploymentTransactionType::SkipCloseTempAuthority =
-                deployment_transaction.transaction_type
-            {
+            if match deployment_transaction.transaction_type {
+                DeploymentTransactionType::CheatcodeDeployment
+                | DeploymentTransactionType::CheatcodeUpgrade
+                | DeploymentTransactionType::SkipCloseTempAuthority => true,
+                _ => false,
+            } {
                 return Ok((signers, authority_signer_state, result));
             }
 
@@ -601,7 +680,7 @@ impl CommandImplementation for DeployProgram {
         progress_tx: &channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
-        _cloud_service_context: &Option<CloudServiceContext>,
+        cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         let construct_did = construct_did.clone();
         let spec = spec.clone();
@@ -610,6 +689,7 @@ impl CommandImplementation for DeployProgram {
         let progress_tx = progress_tx.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
+        let cloud_service_context = cloud_service_context.clone();
 
         let future = async move {
             let nested_construct_did =
@@ -629,6 +709,8 @@ impl CommandImplementation for DeployProgram {
             let program_id = SvmValue::to_pubkey(&outputs.get_value(PROGRAM_ID).unwrap()).unwrap();
             let deployment_transaction =
                 DeploymentTransaction::from_value(&transaction_value).unwrap();
+
+            let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
 
             let mut status_updater = StatusUpdater::new_with_default_progress_index(
                 &background_tasks_uuid,
@@ -651,44 +733,111 @@ impl CommandImplementation for DeployProgram {
                 _ => {}
             }
 
-            let signed_transaction_value = inputs
-                .get_scoped_value(&nested_construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
-                .unwrap()
-                .clone();
+            let mut result = match deployment_transaction.transaction_type {
+                DeploymentTransactionType::CheatcodeDeployment
+                | DeploymentTransactionType::CheatcodeUpgrade => {
+                    let (upgrade_authority, data) =
+                        deployment_transaction.cheatcode_data.as_ref().unwrap();
+                    cheatcode_deploy_program(&rpc_api_url, program_id, data, *upgrade_authority)
+                        .map_err(|e| diagnosed_error!("failed to deploy program: {}", e))?;
 
-            inputs.insert(IS_DEPLOYMENT, Value::bool(true));
-            inputs.insert(SIGNED_TRANSACTION_BYTES, signed_transaction_value.clone());
-            inputs.insert(
-                COMMITMENT_LEVEL,
-                Value::string(deployment_transaction.commitment_level.to_string()),
-            );
-            inputs.insert(
-                DO_AWAIT_CONFIRMATION,
-                Value::bool(deployment_transaction.do_await_confirmation),
-            );
+                    CommandExecutionResult::new()
+                }
+                _ => {
+                    let signed_transaction_value = inputs
+                        .get_scoped_value(
+                            &nested_construct_did.to_string(),
+                            SIGNED_TRANSACTION_BYTES,
+                        )
+                        .unwrap()
+                        .clone();
 
-            let mut result = match send_transaction_background_task(
-                &construct_did,
-                &spec,
-                &inputs,
-                &outputs,
-                &progress_tx,
-                &background_tasks_uuid,
-                &supervision_context,
-            ) {
-                Ok(res) => match res.await {
-                    Ok(res) => res,
-                    Err(e) => return Err(e),
-                },
-                Err(e) => return Err(e),
+                    inputs.insert(IS_DEPLOYMENT, Value::bool(true));
+                    inputs.insert(SIGNED_TRANSACTION_BYTES, signed_transaction_value.clone());
+                    inputs.insert(
+                        COMMITMENT_LEVEL,
+                        Value::string(deployment_transaction.commitment_level.to_string()),
+                    );
+                    inputs.insert(
+                        DO_AWAIT_CONFIRMATION,
+                        Value::bool(deployment_transaction.do_await_confirmation),
+                    );
+
+                    let mut result = match send_transaction_background_task(
+                        &construct_did,
+                        &spec,
+                        &inputs,
+                        &outputs,
+                        &progress_tx,
+                        &background_tasks_uuid,
+                        &supervision_context,
+                    ) {
+                        Ok(res) => match res.await {
+                            Ok(res) => res,
+                            Err(e) => return Err(e),
+                        },
+                        Err(e) => return Err(e),
+                    };
+
+                    let signature = result.outputs.remove(SIGNATURE).unwrap();
+                    result.outputs.insert(
+                        format!("{}:{}", &nested_construct_did.to_string(), SIGNATURE),
+                        signature,
+                    );
+                    result
+                }
             };
 
-            let signature = result.outputs.remove(SIGNATURE).unwrap();
-            result
-                .outputs
-                .insert(format!("{}:{}", &nested_construct_did.to_string(), SIGNATURE), signature);
-
             deployment_transaction.post_send_status_updates(&mut status_updater, program_id);
+
+            if transaction_index == transaction_count - 1 {
+                let rpc_client = RpcClient::new(rpc_api_url);
+                if let Ok(slot) = rpc_client.get_slot() {
+                    result.insert(SLOT, Value::integer(slot as i128));
+                };
+
+                let network_id = inputs.get_expected_string(NETWORK_ID)?;
+                // Todo: eventually fill in for mainnet and remove optional url
+                let (idl_registration_url, do_include_token) = match network_id {
+                    "mainnet" | "mainnet-beta" => (None, false),
+                    "devnet" => (inputs.get_expected_string(RPC_API_URL).ok(), false),
+                    "localnet" | _ => (inputs.get_expected_string(RPC_API_URL).ok(), false),
+                };
+
+                let is_surfnet = inputs
+                    .get_scoped_value(&nested_construct_did.to_string(), IS_SURFNET)
+                    .unwrap()
+                    .as_bool()
+                    .unwrap();
+
+                if let Some(idl_registration_url) = idl_registration_url {
+                    if let Some(idl) = inputs
+                        .get_scoped_value(&nested_construct_did.to_string(), PROGRAM_IDL)
+                        .and_then(|v| v.as_string())
+                    {
+                        if let Ok(idl_ref) = IdlRef::from_str(idl) {
+                            let value = serde_json::to_value(&idl_ref.idl).unwrap();
+                            let params = serde_json::to_value(&vec![value]).unwrap();
+
+                            let router = cloud_service_context
+                                .expect("cloud service context not found")
+                                .authenticated_cloud_service_router
+                                .expect("authenticated cloud service router not found");
+                            let _ = router
+                                .route(CloudService::svm_register_idl(
+                                    idl_registration_url,
+                                    params,
+                                    do_include_token,
+                                    is_surfnet,
+                                ))
+                                .await
+                                .map_err(|e| {
+                                    diagnosed_error!("failed to register program IDL: {}", e)
+                                })?;
+                        }
+                    };
+                }
+            }
 
             Ok(result)
         };
@@ -708,9 +857,10 @@ impl CommandImplementation for DeployProgram {
             .and_then(|(id, values)| values.get_scoped_value(&id.to_string(), PROGRAM_ID))
             .unwrap();
         let program_idl = nested_values
-            .first()
+            .last()
             .and_then(|(id, values)| values.get_scoped_value(&id.to_string(), PROGRAM_IDL))
             .cloned();
+        let slot = nested_results.last().and_then(|res| res.outputs.get(SLOT)).cloned();
 
         for (res, (nested_construct_did, values)) in nested_results.iter().zip(nested_values) {
             let tx_type = values
@@ -737,6 +887,9 @@ impl CommandImplementation for DeployProgram {
         result.outputs.insert(PROGRAM_ID.into(), program_id.clone());
         if let Some(program_idl) = program_idl {
             result.outputs.insert(PROGRAM_IDL.into(), program_idl);
+        }
+        if let Some(slot) = slot {
+            result.outputs.insert(SLOT.into(), slot);
         }
         Ok(result)
     }

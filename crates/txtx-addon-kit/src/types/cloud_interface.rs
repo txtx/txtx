@@ -40,11 +40,25 @@ impl CloudService {
             do_include_token,
         }))
     }
+    pub fn svm_register_idl(
+        url: &str,
+        params: JsonValue,
+        do_include_token: bool,
+        is_surfnet: bool,
+    ) -> Self {
+        Self::Svm(SvmService::RegisterIdl(RegisterIdlCommand {
+            url: url.to_string(),
+            params,
+            do_include_token,
+            is_surfnet,
+        }))
+    }
     pub fn token_required(&self) -> bool {
         match self {
             CloudService::Registry => false,
             CloudService::Id => false,
             CloudService::Svm(SvmService::DeploySubgraph(cmd)) => cmd.do_include_token,
+            CloudService::Svm(SvmService::RegisterIdl(cmd)) => cmd.do_include_token,
             CloudService::Evm => false,
         }
     }
@@ -53,6 +67,7 @@ impl CloudService {
 #[derive(Debug, Clone)]
 pub enum SvmService {
     DeploySubgraph(DeploySubgraphCommand),
+    RegisterIdl(RegisterIdlCommand),
 }
 
 #[derive(Debug, Clone)]
@@ -60,4 +75,12 @@ pub struct DeploySubgraphCommand {
     pub url: String,
     pub params: JsonValue,
     pub do_include_token: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct RegisterIdlCommand {
+    pub url: String,
+    pub params: JsonValue,
+    pub do_include_token: bool,
+    pub is_surfnet: bool,
 }

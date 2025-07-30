@@ -18,22 +18,15 @@ use txtx_addon_kit::{
     hex,
     types::{
         diagnostics::Diagnostic,
-        types::{Type, Value},
+        types::{AddonData, Type, Value},
     },
 };
 
 pub use anchor_lang_idl as anchor;
 
-pub const SVM_ADDRESS: &str = "svm::address";
-pub const SVM_BYTES: &str = "svm::bytes";
-pub const SVM_BYTES32: &str = "svm::bytes32";
 pub const SVM_TRANSACTION: &str = "svm::transaction";
 pub const SVM_INSTRUCTION: &str = "svm::instruction";
-pub const SVM_ACCOUNT: &str = "svm::account";
-pub const SVM_MESSAGE: &str = "svm::message";
-pub const SVM_TX_HASH: &str = "svm::tx_hash";
 pub const SVM_SIGNATURE: &str = "svm::signature";
-pub const SVM_INIT_CODE: &str = "svm::init_code";
 pub const SVM_BINARY: &str = "svm::binary";
 pub const SVM_IDL: &str = "svm::idl";
 pub const SVM_KEYPAIR: &str = "svm::keypair";
@@ -162,16 +155,76 @@ fn decode_hex(str: &str) -> Result<Vec<u8>, Diagnostic> {
 }
 
 impl SvmValue {
-    pub fn address(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_ADDRESS)
-    }
+    pub fn to_json(value: &Value) -> Result<Option<serde_json::Value>, Diagnostic> {
+        let Some(AddonData { id, .. }) = value.as_addon_data() else { return Ok(None) };
 
-    pub fn bytes(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_BYTES)
-    }
-
-    pub fn bytes32(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_BYTES32)
+        match id.as_str() {
+            SVM_PUBKEY => {
+                let pubkey = Self::to_pubkey(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::String(pubkey.to_string())))
+            }
+            SVM_SIGNATURE => {
+                let signature = Self::to_signature(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::String(signature.to_string())))
+            }
+            SVM_U8 => {
+                let value = Self::to_number::<u8>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::Number(value.into())))
+            }
+            SVM_U16 => {
+                let value = Self::to_number::<u16>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::Number(value.into())))
+            }
+            SVM_U32 => {
+                let value = Self::to_number::<u32>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::Number(value.into())))
+            }
+            SVM_U64 => {
+                let value = Self::to_number::<u64>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::Number(value.into())))
+            }
+            SVM_U128 => {
+                let value = Self::to_number::<u128>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::String(value.to_string())))
+            }
+            SVM_U256 => {
+                let value = Self::to_number::<U256>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::String(hex::encode(&value.0))))
+            }
+            SVM_I8 => {
+                let value = Self::to_number::<i8>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::Number(value.into())))
+            }
+            SVM_I16 => {
+                let value = Self::to_number::<i16>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::Number(value.into())))
+            }
+            SVM_I32 => {
+                let value = Self::to_number::<i32>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::Number(value.into())))
+            }
+            SVM_I64 => {
+                let value = Self::to_number::<i64>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::Number(value.into())))
+            }
+            SVM_I128 => {
+                let value = Self::to_number::<i128>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::String(value.to_string())))
+            }
+            SVM_I256 => {
+                let value = Self::to_number::<I256>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::String(hex::encode(&value.0))))
+            }
+            SVM_F32 => {
+                let value = Self::to_number::<f32>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::String(value.to_string())))
+            }
+            SVM_F64 => {
+                let value = Self::to_number::<f64>(value).map_err(Diagnostic::from)?;
+                Ok(Some(serde_json::Value::String(value.to_string())))
+            }
+            _ => Ok(None),
+        }
     }
 
     pub fn u8(value: u8) -> Value {
@@ -261,18 +314,6 @@ impl SvmValue {
         Value::addon(bytes, SVM_INSTRUCTION)
     }
 
-    pub fn account(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_ACCOUNT)
-    }
-
-    pub fn message(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_MESSAGE)
-    }
-
-    pub fn tx_hash(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_TX_HASH)
-    }
-
     pub fn signature(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_SIGNATURE)
     }
@@ -297,10 +338,6 @@ impl SvmValue {
             .try_into()
             .map_err(|e| format!("could not convert value to pubkey: {e}"))?;
         Ok(Signature::from(bytes))
-    }
-
-    pub fn init_code(bytes: Vec<u8>) -> Value {
-        Value::addon(bytes, SVM_INIT_CODE)
     }
 
     pub fn binary(bytes: Vec<u8>) -> Value {
@@ -645,7 +682,7 @@ lazy_static! {
         },
         data: {
             documentation: "The data to set in the account.",
-            typing: Type::addon(SVM_BYTES),
+            typing: Type::buffer(),
             optional: true,
             tainting: true
         },
@@ -762,6 +799,8 @@ pub enum DeploymentTransactionType {
     UpgradeProgram,
     CloseTempAuthority,
     SkipCloseTempAuthority,
+    CheatcodeDeployment,
+    CheatcodeUpgrade,
 }
 
 impl DeploymentTransactionType {
@@ -776,6 +815,8 @@ impl DeploymentTransactionType {
             DeploymentTransactionType::UpgradeProgram => "upgrade_program",
             DeploymentTransactionType::CloseTempAuthority => "close_temp_authority",
             DeploymentTransactionType::SkipCloseTempAuthority => "skip_close_temp_authority",
+            DeploymentTransactionType::CheatcodeDeployment => "cheatcode_deployment",
+            DeploymentTransactionType::CheatcodeUpgrade => "cheatcode_upgrade",
         }
         .into()
     }
@@ -790,6 +831,8 @@ impl DeploymentTransactionType {
             "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
             "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
             "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
+            "cheatcode_deployment" => DeploymentTransactionType::CheatcodeDeployment,
+            "cheatcode_upgrade" => DeploymentTransactionType::CheatcodeUpgrade,
             _ => unreachable!(),
         }
     }

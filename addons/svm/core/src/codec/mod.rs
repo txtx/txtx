@@ -8,6 +8,7 @@ pub mod utils;
 
 use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::codec::ui_encode::message_data_to_formatted_value;
+use crate::commands::RpcVersionInfo;
 use anchor::AnchorProgramArtifacts;
 use bip39::Language;
 use bip39::Mnemonic;
@@ -80,11 +81,12 @@ impl TxtxDeploymentSigner {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeploymentTransaction {
     pub signers: Option<Vec<TxtxDeploymentSigner>>,
-    pub transaction: Transaction,
+    pub transaction: Option<Transaction>,
     pub keypairs_bytes: Vec<Vec<u8>>,
     pub transaction_type: DeploymentTransactionType,
     pub commitment_level: CommitmentLevel,
     pub do_await_confirmation: bool,
+    pub cheatcode_data: Option<(Pubkey, Vec<u8>)>,
 }
 
 impl DeploymentTransaction {
@@ -99,11 +101,27 @@ impl DeploymentTransaction {
         let keypairs_bytes = keypairs.iter().map(|k| k.to_bytes().to_vec()).collect();
         Self {
             signers,
-            transaction: transaction.clone(),
+            transaction: Some(transaction.clone()),
             keypairs_bytes,
             transaction_type,
             commitment_level,
             do_await_confirmation,
+            cheatcode_data: None,
+        }
+    }
+
+    pub fn new_cheatcode_deployment(
+        transaction_type: DeploymentTransactionType,
+        cheatcode_data: (Pubkey, Vec<u8>),
+    ) -> Self {
+        Self {
+            signers: None,
+            transaction: None,
+            keypairs_bytes: Vec::new(),
+            transaction_type,
+            commitment_level: CommitmentLevel::Confirmed,
+            do_await_confirmation: false,
+            cheatcode_data: Some(cheatcode_data),
         }
     }
 
@@ -195,6 +213,20 @@ impl DeploymentTransaction {
         )
     }
 
+    pub fn cheatcode_deploy(authority_pubkey: Pubkey, binary: Vec<u8>) -> Self {
+        Self::new_cheatcode_deployment(
+            DeploymentTransactionType::CheatcodeDeployment,
+            (authority_pubkey, binary),
+        )
+    }
+
+    pub fn cheatcode_upgrade(authority_pubkey: Pubkey, binary: Vec<u8>) -> Self {
+        Self::new_cheatcode_deployment(
+            DeploymentTransactionType::CheatcodeUpgrade,
+            (authority_pubkey, binary),
+        )
+    }
+
     pub fn payer_close_temp_authority(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
         Self::new(
             transaction,
@@ -223,11 +255,12 @@ impl DeploymentTransaction {
     pub fn skip_temp_authority_close() -> Self {
         Self {
             signers: None,
-            transaction: Transaction::new_unsigned(Message::new(&[], None)),
+            transaction: None,
             keypairs_bytes: vec![],
             transaction_type: DeploymentTransactionType::SkipCloseTempAuthority,
             commitment_level: CommitmentLevel::Confirmed,
             do_await_confirmation: false,
+            cheatcode_data: None,
         }
     }
 
@@ -331,6 +364,8 @@ impl DeploymentTransaction {
             }
             DeploymentTransactionType::CloseTempAuthority => return Ok(None),
             DeploymentTransactionType::SkipCloseTempAuthority => return Ok(None),
+            DeploymentTransactionType::CheatcodeDeployment => return Ok(None),
+            DeploymentTransactionType::CheatcodeUpgrade => return Ok(None),
         };
 
         let meta_description = get_formatted_transaction_meta_description(
@@ -340,8 +375,10 @@ impl DeploymentTransaction {
         );
 
         let mut instructions = vec![];
-        let message_account_keys = self.transaction.message.account_keys.clone();
-        for instruction in self.transaction.message.instructions.iter() {
+
+        let transaction = self.transaction.as_ref().unwrap();
+        let message_account_keys = transaction.message.account_keys.clone();
+        for instruction in transaction.message.instructions.iter() {
             let Some(account) = message_account_keys.get(instruction.program_id_index as usize)
             else {
                 continue;
@@ -372,9 +409,9 @@ impl DeploymentTransaction {
         }
         let formatted_transaction = message_data_to_formatted_value(
             &instructions,
-            self.transaction.message.header.num_required_signatures,
-            self.transaction.message.header.num_readonly_signed_accounts,
-            self.transaction.message.header.num_readonly_unsigned_accounts,
+            transaction.message.header.num_required_signatures,
+            transaction.message.header.num_readonly_signed_accounts,
+            transaction.message.header.num_readonly_unsigned_accounts,
         );
 
         Ok(Some((formatted_transaction, meta_description)))
@@ -401,7 +438,7 @@ impl DeploymentTransaction {
             .get_latest_blockhash()
             .map_err(|e| diagnosed_error!("failed to get latest blockhash: {e}"))?;
 
-        let mut transaction: Transaction = self.transaction.clone();
+        let mut transaction: Transaction = self.transaction.as_ref().unwrap().clone();
 
         transaction.message.recent_blockhash = blockhash;
         let keypairs =
@@ -448,11 +485,17 @@ impl DeploymentTransaction {
             _ => {}
         };
 
-        status_updater.propagate_pending_status(&format!(
-            "Sending transaction {}/{}",
-            transaction_index + 1,
-            transaction_count
-        ));
+        if match &self.transaction_type {
+            DeploymentTransactionType::CheatcodeDeployment
+            | DeploymentTransactionType::CheatcodeUpgrade => false,
+            _ => true,
+        } {
+            status_updater.propagate_pending_status(&format!(
+                "Sending transaction {}/{}",
+                transaction_index + 1,
+                transaction_count
+            ));
+        }
 
         Ok(())
     }
@@ -492,6 +535,20 @@ impl DeploymentTransaction {
                     ProgressBarStatusColor::Green,
                     "Complete",
                     "Ephemeral authority account closed and leftover funds returned to payer",
+                ));
+            }
+            DeploymentTransactionType::CheatcodeDeployment => {
+                status_updater.propagate_status(ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Green,
+                    "Program Created",
+                    &format!("Program {} has been deployed", program_id,),
+                ));
+            }
+            DeploymentTransactionType::CheatcodeUpgrade => {
+                status_updater.propagate_status(ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Green,
+                    "Program Upgraded",
+                    &format!("Program {} has been upgraded", program_id,),
                 ));
             }
             _ => {}
@@ -616,6 +673,10 @@ pub struct UpgradeableProgramDeployer {
     pub auto_extend: bool,
     /// Whether the program is being upgraded (true), or deployed for the first time (false).
     pub is_program_upgrade: bool,
+    /// Whether the underlying network is a Surfnet.
+    pub is_surfnet: bool,
+    /// Whether to perform a hot swap of the program deployment (using surfnet cheatcodes).
+    pub do_cheatcode_deploy: bool,
 }
 
 pub enum KeypairOrTxSigner {
@@ -648,6 +709,8 @@ impl UpgradeableProgramDeployer {
         rpc_client: RpcClient,
         existing_program_buffer_opts: Option<(Pubkey, Keypair, Vec<u8>)>,
         auto_extend: Option<bool>,
+        is_surfnet: bool,
+        hot_swap: bool,
     ) -> Result<Self, Diagnostic> {
         let (buffer_pubkey, buffer_keypair, buffer_data) = match existing_program_buffer_opts {
             Some((buffer_pubkey, buffer_keypair, buffer_data)) => {
@@ -679,6 +742,8 @@ impl UpgradeableProgramDeployer {
             buffer_data,
             auto_extend: auto_extend.unwrap_or(true),
             is_program_upgrade,
+            is_surfnet,
+            do_cheatcode_deploy: hot_swap && is_surfnet,
         })
     }
 
@@ -704,65 +769,76 @@ impl UpgradeableProgramDeployer {
                     ));
                 }
 
-                // create the buffer account
-                let create_account_transaction =
-                    self.get_create_buffer_transaction(&recent_blockhash)?;
+                if self.do_cheatcode_deploy {
+                    vec![DeploymentTransaction::cheatcode_deploy(self.final_upgrade_authority_pubkey.clone(), self.binary.clone()).to_value()?]
+                } else {
+                    // create the buffer account
+                    let create_account_transaction =
+                        self.get_create_buffer_transaction(&recent_blockhash)?;
 
-                // write transaction data to the buffer account
-                let mut write_transactions =
-                    self.get_write_to_buffer_transactions(&recent_blockhash)?;
+                    // write transaction data to the buffer account
+                    let mut write_transactions =
+                        self.get_write_to_buffer_transactions(&recent_blockhash)?;
 
-                // deploy the program, with the final authority as program authority
-                let finalize_transaction =
-                    self.get_deploy_with_max_program_len_transaction(&recent_blockhash)?;
+                    // deploy the program, with the final authority as program authority
+                    let finalize_transaction =
+                        self.get_deploy_with_max_program_len_transaction(&recent_blockhash)?;
 
-                // transfer the program authority from the temp authority to the final authority
-                let transfer_authority = self.get_set_program_authority_to_final_authority_transaction(&recent_blockhash)?;
+                    // transfer the program authority from the temp authority to the final authority
+                    let transfer_authority = self.get_set_program_authority_to_final_authority_transaction(&recent_blockhash)?;
 
-                let mut transactions = vec![create_account_transaction];
-                transactions.append(&mut write_transactions);
-                transactions.push(finalize_transaction);
-                transactions.push(transfer_authority);
-                transactions
+                    let mut transactions = vec![create_account_transaction];
+                    transactions.append(&mut write_transactions);
+                    transactions.push(finalize_transaction);
+                    transactions.push(transfer_authority);
+                    transactions
+                }
             }
             // transactions for upgrading an existing program
             else {
+                if self.do_cheatcode_deploy {
+                    vec![DeploymentTransaction::cheatcode_upgrade(self.final_upgrade_authority_pubkey.clone(), self.binary.clone()).to_value()?]
+                } else {
+                    // extend the program length and create the buffer account
+                    let prepare_program_upgrade_transaction =
+                        self.get_prepare_program_upgrade_transaction(&recent_blockhash)?;
 
-                // extend the program length and create the buffer account
-                let prepare_program_upgrade_transaction =
-                    self.get_prepare_program_upgrade_transaction(&recent_blockhash)?;
+                    // write transaction data to the buffer account
+                    let mut write_transactions =
+                        self.get_write_to_buffer_transactions(&recent_blockhash)?;
 
-                // write transaction data to the buffer account
-                let mut write_transactions =
-                    self.get_write_to_buffer_transactions(&recent_blockhash)?;
+                    // transfer the buffer authority from the temp authority to the final authority
+                    let transfer_authority = self.get_set_buffer_authority_to_final_authority_transaction(&recent_blockhash)?;
 
-                // transfer the buffer authority from the temp authority to the final authority
-                let transfer_authority = self.get_set_buffer_authority_to_final_authority_transaction(&recent_blockhash)?;
+                    // upgrade the program, with the final authority as program authority
+                    let upgrade_transaction = self.get_upgrade_transaction(&recent_blockhash)?;
 
-                // upgrade the program, with the final authority as program authority
-                let upgrade_transaction = self.get_upgrade_transaction(&recent_blockhash)?;
+                    let mut transactions = vec![prepare_program_upgrade_transaction];
+                    transactions.append(&mut write_transactions);
+                    transactions.push(transfer_authority);
+                    transactions.push(upgrade_transaction);
+                    transactions
+                }
+            };
 
-                let mut transactions = vec![prepare_program_upgrade_transaction];
-                transactions.append(&mut write_transactions);
-                transactions.push(transfer_authority);
-                transactions.push(upgrade_transaction);
+        let transactions =
+            if self.do_cheatcode_deploy {
+                core_transactions
+            } else {
+                let mut transactions = vec![];
+                // the first transaction needs to create the temp account
+                transactions.push(self.get_create_temp_account_transaction(
+                    &recent_blockhash,
+                    core_transactions.len(),
+                )?);
+                transactions.append(&mut core_transactions);
+                // close out our temp authority account and transfer any leftover funds back to the payer
+                transactions.push(self.get_close_temp_authority_transaction_parts()?);
                 transactions
             };
 
-        let mut transactions = vec![];
-        // the first transaction needs to create the temp account
-        transactions.push(
-            self.get_create_temp_account_transaction(&recent_blockhash, core_transactions.len())?,
-        );
-
-        transactions.append(&mut core_transactions);
-
-        // close out our temp authority account and transfer any leftover funds back to the payer
-        transactions.push(self.get_close_temp_authority_transaction_parts()?);
         Ok(transactions)
     }
-
-    pub fn is_program_upgrade() {}
 
     fn get_create_temp_account_transaction(
         &self,
@@ -819,6 +895,18 @@ impl UpgradeableProgramDeployer {
                     UpgradeableLoaderState::size_of_programdata(program_data_length),
                 )
                 .unwrap();
+
+            // if this is a program upgrade, we also need to add in rent lamports for extending the program data account
+            if self.is_program_upgrade {
+                if let Some(additional_bytes) = self.get_extend_program_additional_bytes()? {
+                    lamports += self
+                        .rpc_client
+                        .get_minimum_balance_for_rent_exemption(
+                            UpgradeableLoaderState::size_of_programdata(additional_bytes as usize),
+                        )
+                        .unwrap();
+                }
+            }
         }
 
         // add 20% buffer
@@ -886,6 +974,21 @@ impl UpgradeableProgramDeployer {
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2807
     fn get_extend_program_instruction(&self) -> Result<Option<Instruction>, Diagnostic> {
+        let some_instruction =
+            if let Some(additional_bytes) = self.get_extend_program_additional_bytes()? {
+                let instruction = bpf_loader_upgradeable::extend_program(
+                    &self.program_pubkey,
+                    Some(&self.temp_upgrade_authority_pubkey),
+                    additional_bytes,
+                );
+                Some(instruction)
+            } else {
+                None
+            };
+        Ok(some_instruction)
+    }
+
+    fn get_extend_program_additional_bytes(&self) -> Result<Option<u32>, Diagnostic> {
         let program_data_address = get_program_data_address(&self.program_pubkey);
 
         let Some(program_data_account) = self
@@ -923,13 +1026,7 @@ impl UpgradeableProgramDeployer {
 
         let additional_bytes =
             u32::try_from(additional_bytes).expect("`u32` is big enough to hold an account size");
-        let instruction = bpf_loader_upgradeable::extend_program(
-            &self.program_pubkey,
-            Some(&self.temp_upgrade_authority_pubkey),
-            additional_bytes,
-        );
-
-        Ok(Some(instruction))
+        Ok(Some(additional_bytes))
     }
 
     fn get_prepare_program_upgrade_transaction(
@@ -1184,6 +1281,11 @@ impl UpgradeableProgramDeployer {
         DeploymentTransaction::upgrade_program(&transaction, vec![]).to_value()
     }
 
+    pub fn check_is_surfnet(rpc_client: &RpcClient) -> Result<bool, Diagnostic> {
+        let version = RpcVersionInfo::fetch_blocking(rpc_client)?;
+        Ok(version.surfnet_version.is_some())
+    }
+
     /// Logic mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L1248-L1249
     fn should_do_initial_deploy(
         rpc_client: &RpcClient,
@@ -1197,7 +1299,7 @@ impl UpgradeableProgramDeployer {
         {
             if account.owner != bpf_loader_upgradeable::id() {
                 return Err(diagnosed_error!(
-                    "Account {} is not an upgradeable program or already in use",
+                    "Account {} is not an upgradeable program or already is in use",
                     program_pubkey
                 )
                 .into());

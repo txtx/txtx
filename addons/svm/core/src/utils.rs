@@ -36,7 +36,7 @@ pub fn build_transaction_from_svm_value(value: &Value) -> Result<Transaction, Di
             {
                 let deployment_transaction = DeploymentTransaction::from_value(value)
                     .map_err(|e| diagnosed_error!("could not deserialize transaction: {e}"))?;
-                return Ok(deployment_transaction.transaction);
+                return Ok(deployment_transaction.transaction.as_ref().unwrap().clone());
             } else {
                 return Err(diagnosed_error!(
                     "could not deserialize addon type '{}' into transaction",

@@ -410,7 +410,7 @@ impl SignerImplementation for SvmWebWallet {
                 did_update_transaction = true;
                 supervisor_signed_tx.clone()
             } else {
-                deployment_transaction.transaction.clone()
+                deployment_transaction.transaction.as_ref().unwrap().clone()
             };
             transaction.message.recent_blockhash = blockhash;
 
