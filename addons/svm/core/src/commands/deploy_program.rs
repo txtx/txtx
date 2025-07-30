@@ -34,8 +34,8 @@ use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::utils::cheatcode_deploy_program;
 use crate::codec::{DeploymentTransaction, ProgramArtifacts, UpgradeableProgramDeployer};
 use crate::constants::{
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, CHEATCODE_DEPLOYMENT,
-    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, FORMATTED_TRANSACTION,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY,
+    COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, FORMATTED_TRANSACTION, INSTANT_SURFNET_DEPLOYMENT,
     IS_DEPLOYMENT, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR,
     PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, SLOT, TRANSACTION_BYTES,
 };
@@ -105,7 +105,7 @@ lazy_static! {
                         internal: false,
                         sensitive: false
                     },
-                    cheatcode_deployment: {
+                    instant_surfnet_deployment: {
                         documentation: "If set to `true`, deployments to a Surfnet will be instantaneous, deploying via a cheatcode to directly write to the program account, rather than sending transactions. Defaults to `false`.",
                         typing: Type::bool(),
                         optional: true,
@@ -186,7 +186,7 @@ impl CommandImplementation for DeployProgram {
             .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?
             .to_string();
 
-        let do_cheatcode_deployment = values.get_bool(CHEATCODE_DEPLOYMENT).unwrap_or(false);
+        let do_cheatcode_deployment = values.get_bool(INSTANT_SURFNET_DEPLOYMENT).unwrap_or(false);
 
         let rpc_client =
             RpcClient::new_with_commitment(rpc_api_url.clone(), CommitmentConfig::finalized());
