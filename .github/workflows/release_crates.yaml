@@ -86,6 +86,10 @@ jobs:
               
               CRATE_NAME=$(tq -f "$manifest" .package.name | sed 's/"//g') # remove quotes around package name
               VERSION=$(tq -f "$manifest" .package.version)
+              
+              echo "CRATE_NAME=$CRATE_NAME"
+              echo "VERSION=$VERSION"
+
 
               echo "Running: cargo search -q $CRATE_NAME"
               SEARCH_OUTPUT=$(cargo search -q "$CRATE_NAME" 2>&1) || {
@@ -93,6 +97,8 @@ jobs:
                 echo "$SEARCH_OUTPUT"
                 exit 1
               }
+
+              echo "SEARCH_OUTPUT=$SEARCH_OUTPUT"
 
               if echo "$SEARCH_OUTPUT" | grep -q "$CRATE_NAME = $VERSION"; then
                 echo "$CRATE_NAME ($manifest) is already published with version $VERSION, skipping..."
