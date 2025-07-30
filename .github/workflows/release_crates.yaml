@@ -99,13 +99,9 @@ jobs:
 
               echo "SEARCH_OUTPUT=$SEARCH_OUTPUT"
 
-              GREP_OUTPUT=$(echo "$SEARCH_OUTPUT" | grep "$CRATE_NAME = \"$VERSION\"") || {
-                echo "grep failed for $CRATE_NAME with version $VERSION"
-                echo "$GREP_OUTPUT"
-                exit 1
-              }
+              GREP_OUTPUT=$(echo "$SEARCH_OUTPUT" | grep "$CRATE_NAME = \"$VERSION\"")
 
-              if echo "$SEARCH_OUTPUT" | grep "$CRATE_NAME = \"$VERSION\""; then
+              if GREP_OUTPUT; then
                 echo "$CRATE_NAME ($manifest) is already published with version $VERSION, skipping..."
                 continue
               fi
