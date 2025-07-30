@@ -101,10 +101,10 @@ action "deploy_{}" "svm::deploy_program" {{
     program = svm::get_program_from_native_project("{}") 
     authority = signer.authority
     payer = signer.payer
-    // Optional: if you want to deploy the program via a cheatcode when targeting a Surfnet, set `cheatcode_deployment = true`
+    // Optional: if you want to deploy the program via a cheatcode when targeting a Surfnet, set `instant_surfnet_deployment = true`
     // Deploying via a cheatcode will write the program data directly to the program account, rather than sending transactions.
     // This will make deployments instantaneous, but is deviating from how the deployments will take place on devnet/mainnet.
-    // cheatcode_deployment = true
+    // instant_surfnet_deployment = true
 }}
 "#,
         program_name, program_name, program_name
