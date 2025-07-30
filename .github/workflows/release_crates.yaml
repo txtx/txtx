@@ -85,16 +85,10 @@ jobs:
               echo "Checking $manifest for changes..."
               
               CRATE_NAME=$(tq -f "$manifest" .package.name | sed 's/"//g') # remove quotes around package name
-              VERSION=$(tq -f "$manifest" .package.version)
+              VERSION=$(tq -f "$manifest" .package.version | sed 's/"//g') # remove quotes around version
               
               echo "CRATE_NAME=$CRATE_NAME"
               echo "VERSION=$VERSION"
-
-              VERSION=$(jq -r .package.version "$manifest")
-              CRATE_NAME=$(jq -r .package.name "$manifest")
-              echo "CRATE_NAME=$CRATE_NAME"
-              echo "VERSION=$VERSION"
-
 
               echo "Running: cargo search -q $CRATE_NAME"
               SEARCH_OUTPUT=$(cargo search -q "$CRATE_NAME" 2>&1) || {
