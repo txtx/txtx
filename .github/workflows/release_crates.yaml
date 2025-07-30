@@ -80,13 +80,6 @@ jobs:
       - name: Publish Crates
         run: |
           cd txtx
-
-          is_crate_version_published() {
-            CRATE_NAME="$1"
-            VERSION="$2"
-            curl -sSf "https://crates.io/api/v1/crates/$CRATE_NAME" | jq -e --arg ver "$VERSION" '.versions[] | select(.num == $ver)' > /dev/null
-          }
-
           for manifest in crates/txtx-addon-kit/Cargo.toml crates/txtx-core/Cargo.toml crates/txtx-cloud/Cargo.toml crates/txtx-gql/Cargo.toml crates/txtx-supervisor-ui/Cargo.toml addons/svm/types/Cargo.toml addons/svm/core/Cargo.toml; do
             if [ -f "$manifest" ]; then
               echo "Checking $manifest for changes..."
@@ -97,7 +90,22 @@ jobs:
               echo "CRATE_NAME=$CRATE_NAME"
               echo "VERSION=$VERSION"
 
-              if is_crate_version_published "$CRATE_NAME" "$VERSION"; then
+              VERSION=$(jq -r .package.version "$manifest")
+              CRATE_NAME=$(jq -r .package.name "$manifest")
+              echo "CRATE_NAME=$CRATE_NAME"
+              echo "VERSION=$VERSION"
+
+
+              echo "Running: cargo search -q $CRATE_NAME"
+              SEARCH_OUTPUT=$(cargo search -q "$CRATE_NAME" 2>&1) || {
+                echo "cargo search failed for $CRATE_NAME"
+                echo "$SEARCH_OUTPUT"
+                exit 1
+              }
+
+              echo "SEARCH_OUTPUT=$SEARCH_OUTPUT"
+
+              if echo "$SEARCH_OUTPUT" | grep -q "$CRATE_NAME = $VERSION"; then
                 echo "$CRATE_NAME ($manifest) is already published with version $VERSION, skipping..."
                 continue
               fi
