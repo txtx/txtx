@@ -96,7 +96,7 @@ jobs:
                 echo "$SEARCH_OUTPUT"
                 exit 1
               }
-
+              SEARCH_OUTPUT="$SEARCH_OUTPUT"
               echo "SEARCH_OUTPUT=$SEARCH_OUTPUT"
 
               GREP_OUTPUT=$(echo "$SEARCH_OUTPUT" | grep "$CRATE_NAME = \"$VERSION\"")
