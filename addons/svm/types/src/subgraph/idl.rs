@@ -1,9 +1,14 @@
 use anchor_lang_idl::types::{
-    IdlConst, IdlDefinedFields, IdlGenericArg, IdlType, IdlTypeDef, IdlTypeDefGeneric, IdlTypeDefTy,
+    IdlConst, IdlDefinedFields, IdlGenericArg, IdlInstruction, IdlInstructionAccountItem, IdlType,
+    IdlTypeDef, IdlTypeDefGeneric, IdlTypeDefTy,
 };
-use txtx_addon_kit::types::types::{ObjectDefinition, ObjectProperty, Type};
+use solana_pubkey::Pubkey;
+use txtx_addon_kit::{
+    indexmap::IndexMap,
+    types::types::{ObjectDefinition, ObjectProperty, ObjectType, Type, Value},
+};
 
-use crate::SVM_PUBKEY;
+use crate::{SvmValue, SVM_PUBKEY};
 
 pub fn get_expected_type_from_idl_defined_fields(
     fields: &IdlDefinedFields,
@@ -207,4 +212,354 @@ pub fn idl_type_to_txtx_type(
         _ => todo!(),
     };
     Ok(res)
+}
+
+/// Parses a byte array into a JSON value based on the expected IDL type.
+/// **Not used internally, but is used by crate consumers.**
+pub fn parse_bytes_to_value_with_expected_idl_type_def_ty(
+    mut data: &[u8],
+    expected_type: &IdlTypeDefTy,
+) -> Result<Value, String> {
+    match &expected_type {
+        IdlTypeDefTy::Struct { fields } => {
+            if let Some(fields) = fields {
+                match fields {
+                    IdlDefinedFields::Named(idl_fields) => {
+                        let mut map = IndexMap::new();
+                        for field in idl_fields {
+                            let field_name = field.name.clone();
+                            let value =
+                                match &field.ty {
+                                    IdlType::U8 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(1)
+                                            .ok_or("unable to decode bool: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::u8(v[0]))
+                                    }
+                                    IdlType::U16 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(2)
+                                            .ok_or("unable to decode u16: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::u16(
+                                            u16::from_le_bytes(<[u8; 2]>::try_from(v).map_err(
+                                                |e| format!("unable to decode u16: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
+                                    }
+                                    IdlType::U32 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(4)
+                                            .ok_or("unable to decode u32: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::u32(
+                                            u32::from_le_bytes(<[u8; 4]>::try_from(v).map_err(
+                                                |e| format!("unable to decode u32: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
+                                    }
+                                    IdlType::U64 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(8)
+                                            .ok_or("unable to decode u64: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::u64(
+                                            u64::from_le_bytes(<[u8; 8]>::try_from(v).map_err(
+                                                |e| format!("unable to decode u64: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
+                                    }
+                                    IdlType::U128 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(16)
+                                            .ok_or("unable to decode u128: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::u128(
+                                            u128::from_le_bytes(<[u8; 16]>::try_from(v).map_err(
+                                                |e| format!("unable to decode u128: {e}"),
+                                            )?)
+                                            .try_into()
+                                            .map_err(|e| {
+                                                format!("unable to convert u128 to i128: {e}")
+                                            })?,
+                                        ))
+                                    }
+                                    IdlType::U256 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(32)
+                                            .ok_or("unable to decode u256: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::u256(
+                                            v.try_into().map_err(|e| {
+                                                format!("unable to decode u256: {e}")
+                                            })?,
+                                        ))
+                                    }
+                                    IdlType::I8 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(1)
+                                            .ok_or("unable to decode i8: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::i8(
+                                            i8::try_from(v[0])
+                                                .map_err(|e| format!("unable to decode i8: {e}"))?
+                                                .into(),
+                                        ))
+                                    }
+                                    IdlType::I16 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(2)
+                                            .ok_or("unable to decode i16: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::i16(
+                                            i16::from_le_bytes(<[u8; 2]>::try_from(v).map_err(
+                                                |e| format!("unable to decode i16: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
+                                    }
+                                    IdlType::I32 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(4)
+                                            .ok_or("unable to decode i32: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::i32(
+                                            i32::from_le_bytes(<[u8; 4]>::try_from(v).map_err(
+                                                |e| format!("unable to decode i32: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
+                                    }
+                                    IdlType::I64 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(8)
+                                            .ok_or("unable to decode i64: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::i64(
+                                            i64::from_le_bytes(<[u8; 8]>::try_from(v).map_err(
+                                                |e| format!("unable to decode i64: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
+                                    }
+                                    IdlType::I128 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(16)
+                                            .ok_or("unable to decode i128: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::i128(i128::from_le_bytes(
+                                            <[u8; 16]>::try_from(v).map_err(|e| {
+                                                format!("unable to decode i128: {e}")
+                                            })?,
+                                        )))
+                                    }
+                                    IdlType::I256 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(32)
+                                            .ok_or("unable to decode i256: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::i256(
+                                            v.try_into().map_err(|e| {
+                                                format!("unable to decode i256: {e}")
+                                            })?,
+                                        ))
+                                    }
+                                    IdlType::F32 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(4)
+                                            .ok_or("unable to decode f32: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::f32(
+                                            f32::from_le_bytes(<[u8; 4]>::try_from(v).map_err(
+                                                |e| format!("unable to decode f32: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
+                                    }
+                                    IdlType::F64 => {
+                                        let (v, rest) = data
+                                            .split_at_checked(8)
+                                            .ok_or("unable to decode f64: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::f64(
+                                            f64::from_le_bytes(<[u8; 8]>::try_from(v).map_err(
+                                                |e| format!("unable to decode f64: {e}"),
+                                            )?)
+                                            .into(),
+                                        ))
+                                    }
+                                    IdlType::Bool => {
+                                        let (v, rest) = data
+                                            .split_at_checked(1)
+                                            .ok_or("unable to decode bool: not enough bytes")?;
+                                        data = rest;
+                                        Ok(Value::bool(v[0] != 0))
+                                    }
+                                    IdlType::Pubkey => {
+                                        let (v, rest) = data
+                                            .split_at_checked(32)
+                                            .ok_or("unable to decode pubkey: not enough bytes")?;
+                                        data = rest;
+                                        Ok(SvmValue::pubkey(v.to_vec()))
+                                    }
+                                    IdlType::String => {
+                                        let string_len = u32::from_le_bytes(
+                                            <[u8; 4]>::try_from(&data[..4]).map_err(|e| {
+                                                format!("unable to decode string length: {e}")
+                                            })?,
+                                        )
+                                            as usize;
+                                        data = &data[4..]; // Move past length bytes
+                                        let (string_bytes, rest) = data
+                                            .split_at_checked(string_len)
+                                            .ok_or("unable to decode string: not enough bytes")?;
+                                        data = rest;
+                                        let string_value =
+                                            String::from_utf8_lossy(string_bytes).to_string();
+                                        Ok(Value::string(string_value))
+                                    }
+                                    IdlType::Bytes => {
+                                        let vec_len = u32::from_le_bytes(
+                                            <[u8; 4]>::try_from(&data[..4]).map_err(|e| {
+                                                format!("unable to decode bytes length: {e}")
+                                            })?,
+                                        )
+                                            as usize;
+                                        data = &data[4..]; // Move past length bytes
+                                        let (vec_bytes, rest) = data
+                                            .split_at_checked(vec_len)
+                                            .ok_or("unable to decode bytes: not enough bytes")?;
+                                        data = rest;
+                                        Ok(Value::buffer(vec_bytes.to_vec()))
+                                    }
+                                    _ => Err(format!("Unsupported type: {:?}", field.ty)),
+                                }?;
+                            map.insert(field_name, value);
+                        }
+                        Ok(ObjectType::from_map(map).to_value())
+                    }
+                    IdlDefinedFields::Tuple(idl_types) => todo!(),
+                }
+            } else {
+                todo!()
+            }
+        }
+        IdlTypeDefTy::Enum { variants } => todo!(),
+        IdlTypeDefTy::Type { alias } => parse_bytes_to_value_with_expected_idl_type(data, alias),
+    }
+}
+
+pub fn parse_bytes_to_value_with_expected_idl_type(
+    data: &[u8],
+    expected_type: &IdlType,
+) -> Result<Value, String> {
+    match expected_type {
+        IdlType::Bool => {
+            let value = borsh::from_slice::<bool>(&data)
+                .map_err(|e| format!("unable to decode bool: {e}"))?;
+            Ok(Value::bool(value))
+        }
+        IdlType::U8 => Ok(SvmValue::u8(
+            borsh::from_slice::<u8>(&data).map_err(|e| format!("unable to decode u8: {e}"))?,
+        )),
+        IdlType::U16 => Ok(SvmValue::u16(
+            borsh::from_slice::<u16>(&data).map_err(|e| format!("unable to decode u16: {e}"))?,
+        )),
+        IdlType::U32 => Ok(SvmValue::u32(
+            borsh::from_slice::<u32>(&data).map_err(|e| format!("unable to decode u32: {e}"))?,
+        )),
+        IdlType::U64 => Ok(SvmValue::u64(
+            borsh::from_slice::<u64>(&data).map_err(|e| format!("unable to decode u64: {e}"))?,
+        )),
+        IdlType::U128 => Ok(SvmValue::u128(
+            borsh::from_slice::<u128>(&data).map_err(|e| format!("unable to decode u128: {e}"))?,
+        )),
+        IdlType::U256 => Ok(SvmValue::u256(
+            borsh::from_slice::<[u8; 32]>(&data)
+                .map_err(|e| format!("unable to decode u256: {e}"))?,
+        )),
+        IdlType::I8 => Ok(SvmValue::i8(
+            borsh::from_slice::<i8>(&data).map_err(|e| format!("unable to decode i8: {e}"))?,
+        )),
+        IdlType::I16 => Ok(SvmValue::i16(
+            borsh::from_slice::<i16>(&data).map_err(|e| format!("unable to decode i16: {e}"))?,
+        )),
+        IdlType::I32 => Ok(SvmValue::i32(
+            borsh::from_slice::<i32>(&data).map_err(|e| format!("unable to decode i32: {e}"))?,
+        )),
+        IdlType::I64 => Ok(SvmValue::i64(
+            borsh::from_slice::<i64>(&data).map_err(|e| format!("unable to decode i64: {e}"))?,
+        )),
+        IdlType::I128 => Ok(SvmValue::i128(
+            borsh::from_slice::<i128>(&data).map_err(|e| format!("unable to decode i128: {e}"))?,
+        )),
+        IdlType::I256 => Ok(SvmValue::i256(
+            borsh::from_slice::<[u8; 32]>(&data)
+                .map_err(|e| format!("unable to decode i256: {e}"))?,
+        )),
+        IdlType::F32 => Ok(SvmValue::f32(
+            borsh::from_slice::<f32>(&data).map_err(|e| format!("unable to decode f32: {e}"))?,
+        )),
+        IdlType::F64 => Ok(SvmValue::f64(
+            borsh::from_slice::<f64>(&data).map_err(|e| format!("unable to decode f64: {e}"))?,
+        )),
+        IdlType::Bytes => {
+            let bytes = borsh::from_slice::<Vec<u8>>(&data)
+                .map_err(|e| format!("unable to decode bytes: {e}"))?;
+
+            Ok(Value::buffer(bytes))
+        }
+        IdlType::String => borsh::from_slice::<String>(&data)
+            .map(Value::string)
+            .map_err(|e| format!("unable to decode string: {e}")),
+        IdlType::Pubkey => {
+            let value = borsh::from_slice::<Pubkey>(&data)
+                .map_err(|e| format!("unable to decode pubkey: {e}"))?;
+            Ok(SvmValue::pubkey(value.to_bytes().to_vec()))
+        }
+        IdlType::Option(idl_type) => todo!(),
+        IdlType::Vec(idl_type) => {
+            todo!()
+        }
+        IdlType::Array(idl_type, idl_array_len) => todo!(),
+        IdlType::Defined { name, generics } => todo!(),
+        IdlType::Generic(_) => todo!(),
+        _ => return Err(format!("Unsupported type: {:?}", expected_type)),
+    }
+}
+
+/// Flattens nested account items into a flat ordered list
+fn flatten_accounts(accounts: &[IdlInstructionAccountItem]) -> Vec<String> {
+    let mut result = Vec::new();
+    for item in accounts {
+        match item {
+            IdlInstructionAccountItem::Single(account) => {
+                result.push(account.name.clone());
+            }
+            IdlInstructionAccountItem::Composite(nested) => {
+                // Prepend the parent name as a prefix if desired
+                result.extend(flatten_accounts(&nested.accounts));
+            }
+        }
+    }
+    result
+}
+
+/// Given a message account key list and a CompiledInstruction, return a mapping from IDL account names to pubkeys
+pub fn match_idl_accounts(
+    idl_instruction: &IdlInstruction,
+    instruction_account_indices: &[u8],
+    message_account_keys: &[Pubkey],
+) -> Vec<(String, Pubkey)> {
+    let flat_idl_account_names = flatten_accounts(&idl_instruction.accounts);
+
+    flat_idl_account_names
+        .into_iter()
+        .zip(instruction_account_indices.iter())
+        .map(|(name, &index)| (name, message_account_keys[index as usize]))
+        .collect()
 }

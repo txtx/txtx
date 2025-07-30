@@ -1,9 +1,6 @@
 use std::str::FromStr;
 
-use anchor_lang_idl::types::{
-    Idl, IdlConst, IdlDefinedFields, IdlInstruction, IdlInstructionAccount,
-    IdlInstructionAccountItem, IdlTypeDef, IdlTypeDefTy,
-};
+use anchor_lang_idl::types::{Idl, IdlConst, IdlDefinedFields, IdlTypeDef, IdlTypeDefTy};
 use convert_case::{Case, Casing};
 use serde::{Deserialize, Serialize};
 use solana_clock::Slot;
@@ -19,7 +16,12 @@ use txtx_addon_kit::{
     },
 };
 
+mod event;
 pub mod idl;
+mod pda;
+
+pub use event::EventSubgraphSource;
+pub use pda::PdaSubgraphSource;
 
 use crate::{
     subgraph::idl::{get_expected_type_from_idl_type_def_ty, idl_type_to_txtx_type},
@@ -643,186 +645,6 @@ impl IndexedSubgraphSourceType {
 pub struct InstructionSubgraphSource {
     // The instruction being indexed
     pub instruction: anchor_lang_idl::types::IdlInstruction,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventSubgraphSource {
-    // The event being indexed
-    pub event: anchor_lang_idl::types::IdlEvent,
-    // The type of the event, found from the IDL
-    pub ty: anchor_lang_idl::types::IdlTypeDef,
-}
-
-impl EventSubgraphSource {
-    pub fn new(event_name: &str, idl: &Idl) -> Result<Self, Diagnostic> {
-        let event = idl
-            .events
-            .iter()
-            .find(|e| e.name == event_name)
-            .ok_or(diagnosed_error!("could not find event '{}' in IDL", event_name))?;
-        let ty = idl
-            .types
-            .iter()
-            .find(|t| t.name == event_name)
-            .ok_or(diagnosed_error!("could not find type '{}' in IDL", event_name))?;
-        Ok(Self { event: event.clone(), ty: ty.clone() })
-    }
-}
-
-impl SubgraphSourceType for EventSubgraphSource {
-    fn intrinsic_fields() -> Vec<IntrinsicField> {
-        vec![SLOT_INTRINSIC_FIELD.clone(), TRANSACTION_SIGNATURE_INTRINSIC_FIELD.clone()]
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AccountSubgraphSource {}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PdaSubgraphSource {
-    /// The account being indexed
-    pub account: anchor_lang_idl::types::IdlAccount,
-    /// The type of the account
-    pub account_type: anchor_lang_idl::types::IdlTypeDef,
-    /// The account definitions from the instructions that use this account type.
-    /// Each account definition should have the same `pda` definition.
-    pub instruction_accounts: Vec<(
-        anchor_lang_idl::types::IdlInstruction,
-        anchor_lang_idl::types::IdlInstructionAccount,
-    )>,
-}
-
-impl SubgraphSourceType for PdaSubgraphSource {
-    fn intrinsic_fields() -> Vec<IntrinsicField> {
-        vec![
-            SLOT_INTRINSIC_FIELD.clone(),
-            TRANSACTION_SIGNATURE_INTRINSIC_FIELD.clone(),
-            PUBKEY_INTRINSIC_FIELD.clone(),
-            LAMPORTS_INTRINSIC_FIELD.clone(),
-            OWNER_INTRINSIC_FIELD.clone(),
-            WRITE_VERSION_INTRINSIC_FIELD.clone(),
-        ]
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ParsablePdaData {
-    /// The account being indexed
-    pub account: anchor_lang_idl::types::IdlAccount,
-    /// The type of the account
-    pub account_type: anchor_lang_idl::types::IdlTypeDef,
-}
-
-impl PdaSubgraphSource {
-    pub fn new(
-        account_name: &str,
-        instruction_account_path: &[(&str, &str)],
-        idl: &Idl,
-    ) -> Result<Self, Diagnostic> {
-        let account = idl
-            .accounts
-            .iter()
-            .find(|a| a.name == account_name)
-            .cloned()
-            .ok_or(diagnosed_error!("could not find account '{}' in IDL", account_name))?;
-        let account_type = idl
-            .types
-            .iter()
-            .find(|t| t.name == account_name)
-            .cloned()
-            .ok_or(diagnosed_error!("could not find type '{}' in IDL", account_name))?;
-
-        let mut instruction_accounts = vec![];
-        for (instruction_name, account_name) in instruction_account_path {
-            let instruction = idl.instructions.iter().find(|i| i.name.eq(instruction_name)).ok_or(
-                diagnosed_error!("could not find instruction '{}' in IDL", instruction_name),
-            )?;
-            let account_item = instruction
-                .accounts
-                .iter()
-                .find_map(|a| find_idl_instruction_account(a, account_name))
-                .ok_or(diagnosed_error!(
-                    "could not find account '{}' in instruction '{}' in IDL",
-                    account_name,
-                    instruction_name
-                ))?;
-
-            if account_item.pda.is_none() {
-                return Err(diagnosed_error!(
-                    "account '{}' in instruction '{}' is not a PDA",
-                    account_name,
-                    instruction_name
-                ));
-            }
-
-            if instruction_accounts.len() > 1 {
-                let last: &(IdlInstruction, IdlInstructionAccount) =
-                    instruction_accounts.last().unwrap();
-                if last.1.pda != account_item.pda {
-                    return Err(diagnosed_error!(
-                        "account '{}' in instruction '{}' has different PDA definitions",
-                        account_name,
-                        instruction_name
-                    ));
-                }
-            }
-
-            instruction_accounts.push((instruction.clone(), account_item));
-        }
-        Ok(Self { account, account_type, instruction_accounts })
-    }
-}
-
-/// Recursively find an `IdlInstructionAccount` by name in an `IdlInstructionAccountItem`.
-fn find_idl_instruction_account(
-    account_item: &IdlInstructionAccountItem,
-    name: &str,
-) -> Option<anchor_lang_idl::types::IdlInstructionAccount> {
-    match account_item {
-        IdlInstructionAccountItem::Composite(idl_instruction_accounts) => idl_instruction_accounts
-            .accounts
-            .iter()
-            .find_map(|a| find_idl_instruction_account(a, name)),
-        IdlInstructionAccountItem::Single(idl_instruction_account) => {
-            if idl_instruction_account.name == name {
-                Some(idl_instruction_account.clone())
-            } else {
-                None
-            }
-        }
-    }
-}
-
-/// Flattens nested account items into a flat ordered list
-fn flatten_accounts(accounts: &[IdlInstructionAccountItem]) -> Vec<String> {
-    let mut result = Vec::new();
-    for item in accounts {
-        match item {
-            IdlInstructionAccountItem::Single(account) => {
-                result.push(account.name.clone());
-            }
-            IdlInstructionAccountItem::Composite(nested) => {
-                // Prepend the parent name as a prefix if desired
-                result.extend(flatten_accounts(&nested.accounts));
-            }
-        }
-    }
-    result
-}
-
-/// Given a message account key list and a CompiledInstruction, return a mapping from IDL account names to pubkeys
-pub fn match_idl_accounts(
-    idl_instruction: &IdlInstruction,
-    instruction_account_indices: &[u8],
-    message_account_keys: &[Pubkey],
-) -> Vec<(String, Pubkey)> {
-    let flat_idl_account_names = flatten_accounts(&idl_instruction.accounts);
-
-    flat_idl_account_names
-        .into_iter()
-        .zip(instruction_account_indices.iter())
-        .map(|(name, &index)| (name, message_account_keys[index as usize]))
-        .collect()
 }
 
 #[cfg(test)]
