@@ -11,7 +11,7 @@ categories = { workspace = true }
 [dependencies]
 borsh = "1.5.1"
 convert_case = "0.6.0"
-solana-pubkey = { version = "2.2.1", features = ["serde"]}
+solana-pubkey = { version = "2.2.1", features = ["serde", "borsh"]}
 solana-transaction-context = { version = "2.2.1", features = ["serde"]}
 solana-clock = { version = "2.2.1", features = ["serde"]}
 solana-blake3-hasher = { version = "2.2.1", features = ["serde"]}
