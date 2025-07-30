@@ -88,7 +88,7 @@ jobs:
               VERSION=$(tq -f "$manifest" .package.version)
 
               echo "Found crate $CRATE_NAME with version $VERSION in $manifest"
-              cargo search -q "$CRATE_NAME" | grep "$CRATE_NAME = $VERSION"
+              cargo search -q "$CRATE_NAME" | grep -q "$CRATE_NAME = $VERSION"
 
               if cargo search -q "$CRATE_NAME" | grep -q "$CRATE_NAME = $VERSION"; then
                 echo "$CRATE_NAME ($manifest) is already published with version $VERSION, skipping..."
