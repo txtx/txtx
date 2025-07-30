@@ -14831,7 +14831,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
@@ -14941,7 +14941,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-recursion",
  "bincode",
@@ -14968,7 +14968,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anchor-lang-idl",
  "convert_case 0.6.0",
@@ -15055,7 +15055,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cloud"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -15083,7 +15083,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -15112,7 +15112,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "async-stream",
  "futures",
