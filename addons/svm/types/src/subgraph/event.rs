@@ -52,6 +52,7 @@ impl EventSubgraphSource {
         transaction_signature: Signature,
         entries: &mut Vec<HashMap<String, Value>>,
     ) -> Result<(), String> {
+        let SubgraphRequest::V0(subgraph_request) = subgraph_request;
         for inner_instructions in inner_instructions.iter() {
             for instruction in inner_instructions.instructions.iter() {
                 let instruction = &instruction.instruction;

@@ -100,7 +100,59 @@ impl std::fmt::Display for SubgraphPluginType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubgraphRequest {
+pub enum SubgraphRequest {
+    V0(SubgraphRequestV0),
+}
+
+impl SubgraphRequest {
+    pub fn parse_value_store_v0(
+        subgraph_name: Option<String>,
+        subgraph_description: Option<String>,
+        program_id: &Pubkey,
+        idl_str: &str,
+        slot: u64,
+        construct_did: &ConstructDid,
+        values: &ValueStore,
+    ) -> Result<Self, Diagnostic> {
+        let request = SubgraphRequestV0::parse_value_store(
+            subgraph_name,
+            subgraph_description,
+            program_id,
+            idl_str,
+            slot,
+            construct_did,
+            values,
+        )?;
+        Ok(SubgraphRequest::V0(request))
+    }
+
+    pub fn from_value_v0(value: &Value) -> Result<Self, Diagnostic> {
+        Ok(SubgraphRequest::V0(SubgraphRequestV0::from_value(value)?))
+    }
+
+    pub fn to_value(&self) -> Result<Value, Diagnostic> {
+        Ok(Value::addon(
+            serde_json::to_vec(self)
+                .map_err(|e| diagnosed_error!("could not serialize subgraph request: {e}"))?,
+            SVM_SUBGRAPH_REQUEST,
+        ))
+    }
+
+    pub fn subgraph_name(&self) -> &str {
+        match self {
+            SubgraphRequest::V0(request) => request.subgraph_name.as_str(),
+        }
+    }
+
+    pub fn program_id(&self) -> Pubkey {
+        match self {
+            SubgraphRequest::V0(request) => request.program_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubgraphRequestV0 {
     /// The program id of the program to index.
     #[serde(serialize_with = "pubkey_serialize", deserialize_with = "pubkey_deserialize")]
     pub program_id: Pubkey,
@@ -121,6 +173,8 @@ pub struct SubgraphRequest {
     pub construct_did: ConstructDid,
     /// The network to index. This is used to determine the network of the subgraph.
     pub network: String,
+    /// The IDL types defined in the IDL.
+    pub idl_types: Vec<IdlTypeDef>,
 }
 
 fn pubkey_serialize<S>(value: &Pubkey, serializer: S) -> Result<S::Ok, S::Error>
@@ -138,7 +192,7 @@ where
     Pubkey::from_str(&s).map_err(serde::de::Error::custom)
 }
 
-impl SubgraphRequest {
+impl SubgraphRequestV0 {
     pub fn parse_value_store(
         subgraph_name: Option<String>,
         subgraph_description: Option<String>,
@@ -176,6 +230,7 @@ impl SubgraphRequest {
             defined_fields,
             intrinsic_fields,
             network: "solana-devnet".into(),
+            idl_types: idl.types,
         })
     }
 
@@ -193,14 +248,6 @@ impl SubgraphRequest {
 
         serde_json::from_slice(&bytes)
             .map_err(|e| diagnosed_error!("could not deserialize subgraph request: {e}"))
-    }
-
-    pub fn to_value(&self) -> Result<Value, Diagnostic> {
-        Ok(Value::addon(
-            serde_json::to_vec(self)
-                .map_err(|e| diagnosed_error!("could not serialize subgraph request: {e}"))?,
-            SVM_SUBGRAPH_REQUEST,
-        ))
     }
 }
 
