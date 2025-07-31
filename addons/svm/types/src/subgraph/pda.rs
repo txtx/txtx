@@ -125,8 +125,20 @@ impl PdaSubgraphSource {
             return Ok(());
         }
         let rest = data[8..].to_vec();
-        let parsed_value =
-            parse_bytes_to_value_with_expected_idl_type_def_ty(&rest, &self.account_type.ty)?;
+
+        let idl_type_def_generics = subgraph_request
+            .idl_types
+            .iter()
+            .find(|t| t.name == self.account_type.name)
+            .map(|t| &t.generics);
+        let empty_vec = vec![];
+        let parsed_value = parse_bytes_to_value_with_expected_idl_type_def_ty(
+            &rest,
+            &self.account_type.ty,
+            &subgraph_request.idl_types,
+            &vec![],
+            idl_type_def_generics.unwrap_or(&empty_vec),
+        )?;
 
         let obj = parsed_value.as_object().unwrap().clone();
         let mut entry = HashMap::new();
