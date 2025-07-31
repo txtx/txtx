@@ -52,6 +52,14 @@ impl EventSubgraphSource {
         transaction_signature: Signature,
         entries: &mut Vec<HashMap<String, Value>>,
     ) -> Result<(), String> {
+        let SubgraphRequest::V0(subgraph_request) = subgraph_request;
+        let empty_vec = vec![];
+        let idl_type_def_generics = subgraph_request
+            .idl_types
+            .iter()
+            .find(|t| t.name == self.ty.name)
+            .map(|t| &t.generics)
+            .unwrap_or(&empty_vec);
         for inner_instructions in inner_instructions.iter() {
             for instruction in inner_instructions.instructions.iter() {
                 let instruction = &instruction.instruction;
@@ -67,7 +75,7 @@ impl EventSubgraphSource {
 
                 if self.event.discriminator.eq(eight_bytes.as_slice()) {
                     let parsed_value =
-                        parse_bytes_to_value_with_expected_idl_type_def_ty(&rest, &self.ty.ty).map_err(
+                        parse_bytes_to_value_with_expected_idl_type_def_ty(&rest, &self.ty.ty, &subgraph_request.idl_types, &vec![], idl_type_def_generics).map_err(
                             |e| format!("event '{}' was emitted in a transaction, but the data could not be parsed as the expected idl type: {e}", self.event.name)
                         )?;
 

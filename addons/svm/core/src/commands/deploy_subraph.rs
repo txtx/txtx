@@ -210,7 +210,7 @@ impl CommandImplementation for DeployProgram {
         let subgraph_name = values.get_string(SUBGRAPH_NAME).and_then(|s| Some(s.to_string()));
         let description = values.get_string(DESCRIPTION).and_then(|s| Some(s.to_string()));
 
-        let subgraph_request = SubgraphRequest::parse_value_store(
+        let subgraph_request = SubgraphRequest::parse_value_store_v0(
             subgraph_name,
             description,
             &program_id,
@@ -247,7 +247,7 @@ impl CommandImplementation for DeployProgram {
         let future = async move {
             let mut result = CommandExecutionResult::new();
             let subgraph_request =
-                SubgraphRequest::from_value(outputs.get_expected_value(SUBGRAPH_REQUEST)?)?;
+                SubgraphRequest::from_value_v0(outputs.get_expected_value(SUBGRAPH_REQUEST)?)?;
 
             let subgraph_url = outputs.get_expected_string(SUBGRAPH_ENDPOINT_URL)?;
             let do_include_token = outputs.get_expected_bool(DO_INCLUDE_TOKEN)?;
@@ -323,7 +323,8 @@ impl SubgraphRequestClient {
             "Subgraph Deployed",
             &format!(
                 "Subgraph {} for program {} has been deployed",
-                self.plugin_config.data.subgraph_name, self.plugin_config.data.program_id,
+                self.plugin_config.data.subgraph_name(),
+                self.plugin_config.data.program_id(),
             ),
         ));
 
