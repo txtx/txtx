@@ -118,6 +118,7 @@ impl PdaSubgraphSource {
         write_version: u64,
         entries: &mut Vec<HashMap<String, Value>>,
     ) -> Result<(), String> {
+        let SubgraphRequest::V0(subgraph_request) = subgraph_request;
         let actual_account_discriminator = data[0..8].to_vec();
         if actual_account_discriminator != self.account.discriminator {
             // This is not the expected account, so we skip it
