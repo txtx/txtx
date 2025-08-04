@@ -1,4 +1,5 @@
 use super::{env::TxtxEnv, CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
+mod error_display;
 use crate::{get_addon_by_namespace, get_available_addons};
 use ascii_table::AsciiTable;
 use console::Style;
