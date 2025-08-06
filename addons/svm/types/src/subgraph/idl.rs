@@ -230,11 +230,16 @@ pub fn parse_bytes_to_value_with_expected_idl_type_def_ty(
         idl_type_def_generics,
     )?;
     if !rest.is_empty() {
-        return Err(format!(
-            "expected no leftover bytes after parsing type {:?}, but found {} bytes",
-            expected_type,
-            rest.len()
-        ));
+        // If the remaining bytes are all zeros, this is okay - it indicates that an account was initialized
+        // with a certain amount of space, and the data didn't fill that space, so the rest is filled with zeroes.
+        // if there are any other values, return an error
+        if rest.iter().any(|&byte| byte != 0) {
+            return Err(format!(
+                "expected no leftover bytes after parsing type {:?}, but found {} bytes of non-zero data",
+                expected_type
+                ,rest.len()
+            ));
+        }
     }
     Ok(value)
 }

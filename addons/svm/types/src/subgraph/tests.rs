@@ -407,6 +407,12 @@ enum MyEnum {
     "short string"
 )]
 #[test_case(
+    vec![11, 0, 0, 0, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 0, 0], // hello world string bytes, plus extra data
+    IdlTypeDefTy::Type { alias: IdlType::String },
+    Value::string("hello world".to_string());
+    "string with extra padding"
+)]
+#[test_case(
     borsh::to_vec(&"a".repeat(1000)).unwrap(),
     IdlTypeDefTy::Type { alias: IdlType::String },
     Value::string("a".repeat(1000));
@@ -687,6 +693,7 @@ enum MyEnum {
     "enum tuple variant"
 )]
 fn test_borsh_encoded_data(data: Vec<u8>, expected_type: IdlTypeDefTy, expected_value: Value) {
+    println!("data {:?}", data);
     let decoded =
         parse_bytes_to_value_with_expected_idl_type_def_ty(&data, &expected_type, &vec![], &vec![], &vec![]).unwrap();
     assert_eq!(decoded, expected_value, "Decoded value does not match expected value");
@@ -869,6 +876,12 @@ fn error_enum_variant() {
 #[test_case(vec![1], IdlTypeDefTy::Type { alias: IdlType::Bytes }, "unable to decode bytes length: not enough bytes"; "bytes length not enough bytes")]
 #[test_case(vec![0,1,2,3], IdlTypeDefTy::Type { alias: IdlType::String }, "unable to decode string: not enough bytes"; "string not enough bytes")]
 #[test_case(vec![0,1,2,3], IdlTypeDefTy::Type { alias: IdlType::Bytes }, "unable to decode bytes: not enough bytes"; "bytes not enough bytes")]
+#[test_case(
+    vec![11, 0, 0, 0, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 0, 1], // hello world string bytes, plus extra data
+    IdlTypeDefTy::Type { alias: IdlType::String },
+    "expected no leftover bytes after parsing type Type { alias: String }, but found 2 bytes of non-zero data";
+    "string with extra data"
+)]
 #[test_case(
     borsh::to_vec(&ParentStruct {
         child: ChildStruct { field: 42 },
