@@ -129,6 +129,21 @@ impl SubgraphRequest {
     pub fn from_value_v0(value: &Value) -> Result<Self, Diagnostic> {
         Ok(SubgraphRequest::V0(SubgraphRequestV0::from_value(value)?))
     }
+    pub fn from_value(value: &Value) -> Result<Self, Diagnostic> {
+        let addon_data = value
+            .as_addon_data()
+            .ok_or(diagnosed_error!("could not deserialize subgraph request: expected addon"))?;
+        if addon_data.id != SVM_SUBGRAPH_REQUEST {
+            return Err(diagnosed_error!(
+                "could not deserialize subgraph request: expected addon type '{}'",
+                SVM_SUBGRAPH_REQUEST
+            ));
+        }
+        let bytes = addon_data.bytes.clone();
+
+        serde_json::from_slice(&bytes)
+            .map_err(|e| diagnosed_error!("could not deserialize subgraph request: {e}"))
+    }
 
     pub fn to_value(&self) -> Result<Value, Diagnostic> {
         Ok(Value::addon(

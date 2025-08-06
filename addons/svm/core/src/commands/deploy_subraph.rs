@@ -247,7 +247,7 @@ impl CommandImplementation for DeployProgram {
         let future = async move {
             let mut result = CommandExecutionResult::new();
             let subgraph_request =
-                SubgraphRequest::from_value_v0(outputs.get_expected_value(SUBGRAPH_REQUEST)?)?;
+                SubgraphRequest::from_value(outputs.get_expected_value(SUBGRAPH_REQUEST)?)?;
 
             let subgraph_url = outputs.get_expected_string(SUBGRAPH_ENDPOINT_URL)?;
             let do_include_token = outputs.get_expected_bool(DO_INCLUDE_TOKEN)?;
