@@ -122,6 +122,12 @@ impl EventSubgraphSource {
                             None,
                             None,
                             None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
                         ) {
                             entry.insert(entry_key, entry_value);
                         }

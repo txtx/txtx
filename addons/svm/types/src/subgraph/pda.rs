@@ -207,6 +207,12 @@ impl PdaSubgraphSource {
                 Some(owner),
                 Some(lamports),
                 Some(write_version),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
             ) {
                 entry.insert(entry_key, entry_value);
             }
