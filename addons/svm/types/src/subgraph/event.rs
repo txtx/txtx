@@ -30,6 +30,33 @@ impl SubgraphSourceType for EventSubgraphSource {
 }
 
 impl EventSubgraphSource {
+    pub fn from_value(
+        value: &Value,
+        idl: &Idl,
+    ) -> Result<(Self, Option<Vec<Value>>, Option<Vec<Value>>), Diagnostic> {
+        let event_map = value.as_map().ok_or(diagnosed_error!("subgraph event must be a map"))?;
+
+        if event_map.len() != 1 {
+            return Err(diagnosed_error!("exactly one 'event' should be defined"));
+        }
+        let entry = event_map.get(0).unwrap();
+
+        let entry = entry
+            .as_object()
+            .ok_or(diagnosed_error!("each entry of a subgraph event should contain an object"))?;
+        let name = entry
+            .get("name")
+            .ok_or(diagnosed_error!("could not deserialize subgraph event: expected 'name' key"))?;
+        let name = name.as_string().ok_or(diagnosed_error!(
+            "could not deserialize subgraph event: expected 'name' to be a string"
+        ))?;
+
+        let fields = entry.get("field").and_then(|v| v.as_map().map(|s| s.to_vec()));
+        let intrinsic_fields =
+            entry.get("intrinsic_field").and_then(|v| v.as_map().map(|s| s.to_vec()));
+        let event = Self::new(name, idl)?;
+        return Ok((event, fields, intrinsic_fields));
+    }
     pub fn new(event_name: &str, idl: &Idl) -> Result<Self, Diagnostic> {
         let event = idl
             .events

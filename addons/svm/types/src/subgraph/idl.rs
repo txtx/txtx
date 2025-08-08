@@ -672,12 +672,12 @@ pub fn match_idl_accounts(
     idl_instruction: &IdlInstruction,
     instruction_account_indices: &[u8],
     message_account_keys: &[Pubkey],
-) -> Vec<(String, Pubkey)> {
+) -> Vec<(String, Pubkey, usize)> {
     let flat_idl_account_names = flatten_accounts(&idl_instruction.accounts);
 
     flat_idl_account_names
         .into_iter()
         .zip(instruction_account_indices.iter())
-        .map(|(name, &index)| (name, message_account_keys[index as usize]))
+        .map(|(name, &index)| (name, message_account_keys[index as usize], index as usize))
         .collect()
 }

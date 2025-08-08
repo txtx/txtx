@@ -563,82 +563,14 @@ impl IndexedSubgraphSourceType {
         idl: &Idl,
     ) -> Result<(Self, Option<Vec<Value>>, Option<Vec<Value>>), Diagnostic> {
         if let Some(event) = values.get_value("event") {
-            let event_map =
-                event.as_map().ok_or(diagnosed_error!("subgraph event must be a map"))?;
-
-            if event_map.len() != 1 {
-                return Err(diagnosed_error!("exactly one 'event' should be defined"));
-            }
-            let entry = event_map.get(0).unwrap();
-
-            let entry = entry.as_object().ok_or(diagnosed_error!(
-                "each entry of a subgraph event should contain an object"
-            ))?;
-            let name = entry.get("name").ok_or(diagnosed_error!(
-                "could not deserialize subgraph event: expected 'name' key"
-            ))?;
-            let name = name.as_string().ok_or(diagnosed_error!(
-                "could not deserialize subgraph event: expected 'name' to be a string"
-            ))?;
-
-            let fields = entry.get("field").and_then(|v| v.as_map().map(|s| s.to_vec()));
-            let intrinsic_fields =
-                entry.get("intrinsic_field").and_then(|v| v.as_map().map(|s| s.to_vec()));
-            let event = EventSubgraphSource::new(name, idl)?;
+            let (event, fields, intrinsic_fields) = EventSubgraphSource::from_value(event, idl)?;
             return Ok((Self::Event(event), fields, intrinsic_fields));
         } else if let Some(_) = values.get_value("instruction") {
             return Err(diagnosed_error!("subgraph instruction not supported yet"));
         } else if let Some(_) = values.get_value("account") {
             return Err(diagnosed_error!("subgraph account not supported yet"));
         } else if let Some(pda) = values.get_value("pda") {
-            let pda_map =
-                pda.as_map().ok_or(diagnosed_error!("subgraph 'pda' field must be a map"))?;
-
-            if pda_map.len() != 1 {
-                return Err(diagnosed_error!("exactly one 'pda' map should be defined"));
-            }
-            let entry = pda_map.get(0).unwrap();
-
-            let entry = entry
-                .as_object()
-                .ok_or(diagnosed_error!("a subgraph 'pda' field should contain an object"))?;
-
-            let type_name = entry
-                .get("type")
-                .ok_or(diagnosed_error!("a subgraph 'pda' field must have a 'type' key"))?;
-            let type_name = type_name.as_string().ok_or(diagnosed_error!(
-                "a subgraph 'pda' field's 'type' value must be a string"
-            ))?;
-            let instruction_account_path = entry
-                .get("instruction")
-                .and_then(|v| v.as_map())
-                .ok_or(diagnosed_error!("a subgraph 'pda' field must have an 'instruction' map"))?;
-
-            let mut instruction_values = Vec::with_capacity(instruction_account_path.len());
-            for instruction_value in instruction_account_path.iter() {
-                let instruction_value = instruction_value.as_object().ok_or(diagnosed_error!(
-                    "each entry of a subgraph 'pda' instruction should contain an object"
-                ))?;
-                let instruction_name = instruction_value.get("name").ok_or(diagnosed_error!(
-                    "a subgraph 'pda' instruction must have a 'name' key"
-                ))?;
-                let instruction_name = instruction_name.as_string().ok_or(diagnosed_error!(
-                    "a subgraph 'pda' instruction's 'name' value must be a string"
-                ))?;
-                let account_name =
-                    instruction_value.get("account_name").ok_or(diagnosed_error!(
-                        "a subgraph 'pda' instruction must have an 'account_name' key"
-                    ))?;
-                let account_name = account_name.as_string().ok_or(diagnosed_error!(
-                    "a subgraph 'pda' instruction's 'account_name' value must be a string"
-                ))?;
-                instruction_values.push((instruction_name, account_name));
-            }
-
-            let pda_source = PdaSubgraphSource::new(type_name, &instruction_values, idl)?;
-            let fields = entry.get("field").and_then(|v| v.as_map().map(|s| s.to_vec()));
-            let intrinsic_fields =
-                entry.get("intrinsic_field").and_then(|v| v.as_map().map(|s| s.to_vec()));
+            let (pda_source, fields, intrinsic_fields) = PdaSubgraphSource::from_value(pda, idl)?;
             return Ok((Self::Pda(pda_source), fields, intrinsic_fields));
         }
 
@@ -707,6 +639,26 @@ impl IndexedSubgraphSourceType {
 pub struct InstructionSubgraphSource {
     // The instruction being indexed
     pub instruction: anchor_lang_idl::types::IdlInstruction,
+}
+
+/// Recursively find an [IdlInstructionAccount] by name in an [IdlInstructionAccountItem].
+pub fn find_idl_instruction_account(
+    account_item: &IdlInstructionAccountItem,
+    name: &str,
+) -> Option<IdlInstructionAccount> {
+    match account_item {
+        IdlInstructionAccountItem::Composite(idl_instruction_accounts) => idl_instruction_accounts
+            .accounts
+            .iter()
+            .find_map(|a| find_idl_instruction_account(a, name)),
+        IdlInstructionAccountItem::Single(idl_instruction_account) => {
+            if idl_instruction_account.name == name {
+                Some(idl_instruction_account.clone())
+            } else {
+                None
+            }
+        }
+    }
 }
 
 #[cfg(test)]

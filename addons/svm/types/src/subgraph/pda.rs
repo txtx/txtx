@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use anchor_lang_idl::types::{
-    Idl, IdlInstruction, IdlInstructionAccount, IdlInstructionAccountItem,
-};
+use anchor_lang_idl::types::{Idl, IdlInstruction, IdlInstructionAccount};
 use serde::{Deserialize, Serialize};
 use solana_clock::Slot;
 use solana_message::compiled_instruction::CompiledInstruction;
@@ -14,10 +12,11 @@ use txtx_addon_kit::{
 };
 
 use crate::subgraph::{
-    idl::{match_idl_accounts, parse_bytes_to_value_with_expected_idl_type_def_ty},
-    IntrinsicField, SubgraphRequest, SubgraphSourceType, LAMPORTS_INTRINSIC_FIELD,
-    OWNER_INTRINSIC_FIELD, PUBKEY_INTRINSIC_FIELD, SLOT_INTRINSIC_FIELD,
+    IntrinsicField, LAMPORTS_INTRINSIC_FIELD, OWNER_INTRINSIC_FIELD, PUBKEY_INTRINSIC_FIELD,
+    SLOT_INTRINSIC_FIELD, SubgraphRequest, SubgraphSourceType,
     TRANSACTION_SIGNATURE_INTRINSIC_FIELD, WRITE_VERSION_INTRINSIC_FIELD,
+    find_idl_instruction_account,
+    idl::{match_idl_accounts, parse_bytes_to_value_with_expected_idl_type_def_ty},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +47,59 @@ impl SubgraphSourceType for PdaSubgraphSource {
 }
 
 impl PdaSubgraphSource {
+    pub fn from_value(
+        value: &Value,
+        idl: &Idl,
+    ) -> Result<(Self, Option<Vec<Value>>, Option<Vec<Value>>), Diagnostic> {
+        let pda_map =
+            value.as_map().ok_or(diagnosed_error!("subgraph 'pda' field must be a map"))?;
+
+        if pda_map.len() != 1 {
+            return Err(diagnosed_error!("exactly one 'pda' map should be defined"));
+        }
+        let entry = pda_map.get(0).unwrap();
+
+        let entry = entry
+            .as_object()
+            .ok_or(diagnosed_error!("a subgraph 'pda' field should contain an object"))?;
+
+        let type_name = entry
+            .get("type")
+            .ok_or(diagnosed_error!("a subgraph 'pda' field must have a 'type' key"))?;
+        let type_name = type_name
+            .as_string()
+            .ok_or(diagnosed_error!("a subgraph 'pda' field's 'type' value must be a string"))?;
+        let instruction_account_path = entry
+            .get("instruction")
+            .and_then(|v| v.as_map())
+            .ok_or(diagnosed_error!("a subgraph 'pda' field must have an 'instruction' map"))?;
+
+        let mut instruction_values = Vec::with_capacity(instruction_account_path.len());
+        for instruction_value in instruction_account_path.iter() {
+            let instruction_value = instruction_value.as_object().ok_or(diagnosed_error!(
+                "each entry of a subgraph 'pda' instruction should contain an object"
+            ))?;
+            let instruction_name = instruction_value
+                .get("name")
+                .ok_or(diagnosed_error!("a subgraph 'pda' instruction must have a 'name' key"))?;
+            let instruction_name = instruction_name.as_string().ok_or(diagnosed_error!(
+                "a subgraph 'pda' instruction's 'name' value must be a string"
+            ))?;
+            let account_name = instruction_value.get("account_name").ok_or(diagnosed_error!(
+                "a subgraph 'pda' instruction must have an 'account_name' key"
+            ))?;
+            let account_name = account_name.as_string().ok_or(diagnosed_error!(
+                "a subgraph 'pda' instruction's 'account_name' value must be a string"
+            ))?;
+            instruction_values.push((instruction_name, account_name));
+        }
+        let pda_source = Self::new(type_name, &instruction_values, idl)?;
+        let fields = entry.get("field").and_then(|v| v.as_map().map(|s| s.to_vec()));
+        let intrinsic_fields =
+            entry.get("intrinsic_field").and_then(|v| v.as_map().map(|s| s.to_vec()));
+        Ok((pda_source, fields, intrinsic_fields))
+    }
+
     pub fn new(
         account_name: &str,
         instruction_account_path: &[(&str, &str)],
@@ -171,7 +223,7 @@ impl PdaSubgraphSource {
         &self,
         instruction: &CompiledInstruction,
         account_pubkeys: &[Pubkey],
-    ) -> Result<Option<Pubkey>, String> {
+    ) -> Option<Pubkey> {
         let Some((matching_idl_instruction, idl_instruction_account)) =
             self.instruction_accounts.iter().find_map(|(ix, ix_account)| {
                 if instruction.data.starts_with(&ix.discriminator) {
@@ -182,39 +234,15 @@ impl PdaSubgraphSource {
             })
         else {
             // This instruction does not match any of the instructions that use this PDA account type
-            return Ok(None);
+            return None;
         };
 
         let idl_accounts =
             match_idl_accounts(matching_idl_instruction, &instruction.accounts, &account_pubkeys);
-        let some_pda = idl_accounts.iter().find_map(|(name, pubkey)| {
-            if idl_instruction_account.name.eq(name) {
-                Some(*pubkey)
-            } else {
-                None
-            }
+        let some_pda = idl_accounts.iter().find_map(|(name, pubkey, _)| {
+            if idl_instruction_account.name.eq(name) { Some(*pubkey) } else { None }
         });
 
-        Ok(some_pda)
-    }
-}
-
-/// Recursively find an `IdlInstructionAccount` by name in an `IdlInstructionAccountItem`.
-fn find_idl_instruction_account(
-    account_item: &IdlInstructionAccountItem,
-    name: &str,
-) -> Option<anchor_lang_idl::types::IdlInstructionAccount> {
-    match account_item {
-        IdlInstructionAccountItem::Composite(idl_instruction_accounts) => idl_instruction_accounts
-            .accounts
-            .iter()
-            .find_map(|a| find_idl_instruction_account(a, name)),
-        IdlInstructionAccountItem::Single(idl_instruction_account) => {
-            if idl_instruction_account.name == name {
-                Some(idl_instruction_account.clone())
-            } else {
-                None
-            }
-        }
+        some_pda
     }
 }

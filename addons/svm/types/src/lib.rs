@@ -556,7 +556,7 @@ lazy_static! {
             tainting: true
         },
         intrinsic_fields: {
-            documentation: indoc!{r#"A map of intrinsic fields to index. For PDA subgraphs, intrinsics are:
+            documentation: indoc!{r#"A map of intrinsic fields to index. For Event subgraphs, intrinsics are:
                 - `slot`(indexed): The slot in which the event was emitted.
                 - `transactionSignature`(indexed): The transaction signature in which the event was emitted."#},
             typing: Type::array(SUBGRAPH_INTRINSIC_FIELD.clone()),
