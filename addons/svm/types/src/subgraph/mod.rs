@@ -70,12 +70,6 @@ lazy_static! {
         description: "The lamports of the account.".into(),
         is_indexed: false,
     };
-    pub static ref WRITE_VERSION_INTRINSIC_FIELD: IntrinsicField = IntrinsicField {
-        name: "write_version".into(),
-        expected_type: Type::integer(),
-        description: "A monotonically increasing index of the account update.".into(),
-        is_indexed: true,
-    };
     pub static ref TOKEN_MINT_INTRINSIC_FIELD: IntrinsicField = IntrinsicField {
         name: "mint".into(),
         expected_type: Type::addon(SVM_PUBKEY),
@@ -354,7 +348,6 @@ impl IndexedSubgraphField {
         pubkey: Option<Pubkey>,
         owner: Option<Pubkey>,
         lamports: Option<u64>,
-        write_version: Option<u64>,
         mint: Option<Pubkey>,
         token_program: Option<Pubkey>,
         amount: Option<String>,
@@ -374,9 +367,6 @@ impl IndexedSubgraphField {
                 (self.display_name.clone(), Value::addon(o.to_bytes().to_vec(), SVM_PUBKEY))
             }),
             "lamports" => lamports.map(|l| (self.display_name.clone(), Value::integer(l as i128))),
-            "write_version" => {
-                write_version.map(|w| (self.display_name.clone(), Value::integer(w as i128)))
-            }
             "mint" => mint.map(|m| {
                 (self.display_name.clone(), Value::addon(m.to_bytes().to_vec(), SVM_PUBKEY))
             }),

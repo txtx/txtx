@@ -5,18 +5,16 @@ use serde::{Deserialize, Serialize};
 use solana_clock::Slot;
 use solana_message::compiled_instruction::CompiledInstruction;
 use solana_pubkey::Pubkey;
-use solana_signature::Signature;
 use txtx_addon_kit::{
     diagnosed_error,
     types::{diagnostics::Diagnostic, types::Value},
 };
 
 use crate::subgraph::{
-    IntrinsicField, LAMPORTS_INTRINSIC_FIELD, OWNER_INTRINSIC_FIELD, PUBKEY_INTRINSIC_FIELD,
-    SLOT_INTRINSIC_FIELD, SubgraphRequest, SubgraphSourceType,
-    TRANSACTION_SIGNATURE_INTRINSIC_FIELD, WRITE_VERSION_INTRINSIC_FIELD,
     find_idl_instruction_account,
     idl::{match_idl_accounts, parse_bytes_to_value_with_expected_idl_type_def_ty},
+    IntrinsicField, SubgraphRequest, SubgraphSourceType, LAMPORTS_INTRINSIC_FIELD,
+    OWNER_INTRINSIC_FIELD, PUBKEY_INTRINSIC_FIELD, SLOT_INTRINSIC_FIELD,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,11 +35,9 @@ impl SubgraphSourceType for PdaSubgraphSource {
     fn intrinsic_fields() -> Vec<IntrinsicField> {
         vec![
             SLOT_INTRINSIC_FIELD.clone(),
-            TRANSACTION_SIGNATURE_INTRINSIC_FIELD.clone(),
             PUBKEY_INTRINSIC_FIELD.clone(),
             LAMPORTS_INTRINSIC_FIELD.clone(),
             OWNER_INTRINSIC_FIELD.clone(),
-            WRITE_VERSION_INTRINSIC_FIELD.clone(),
         ]
     }
 }
@@ -163,11 +159,9 @@ impl PdaSubgraphSource {
         data: &[u8],
         subgraph_request: &SubgraphRequest,
         slot: Slot,
-        transaction_signature: Signature,
         pubkey: Pubkey,
         owner: Pubkey,
         lamports: u64,
-        write_version: u64,
         entries: &mut Vec<HashMap<String, Value>>,
     ) -> Result<(), String> {
         let SubgraphRequest::V0(subgraph_request) = subgraph_request;
@@ -202,11 +196,10 @@ impl PdaSubgraphSource {
         subgraph_request.intrinsic_fields.iter().for_each(|field| {
             if let Some((entry_key, entry_value)) = field.extract_intrinsic(
                 Some(slot),
-                Some(transaction_signature),
+                None,
                 Some(pubkey),
                 Some(owner),
                 Some(lamports),
-                Some(write_version),
                 None,
                 None,
                 None,
@@ -246,7 +239,11 @@ impl PdaSubgraphSource {
         let idl_accounts =
             match_idl_accounts(matching_idl_instruction, &instruction.accounts, &account_pubkeys);
         let some_pda = idl_accounts.iter().find_map(|(name, pubkey, _)| {
-            if idl_instruction_account.name.eq(name) { Some(*pubkey) } else { None }
+            if idl_instruction_account.name.eq(name) {
+                Some(*pubkey)
+            } else {
+                None
+            }
         });
 
         some_pda

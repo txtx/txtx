@@ -587,11 +587,9 @@ lazy_static! {
         intrinsic_fields: {
             documentation: indoc!{r#"A map of intrinsic fields to index. For PDA subgraphs, intrinsics are:
                 - `slot`(indexed): The slot in which the event was emitted.
-                - `transactionSignature`(indexed): The transaction signature in which the event was emitted.
                 - `pubkey`(indexed): The public key of the account.
                 - `owner`(not indexed): The owner of the account.
-                - `lamports`(not indexed): The lamports of the account.
-                - `writeVersion`(indexed): A monotonically increasing index of the account update."#},
+                - `lamports`(not indexed): The lamports of the account."#},
             typing: Type::array(SUBGRAPH_INTRINSIC_FIELD.clone()),
             optional: true,
             tainting: true
