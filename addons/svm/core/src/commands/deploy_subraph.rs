@@ -19,7 +19,7 @@ use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_network_svm_types::subgraph::PluginConfig;
-use txtx_addon_network_svm_types::PDA_ACCOUNT_SUBGRAPH;
+use txtx_addon_network_svm_types::{PDA_ACCOUNT_SUBGRAPH, TOKEN_ACCOUNT_SUBGRAPH};
 
 use crate::constants::{
     DEVNET_SUBGRAPH_ENDPOINT, DO_INCLUDE_TOKEN, MAINNET_SUBGRAPH_ENDPOINT, NETWORK_ID, PROGRAM_ID,
@@ -103,6 +103,14 @@ lazy_static! {
                     pda: {
                         documentation: "The PDA account to index in the subgraph",
                         typing: PDA_ACCOUNT_SUBGRAPH.clone(),
+                        optional: true,
+                        tainting: true,
+                        internal: false,
+                        sensitive: false
+                    },
+                    token_account: {
+                        documentation: "The token account to index in the subgraph",
+                        typing: TOKEN_ACCOUNT_SUBGRAPH.clone(),
                         optional: true,
                         tainting: true,
                         internal: false,
