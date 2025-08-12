@@ -1,3 +1,4 @@
+use execution_conditions::{evaluate_post_conditions, evaluate_pre_conditions};
 use serde::{
     ser::{SerializeMap, SerializeStruct},
     Serialize, Serializer,
@@ -7,6 +8,8 @@ use std::{
     future::{self, Future},
     hash::Hash,
     pin::Pin,
+    thread::sleep,
+    time::Duration,
 };
 use uuid::Uuid;
 
@@ -14,10 +17,13 @@ use hcl_edit::{expr::Expression, structure::Block, Span};
 use indexmap::IndexMap;
 
 use crate::{
-    constants::{SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES},
+    constants::{
+        DESCRIPTION, MARKDOWN, MARKDOWN_FILEPATH, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
+    },
     helpers::hcl::{
         collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
+    types::AuthorizationContext,
 };
 use crate::{helpers::hcl::get_object_expression_key, types::stores::ValueStore};
 
@@ -38,6 +44,12 @@ use super::{
     types::{ObjectDefinition, ObjectProperty, RunbookSupervisionContext, Type, Value},
     ConstructDid, Did, EvaluatableInput, PackageId, WithEvaluatableInputs,
 };
+
+mod execution_conditions;
+pub use execution_conditions::AssertionResult;
+pub use execution_conditions::ASSERTION_TYPE_ID;
+pub use execution_conditions::{PostConditionEvaluatableInput, PostConditionEvaluationResult};
+pub use execution_conditions::{PreConditionEvaluatableInput, PreConditionEvaluationResult};
 
 #[derive(Clone, Debug)]
 pub struct CommandExecutionResult {
@@ -229,8 +241,12 @@ pub struct CommandInput {
     pub check_performed: bool,
     pub sensitive: bool,
     pub internal: bool,
+    pub self_referencing: bool,
 }
 impl EvaluatableInput for CommandInput {
+    fn documentation(&self) -> String {
+        self.documentation.clone()
+    }
     fn optional(&self) -> bool {
         self.optional
     }
@@ -351,11 +367,13 @@ pub struct CommandSpecification {
     pub prepare_nested_execution: CommandPrepareNestedExecution,
     pub run_execution: CommandExecutionClosure,
     pub check_signed_executability: CommandCheckSignedExecutabilityClosure,
+    pub evaluate_pre_conditions: CommandEvaluatePreConditions,
     pub prepare_signed_nested_execution: CommandSignedPrepareNestedExecution,
     pub run_signed_execution: CommandSignedExecutionClosure,
     pub build_background_task: CommandBackgroundTaskExecutionClosure,
     pub implements_cloud_service: bool,
     pub aggregate_nested_execution_results: CommandAggregateNestedExecutionResults,
+    pub evaluate_post_conditions: CommandEvaluatePostConditions,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -373,15 +391,40 @@ impl CommandSpecification {
     pub fn default_inputs() -> Vec<CommandInput> {
         vec![
             CommandInput {
-                name: "description".into(),
+                name: DESCRIPTION.into(),
                 documentation: "Allows you to describe and comment steps of your runbook".into(),
                 typing: Type::string(),
                 optional: true,
-                tainting: true,
+                tainting: false,
                 internal: false,
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
+            },
+            CommandInput {
+                name: MARKDOWN.into(),
+                documentation: "Allows you to describe and comment steps of your runbook with in-line markdown".into(),
+                typing: Type::string(),
+                optional: true,
+                tainting: false,
+                internal: false,
+                check_performed: false,
+                check_required: false,
+                sensitive: false,
+                self_referencing: false,
+            },
+            CommandInput {
+                name: MARKDOWN_FILEPATH.into(),
+                documentation: "Allows you to describe and comment steps of your runbook with a reference to a markdown file in the filesystem".into(),
+                typing: Type::string(),
+                optional: true,
+                tainting: false,
+                internal: false,
+                check_performed: false,
+                check_required: false,
+                sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "labels".into(),
@@ -393,6 +436,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "environments".into(),
@@ -404,6 +448,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "sensitive".into(),
@@ -415,6 +460,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "group".into(),
@@ -426,6 +472,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
             CommandInput {
                 name: "depends_on".into(),
@@ -437,6 +484,7 @@ impl CommandSpecification {
                 check_performed: false,
                 check_required: false,
                 sensitive: false,
+                self_referencing: false,
             },
         ]
     }
@@ -531,6 +579,7 @@ pub type CommandCheckExecutabilityClosure = fn(
     &CommandSpecification,
     &ValueStore,
     &RunbookSupervisionContext,
+    &AuthorizationContext,
 ) -> Result<Actions, Diagnostic>;
 
 pub type CommandCheckSignedExecutabilityClosure = fn(
@@ -541,7 +590,27 @@ pub type CommandCheckSignedExecutabilityClosure = fn(
     &RunbookSupervisionContext,
     &HashMap<ConstructDid, SignerInstance>,
     SignersState,
+    &AuthorizationContext,
 ) -> SignerActionsFutureResult;
+
+pub type CommandEvaluatePreConditions = fn(
+    &ConstructDid,
+    &str,
+    &CommandSpecification,
+    &ValueStore,
+    &channel::Sender<BlockEvent>,
+    &Uuid,
+) -> Result<PreConditionEvaluationResult, Diagnostic>;
+
+pub type CommandEvaluatePostConditions = fn(
+    &ConstructDid,
+    &str,
+    &CommandSpecification,
+    &ValueStore,
+    &mut CommandExecutionResult,
+    &channel::Sender<BlockEvent>,
+    &Uuid,
+) -> Result<PostConditionEvaluationResult, Diagnostic>;
 
 pub type CommandSignedPrepareNestedExecution = fn(
     &ConstructDid,
@@ -711,8 +780,19 @@ impl WithEvaluatableInputs for CommandInstance {
             None => None,
         }
     }
-    fn spec_inputs(&self) -> Vec<impl EvaluatableInput> {
-        self.specification.inputs.iter().map(|x| x.clone()).collect()
+    fn _spec_inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        self.specification
+            .inputs
+            .iter()
+            .chain(self.specification.default_inputs.iter())
+            .filter_map(|x| {
+                if x.self_referencing {
+                    None
+                } else {
+                    Some(Box::new(x.clone()) as Box<dyn EvaluatableInput>)
+                }
+            })
+            .collect::<Vec<_>>()
     }
 }
 
@@ -734,6 +814,27 @@ impl CommandInstance {
         group.value.to_string()
     }
 
+    pub fn evaluate_pre_conditions(
+        &self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> Result<PreConditionEvaluationResult, Diagnostic> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+        let spec = &self.specification;
+        (spec.evaluate_pre_conditions)(
+            &construct_did,
+            &self.name,
+            &self.specification,
+            &values,
+            progress_tx,
+            background_tasks_uuid,
+        )
+    }
+
     pub fn check_executability(
         &mut self,
         construct_did: &ConstructDid,
@@ -742,6 +843,7 @@ impl CommandInstance {
         _signer_instances: &mut HashMap<ConstructDid, SignerInstance>,
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         supervision_context: &RunbookSupervisionContext,
+        auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         let mut values = ValueStore::new(
             &format!("{}_inputs", self.specification.matcher),
@@ -823,6 +925,7 @@ impl CommandInstance {
                 &spec,
                 &values,
                 &supervision_context,
+                auth_context,
             )?;
             consolidated_actions.append(&mut actions);
         }
@@ -932,6 +1035,7 @@ impl CommandInstance {
         action_item_response: &Option<&Vec<ActionItemResponse>>,
         action_item_requests: &Option<&Vec<&mut ActionItemRequest>>,
         supervision_context: &RunbookSupervisionContext,
+        auth_ctx: &AuthorizationContext,
     ) -> Result<(SignersState, Actions), (SignersState, Diagnostic)> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
@@ -1006,6 +1110,7 @@ impl CommandInstance {
             &supervision_context,
             signer_instances,
             signers,
+            auth_ctx,
         );
         let (signer_state, mut actions) =
             consolidate_signer_future_result(future, self.block.span()).await?;
@@ -1138,15 +1243,60 @@ impl CommandInstance {
             &nested_results,
         )
     }
+
+    pub fn evaluate_post_conditions(
+        &self,
+        construct_did: &ConstructDid,
+        evaluated_inputs: &CommandInputsEvaluationResult,
+        command_execution_results: &mut CommandExecutionResult,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> Result<PostConditionEvaluationResult, Diagnostic> {
+        let values = ValueStore::new(&self.name, &construct_did.value())
+            .with_defaults(&evaluated_inputs.inputs.defaults)
+            .with_inputs(&evaluated_inputs.inputs.inputs);
+
+        let spec = &self.specification;
+        let res = (spec.evaluate_post_conditions)(
+            &construct_did,
+            &self.name,
+            &self.specification,
+            &values,
+            command_execution_results,
+            progress_tx,
+            background_tasks_uuid,
+        );
+
+        match res.as_ref() {
+            Ok(PostConditionEvaluationResult::Retry(backoff)) => {
+                sleep(Duration::from_millis(*backoff as u64));
+            }
+            _ => {}
+        }
+
+        res
+    }
 }
 
 impl ConstructInstance for CommandInstance {
     fn block(&self) -> &Block {
         &self.block
     }
-    fn inputs(&self) -> Vec<&impl EvaluatableInput> {
-        self.specification.inputs.iter().chain(&self.specification.default_inputs).collect()
+    fn inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        let mut res = self
+            .specification
+            .inputs
+            .iter()
+            .chain(&self.specification.default_inputs)
+            .map(|input| Box::new(input.clone()) as Box<dyn EvaluatableInput>)
+            .collect::<Vec<Box<dyn EvaluatableInput>>>();
+
+        res.push(Box::new(PreConditionEvaluatableInput::new()));
+        res.push(Box::new(PostConditionEvaluatableInput::new()));
+
+        res
     }
+
     fn accepts_arbitrary_inputs(&self) -> bool {
         self.specification.accepts_arbitrary_inputs
     }
@@ -1155,21 +1305,18 @@ impl ConstructInstance for CommandInstance {
 pub trait ConstructInstance {
     /// The HCL block of the construct
     fn block(&self) -> &Block;
-    fn inputs(&self) -> Vec<&impl EvaluatableInput>;
+    fn inputs(&self) -> Vec<Box<dyn EvaluatableInput>>;
     fn accepts_arbitrary_inputs(&self) -> bool {
         false
     }
 
     fn get_expressions_referencing_commands_from_inputs(
         &self,
-    ) -> Vec<(Option<&impl EvaluatableInput>, Expression)> {
+    ) -> Vec<(Option<Box<dyn EvaluatableInput>>, Expression)> {
         let mut expressions = vec![];
-        for input in self.inputs() {
-            input.typing().get_expressions_referencing_constructs(
-                &self.block(),
-                input,
-                &mut expressions,
-            );
+        for input in self.inputs().into_iter() {
+            let typing = input.typing().clone();
+            typing.get_expressions_referencing_constructs(&self.block(), input, &mut expressions);
         }
         if self.accepts_arbitrary_inputs() {
             for attribute in self.block().body.attributes() {
@@ -1206,6 +1353,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
@@ -1227,6 +1375,7 @@ pub trait CommandImplementation {
         _supervision_context: &RunbookSupervisionContext,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _signers_state: SignersState,
+        _auth_ctx: &AuthorizationContext,
     ) -> SignerActionsFutureResult {
         unimplemented!()
     }
@@ -1249,6 +1398,24 @@ pub trait CommandImplementation {
                 ValueStore::new(&construct_did.to_string(), &construct_did.0),
             )],
         ))
+    }
+
+    fn evaluate_pre_conditions(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        spec: &CommandSpecification,
+        values: &ValueStore,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> Result<PreConditionEvaluationResult, Diagnostic> {
+        evaluate_pre_conditions(
+            construct_did,
+            instance_name,
+            spec,
+            values,
+            progress_tx,
+            background_tasks_uuid,
+        )
     }
 
     fn prepare_nested_execution(
@@ -1296,6 +1463,26 @@ pub trait CommandImplementation {
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
+    }
+
+    fn evaluate_post_conditions(
+        construct_did: &ConstructDid,
+        instance_name: &str,
+        spec: &CommandSpecification,
+        values: &ValueStore,
+        execution_results: &mut CommandExecutionResult,
+        progress_tx: &channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+    ) -> Result<PostConditionEvaluationResult, Diagnostic> {
+        evaluate_post_conditions(
+            construct_did,
+            instance_name,
+            spec,
+            values,
+            execution_results,
+            progress_tx,
+            background_tasks_uuid,
+        )
     }
 }
 

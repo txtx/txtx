@@ -36,7 +36,7 @@ fn test_ab_c_runbook_no_env() {
 
         let start_runbook = &action_panel_data.groups[0].sub_groups[0].action_items[0];
         // assert_eq!(start_runbook.action_status, ActionItemStatus::Success(None));
-        assert_eq!(start_runbook.title.to_uppercase(), "START RUNBOOK");
+        assert_eq!(start_runbook.construct_instance_name.to_uppercase(), "START RUNBOOK");
 
         // Complete start_runbook action
         harness.send_and_expect_action_item_update(

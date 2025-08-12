@@ -9,7 +9,7 @@ use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
+    ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
@@ -137,12 +137,17 @@ impl SignerImplementation for SvmSecretKey {
             PASSWORD, SECRET_KEY,
         };
         use solana_sdk::{signature::Keypair, signer::Signer};
-        use txtx_addon_kit::crypto::secret_key_bytes_from_mnemonic;
+        use txtx_addon_kit::{constants::DESCRIPTION, crypto::secret_key_bytes_from_mnemonic};
         let mut actions = Actions::none();
 
         if signer_state.get_value(CHECKED_PUBLIC_KEY).is_some() {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
+
+        let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let markdown = values
+            .get_markdown(auth_ctx)
+            .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
 
         let secret_key_bytes = match values.get_value(SECRET_KEY) {
             None => match values.get_string(MNEMONIC) {
@@ -223,32 +228,29 @@ impl SignerImplementation for SvmSecretKey {
             (signers.clone(), signer_state.clone(), diagnosed_error!("invalid secret key: {e}"))
         })?;
 
-        let expected_address = keypair.pubkey().to_string();
-        let public_key = Value::string(keypair.pubkey().to_string());
+        let public_key_value = Value::string(keypair.pubkey().to_string());
         let secret_key = Value::buffer(secret_key_bytes);
 
         if supervision_context.review_input_values {
-            if let Ok(_) = values.get_expected_string(CHECKED_ADDRESS) {
-                signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
-                signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
+            if let Ok(_) = signer_state.get_expected_string(CHECKED_ADDRESS) {
+                signer_state.insert(CHECKED_PUBLIC_KEY, public_key_value.clone());
+                signer_state.insert(CHECKED_ADDRESS, public_key_value.clone());
                 signer_state.insert(SECRET_KEY, secret_key);
             } else {
                 actions.push_sub_group(
                     None,
-                    vec![ActionItemRequest::new(
-                        &Some(construct_did.clone()),
-                        &format!("Check {} expected address", instance_name),
-                        None,
-                        ActionItemStatus::Todo,
-                        ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
-                            .to_action_type(),
-                        ACTION_ITEM_CHECK_ADDRESS,
-                    )],
+                    vec![ReviewInputRequest::new("", &public_key_value)
+                        .to_action_type()
+                        .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
+                        .with_construct_did(construct_did)
+                        .with_some_description(description)
+                        .with_meta_description(&format!("Check {} expected address", instance_name))
+                        .with_some_markdown(markdown)],
                 );
             }
         } else {
-            signer_state.insert(CHECKED_PUBLIC_KEY, public_key.clone());
-            signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
+            signer_state.insert(CHECKED_PUBLIC_KEY, public_key_value.clone());
+            signer_state.insert(CHECKED_ADDRESS, public_key_value.clone());
             signer_state.insert(SECRET_KEY, secret_key);
         }
         let future = async move { Ok((signers, signer_state, actions)) };
@@ -276,6 +278,8 @@ impl SignerImplementation for SvmSecretKey {
         construct_did: &ConstructDid,
         title: &str,
         description: &Option<String>,
+        meta_description: &Option<String>,
+        markdown: &Option<String>,
         payload: &Value,
         _spec: &SignerSpecification,
         values: &ValueStore,
@@ -283,6 +287,7 @@ impl SignerImplementation for SvmSecretKey {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
+        auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         signer_state.insert_scoped_value(
             &construct_did.to_string(),
@@ -316,24 +321,24 @@ impl SignerImplementation for SvmSecretKey {
             let formatted_payload =
                 signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
 
-            let request = ActionItemRequest::new(
-                &Some(construct_did.clone()),
-                title,
-                description.clone(),
-                status,
-                ProvideSignedTransactionRequest::new(
-                    &signer_state.uuid,
-                    &payload,
-                    NAMESPACE,
-                    &network_id,
-                )
-                .skippable(skippable)
-                .check_expectation_action_uuid(construct_did)
-                .formatted_payload(formatted_payload)
-                .only_approval_needed()
-                .to_action_type(),
-                ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
-            );
+            let request = ProvideSignedTransactionRequest::new(
+                &signer_state.uuid,
+                &payload,
+                NAMESPACE,
+                &network_id,
+            )
+            .skippable(skippable)
+            .check_expectation_action_uuid(construct_did)
+            .formatted_payload(formatted_payload)
+            .only_approval_needed()
+            .to_action_type()
+            .to_request(title, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION)
+            .with_construct_did(construct_did)
+            .with_some_description(description.clone())
+            .with_some_meta_description(meta_description.clone())
+            .with_some_markdown(markdown.clone())
+            .with_status(status);
+
             Actions::append_item(
                 request,
                 Some("Review and sign the transactions from the list below"),
@@ -420,7 +425,8 @@ impl SignerImplementation for SvmSecretKey {
                         )
                     })?;
 
-                let mut transaction: Transaction = deployment_transaction.transaction.clone();
+                let mut transaction: Transaction =
+                    deployment_transaction.transaction.as_ref().unwrap().clone();
 
                 transaction.message.recent_blockhash = blockhash;
 

@@ -96,6 +96,7 @@ impl CommandImplementation for CheckEvmConfirmations {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
@@ -169,15 +170,14 @@ impl CommandImplementation for CheckEvmConfirmations {
             let status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
                 &construct_did,
-                &ProgressBarStatus {
-                    status_color: ProgressBarStatusColor::Green,
-                    status: format!("Confirmed"),
-                    message: format!(
+                &ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Green,
+                    "Confirmed",
+                    &format!(
                         "Contract deployment transaction already confirmed on Chain {}",
                         chain_name
                     ),
-                    diagnostic: None,
-                },
+                ),
             );
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
             return return_synchronous_result(Ok(result));
@@ -197,12 +197,11 @@ impl CommandImplementation for CheckEvmConfirmations {
             let mut status_update = ProgressBarStatusUpdate::new(
                 &background_tasks_uuid,
                 &construct_did,
-                &ProgressBarStatus {
-                    status_color: ProgressBarStatusColor::Yellow,
-                    status: format!("Pending {}", progress_symbol[progress]),
-                    message: receipt_msg.clone(),
-                    diagnostic: None,
-                },
+                &ProgressBarStatus::new_msg(
+                    ProgressBarStatusColor::Yellow,
+                    &format!("Pending {}", progress_symbol[progress]),
+                    &receipt_msg,
+                ),
             );
             let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
@@ -210,18 +209,16 @@ impl CommandImplementation for CheckEvmConfirmations {
 
             let backoff_ms = 500;
 
-            let rpc = EvmRpc::new(&rpc_api_url)
-                .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
+            let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{e}"))?;
 
             let mut included_block = u64::MAX - confirmations_required as u64;
             let mut latest_block = 0;
             let _receipt = loop {
                 progress = (progress + 1) % progress_symbol.len();
 
-                let Some(receipt) = rpc
-                    .get_receipt(&tx_hash_bytes)
-                    .await
-                    .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?
+                let Some(receipt) = rpc.get_receipt(&tx_hash_bytes).await.map_err(|e| {
+                    diagnosed_error!("failed to verify transaction {}: {}", tx_hash, e)
+                })?
                 else {
                     // loop to update our progress symbol every 500ms, but still waiting 5000ms before refetching for receipt
                     let mut count = 0;
@@ -263,8 +260,13 @@ impl CommandImplementation for CheckEvmConfirmations {
                 }
 
                 if !receipt.status() {
-                    let diag = match rpc.trace_transaction(&tx_hash_bytes).await {
-                        Ok(trace) => diagnosed_error!("transaction reverted with trace: {}", trace),
+                    let diag = match rpc.get_transaction_return_value(&tx_hash_bytes).await {
+                        Ok(return_value) => {
+                            diagnosed_error!(
+                                "transaction reverted with return value: {}",
+                                return_value
+                            )
+                        }
                         Err(_) => diagnosed_error!("transaction reverted"),
                     };
 
@@ -314,10 +316,7 @@ impl CommandImplementation for CheckEvmConfirmations {
                     let _ = progress_tx
                         .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
-                    latest_block = rpc
-                        .get_block_number()
-                        .await
-                        .map_err(|e| diagnosed_error!("command 'evm::verify_contract': {e}"))?;
+                    latest_block = rpc.get_block_number().await.unwrap_or(latest_block);
                     sleep_ms(backoff_ms);
                     continue;
                 }

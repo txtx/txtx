@@ -36,6 +36,34 @@ The `svm::send_transaction` is used to sign a transaction and broadcast it to th
   </Property>
 
 
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
 
 </Properties>
 
@@ -94,7 +122,12 @@ The `svm::process_instructions` action encodes instructions, adds them to a tran
 
 
   <Property name="instruction" required="required" type="map">
-    The instructions to add to the transaction.
+    The instructions to add to the transaction. This is a map type containing the keys:
+  - **raw_bytes**: The serialized instruction bytes. Use this field in place of the other instructions if direct instruction bytes would like to be used.
+  - **program_id**: The SVM address of the program being invoked. If omitted, the program_id will be pulled from the idl.
+  - **program_idl**: The IDL of the program being invoked.
+  - **instruction_name**: The name of the instruction being invoked.
+  - **instruction_args**: The arguments to the instruction being invoked.
   </Property>
 
 
@@ -115,6 +148,34 @@ The `svm::process_instructions` action encodes instructions, adds them to a tran
 
   <Property name="rpc_api_auth_token" required="optional" type="string">
     The HTTP authentication token to include in the headers when making API requests.
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
   </Property>
 
 
@@ -187,7 +248,11 @@ action "program_call" "svm::process_instructions" {
 
 
   <Property name="program" required="required" type="object">
-    The Solana program artifacts to deploy.
+    The Solana program artifacts to deploy. This is an object type containing the keys:
+  - **idl**: The program idl.
+  - **binary**: The program binary.
+  - **keypair**: The program keypair.
+  - **program_id**: The program id.
   </Property>
 
 
@@ -208,6 +273,34 @@ action "program_call" "svm::process_instructions" {
 
   <Property name="auto_extend" required="optional" type="bool">
     Whether to auto extend the program account for program upgrades. Defaults to `true`.
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
   </Property>
 
 
@@ -310,6 +403,34 @@ The `svm::send_sol` action encodes a transaction which sends SOL, signs it, and 
 
   <Property name="rpc_api_auth_token" required="optional" type="string">
     The HTTP authentication token to include in the headers when making API requests.
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
   </Property>
 
 
@@ -419,6 +540,34 @@ The `svm::send_token` action encodes a transaction which sends the specified tok
   </Property>
 
 
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
 
 </Properties>
 
@@ -523,7 +672,40 @@ When the request is received, the associated chain is indexed and the data is st
 
 
   <Property name="event" required="required" type="map">
-    A map of events to index in the subgraph.
+    A map of events to index in the subgraph. This is a map type containing the keys:
+  - **name**: The name of the event, as indexed by the IDL, whose occurrences should be added to the subgraph.
+  - **field**: A map of fields to index. This is a map type containing the keys:
+    - **name**: The name of the field as it should appear in the subgraph.
+    - **description**: A description of the field as it should appear in the subgraph schema.
+    - **idl_key**: A key from the event's type in the IDL, indicating which argument from the IDL type to map to this field. By default, the field name is used.
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
   </Property>
 
 
@@ -601,12 +783,61 @@ The `set_token_account` action can be used to set the amount, delegate, delegate
 
 
   <Property name="set_account" required="optional" type="map">
-    The account data to set.
+    The account data to set. This is a map type containing the keys:
+  - **public_key**: The public key of the account to set.
+  - **lamports**: The amount of lamports the account should be set to have.
+  - **data**: The data to set in the account.
+  - **owner**: The owner to set for the account.
+  - **executable**: The executability state to set for the account.
+  - **rent_epoch**: The epoch at which the account will be rent-exempt.
   </Property>
 
 
   <Property name="set_token_account" required="optional" type="map">
-    The token account data to set.
+    The token account data to set. This is a map type containing the keys:
+  - **public_key**: The public key of the token owner account to update.
+  - **token**: The token symbol or public key for the token.
+  - **token_program**: The token program id. Valid values are `token2020`, `token2022`, or a public key.
+  - **amount**: The amount of tokens to set.
+  - **delegate**: The public key of the delegate to set.
+  - **delegated_amount**: The amount of tokens to delegate.
+  - **close_authority**: The public key of the close authority to set.
+  - **state**: The state of the token account. Valid values are `initialized`, `frozen`, or `uninitialized`.
+  </Property>
+
+
+  <Property name="clone_program_account" required="optional" type="map">
+    The program clone data to set. This is a map type containing the keys:
+  - **source_program_id**: The public key of the program to clone.
+  - **destination_program_id**: The destination public key of the program.
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
   </Property>
 
 
@@ -639,6 +870,10 @@ action "setup" "svm::setup_surfnet" {
         public_key = signer.caller.public_key
         token = "usdc"
         amount = 1000000
+    }
+    clone_program_account {
+        source_program_id = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC program id
+        destination_program_id = variable.my_program_id
     }
 }
 

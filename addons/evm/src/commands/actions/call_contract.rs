@@ -211,6 +211,7 @@ impl CommandImplementation for SignEvmContractCall {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         use crate::{
             codec::get_typed_transaction_bytes,
@@ -227,8 +228,13 @@ impl CommandImplementation for SignEvmContractCall {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
+        let auth_context = auth_context.clone();
 
         let future = async move {
+            use txtx_addon_kit::constants::META_DESCRIPTION;
+
+            use crate::commands::actions::get_meta_description;
+
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
@@ -236,10 +242,19 @@ impl CommandImplementation for SignEvmContractCall {
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
-            let (transaction, transaction_cost, sim_result_raw, sim_result_with_encoding) =
-                build_unsigned_contract_call(&signer_state, &spec, &values)
-                    .await
-                    .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            let (
+                transaction,
+                transaction_cost,
+                sim_result_raw,
+                sim_result_with_encoding,
+                meta_description,
+            ) = build_unsigned_contract_call(&signer_state, &spec, &values)
+                .await
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
+            let meta_description =
+                get_meta_description(meta_description, &signer_did, &signers_instances);
+
             signer_state.insert_scoped_value(
                 &construct_did.to_string(),
                 RESULT,
@@ -258,6 +273,7 @@ impl CommandImplementation for SignEvmContractCall {
 
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload.clone());
+            values.insert(META_DESCRIPTION, Value::string(meta_description));
 
             signer_state.insert_scoped_value(
                 &construct_did.to_string(),
@@ -274,6 +290,7 @@ impl CommandImplementation for SignEvmContractCall {
                 &supervision_context,
                 &signers_instances,
                 signers,
+                &auth_context,
             );
             let (signers, signer_state, mut signing_actions) = match future_result {
                 Ok(future) => match future.await {
@@ -422,7 +439,7 @@ async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<(TransactionRequest, i128, String, Value), Diagnostic> {
+) -> Result<(TransactionRequest, i128, String, Value, String), Diagnostic> {
     use crate::{
         codec::{
             build_unsigned_transaction, value_to_abi_function_args, value_to_sol_value,
@@ -442,9 +459,11 @@ async fn build_unsigned_contract_call(
     let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
     let chain_id = values.get_expected_uint(CHAIN_ID)?;
 
-    let contract_address = values.get_expected_value(CONTRACT_ADDRESS)?;
+    let contract_address_value = values.get_expected_value(CONTRACT_ADDRESS)?;
     let contract_abi = values.get_string(CONTRACT_ABI);
     let function_name = values.get_expected_string(CONTRACT_FUNCTION_NAME)?;
+
+    let contract_address = EvmValue::to_address(contract_address_value)?;
 
     let function_args = if let Some(abi_str) = contract_abi {
         values
@@ -490,7 +509,7 @@ async fn build_unsigned_contract_call(
     };
 
     let common = CommonTransactionFields {
-        to: Some(contract_address.clone()),
+        to: Some(contract_address_value.clone()),
         from: from.clone(),
         nonce,
         chain_id,
@@ -527,7 +546,7 @@ async fn build_unsigned_contract_call(
 
     let sim_result = EvmValue::sim_result(sim_result_bytes, function_spec);
 
-    Ok((tx, cost, sim_result_raw, sim_result))
+    Ok((tx, cost, sim_result_raw, sim_result, format!("The transaction will call the `{}` function on the contract at address `{}` with the provided arguments.", function_name, contract_address)))
 }
 
 pub fn encode_contract_call_inputs_from_selector(

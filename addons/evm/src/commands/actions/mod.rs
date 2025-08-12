@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use alloy::primitives::Address;
 use check_confirmations::CHECK_CONFIRMATIONS;
+use txtx_addon_kit::types::signers::SignerInstance;
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{
     commands::PreCommandSpecification, diagnostics::Diagnostic, types::Value, ConstructDid, Did,
@@ -49,4 +52,13 @@ fn get_signer_did(args: &ValueStore) -> Result<ConstructDid, Diagnostic> {
     let signer = args.get_expected_string(SIGNER)?;
     let signer_did = ConstructDid(Did::from_hex_string(signer));
     Ok(signer_did)
+}
+
+pub fn get_meta_description(
+    description: String,
+    signer_did: &ConstructDid,
+    signers_instances: &HashMap<ConstructDid, SignerInstance>,
+) -> String {
+    let signer_instance = signers_instances.get(signer_did).expect("Signer instance not found");
+    format!("A transaction will be signed by the {} signer. {}", signer_instance.name, description)
 }

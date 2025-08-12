@@ -65,8 +65,10 @@ pub fn send_transaction_background_task(
             },
         };
 
-        let client =
-            Arc::new(RpcClient::new_with_commitment(rpc_api_url.clone(), commitment_config));
+        let client = Arc::new(RpcClient::new_with_commitment(
+            rpc_api_url.clone(),
+            commitment_config.clone(),
+        ));
 
         let mut status_updater =
             StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
@@ -76,15 +78,20 @@ pub fn send_transaction_background_task(
         let transaction_bytes = signed_transaction_value
             .get_buffer_bytes_result()
             .map_err(|e| diagnosed_error!("{}", e))?;
-        let signature = send_transaction(client.clone(), do_await_confirmation, &transaction_bytes)
-            .map_err(|diag| {
-                status_updater.propagate_status(ProgressBarStatus::new_err(
-                    "Failed",
-                    "Failed to broadcast transaction",
-                    &diag,
-                ));
-                diag
-            })?;
+        let signature = send_transaction(
+            client.clone(),
+            do_await_confirmation,
+            &transaction_bytes,
+            commitment_config.commitment,
+        )
+        .map_err(|diag| {
+            status_updater.propagate_status(ProgressBarStatus::new_err(
+                "Failed",
+                "Failed to broadcast transaction",
+                &diag,
+            ));
+            diag
+        })?;
         result.outputs.insert(SIGNATURE.into(), Value::string(signature.clone()));
 
         Ok(result)
@@ -98,6 +105,7 @@ pub fn send_transaction(
     // rpc_config: &RpcSendTransactionConfig,
     do_await_confirmation: bool,
     transaction_bytes: &Vec<u8>,
+    commitment: CommitmentLevel,
 ) -> Result<String, Diagnostic> {
     let transaction: Transaction = serde_json::from_slice(&transaction_bytes).map_err(|e| {
         diagnosed_error!("unable to deserialize transaction from bytes ({})", e.to_string())
@@ -113,7 +121,7 @@ pub fn send_transaction(
                 &transaction,
                 RpcSendTransactionConfig {
                     skip_preflight: true,
-                    preflight_commitment: None,
+                    preflight_commitment: Some(commitment),
                     encoding: None,
                     max_retries: None,
                     min_context_slot: None,

@@ -1,9 +1,9 @@
 pub mod actions;
 
+use kit::constants::DESCRIPTION;
+use kit::types::AuthorizationContext;
 use txtx_addon_kit::types::commands::return_synchronous_result;
-use txtx_addon_kit::types::frontend::{
-    ActionItemRequestType, ActionItemStatus, ProvideInputRequest,
-};
+use txtx_addon_kit::types::frontend::{ActionItemRequestType, ProvideInputRequest};
 use txtx_addon_kit::types::frontend::{
     Actions, BlockEvent, DisplayOutputRequest, ReviewInputRequest,
 };
@@ -17,7 +17,6 @@ use txtx_addon_kit::{
             CommandSpecification, PreCommandSpecification,
         },
         diagnostics::Diagnostic,
-        frontend::ActionItemRequest,
         types::Type,
         ConstructDid,
     },
@@ -63,6 +62,7 @@ impl CommandImplementation for Module {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }
@@ -149,6 +149,7 @@ impl CommandImplementation for Variable {
         spec: &CommandSpecification,
         values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
+        auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         let Some(value) = values.get_value("value") else {
             return Err(diagnosed_error!(
@@ -168,33 +169,28 @@ impl CommandImplementation for Variable {
         }
 
         let title = instance_name;
-        let description = values.get_string("description").and_then(|d| Some(d.to_string()));
+        let description = values.get_string(DESCRIPTION).and_then(|d| Some(d.to_string()));
+        let markdown = values.get_markdown(&auth_context)?;
+
         let is_editable = values.get_bool("editable").unwrap_or(false);
         let action = if is_editable {
-            let action = ActionItemRequest::new(
-                &Some(construct_did.clone()),
-                &title,
-                description,
-                ActionItemStatus::Todo,
-                ActionItemRequestType::ProvideInput(ProvideInputRequest {
-                    default_value: Some(value.to_owned()),
-                    input_name: "value".into(),
-                    typing: value.get_type(),
-                }),
-                "provide_input",
-            );
-            action
+            ActionItemRequestType::ProvideInput(ProvideInputRequest {
+                default_value: Some(value.to_owned()),
+                input_name: "value".into(),
+                typing: value.get_type(),
+            })
+            .to_request(title, "provide_input")
+            .with_some_description(description)
+            .with_construct_did(construct_did)
+            .with_some_markdown(markdown)
         } else {
             if supervision_context.review_input_values {
-                let action = ActionItemRequest::new(
-                    &Some(construct_did.clone()),
-                    &title,
-                    description,
-                    ActionItemStatus::Todo,
-                    ReviewInputRequest::new("value", &value).to_action_type(),
-                    "check_input",
-                );
-                action
+                ReviewInputRequest::new("value", &value)
+                    .to_action_type()
+                    .to_request(title, "check_input")
+                    .with_some_description(description)
+                    .with_construct_did(construct_did)
+                    .with_some_markdown(markdown)
             } else {
                 return Ok(Actions::none());
             }
@@ -276,22 +272,22 @@ impl CommandImplementation for Output {
         _spec: &CommandSpecification,
         args: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         let value = args.get_expected_value("value")?;
+        let description = args.get_string(DESCRIPTION).and_then(|d| Some(d.to_string()));
+        let markdown = args.get_markdown(&auth_context)?;
         let actions = Actions::new_sub_group_of_items(
             None,
-            vec![ActionItemRequest::new(
-                &Some(construct_did.clone()),
-                instance_name,
-                None,
-                ActionItemStatus::Todo,
-                ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
-                    name: instance_name.into(),
-                    description: None,
-                    value: value.clone(),
-                }),
-                ACTION_ITEM_CHECK_OUTPUT,
-            )],
+            vec![ActionItemRequestType::DisplayOutput(DisplayOutputRequest {
+                name: instance_name.into(),
+                description: None,
+                value: value.clone(),
+            })
+            .to_request(instance_name, ACTION_ITEM_CHECK_OUTPUT)
+            .with_construct_did(construct_did)
+            .with_some_description(description)
+            .with_some_markdown(markdown)],
         );
         Ok(actions)
     }
@@ -355,6 +351,7 @@ impl CommandImplementation for Runtime {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         unimplemented!()
     }

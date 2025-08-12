@@ -9,11 +9,12 @@ use txtx_addon_kit::{
     types::{diagnostics::Diagnostic, types::Value},
 };
 
-use crate::typing::EvmValue;
+use crate::{codec::foundry::BytecodeData, typing::EvmValue};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CompiledContractArtifacts {
-    pub bytecode: String,
+    pub bytecode: BytecodeData,
+    pub deployed_bytecode: Option<BytecodeData>,
     pub abi: Option<JsonAbi>,
     pub source: Option<String>,
     pub contract_name: Option<String>,
@@ -27,9 +28,9 @@ pub struct CompiledContractArtifacts {
 }
 
 impl CompiledContractArtifacts {
-    pub fn new(bytecode: &str) -> Self {
+    pub fn new(bytecode: &BytecodeData) -> Self {
         let mut default = CompiledContractArtifacts::default();
-        default.bytecode = bytecode.to_string();
+        default.bytecode = bytecode.clone();
         default
     }
 
@@ -52,12 +53,15 @@ impl CompiledContractArtifacts {
     }
 
     pub fn from_map(object: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
-        let Some(bytecode) = object.get("bytecode") else {
-            return Err(diagnosed_error!(
-                "compiled contract artifacts missing required 'bytecode' key"
-            ));
-        };
-        let mut artifacts = CompiledContractArtifacts::new(&bytecode.expect_string());
+        let bytecode = object
+            .get("bytecode")
+            .map(EvmValue::to_foundry_bytecode_data)
+            .transpose()?
+            .ok_or_else(|| {
+                diagnosed_error!("compiled contract artifacts missing required 'bytecode' key")
+            })?;
+
+        let mut artifacts = CompiledContractArtifacts::new(&bytecode);
 
         artifacts.abi = object
             .get("abi")
@@ -88,6 +92,9 @@ impl CompiledContractArtifacts {
         artifacts.contract_target_path = object
             .get("contract_target_path")
             .and_then(|v| v.as_string().and_then(|s| Some(s.to_string())));
+
+        artifacts.deployed_bytecode =
+            object.get("deployed_bytecode").map(EvmValue::to_foundry_bytecode_data).transpose()?;
 
         artifacts.foundry_config = match object.get("foundry_config") {
             Some(Value::Buffer(config)) => {

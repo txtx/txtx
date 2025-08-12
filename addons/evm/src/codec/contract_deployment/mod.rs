@@ -1,12 +1,13 @@
 use alloy::{
     dyn_abi::{DynSolValue, JsonAbiExt},
     json_abi::JsonAbi,
-    primitives::Address,
+    primitives::{keccak256, Address},
 };
 use alloy_rpc_types::TransactionRequest;
-use txtx_addon_kit::{indexmap::IndexMap, types::types::Value};
+use txtx_addon_kit::{hex, indexmap::IndexMap, types::types::Value};
 
 use crate::{
+    codec::foundry::BytecodeData,
     commands::actions::get_expected_address,
     constants::{ERC_1967_PROXY_ABI_VALUE, PROXY_FACTORY_ABI_VALUE, PROXY_FACTORY_ADDRESS},
     typing::EvmValue,
@@ -16,11 +17,72 @@ pub mod compiled_artifacts;
 pub mod create_opts;
 pub mod proxy_opts;
 
+/// Computes the Solidity library linking placeholder given a contract path and name.
+/// Example: `__$<34_hex_chars>$__`
+pub fn compute_solidity_link_placeholder(contract_filepath: &str, contract_name: &str) -> String {
+    // Fully qualified name used by solc: "<relative_path>:<contract_name>"
+    let fully_qualified_name = format!("{contract_filepath}:{contract_name}");
+
+    // Hash it using Keccak-256
+    let hash = keccak256(fully_qualified_name.as_bytes());
+
+    // Take the first 17 bytes (34 hex chars)
+    let hash_hex = hex::encode(&hash[..17]);
+
+    // Wrap it with __$ and $__
+    format!("__${}$__", hash_hex)
+}
+
 pub fn create_init_code(
-    bytecode: String,
+    bytecode_data: BytecodeData,
     constructor_args: Option<Vec<DynSolValue>>,
     json_abi: &Option<JsonAbi>,
+    linked_references: Option<IndexMap<String, Address>>,
 ) -> Result<Vec<u8>, String> {
+    let contract_linked_references = bytecode_data.link_references;
+    let bytecode = if !contract_linked_references.is_empty() {
+        let Some(linked_references) = linked_references else {
+            return Err(format!(
+                "contract uses linked libraries, but no linked library references were provided. deploy the libraries (or find their address if already deployed), and link them using the 'linked_libraries' input; unlinked libraries: {}",
+                contract_linked_references.iter().flat_map(|(k, entry)| {
+                    entry.iter().map(|(name, _)| format!("'{}:{}'", k, name)).collect::<Vec<_>>()
+                }).collect::<Vec<_>>().join(",")
+            ));
+        };
+
+        let mut missing_links = vec![];
+        let mut bytecode = bytecode_data.object;
+        for (contract_filepath, entry) in contract_linked_references.iter() {
+            for (compiled_contract_name, _) in entry.iter() {
+                let mut found_match = false;
+                for (contract_name, contract_address) in linked_references.iter() {
+                    if contract_name.eq(compiled_contract_name) {
+                        found_match = true;
+                        let placeholder =
+                            compute_solidity_link_placeholder(&contract_filepath, &contract_name);
+                        bytecode = bytecode
+                            .replace(&placeholder, &contract_address.to_string().split_off(2));
+                    }
+                }
+                if !found_match {
+                    missing_links
+                        .push(format!("'{}:{}'", contract_filepath, compiled_contract_name));
+                }
+            }
+        }
+
+        if !missing_links.is_empty() {
+            return Err(format!(
+                "contract uses linked libraries, and some linked libraries are missing; deploy the libraries (or find their address if already deployed), and link them using the 'linked_libraries' input; unlinked libraries: {}",
+                missing_links.join(",")
+            ));
+        }
+
+        bytecode
+    } else {
+        bytecode_data.object
+    };
+
     let mut init_code = alloy::hex::decode(bytecode)
         .map_err(|e| format!("invalid contract bytecode: {}", e.to_string()))?;
     if let Some(constructor_args) = constructor_args {

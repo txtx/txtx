@@ -132,6 +132,7 @@ impl CommandImplementation for SendSol {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         let signer_did = get_signer_did(args).unwrap();
         let signer_state = signers.get_signer_state(&signer_did).unwrap();
@@ -188,6 +189,7 @@ impl CommandImplementation for SendSol {
             supervision_context,
             signers_instances,
             signers,
+            auth_context,
         );
         Ok(Box::pin(future::ready(res)))
     }

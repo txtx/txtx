@@ -96,6 +96,34 @@ The `evm::call_contract` action encodes a contract call transaction, signs it wi
   </Property>
 
 
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
 
 </Properties>
 
@@ -248,6 +276,34 @@ The `evm::eth_call` command simulates an Ethereum transaction using the `eth_cal
   </Property>
 
 
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
 
 </Properties>
 
@@ -325,6 +381,34 @@ The `evm::check_confirmations` action polls the network until the provided `tx_h
   </Property>
 
 
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
 
 </Properties>
 
@@ -396,6 +480,34 @@ The `evm::sign_transaction` command signs an EVM transaction.
 
   <Property name="signer" required="required" type="string">
     A reference to a signer construct, which will be used to sign the transaction payload.
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
   </Property>
 
 
@@ -520,6 +632,34 @@ The `evm::send_eth` is coming soon.
   </Property>
 
 
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
 
 </Properties>
 
@@ -597,12 +737,23 @@ The `evm::deploy_contract` is coming soon.
     The contract to deploy. At a minimum, this should be an object with a key `bytecode` and the contract bytecode.
 The abi field can also be provided to add type checking for the constructor arguments.
 The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat_project` functions can be used to retrieve the contract object.
-
+ This is an object type containing the keys:
+  - **abi**: The contract abi.
+  - **bytecode**: The compiled contract bytecode.
+  - **source**: The contract source code.
+  - **compiler_version**: The solc version used to compile the contract.
+  - **contract_name**: The name of the contract being deployed.
+  - **optimizer_enabled**: Whether the optimizer is enabled during contract compilation.
+  - **optimizer_runs**: The number of runs the optimizer performed.
+  - **evm_version**: The EVM version used to compile the contract.
+  - **via_ir**: Coming soon
   </Property>
 
 
   <Property name="initializer" required="optional" type="map">
-    An optional array of initializer functions + arguments to call on the contract that is deployed to the proxy contract.
+    An optional array of initializer functions + arguments to call on the contract that is deployed to the proxy contract. This is a map type containing the keys:
+  - **function_name**: The name of the initializer function to call.
+  - **function_args**: The arguments to pass to the initializer function.
   </Property>
 
 
@@ -617,7 +768,12 @@ The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat
 
 
   <Property name="create2" required="optional" type="map">
-    Options for deploying the contract with the CREATE2 opcode, overwriting txtx default options.
+    Options for deploying the contract with the CREATE2 opcode, overwriting txtx default options. This is a map type containing the keys:
+  - **salt**: The salt value used to calculate the contract address. This value must be a 32-byte hex string.
+  - **factory_address**: To deploy the contract with an alternative factory, provide the address of the factory contract.
+  - **factory_abi**: The ABI of the alternative create2 factory contract, optionally used to check input arguments before sending the transaction to the chain.
+  - **factory_function_name**: If an alternative create2 factory is used, the name of the function to call.
+  - **factory_function_args**: If an alternative create2 factory is used, the arguments to pass to the function.
   </Property>
 
 
@@ -627,7 +783,14 @@ The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat
 
 
   <Property name="proxy" required="optional" type="map">
-    Options for deploying the contract via a proxy contract, overwriting txtx default options.
+    Options for deploying the contract via a proxy contract, overwriting txtx default options. This is a map type containing the keys:
+  - **create_opcode**: The create opcode to use for deployment. Options are 'create' and 'create2'. The default is 'create2'.
+  - **create2**: Options for deploying the contract with the CREATE2 opcode, overwriting txtx default options. This is a map type containing the keys:
+    - **salt**: The salt value used to calculate the contract address. This value must be a 32-byte hex string.
+    - **factory_address**: To deploy the contract with an alternative factory, provide the address of the factory contract.
+    - **factory_abi**: The ABI of the alternative create2 factory contract, optionally used to check input arguments before sending the transaction to the chain.
+    - **factory_function_name**: If an alternative create2 factory is used, the name of the function to call.
+    - **factory_function_args**: If an alternative create2 factory is used, the arguments to pass to the function.
   </Property>
 
 
@@ -682,7 +845,40 @@ The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat
 
 
   <Property name="verifier" required="optional" type="map">
-    Specifies the verifier options for contract verifications.
+    Specifies the verifier options for contract verifications. This is a map type containing the keys:
+  - **provider_api_url**: The verification provider API url.
+  - **provider_url**: The verification provider url, used to display a link to the verified contract.
+  - **provider**: The provider to use for contract verification; either 'etherscan', 'blockscout', or 'sourcify'.
+  - **api_key**: The verification provider API key.
+  - **throw_on_error**: Dictates if the verification process should throw an error if the contract is not verified. The default is `false`.
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
   </Property>
 
 

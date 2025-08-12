@@ -1,3 +1,4 @@
+pub mod assertions;
 pub mod base58;
 pub mod base64;
 pub mod crypto;
@@ -35,6 +36,7 @@ lazy_static! {
         functions.extend(hash::FUNCTIONS.clone());
         functions.extend(hex::FUNCTIONS.clone());
         functions.extend(base58::FUNCTIONS.clone());
+        functions.extend(assertions::FUNCTIONS.clone());
         functions
     };
 }

@@ -65,17 +65,13 @@ use types::Runbook;
 
 lazy_static! {
     // create this action so we can reference its `id` property, which is built from the immutable data
-     pub static ref SET_ENV_ACTION: ActionItemRequest = ActionItemRequest ::new(
-        &None,
-        "Select the environment to target",
-        None,
-        ActionItemStatus::Success(None),
-        ActionItemRequestType::PickInputOption(PickInputOptionRequest {
+     pub static ref SET_ENV_ACTION: ActionItemRequest =ActionItemRequestType::PickInputOption(PickInputOptionRequest {
             options: vec![],
             selected: InputOption::default(),
-        }),
-        ACTION_ITEM_ENV,
-      );
+        }).to_request("", ACTION_ITEM_ENV)
+        .with_meta_description("Select the environment to target")
+        .with_status(ActionItemStatus::Success(None))
+      ;
 }
 
 pub async fn start_unsupervised_runbook_runloop(
@@ -147,6 +143,7 @@ pub async fn start_unsupervised_runbook_runloop(
 
             if !pass_results.actions.has_pending_actions()
                 && background_tasks_contructs_dids.is_empty()
+                && pass_results.nodes_to_re_execute.is_empty()
             {
                 runbook_completed = true;
             }
@@ -352,18 +349,29 @@ pub async fn start_supervised_runbook_runloop(
                     // if there were errors, return them to complete execution
                     if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                         let _ = block_tx.send(BlockEvent::Error(error_event));
+                        set_progress_bar_visibility(
+                            &block_tx,
+                            &background_tasks_handle_uuid,
+                            false,
+                        );
                         return Err(pass_results.with_spans_filled(&runbook.sources));
                     }
 
                     let pass_has_pending_bg_tasks =
                         !pass_results.pending_background_tasks_constructs_uuids.is_empty();
                     let pass_has_pending_actions = pass_results.actions.has_pending_actions();
+                    let pass_has_nodes_to_re_execute = !pass_results.nodes_to_re_execute.is_empty();
 
-                    if !pass_has_pending_actions && !pass_has_pending_bg_tasks {
+                    if !pass_has_pending_actions
+                        && !pass_has_pending_bg_tasks
+                        && !pass_has_nodes_to_re_execute
+                    {
                         let flow_context =
                             runbook.flow_contexts.get_mut(current_flow_index).unwrap();
                         let grouped_actions_items =
-                            flow_context.execution_context.collect_outputs_constructs_results();
+                            flow_context.execution_context.collect_outputs_constructs_results(
+                                &runbook.runtime_context.authorization_context,
+                            );
                         let mut actions = Actions::new_panel("output review", "");
                         for (key, action_items) in grouped_actions_items.into_iter() {
                             actions.push_group(key.as_str(), action_items);
@@ -375,16 +383,10 @@ pub async fn start_supervised_runbook_runloop(
                         validated_blocks = validated_blocks + 1;
                         pass_results.actions.push_sub_group(
                             None,
-                            vec![ActionItemRequest::new(
-                                &None,
-                                "Validate",
-                                None,
-                                ActionItemStatus::Todo,
-                                ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
-                                    validated_blocks,
-                                )),
-                                ACTION_ITEM_VALIDATE_BLOCK,
-                            )],
+                            vec![ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
+                                validated_blocks,
+                            ))
+                            .to_request("Validate", ACTION_ITEM_VALIDATE_BLOCK)],
                         );
                     }
 
@@ -426,7 +428,10 @@ pub async fn start_supervised_runbook_runloop(
                             current_flow_index += 1;
                         }
                     }
-                    if !pass_has_pending_bg_tasks && !start_of_loop_had_bg_tasks {
+                    if !pass_has_pending_bg_tasks
+                        && !start_of_loop_had_bg_tasks
+                        && !pass_has_nodes_to_re_execute
+                    {
                         set_progress_bar_visibility(
                             &block_tx,
                             &background_tasks_handle_uuid,
@@ -695,17 +700,15 @@ pub async fn build_genesis_panel(
                 let k = environments.iter().next().unwrap();
                 InputOption { value: k.clone(), displayed_value: k.clone() }
             });
-        let action_request = ActionItemRequest::new(
-            &None,
-            "Select the environment to target",
-            None,
-            ActionItemStatus::Success(None),
-            ActionItemRequestType::PickInputOption(PickInputOptionRequest {
-                options: input_options,
-                selected: selected_option,
-            }),
-            ACTION_ITEM_ENV,
-        );
+
+        let action_request = ActionItemRequestType::PickInputOption(PickInputOptionRequest {
+            options: input_options,
+            selected: selected_option,
+        })
+        .to_request("", ACTION_ITEM_ENV)
+        .with_meta_description("Select the environment to target")
+        .with_status(ActionItemStatus::Success(None));
+
         actions.push_sub_group(None, vec![action_request]);
     }
 
@@ -726,14 +729,10 @@ pub async fn build_genesis_panel(
 
     actions.append(&mut pass_result.actions);
 
-    let validate_action = ActionItemRequest::new(
-        &None,
-        "start runbook".into(),
-        None,
-        ActionItemStatus::Todo,
-        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(validated_blocks)),
-        ACTION_ITEM_GENESIS,
-    );
+    let validate_action =
+        ActionItemRequestType::ValidateBlock(ValidateBlockData::new(validated_blocks))
+            .to_request("start runbook", ACTION_ITEM_GENESIS);
+
     actions.push_sub_group(None, vec![validate_action]);
 
     register_action_items_from_actions(&actions, action_item_requests);

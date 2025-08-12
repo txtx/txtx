@@ -171,6 +171,7 @@ impl ProxiedCreationOpts {
                 DynSolValue::Bytes(vec![]),
             ]),
             &Some(ERC1967_PROXY_ABI.clone()),
+            None,
         )
         .map_err(|e| format!("failed to calculate deployed proxy contract address: {e}"))?;
         generate_create2_address(

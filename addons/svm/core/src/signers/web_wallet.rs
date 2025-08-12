@@ -8,8 +8,7 @@ use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemRequestUpdate, ActionItemStatus, Actions, BlockEvent,
-    ProvideSignedTransactionRequest,
+    ActionItemRequestUpdate, ActionItemStatus, Actions, BlockEvent, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
@@ -18,12 +17,12 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_kit::types::{AuthorizationContext, ConstructDid};
 
 use crate::codec::{transaction_is_fully_signed, DeploymentTransaction};
 use crate::constants::{
@@ -56,7 +55,7 @@ lazy_static! {
                 ],
                 outputs: [
                     address: {
-                        documentation: "The address of the account.",
+                        documentation: "The address of the account. This is an alias for the `public_key` output.",
                         typing: Type::string()
                     },
                     public_key: {
@@ -95,17 +94,18 @@ impl SignerImplementation for SvmWebWallet {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
-        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
-        is_balance_check_required: bool,
-        is_public_key_required: bool,
+        auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
+        _is_balance_check_required: bool,
+        _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
         use crate::{codec::public_key_from_str, constants::NETWORK_ID};
         use txtx_addon_kit::constants::{
-            ACTION_ITEM_CHECK_BALANCE, IS_BALANCE_CHECKED, PROVIDE_PUBLIC_KEY_ACTION_RESULT,
+            ACTION_ITEM_CHECK_BALANCE, DESCRIPTION, IS_BALANCE_CHECKED,
+            PROVIDE_PUBLIC_KEY_ACTION_RESULT,
         };
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
-        let is_balance_checked = values.get_bool(IS_BALANCE_CHECKED);
+        let is_balance_checked = signer_state.get_bool(IS_BALANCE_CHECKED);
 
         let values = values.clone();
         let expected_address = values
@@ -115,10 +115,10 @@ impl SignerImplementation for SvmWebWallet {
             })
             .transpose()?;
         let mut do_request_address_check = expected_address.is_some();
-        let mut do_request_public_key = is_public_key_required;
+        let mut do_request_public_key = true;
 
         let _is_nonce_required = true;
-        let do_request_balance = is_balance_check_required;
+        let do_request_balance = true;
 
         let instance_name = instance_name.to_string();
         let signer_did = construct_did.clone();
@@ -126,6 +126,10 @@ impl SignerImplementation for SvmWebWallet {
             .get_expected_string(RPC_API_URL)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
+        let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let markdown = values
+            .get_markdown(auth_ctx)
+            .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
 
         let network_id = values
             .get_expected_string(NETWORK_ID)
@@ -135,6 +139,7 @@ impl SignerImplementation for SvmWebWallet {
         let (mut actions, connected_public_key) = if let Ok(public_key_bytes) =
             values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
         {
+            println!("Found connected public key: {}", public_key_bytes);
             let sol_address = public_key_from_str(&public_key_bytes)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
@@ -159,6 +164,7 @@ impl SignerImplementation for SvmWebWallet {
                 }
             }
             if success {
+                println!("Successfully connected to address: {}", sol_address);
                 signer_state.insert(CHECKED_PUBLIC_KEY, Value::string(sol_address.to_string()));
                 signer_state.insert(CHECKED_ADDRESS, Value::string(sol_address.to_string()));
                 do_request_address_check = false;
@@ -167,10 +173,12 @@ impl SignerImplementation for SvmWebWallet {
             let update =
                 ActionItemRequestUpdate::from_context(&signer_did, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
                     .set_status(status_update);
+            println!("Updating public key action item: {:?}", update);
             actions.push_action_item_update(update);
 
             (actions, Some(sol_address))
         } else if let Ok(checked_public_key) = checked_public_key {
+            println!("Found checked public key: {}", checked_public_key);
             let sol_address = public_key_from_str(&checked_public_key)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
             signer_state.insert(CHECKED_PUBLIC_KEY, Value::string(sol_address.to_string()));
@@ -180,6 +188,7 @@ impl SignerImplementation for SvmWebWallet {
             (Actions::none(), None)
         };
 
+        println!("Payer is balance checked: {:?}", is_balance_checked);
         match is_balance_checked {
             Some(true) => {
                 actions.push_action_item_update(
@@ -202,6 +211,8 @@ impl SignerImplementation for SvmWebWallet {
                 &connected_public_key,
                 &signer_did,
                 &instance_name,
+                description,
+                markdown,
                 &network_id,
                 &rpc_api_url,
                 do_request_public_key,
@@ -221,6 +232,8 @@ impl SignerImplementation for SvmWebWallet {
                     "Review and check the following signer related action items",
                     action_items,
                 );
+            } else {
+                println!("No additional actions to perform for the SVM Web Wallet signer.");
             }
 
             Ok((signers, signer_state, actions))
@@ -244,6 +257,7 @@ impl SignerImplementation for SvmWebWallet {
         let address = signer_state
             .get_expected_value(CHECKED_ADDRESS)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+        println!("Web wallet signer activated for address: {:?}", address);
         result.outputs.insert(ADDRESS.into(), address.clone());
         result.outputs.insert(PUBLIC_KEY.into(), public_key.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
@@ -253,6 +267,8 @@ impl SignerImplementation for SvmWebWallet {
         construct_did: &ConstructDid,
         title: &str,
         description: &Option<String>,
+        meta_description: &Option<String>,
+        markdown: &Option<String>,
         payload: &Value,
         _spec: &SignerSpecification,
         values: &ValueStore,
@@ -260,6 +276,7 @@ impl SignerImplementation for SvmWebWallet {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
+        auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let construct_did_str = &construct_did.to_string();
         signer_state.insert_scoped_value(&construct_did_str, TRANSACTION_BYTES, payload.clone());
@@ -291,24 +308,24 @@ impl SignerImplementation for SvmWebWallet {
         let formatted_payload =
             signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
 
-        let request = ActionItemRequest::new(
-            &Some(construct_did.clone()),
-            title,
-            description.clone(),
-            status,
-            ProvideSignedTransactionRequest::new(
-                &signer_state.uuid,
-                &payload,
-                NAMESPACE,
-                &network_id,
-            )
-            .skippable(skippable)
-            .expected_signer_address(expected_signer_address)
-            .check_expectation_action_uuid(construct_did)
-            .formatted_payload(formatted_payload)
-            .to_action_type(),
-            ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION,
-        );
+        let request = ProvideSignedTransactionRequest::new(
+            &signer_state.uuid,
+            &payload,
+            NAMESPACE,
+            &network_id,
+        )
+        .skippable(skippable)
+        .expected_signer_address(expected_signer_address)
+        .check_expectation_action_uuid(construct_did)
+        .formatted_payload(formatted_payload)
+        .to_action_type()
+        .to_request(title, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION)
+        .with_construct_did(construct_did)
+        .with_some_description(description.clone())
+        .with_some_meta_description(meta_description.clone())
+        .with_some_markdown(markdown.clone())
+        .with_status(status);
+
         Ok((
             signers,
             signer_state,
@@ -405,7 +422,7 @@ impl SignerImplementation for SvmWebWallet {
                 did_update_transaction = true;
                 supervisor_signed_tx.clone()
             } else {
-                deployment_transaction.transaction.clone()
+                deployment_transaction.transaction.as_ref().unwrap().clone()
             };
             transaction.message.recent_blockhash = blockhash;
 

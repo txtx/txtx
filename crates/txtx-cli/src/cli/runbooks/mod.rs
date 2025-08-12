@@ -13,7 +13,8 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
-use txtx_cloud::{auth::AuthConfig, router::TxtxAuthenticatedCloudServiceRouter};
+use txtx_cloud::router::TxtxAuthenticatedCloudServiceRouter;
+use txtx_core::templates::{build_manifest_data, build_runbook_data};
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     mustache,
@@ -46,11 +47,7 @@ use txtx_core::{
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
-use txtx_core::{
-    runbook::flow_context::FlowContext,
-    templates::{build_manifest_data, build_runbook_data},
-};
-use txtx_gql::kit::types::cloud_interface::CloudServiceContext;
+use txtx_gql::kit::types::{cloud_interface::CloudServiceContext, types::AddonJsonConverter};
 
 #[cfg(feature = "supervisor_ui")]
 use actix_web::dev::ServerHandle;
@@ -399,7 +396,16 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
         println!(
             "{:<35}\t{}",
             runbook.name,
-            yellow!(format!("{}", runbook.description.unwrap_or("".into())))
+            yellow!(format!(
+                "{}",
+                runbook
+                    .description
+                    .unwrap_or("".into())
+                    .split("\n")
+                    .collect::<Vec<_>>()
+                    .first()
+                    .unwrap()
+            ))
         );
     }
     Ok(())
@@ -495,9 +501,6 @@ pub async fn handle_run_command(
             (runbook_name, runbook, None)
         }
     };
-
-    // Confirm that if the runbook is using cloud services, the user is authenticated
-    check_cloud_service_eligibility(runbook.flow_contexts.first().expect("no flow found"))?;
 
     let previous_state_opt = if let Some(state_file_location) = runbook_state_location.clone() {
         match state_file_location.load_execution_snapshot(
@@ -645,35 +648,34 @@ pub async fn handle_run_command(
                                     yellow!("→"),
                                     yellow!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
-                                    if update.new_status.status.starts_with("Pending") {
-                                        ""
-                                    } else {
-                                        "\n"
-                                    }
+                                    if update.new_status.newline { "\n" } else { "" }
                                 );
                             }
                             ProgressBarStatusColor::Green => {
                                 print!(
-                                    "\r{} {} {:<150}\n",
+                                    "\r{} {} {:<150}{}",
                                     green!("✓"),
                                     green!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
+                                    if update.new_status.newline { "\n" } else { "" }
                                 );
                             }
                             ProgressBarStatusColor::Red => {
                                 print!(
-                                    "\r{} {} {:<150}\n",
+                                    "\r{} {} {:<150}{}",
                                     red!("x"),
                                     red!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
+                                    if update.new_status.newline { "\n" } else { "" }
                                 );
                             }
                             ProgressBarStatusColor::Purple => {
                                 print!(
-                                    "\r{} {} {:<150}\n",
+                                    "\r{} {} {:<150}{}",
                                     purple!("→"),
                                     purple!(format!("{}", update.new_status.status)),
                                     update.new_status.message,
+                                    if update.new_status.newline { "\n" } else { "" }
                                 );
                             }
                         };
@@ -1022,6 +1024,16 @@ fn process_runbook_execution_output(
     } else {
         let runbook_outputs = runbook.collect_formatted_outputs();
 
+        let converters = runbook
+            .runtime_context
+            .addons_context
+            .registered_addons
+            .values()
+            .map(|(addon, _)| {
+                Box::new(move |value: &Value| addon.to_json(value)) as AddonJsonConverter
+            })
+            .collect::<Vec<_>>();
+
         if !runbook_outputs.is_empty() {
             if let Some(some_output_loc) = output_json {
                 if let Some(output_loc) = some_output_loc {
@@ -1031,6 +1043,7 @@ fn process_runbook_execution_output(
                         &runbook.runtime_context.authorization_context.workspace_location,
                         &runbook.runbook_id.name,
                         &runbook.top_level_inputs_map.current_top_level_input_name(),
+                        &converters,
                     ) {
                         Ok(output_location) => {
                             println!(
@@ -1046,7 +1059,8 @@ fn process_runbook_execution_output(
                 } else {
                     println!(
                         "{}",
-                        serde_json::to_string_pretty(&runbook_outputs.to_json()).unwrap()
+                        serde_json::to_string_pretty(&runbook_outputs.to_json(&converters))
+                            .unwrap()
                     );
                 }
             } else {
@@ -1068,21 +1082,5 @@ fn process_runbook_execution_output(
                 println!("{} Failed to write runbook state: {}", red!("x"), e);
             }
         };
-    }
-}
-
-fn check_cloud_service_eligibility(flow_context: &FlowContext) -> Result<(), String> {
-    let implements_cloud_svc =
-        flow_context.execution_context.get_commands_implementing_cloud_service();
-
-    if implements_cloud_svc.is_empty() {
-        return Ok(());
-    }
-
-    match AuthConfig::read_from_system_config() {
-        Ok(Some(_)) => Ok(()),
-        _ => {
-            return Err(format!("Runbook contains cloud service actions, but you are not authenticated.\nRun the command `txtx cloud login` to log in."));
-        }
     }
 }

@@ -3,6 +3,7 @@ pub const SIGNERS: &str = "signers";
 pub const SIGNER: &str = "signer";
 pub const PAYER: &str = "payer";
 pub const AUTHORITY: &str = "authority";
+pub const OWNER: &str = "owner";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0/0";
 pub const DEFAULT_ANCHOR_TARGET_PATH: &str = "target";
@@ -57,9 +58,13 @@ pub const IS_FUNDING_RECIPIENT: &str = "is_funding_recipient";
 pub const SET_ACCOUNT: &str = "set_account";
 pub const SET_TOKEN_ACCOUNT: &str = "set_token_account";
 pub const CLONE_PROGRAM_ACCOUNT: &str = "clone_program_account";
+pub const SET_PROGRAM_AUTHORITY: &str = "set_program_authority";
+pub const INSTANT_SURFNET_DEPLOYMENT: &str = "instant_surfnet_deployment";
+pub const IS_SURFNET: &str = "is_surfnet";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
+pub const SLOT: &str = "slot";
 pub const EVENT: &str = "event";
 pub const SUBGRAPH_NAME: &str = "subgraph_name";
 pub const SUBGRAPH_REQUEST: &str = "subgraph_request";
@@ -75,6 +80,5 @@ pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transac
 pub const ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION: &str = "provide_signed_squad_transaction";
 
 // Subgraph endpoints
-pub const MAINNET_SUBGRAPH_ENDPOINT: &str =
-    "http://127.0.0.1:9000/lambda-url/svm-subgraph-crud-api/subgraphs";
-pub const DEVNET_SUBGRAPH_ENDPOINT: &str = "http://localhost:3000";
+pub const MAINNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";
+pub const DEVNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";

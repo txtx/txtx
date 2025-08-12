@@ -13,7 +13,7 @@ use txtx_addon_network_svm::SvmNetworkAddon;
 use txtx_addon_telegram::TelegramAddon;
 use txtx_core::kit::helpers::fs::FileLocation;
 use txtx_core::kit::indexmap::IndexMap;
-use txtx_core::kit::types::commands::{CommandInput, CommandOutput, PreCommandSpecification};
+use txtx_core::kit::types::commands::{CommandOutput, PreCommandSpecification};
 use txtx_core::kit::types::functions::FunctionSpecification;
 use txtx_core::kit::{
     Addon, DEFAULT_ADDON_ACTIONS_TEMPLATE, DEFAULT_ADDON_FUNCTIONS_TEMPLATE,
@@ -21,8 +21,11 @@ use txtx_core::kit::{
 };
 use txtx_core::mustache;
 use txtx_core::std::commands::actions::http;
-use txtx_core::std::functions::{base64, crypto, hash, hex, json, list, operators};
+use txtx_core::std::functions::{assertions, base64, crypto, hash, hex, json, list, operators};
 use txtx_core::std::StdAddon;
+use txtx_gql::kit::types::commands::{PostConditionEvaluatableInput, PreConditionEvaluatableInput};
+use txtx_gql::kit::types::types::Type;
+use txtx_gql::kit::types::EvaluatableInput;
 
 pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Result<(), String> {
     let std: Box<dyn Addon> = Box::new(StdAddon::new());
@@ -107,13 +110,15 @@ pub fn generate_std_mdx(addon: &Box<dyn Addon>, addon_path: PathBuf) {
             ("list", "List", list::LIST_FUNCTIONS.clone()),
             ("base64", "Base64", base64::FUNCTIONS.clone()),
             ("hash", "Hash", hash::FUNCTIONS.clone()),
+            ("assertions", "Assertions", assertions::FUNCTIONS.clone()),
         ];
         for (path, title, fns) in map.into_iter() {
             let mut page_path = addon_path.clone();
             page_path.push("functions");
             page_path.push(path);
             page_path.push("page.mdx");
-            let mut doc_file = File::create(page_path).expect("creation failed");
+            let mut doc_file = File::create(&page_path)
+                .expect(format!("creation failed for {}", page_path.display()).as_str());
             let doc_data = build_addon_function_group_doc_data(&addon, title, fns);
             let template = mustache::compile_str(&DEFAULT_ADDON_FUNCTIONS_TEMPLATE)
                 .expect("Failed to compile template");
@@ -276,21 +281,39 @@ pub fn display_documentation(addons: &Vec<&Box<dyn Addon>>) {
     }
 }
 
-fn insert_inputs_from_spec(
-    input_spec: &CommandInput,
+fn insert_inputs_from_evaluatable_input(
+    evaluatable_input: &dyn EvaluatableInput,
     input_builder: mustache::MapBuilder,
 ) -> mustache::MapBuilder {
+    let input_docs = match &evaluatable_input.typing() {
+        Type::Object(object_definition) => {
+            format!(
+                "{} This is an object type containing the keys:\n{}",
+                evaluatable_input.documentation(),
+                object_definition.join_documentation(0)
+            )
+        }
+        Type::Map(object_definition) => {
+            format!(
+                "{} This is a map type containing the keys:\n{}",
+                evaluatable_input.documentation(),
+                object_definition.join_documentation(0)
+            )
+        }
+        _ => evaluatable_input.documentation().clone(),
+    };
+
     input_builder
-        .insert_str("name", &input_spec.name)
+        .insert_str("name", &evaluatable_input.name())
         .insert_str(
             "requirementStatus",
-            match input_spec.optional {
+            match evaluatable_input.optional() {
                 true => "optional",
                 false => "required",
             },
         )
-        .insert_str("documentation", &input_spec.documentation)
-        .insert_str("type", &input_spec.typing.to_string())
+        .insert_str("documentation", &input_docs)
+        .insert_str("type", &evaluatable_input.typing().to_string())
 }
 
 fn insert_outputs_from_spec(
@@ -319,9 +342,23 @@ fn insert_data_from_spec(
                 .insert_vec("inputs", |mut inputs_builder| {
                     for input_spec in spec.inputs.iter() {
                         inputs_builder = inputs_builder.push_map(|input_builder| {
-                            insert_inputs_from_spec(&input_spec, input_builder)
+                            insert_inputs_from_evaluatable_input(input_spec, input_builder)
                         });
                     }
+
+                    inputs_builder = inputs_builder.push_map(|input_builder| {
+                        insert_inputs_from_evaluatable_input(
+                            &PreConditionEvaluatableInput::new(),
+                            input_builder,
+                        )
+                    });
+                    inputs_builder = inputs_builder.push_map(|input_builder| {
+                        insert_inputs_from_evaluatable_input(
+                            &PostConditionEvaluatableInput::new(),
+                            input_builder,
+                        )
+                    });
+
                     inputs_builder
                 })
                 .insert_vec("outputs", |mut outputs_builder| {
@@ -345,16 +382,28 @@ fn insert_data_from_spec(
                     let inputs_spec = spec.parts.first().unwrap().expect_atomic_specification();
                     for input_spec in inputs_spec.inputs.iter() {
                         inputs_builder = inputs_builder.push_map(|input_builder| {
-                            insert_inputs_from_spec(&input_spec, input_builder)
+                            insert_inputs_from_evaluatable_input(input_spec, input_builder)
                         });
                     }
+                    inputs_builder = inputs_builder.push_map(|input_builder| {
+                        insert_inputs_from_evaluatable_input(
+                            &PreConditionEvaluatableInput::new(),
+                            input_builder,
+                        )
+                    });
+                    inputs_builder = inputs_builder.push_map(|input_builder| {
+                        insert_inputs_from_evaluatable_input(
+                            &PostConditionEvaluatableInput::new(),
+                            input_builder,
+                        )
+                    });
                     inputs_builder
                 })
                 .insert_vec("outputs", |mut outputs_builder| {
                     let outputs_spec = spec.parts.last().unwrap().expect_atomic_specification();
                     for input_spec in outputs_spec.inputs.iter() {
                         outputs_builder = outputs_builder.push_map(|input_builder| {
-                            insert_inputs_from_spec(&input_spec, input_builder)
+                            insert_inputs_from_evaluatable_input(input_spec, input_builder)
                         });
                     }
                     outputs_builder

@@ -1,7 +1,13 @@
 use std::str::FromStr;
 
-use solana_sdk::pubkey::Pubkey;
+use solana_client::rpc_request::RpcRequest;
+use solana_sdk::{
+    bpf_loader_upgradeable::{self, get_program_data_address, UpgradeableLoaderState},
+    pubkey::Pubkey,
+};
 use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
+
+use crate::commands::setup_surfnet::set_account::SurfpoolAccountUpdate;
 
 pub fn get_seeds_from_value(value: &Value) -> Result<Vec<Vec<u8>>, Diagnostic> {
     let seeds = value
@@ -29,4 +35,74 @@ pub fn get_seeds_from_value(value: &Value) -> Result<Vec<Vec<u8>>, Diagnostic> {
     }
 
     Ok(seeds)
+}
+
+fn set_account_cheatcode(
+    rpc_client: &solana_client::rpc_client::RpcClient,
+    account_update: &SurfpoolAccountUpdate,
+) -> Result<(), Diagnostic> {
+    let pubkey = serde_json::json!(account_update.public_key.to_string());
+    let account_update_value = serde_json::to_value(account_update).unwrap();
+    let params = serde_json::json!(vec![pubkey, account_update_value]);
+
+    let _ = rpc_client
+        .send::<serde_json::Value>(RpcRequest::Custom { method: "surfnet_setAccount" }, params)
+        .map_err(|e| diagnosed_error!("`surfnet_setAccount` RPC call failed: {e}"))?;
+
+    Ok(())
+}
+
+pub fn cheatcode_deploy_program(
+    rpc_api_url: &str,
+    program_id: Pubkey,
+    data: &Vec<u8>,
+    upgrade_authority: Pubkey,
+) -> Result<(), Diagnostic> {
+    let rpc_client = solana_client::rpc_client::RpcClient::new(rpc_api_url.to_string());
+    let program_data_address = get_program_data_address(&program_id);
+    let rent_lamports = rpc_client
+        .get_minimum_balance_for_rent_exemption(data.len())
+        .map_err(|e| diagnosed_error!("failed to get rent exemption: {e}"))?;
+
+    let slot =
+        rpc_client.get_slot().map_err(|e| diagnosed_error!("failed to get current slot: {e}"))?;
+
+    let mut program_data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
+        slot,
+        upgrade_authority_address: Some(upgrade_authority),
+    })
+    .map_err(|e| diagnosed_error!("failed to serialize program data state: {e}"))?;
+    program_data.extend(data);
+
+    let program_data_address_payload = SurfpoolAccountUpdate {
+        public_key: program_data_address,
+        lamports: Some(rent_lamports),
+        data: Some(txtx_addon_kit::hex::encode(program_data)),
+        owner: Some(bpf_loader_upgradeable::id().to_string()),
+        executable: Some(false),
+        rent_epoch: Some(0),
+    };
+
+    let program_data = bincode::serialize(&UpgradeableLoaderState::Program {
+        programdata_address: program_data_address,
+    })
+    .map_err(|e| diagnosed_error!("failed to serialize program state: {e}"))?;
+
+    let rent_lamports = rpc_client
+        .get_minimum_balance_for_rent_exemption(program_data.len())
+        .map_err(|e| diagnosed_error!("failed to get rent exemption: {e}"))?;
+    let program_payload = SurfpoolAccountUpdate {
+        public_key: program_id,
+        lamports: Some(rent_lamports),
+        data: Some(txtx_addon_kit::hex::encode(&program_data)),
+        owner: Some(bpf_loader_upgradeable::id().to_string()),
+        executable: Some(true),
+        rent_epoch: Some(0),
+    };
+
+    set_account_cheatcode(&rpc_client, &program_data_address_payload)?;
+
+    set_account_cheatcode(&rpc_client, &program_payload)?;
+
+    Ok(())
 }

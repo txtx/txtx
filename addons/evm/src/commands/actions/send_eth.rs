@@ -162,6 +162,7 @@ impl CommandImplementation for SendEth {
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
         use crate::{
             codec::get_typed_transaction_bytes,
@@ -178,8 +179,13 @@ impl CommandImplementation for SendEth {
         let values = values.clone();
         let supervision_context = supervision_context.clone();
         let signers_instances = signers_instances.clone();
+        let auth_context = auth_context.clone();
 
         let future = async move {
+            use txtx_addon_kit::constants::META_DESCRIPTION;
+
+            use crate::commands::actions::get_meta_description;
+
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
@@ -187,10 +193,13 @@ impl CommandImplementation for SendEth {
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
-            let (transaction, transaction_cost, _) =
+            let (transaction, transaction_cost, _, tx_description) =
                 build_unsigned_transfer(&signer_state, &spec, &values)
                     .await
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
+            let meta_description =
+                get_meta_description(tx_description, &signer_did, &signers_instances);
 
             let bytes = get_typed_transaction_bytes(&transaction)
                 .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
@@ -199,6 +208,7 @@ impl CommandImplementation for SendEth {
 
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload.clone());
+            values.insert(META_DESCRIPTION, Value::string(meta_description));
 
             signer_state.insert_scoped_value(
                 &construct_did.to_string(),
@@ -215,6 +225,7 @@ impl CommandImplementation for SendEth {
                 &supervision_context,
                 &signers_instances,
                 signers,
+                &auth_context,
             );
             let (signers, signer_state, mut signing_actions) = match future_result {
                 Ok(future) => match future.await {
@@ -334,12 +345,13 @@ async fn build_unsigned_transfer(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<(TransactionRequest, i128, String), Diagnostic> {
+) -> Result<(TransactionRequest, i128, String, String), Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
         commands::actions::get_common_tx_params_from_args,
         constants::{CHAIN_ID, TRANSACTION_TYPE},
         signers::common::get_signer_nonce,
+        typing::EvmValue,
     };
 
     let from = signer_state.get_expected_value("signer_address")?;
@@ -347,7 +359,7 @@ async fn build_unsigned_transfer(
     let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
     let chain_id = values.get_expected_uint(CHAIN_ID)?;
 
-    let recipient_address = values.get_expected_value("recipient_address")?;
+    let recipient_address_value = values.get_expected_value("recipient_address")?;
 
     let (amount, gas_limit, mut nonce) =
         get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{}", e))?;
@@ -363,8 +375,11 @@ async fn build_unsigned_transfer(
 
     let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{}", e))?;
 
+    let from_address = EvmValue::to_address(from)?;
+    let recipient_address = EvmValue::to_address(&recipient_address_value)?;
+
     let common = CommonTransactionFields {
-        to: Some(recipient_address.clone()),
+        to: Some(recipient_address_value.clone()),
         from: from.clone(),
         nonce,
         chain_id,
@@ -375,8 +390,11 @@ async fn build_unsigned_transfer(
         deploy_code: None,
     };
 
-    let res = build_unsigned_transaction(rpc, values, common)
-        .await
-        .map_err(|e| diagnosed_error!("{}", e))?;
-    Ok(res)
+    let (tx, tx_cost, sim_result) = build_unsigned_transaction(rpc, values, common).await?;
+    Ok((
+        tx,
+        tx_cost,
+        sim_result,
+        format!("The transaction will transfer {amount} WEI from {from_address} to {recipient_address}."),
+    ))
 }

@@ -219,6 +219,8 @@ impl<'de> Deserialize<'de> for Value {
     }
 }
 
+pub type AddonJsonConverter<'a> = Box<dyn Fn(&Value) -> Result<Option<JsonValue>, Diagnostic> + 'a>;
+
 impl Value {
     pub fn string(value: String) -> Value {
         Value::String(value.to_string())
@@ -382,6 +384,22 @@ impl Value {
     pub fn as_uint(&self) -> Option<Result<u64, String>> {
         match &self {
             Value::Integer(value) => Some(i128_to_u64(*value)),
+            _ => None,
+        }
+    }
+    pub fn as_u8(&self) -> Option<Result<u8, String>> {
+        match &self {
+            Value::Integer(value) => {
+                Some(u8::try_from(*value).map_err(|e| format!("invalid u8: {e}")))
+            }
+            _ => None,
+        }
+    }
+    pub fn as_u16(&self) -> Option<Result<u16, String>> {
+        match &self {
+            Value::Integer(value) => {
+                Some(u16::try_from(*value).map_err(|e| format!("invalid u16: {e}")))
+            }
             _ => None,
         }
     }
@@ -552,24 +570,35 @@ impl Value {
         Did::from_components(vec![bytes])
     }
 
-    pub fn to_json(&self) -> JsonValue {
+    pub fn to_json(&self, addon_converters: Option<&Vec<AddonJsonConverter>>) -> JsonValue {
         let json = match self {
             Value::Bool(b) => JsonValue::Bool(*b),
             Value::Null => JsonValue::Null,
             Value::Integer(i) => JsonValue::Number(serde_json::Number::from(*i as i64)),
             Value::Float(f) => JsonValue::Number(serde_json::Number::from_f64(*f).unwrap()),
             Value::String(s) => JsonValue::String(s.to_string()),
-            Value::Array(vec) => {
-                JsonValue::Array(vec.iter().map(|v| v.to_json()).collect::<Vec<JsonValue>>())
-            }
+            Value::Array(vec) => JsonValue::Array(
+                vec.iter().map(|v| v.to_json(addon_converters)).collect::<Vec<JsonValue>>(),
+            ),
             Value::Object(index_map) => JsonValue::Object(
                 index_map
                     .iter()
-                    .map(|(k, v)| (k.clone(), v.to_json()))
+                    .map(|(k, v)| (k.clone(), v.to_json(addon_converters)))
                     .collect::<Map<String, JsonValue>>(),
             ),
             Value::Buffer(vec) => JsonValue::String(format!("0x{}", hex::encode(&vec))),
-            Value::Addon(addon_data) => JsonValue::String(addon_data.to_string()),
+            Value::Addon(addon_data) => {
+                if let Some(addon_converters) = addon_converters.as_ref() {
+                    let parsed_values = addon_converters
+                        .iter()
+                        .filter_map(|converter| converter(self).ok().flatten())
+                        .collect::<Vec<_>>();
+                    if let Some(parsed_value) = parsed_values.first() {
+                        return parsed_value.clone();
+                    }
+                }
+                JsonValue::String(addon_data.to_string())
+            }
         };
         json
     }
@@ -894,6 +923,9 @@ impl Type {
                 ObjectDefinition::Arbitrary(_) => {
                     let _ = value.as_object().ok_or_else(|| mismatch_err("object"))?;
                 }
+                ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+                    unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
+                }
             }, //  => todo!(),
         };
         Ok(())
@@ -933,11 +965,11 @@ impl Type {
     ///
     /// For example, while most types will just get the attribute value, the `Object` and `Map` types
     /// need to look for nested blocks and properties.
-    pub fn get_expressions_referencing_constructs<'a, T: EvaluatableInput>(
+    pub fn get_expressions_referencing_constructs<'a>(
         &self,
         block: &Block,
-        input: &'a T,
-        dependencies: &mut Vec<(Option<&'a T>, Expression)>,
+        input: Box<dyn EvaluatableInput>,
+        dependencies: &mut Vec<(Option<Box<dyn EvaluatableInput>>, Expression)>,
     ) {
         let input_name = input.name();
         match self {
@@ -949,7 +981,7 @@ impl Type {
                             if let Some(expr) = res {
                                 collect_constructs_references_from_expression(
                                     &expr,
-                                    Some(input),
+                                    Some(input.clone()),
                                     dependencies,
                                 );
                             }
@@ -958,13 +990,24 @@ impl Type {
                 }
                 ObjectDefinition::Arbitrary(_) => {
                     for block in block.body.get_blocks(&input_name) {
-                        collect_constructs_references_from_block(block, Some(input), dependencies);
+                        collect_constructs_references_from_block(
+                            block,
+                            Some(input.clone()),
+                            dependencies,
+                        );
                     }
+                }
+                ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+                    unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
                 }
             },
             Type::Object(ref object_def) => {
                 if let Some(expr) = visit_optional_untyped_attribute(&input_name, &block) {
-                    collect_constructs_references_from_expression(&expr, Some(input), dependencies);
+                    collect_constructs_references_from_expression(
+                        &expr,
+                        Some(input.clone()),
+                        dependencies,
+                    );
                 }
                 match object_def {
                     ObjectDefinition::Strict(props) => {
@@ -975,7 +1018,7 @@ impl Type {
                                 {
                                     collect_constructs_references_from_expression(
                                         &expr,
-                                        Some(input),
+                                        Some(input.clone()),
                                         dependencies,
                                     );
                                 }
@@ -986,10 +1029,13 @@ impl Type {
                         for block in block.body.get_blocks(&input_name) {
                             collect_constructs_references_from_block(
                                 block,
-                                Some(input),
+                                Some(input.clone()),
                                 dependencies,
                             );
                         }
+                    }
+                    ObjectDefinition::Tuple(_) | ObjectDefinition::Enum(_) => {
+                        unimplemented!("ObjectDefinition::Tuple and ObjectDefinition::Enum are not supported for runbook types");
                     }
                 }
             }
@@ -1081,6 +1127,12 @@ pub enum ObjectDefinition {
     /// The optional list of object properties is used for documenting
     /// Some of the potential properties.
     Arbitrary(Option<Vec<ObjectProperty>>),
+    /// Tuple variant for representing tuple types. This means that the 'name' field will be ignored.
+    /// Instead, the index of the property will be used to create the tuple.
+    Tuple(Vec<ObjectProperty>),
+    /// Enum variant for representing enum types. This means that the value
+    /// will have one of the specified properties.
+    Enum(Vec<ObjectProperty>),
 }
 
 impl ObjectDefinition {
@@ -1095,6 +1147,37 @@ impl ObjectDefinition {
     pub fn documented_arbitrary(props: Vec<ObjectProperty>) -> Self {
         ObjectDefinition::Arbitrary(Some(props))
     }
+
+    pub fn tuple(props: Vec<ObjectProperty>) -> Self {
+        ObjectDefinition::Tuple(props)
+    }
+
+    pub fn enum_type(props: Vec<ObjectProperty>) -> Self {
+        ObjectDefinition::Enum(props)
+    }
+
+    pub fn join_documentation(&self, recursion_depth: usize) -> String {
+        match self {
+            ObjectDefinition::Strict(props) | ObjectDefinition::Arbitrary(Some(props)) => props
+                .iter()
+                .map(|prop| {
+                    format!(
+                        "{}- **{}**: {}",
+                        " ".repeat((recursion_depth + 1) * 2),
+                        prop.name,
+                        prop.join_documentation(recursion_depth + 1)
+                    )
+                })
+                .collect::<Vec<String>>()
+                .join("\n"),
+            ObjectDefinition::Arbitrary(None) => String::new(),
+            _ => {
+                // For Tuple and Enum, we don't have a specific documentation format
+                // so we return an empty string.
+                String::new()
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -1105,6 +1188,28 @@ pub struct ObjectProperty {
     pub optional: bool,
     pub tainting: bool,
     pub internal: bool,
+}
+
+impl ObjectProperty {
+    pub fn join_documentation(&self, recursion_depth: usize) -> String {
+        match &self.typing {
+            Type::Object(object_definition) => {
+                format!(
+                    "{} This is an object type containing the keys:\n{}",
+                    self.documentation,
+                    object_definition.join_documentation(recursion_depth)
+                )
+            }
+            Type::Map(object_definition) => {
+                format!(
+                    "{} This is a map type containing the keys:\n{}",
+                    self.documentation,
+                    object_definition.join_documentation(recursion_depth)
+                )
+            }
+            _ => self.documentation.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

@@ -61,6 +61,9 @@ impl RunbookGraphContext {
         let packages = workspace_context.packages.clone();
 
         for (package_id, package) in packages.iter() {
+            let mut signers = VecDeque::new();
+            let mut instantiated_signers = HashSet::new();
+
             // add variable constructs to graph
             for construct_did in package.variables_dids.iter() {
                 let command_instance =
@@ -73,6 +76,14 @@ impl RunbookGraphContext {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
+                        if let Some(_) =
+                            execution_context.signers_instances.get(&resolved_construct_did)
+                        {
+                            if !signers.iter().any(|(d, _)| d == &resolved_construct_did) {
+                                signers.push_front((resolved_construct_did.clone(), true));
+                            }
+                            instantiated_signers.insert(resolved_construct_did.clone());
+                        }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(
@@ -99,6 +110,14 @@ impl RunbookGraphContext {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
+                        if let Some(_) =
+                            execution_context.signers_instances.get(&resolved_construct_did)
+                        {
+                            if !signers.iter().any(|(d, _)| d == &resolved_construct_did) {
+                                signers.push_front((resolved_construct_did.clone(), true));
+                            }
+                            instantiated_signers.insert(resolved_construct_did.clone());
+                        }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(
@@ -125,6 +144,14 @@ impl RunbookGraphContext {
                     let result = workspace_context
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
+                        if let Some(_) =
+                            execution_context.signers_instances.get(&resolved_construct_did)
+                        {
+                            if !signers.iter().any(|(d, _)| d == &resolved_construct_did) {
+                                signers.push_front((resolved_construct_did.clone(), true));
+                            }
+                            instantiated_signers.insert(resolved_construct_did.clone());
+                        }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
                     } else {
                         diags.push(
@@ -139,8 +166,7 @@ impl RunbookGraphContext {
                     }
                 }
             }
-            let mut signers = VecDeque::new();
-            let mut instantiated_signers = HashSet::new();
+
             // add command constructs to graph
             for construct_did in package.commands_dids.iter() {
                 let command_instance =
@@ -164,7 +190,16 @@ impl RunbookGraphContext {
                         if let Some(_) =
                             execution_context.signers_instances.get(&resolved_construct_did)
                         {
-                            signers.push_front((resolved_construct_did.clone(), true));
+                            if !signers.iter_mut().any(|(d, instantiated)| {
+                                if d == &resolved_construct_did {
+                                    *instantiated = true;
+                                    return true;
+                                }
+                                false
+                            }) {
+                                // If the resolved construct is not already in signers, add it
+                                signers.push_front((resolved_construct_did.clone(), true));
+                            }
                             instantiated_signers.insert(resolved_construct_did.clone());
                         }
                         constructs_edges.push((construct_did.clone(), resolved_construct_did));
@@ -237,7 +272,7 @@ impl RunbookGraphContext {
                         .try_resolve_construct_reference_in_expression(package_id, dep);
                     if let Ok(Some((resolved_construct_did, _, _))) = result {
                         if !instantiated_signers.contains(&resolved_construct_did) {
-                            signers.push_front((resolved_construct_did.clone(), false))
+                            signers.push_front((resolved_construct_did.clone(), true))
                         }
                         execution_context.signers_state.as_mut().unwrap().create_new_signer(
                             &resolved_construct_did,
@@ -274,6 +309,9 @@ impl RunbookGraphContext {
             {
                 self.constructs_dag.remove_edge(edge_to_root);
             }
+            if dst_node_index == src_node_index {
+                continue;
+            }
             if let Err(_e) =
                 self.constructs_dag.add_edge(dst_node_index.clone(), src_node_index.clone(), 1)
             {
@@ -286,7 +324,6 @@ impl RunbookGraphContext {
         }
 
         for (signer_did, instantiated) in self.instantiated_signers.iter() {
-            execution_context.order_for_signers_initialization.push(signer_did.clone());
             // For each signing command instantiated
             if *instantiated {
                 // We retrieve the downstream dependencies (signed commands)
@@ -339,6 +376,9 @@ impl RunbookGraphContext {
 
         for construct_did in self.get_sorted_constructs() {
             execution_context.order_for_commands_execution.push(construct_did.clone());
+            if self.instantiated_signers.iter().any(|(did, _)| did.eq(&construct_did)) {
+                execution_context.order_for_signers_initialization.push(construct_did);
+            }
         }
 
         for construct_did in execution_context

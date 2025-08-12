@@ -177,6 +177,8 @@ pub type SignerCheckSignabilityClosure = fn(
     &ConstructDid,
     &str,
     &Option<String>,
+    &Option<String>,
+    &Option<String>,
     &Value,
     &SignerSpecification,
     &ValueStore,
@@ -184,6 +186,7 @@ pub type SignerCheckSignabilityClosure = fn(
     SignersState,
     &HashMap<ConstructDid, SignerInstance>,
     &RunbookSupervisionContext,
+    &AuthorizationContext,
 ) -> Result<CheckSignabilityOk, SignerActionErr>;
 
 pub type SignerOperationFutureResult = Result<
@@ -326,8 +329,8 @@ impl SignerInstance {
     }
 
     /// Checks the `CommandInstance` HCL Block for an attribute named `input.name`
-    pub fn get_expression_from_input(&self, input: &CommandInput) -> Option<Expression> {
-        visit_optional_untyped_attribute(&input.name, &self.block)
+    pub fn get_expression_from_input(&self, input_name: &str) -> Option<Expression> {
+        visit_optional_untyped_attribute(&input_name, &self.block)
     }
 
     pub fn get_group(&self) -> String {
@@ -339,10 +342,10 @@ impl SignerInstance {
 
     pub fn get_expression_from_object_property(
         &self,
-        input: &CommandInput,
+        input_name: &str,
         prop: &ObjectProperty,
     ) -> Option<Expression> {
-        let object = self.block.body.get_blocks(&input.name).next();
+        let object = self.block.body.get_blocks(&input_name).next();
         match object {
             Some(block) => {
                 let expr_res = visit_optional_untyped_attribute(&prop.name, &block);
@@ -389,22 +392,27 @@ impl SignerInstance {
                                 .map(|requests| requests.iter().find(|r| r.id.eq(&action_item_id)));
 
                             if let Some(Some(request)) = request {
-                                if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
-                                    if response.value_checked {
-                                        let data = request
-                                            .action_type
-                                            .as_review_input()
-                                            .expect("review input action item");
-                                        values.insert(
-                                            CHECKED_ADDRESS,
-                                            Value::string(data.value.to_string()),
+                                if let Some(signer_did) = &request.construct_did {
+                                    let mut signer_state =
+                                        signers.pop_signer_state(signer_did).unwrap();
+                                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
+                                        if response.value_checked {
+                                            let data = request
+                                                .action_type
+                                                .as_review_input()
+                                                .expect("review input action item");
+                                            signer_state.insert(
+                                                CHECKED_ADDRESS,
+                                                Value::string(data.value.to_string()),
+                                            );
+                                        }
+                                    } else if request.internal_key == ACTION_ITEM_CHECK_BALANCE {
+                                        signer_state.insert(
+                                            IS_BALANCE_CHECKED,
+                                            Value::bool(response.value_checked),
                                         );
                                     }
-                                } else if request.internal_key == ACTION_ITEM_CHECK_BALANCE {
-                                    values.insert(
-                                        IS_BALANCE_CHECKED,
-                                        Value::bool(response.value_checked),
-                                    );
+                                    signers.push_signer_state(signer_state);
                                 }
                             }
                         }
@@ -465,8 +473,13 @@ impl ConstructInstance for SignerInstance {
     fn block(&self) -> &Block {
         &self.block
     }
-    fn inputs(&self) -> Vec<&impl EvaluatableInput> {
-        self.specification.inputs.iter().chain(&self.specification.default_inputs).collect()
+    fn inputs(&self) -> Vec<Box<dyn EvaluatableInput>> {
+        self.specification
+            .inputs
+            .iter()
+            .chain(&self.specification.default_inputs)
+            .map(|input| Box::new(input.clone()) as Box<dyn EvaluatableInput>)
+            .collect()
     }
 }
 
@@ -508,6 +521,8 @@ pub trait SignerImplementation {
         _caller_uuid: &ConstructDid,
         _title: &str,
         _description: &Option<String>,
+        _meta_description: &Option<String>,
+        _markdown: &Option<String>,
         _payload: &Value,
         _spec: &SignerSpecification,
         _values: &ValueStore,
@@ -515,6 +530,7 @@ pub trait SignerImplementation {
         _signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         unimplemented!()
     }

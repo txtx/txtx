@@ -8,11 +8,15 @@ use alloy_rpc_types::Log;
 use foundry_compilers_artifacts_solc::Metadata;
 use txtx_addon_kit::{
     hex,
+    indexmap::IndexMap,
     types::{
         diagnostics::Diagnostic,
+        stores::ValueStore,
         types::{ObjectType, Type, Value},
     },
 };
+
+use crate::{codec::foundry::BytecodeData, constants::LINKED_LIBRARIES};
 
 pub const EVM_ADDRESS: &str = "evm::address";
 pub const EVM_BYTES: &str = "evm::bytes";
@@ -28,6 +32,7 @@ pub const EVM_FUNCTION_CALL: &str = "evm::function_call";
 pub const EVM_SIM_RESULT: &str = "evm::sim_result";
 pub const EVM_KNOWN_SOL_PARAM: &str = "evm::known_sol_param";
 pub const EVM_FOUNDRY_COMPILED_METADATA: &str = "evm::foundry_compiled_metadata";
+pub const EVM_FOUNDRY_BYTECODE_DATA: &str = "evm::foundry_bytecode_data";
 
 pub struct EvmValue {}
 
@@ -191,6 +196,46 @@ impl EvmValue {
         let metadata: Metadata = serde_json::from_slice(&addon_data.bytes)
             .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
         Ok(metadata)
+    }
+
+    pub fn foundry_bytecode_data(value: &BytecodeData) -> Result<Value, Diagnostic> {
+        let bytes = serde_json::to_vec(value)
+            .map_err(|e| diagnosed_error!("could not serialize foundry bytecode data: {e}"))?;
+        Ok(Value::addon(bytes, EVM_FOUNDRY_BYTECODE_DATA))
+    }
+
+    pub fn to_foundry_bytecode_data(value: &Value) -> Result<BytecodeData, Diagnostic> {
+        let err_msg = "could not convert value to foundry bytecode data";
+        let addon_data = value
+            .as_addon_data()
+            .ok_or_else(|| diagnosed_error!("{err_msg}: not an addon data type"))?;
+        if addon_data.id != EVM_FOUNDRY_BYTECODE_DATA {
+            return Err(diagnosed_error!(
+                "{err_msg}: expected type {EVM_FOUNDRY_BYTECODE_DATA}, got {}",
+                addon_data.id
+            ));
+        }
+        let bytecode: BytecodeData = serde_json::from_slice(&addon_data.bytes)
+            .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
+        Ok(bytecode)
+    }
+
+    pub fn parse_linked_libraries(
+        values: &ValueStore,
+    ) -> Result<Option<IndexMap<String, Address>>, Diagnostic> {
+        let linked_libraries = values
+            .get_object(LINKED_LIBRARIES)
+            .map(|lib| {
+                lib.iter()
+                    .map(|(k, v)| EvmValue::to_address(v).map(|a| (k.clone(), a)))
+                    .collect::<Result<IndexMap<String, Address>, _>>()
+            })
+            .transpose()
+            .map_err(|d| {
+                diagnosed_error!("each entry of a linked library must be an address: {d}")
+            })?;
+
+        Ok(linked_libraries)
     }
 }
 
@@ -513,6 +558,14 @@ lazy_static! {
             documentation: "The error message, if the contract was not verified successfully.",
             typing: Type::string(),
             optional: false,
+            tainting: true
+        }
+    };
+    pub static ref LINKED_LIBRARIES_TYPE: Type = define_documented_arbitrary_object_type! {
+        contract_name: {
+            documentation: "A contract name (key) mapped to an address. If a contract deployment requires a linked library, this contract address will be used for all occurrences of the specified library name.",
+            typing: Type::addon(EVM_ADDRESS),
+            optional: true,
             tainting: true
         }
     };

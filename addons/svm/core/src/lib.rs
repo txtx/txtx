@@ -26,6 +26,7 @@ use txtx_addon_kit::{
     },
     Addon,
 };
+use txtx_addon_network_svm_types::SvmValue;
 
 #[derive(Debug)]
 pub struct SvmNetworkAddon;
@@ -63,5 +64,12 @@ impl Addon for SvmNetworkAddon {
 
     fn get_signers(&self) -> Vec<SignerSpecification> {
         signers::SIGNERS.clone()
+    }
+
+    fn to_json(
+        &self,
+        value: &txtx_addon_kit::types::types::Value,
+    ) -> Result<Option<serde_json::Value>, txtx_addon_kit::types::diagnostics::Diagnostic> {
+        SvmValue::to_json(value)
     }
 }

@@ -120,6 +120,7 @@ impl CommandImplementation for StartRollup {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
@@ -147,7 +148,7 @@ impl CommandImplementation for StartRollup {
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
-        _cloud_service_context: &Option<CloudServiceContext>
+        _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         let construct_did = construct_did.clone();
         let inputs = inputs.clone();

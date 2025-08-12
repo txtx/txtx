@@ -19,6 +19,7 @@ use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_network_svm_types::subgraph::PluginConfig;
+use txtx_addon_network_svm_types::PDA_ACCOUNT_SUBGRAPH;
 
 use crate::constants::{
     DEVNET_SUBGRAPH_ENDPOINT, DO_INCLUDE_TOKEN, MAINNET_SUBGRAPH_ENDPOINT, NETWORK_ID, PROGRAM_ID,
@@ -75,10 +76,18 @@ lazy_static! {
                         internal: false,
                         sensitive: false
                     },
-                    block_height: {
-                        documentation: "The block height to start indexing from.",
+                    slot: {
+                        documentation: "The slot to start indexing from.",
                         typing: Type::integer(),
-                        optional: false,
+                        optional: true,
+                        tainting: true,
+                        internal: false,
+                        sensitive: false
+                    },
+                    block_height: {
+                        documentation: "Deprecated. Use slot instead.",
+                        typing: Type::integer(),
+                        optional: true,
                         tainting: true,
                         internal: false,
                         sensitive: false
@@ -86,7 +95,15 @@ lazy_static! {
                     event: {
                         documentation: "A map of events to index in the subgraph.",
                         typing: SUBGRAPH_EVENT.clone(),
-                        optional: false,
+                        optional: true,
+                        tainting: true,
+                        internal: false,
+                        sensitive: false
+                    },
+                    pda: {
+                        documentation: "The PDA account to index in the subgraph",
+                        typing: PDA_ACCOUNT_SUBGRAPH.clone(),
+                        optional: true,
                         tainting: true,
                         internal: false,
                         sensitive: false
@@ -98,10 +115,27 @@ lazy_static! {
                     action "transfer_event_subgraph" "svm::deploy_subgraph" {
                         program_id = action.deploy.program_id
                         program_idl = action.deploy.program_idl
-                        block_height = action.deploy.block_height
+                        slot = action.deploy.slot
                         event {
                             name = "TransferEvent"
                         }
+                    }
+                    action "account_index" "svm::deploy_subgraph" {
+                        program_id = action.deploy.program_id
+                        program_idl = action.deploy.program_idl
+                        slot = action.deploy.slot
+                        pda {
+                            type = "CustomAccount"
+                            instruction {
+                                name = "<instruction-using-this-account>"
+                                account_name = "<name-of-account-in-instruction>"
+                            }
+                            instruction {
+                                name = "<another-instruction-using-this-account>"
+                                account_name = "<name-of-account-in-instruction>"
+                            }
+                        }
+                    }
                 "#},
             }
         };
@@ -127,6 +161,7 @@ impl CommandImplementation for DeployProgram {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
@@ -142,7 +177,8 @@ impl CommandImplementation for DeployProgram {
 
         use crate::{
             constants::{
-                BLOCK_HEIGHT, PROGRAM_IDL, SUBGRAPH_ENDPOINT_URL, SUBGRAPH_NAME, SUBGRAPH_REQUEST,
+                BLOCK_HEIGHT, PROGRAM_IDL, SLOT, SUBGRAPH_ENDPOINT_URL, SUBGRAPH_NAME,
+                SUBGRAPH_REQUEST,
             },
             typing::subgraph::SubgraphRequest,
         };
@@ -156,19 +192,30 @@ impl CommandImplementation for DeployProgram {
 
         let idl_str = values.get_expected_string(PROGRAM_IDL)?;
 
-        let block_height = values.get_expected_uint(BLOCK_HEIGHT)?;
+        let some_slot = values.get_uint(SLOT)?;
+        let some_block_height = values.get_uint(BLOCK_HEIGHT)?;
+        if some_slot.is_some() && some_block_height.is_some() {
+            return Err(diagnosed_error!(
+                "Both slot and block height are provided. The block height field is deprecated and should not be used. Use slot instead."
+            ));
+        }
+        if some_slot.is_none() && some_block_height.is_none() {
+            return Err(diagnosed_error!("Missing expected 'slot' value."));
+        }
+        let slot = some_slot.unwrap_or_else(|| some_block_height.unwrap());
+
         let program_id = SvmValue::to_pubkey(values.get_expected_value(PROGRAM_ID)?)
             .map_err(|e| diagnosed_error!("{e}"))?;
 
         let subgraph_name = values.get_string(SUBGRAPH_NAME).and_then(|s| Some(s.to_string()));
         let description = values.get_string(DESCRIPTION).and_then(|s| Some(s.to_string()));
 
-        let subgraph_request = SubgraphRequest::parse_value_store(
+        let subgraph_request = SubgraphRequest::parse_value_store_v0(
             subgraph_name,
             description,
             &program_id,
             idl_str,
-            block_height,
+            slot,
             construct_did,
             values,
         )?;
@@ -276,7 +323,8 @@ impl SubgraphRequestClient {
             "Subgraph Deployed",
             &format!(
                 "Subgraph {} for program {} has been deployed",
-                self.plugin_config.data.subgraph_name, self.plugin_config.data.program_id,
+                self.plugin_config.data.subgraph_name(),
+                self.plugin_config.data.program_id(),
             ),
         ));
 

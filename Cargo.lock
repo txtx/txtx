@@ -6685,9 +6685,9 @@ dependencies = [
 
 [[package]]
 name = "juniper"
-version = "0.16.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "943306315b1a7a03d27af9dfb0c288d9f4da8830c17df4bceb7d50a47da0982c"
+checksum = "3478f4a8a2a1c7679944f5f4f08c60d6440f9970da481d79c8f8931201424403"
 dependencies = [
  "async-trait",
  "auto_enums",
@@ -6764,6 +6764,15 @@ dependencies = [
  "serdect",
  "sha2 0.10.8",
  "signature 2.2.0",
+]
+
+[[package]]
+name = "kaigan"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ba15de5aeb137f0f65aa3bf82187647f1285abfe5b20c80c2c37f7007ad519a"
+dependencies = [
+ "borsh 0.10.4",
 ]
 
 [[package]]
@@ -11766,6 +11775,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-record-service-client"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccf8d878040f2ed9ca3dc78781fc902f6d1b2af6d7d917cc7979c9b37ccff3e6"
+dependencies = [
+ "borsh 0.10.4",
+ "kaigan",
+ "solana-program",
+]
+
+[[package]]
 name = "solana-rent"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14811,10 +14831,11 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.2.12"
+version = "0.4.4"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
+ "dyn-clone",
  "futures",
  "getrandom 0.2.15",
  "hcl-edit",
@@ -14920,18 +14941,21 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.1.22"
+version = "0.2.7"
 dependencies = [
  "async-recursion",
  "bincode",
+ "borsh 0.10.4",
  "borsh 1.5.6",
  "convert_case 0.6.0",
+ "kaigan",
  "lazy_static",
  "serde",
  "serde_derive",
  "serde_json",
  "solana-client",
  "solana-message",
+ "solana-record-service-client",
  "solana-sdk",
  "solana_idl",
  "spl-associated-token-account",
@@ -14945,9 +14969,11 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.1.18"
+version = "0.2.5"
 dependencies = [
  "anchor-lang-idl",
+ "borsh 1.5.6",
+ "convert_case 0.6.0",
  "lazy_static",
  "serde",
  "serde_derive",
@@ -14962,6 +14988,8 @@ dependencies = [
  "solana-transaction",
  "solana-transaction-context",
  "solana-transaction-error",
+ "solana-transaction-status-client-types",
+ "test-case",
  "txtx-addon-kit",
 ]
 
@@ -14985,7 +15013,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.2.18"
+version = "0.4.3"
 dependencies = [
  "actix-web",
  "ansi_term",
@@ -15030,7 +15058,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cloud"
-version = "0.1.4"
+version = "0.1.9"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -15058,7 +15086,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.2.14"
+version = "0.4.7"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -15087,7 +15115,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.2.6"
+version = "0.3.2"
 dependencies = [
  "async-stream",
  "futures",
@@ -15100,7 +15128,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.2.18"
+version = "0.4.3"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -15155,7 +15183,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-supervisor-ui"
-version = "0.1.5"
+version = "0.2.3"
 dependencies = [
  "actix-cors",
  "actix-web",

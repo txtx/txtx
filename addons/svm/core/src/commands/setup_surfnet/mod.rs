@@ -1,15 +1,13 @@
 pub mod clone_program_account;
-mod set_account;
+pub mod set_account;
+mod set_program_authority;
 mod set_token_account;
 mod tokens;
 
 use clone_program_account::SurfpoolProgramCloning;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
 use set_account::SurfpoolAccountUpdate;
 use set_token_account::SurfpoolTokenAccountUpdate;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_client::rpc_request::RpcRequest;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
@@ -22,20 +20,13 @@ use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
-use txtx_addon_network_svm_types::{CLONE_PROGRAM_ACCOUNT, SET_ACCOUNT_MAP, SET_TOKEN_ACCOUNT_MAP};
+use txtx_addon_network_svm_types::{
+    CLONE_PROGRAM_ACCOUNT, SET_ACCOUNT_MAP, SET_PROGRAM_AUTHORITY, SET_TOKEN_ACCOUNT_MAP,
+};
 
-use crate::constants::{NETWORK_ID, RPC_API_URL};
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub struct RpcVersionInfo {
-    /// The current version of surfnet, if RPC is a surfnet
-    pub surfnet_version: Option<String>,
-    /// The current version of solana-core
-    pub solana_core: String,
-    /// first 4 bytes of the FeatureSet identifier
-    pub feature_set: Option<u32>,
-}
+use crate::commands::setup_surfnet::set_program_authority::SurfpoolSetProgramAuthority;
+use crate::commands::RpcVersionInfo;
+use crate::constants::RPC_API_URL;
 
 lazy_static! {
     pub static ref SETUP_SURFNET: PreCommandSpecification = {
@@ -69,14 +60,6 @@ lazy_static! {
                         internal: false,
                         sensitive: false
                     },
-                    network_id: {
-                        documentation: "The ID of the network type. Can be `localnet`, `devnet`, or `mainnet-beta`.",
-                        typing: Type::string(),
-                        optional: false,
-                        tainting: false,
-                        internal: false,
-                        sensitive: false
-                    },
                     set_account: {
                         documentation: "The account data to set.",
                         typing: SET_ACCOUNT_MAP.clone(),
@@ -100,6 +83,14 @@ lazy_static! {
                         tainting: false,
                         internal: false,
                         sensitive: false
+                    },
+                    set_program_authority: {
+                        documentation: "The program authority data to set.",
+                        typing: SET_PROGRAM_AUTHORITY.clone(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
                     }
                 ],
                 outputs: [],
@@ -117,6 +108,10 @@ lazy_static! {
                         clone_program_account {
                             source_program_id = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC program id
                             destination_program_id = variable.my_program_id
+                        }
+                        set_program_authority {
+                            program_id = variable.my_program_id
+                            authority = signer.caller.public_key
                         }
                     }
                 "#},
@@ -142,6 +137,7 @@ impl CommandImplementation for SetupSurfpool {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
@@ -163,17 +159,9 @@ impl CommandImplementation for SetupSurfpool {
 
             let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
 
-            let network_id = values.get_expected_string(NETWORK_ID)?;
-
-            if !network_id.eq("localnet") {
-                return Err(diagnosed_error!("`network_id` must be `localnet`"));
-            }
             let rpc_client = RpcClient::new(rpc_api_url.to_string());
 
-            let version = rpc_client
-                .send::<RpcVersionInfo>(RpcRequest::Custom { method: "getVersion" }, json!([]))
-                .await
-                .map_err(|e| diagnosed_error!("failed to fetch RPC endpoint version: {e}"))?;
+            let version = RpcVersionInfo::fetch_non_blocking(&rpc_client).await?;
             if version.surfnet_version.is_none() {
                 return Err(diagnosed_error!(
                     "RPC endpoint is not a surfnet, setup_surfnet is not supported"
@@ -207,6 +195,14 @@ impl CommandImplementation for SetupSurfpool {
             let program_account_clones = SurfpoolProgramCloning::parse_value_store(&values)?;
             SurfpoolProgramCloning::process_updates(
                 program_account_clones,
+                &rpc_client,
+                &mut status_updater,
+            )
+            .await?;
+
+            let set_authorities = SurfpoolSetProgramAuthority::parse_value_store(&values)?;
+            SurfpoolSetProgramAuthority::process_updates(
+                set_authorities,
                 &rpc_client,
                 &mut status_updater,
             )

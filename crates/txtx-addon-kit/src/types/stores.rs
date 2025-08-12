@@ -2,6 +2,11 @@ use std::collections::HashMap;
 
 use indexmap::IndexMap;
 
+use crate::{
+    constants::{MARKDOWN, MARKDOWN_FILEPATH},
+    types::AuthorizationContext,
+};
+
 use super::{
     commands::CommandInput, diagnostics::Diagnostic, types::Value, ConstructDid, Did, CACHED_NONCE,
 };
@@ -326,6 +331,51 @@ impl ValueStore {
                 self.inputs.insert(&key, value.clone());
             }
         }
+    }
+
+    // Other
+    pub fn get_markdown(
+        &self,
+        auth_context: &AuthorizationContext,
+    ) -> Result<Option<String>, Diagnostic> {
+        let markdown = self
+            .inputs
+            .get_value(MARKDOWN)
+            .and_then(|v| v.as_string().map(|s| s.to_string()))
+            .or_else(|| {
+                self.defaults.get_value(MARKDOWN).and_then(|v| v.as_string().map(|s| s.to_string()))
+            });
+
+        if markdown.is_some() {
+            return Ok(markdown);
+        }
+
+        let Some(markdown_filepath) = self
+            .inputs
+            .get_string(MARKDOWN_FILEPATH)
+            .or_else(|| self.defaults.get_string(MARKDOWN_FILEPATH))
+        else {
+            return Ok(None);
+        };
+
+        let markdown_content_path_buf = std::path::PathBuf::from(markdown_filepath);
+        let markdown_content = auth_context
+            .get_file_location_from_path_buf(&markdown_content_path_buf)
+            .map_err(|e| {
+                Diagnostic::error_from_string(format!(
+                    "Failed to get file location for markdown file: {}",
+                    e
+                ))
+            })?
+            .read_content_as_utf8()
+            .map_err(|e| {
+                Diagnostic::error_from_string(format!(
+                    "Failed to read markdown file content: {}",
+                    e
+                ))
+            })?;
+
+        Ok(Some(markdown_content))
     }
 }
 

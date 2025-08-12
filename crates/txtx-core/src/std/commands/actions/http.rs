@@ -98,6 +98,7 @@ impl CommandImplementation for SendHttpRequest {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         Ok(Actions::none())
     }
@@ -144,7 +145,7 @@ impl CommandImplementation for SendHttpRequest {
 
             if let Some(request_body) = request_body {
                 if request_body.as_object().is_some() {
-                    req_builder = req_builder.json(&request_body.to_json());
+                    req_builder = req_builder.json(&request_body.to_json(None));
                 } else {
                     req_builder = req_builder.body(request_body.encode_to_string());
                 }

@@ -1009,10 +1009,16 @@
           "documentation": "The token account data to set.",
           "typing": "map",
           "optional": true
+        },
+        {
+          "name": "clone_program_account",
+          "documentation": "The program clone data to set.",
+          "typing": "map",
+          "optional": true
         }
       ],
       "outputs": [],
-      "example": "action \"setup\" \"svm::setup_surfnet\" {\n    set_account {\n        public_key = signer.caller.public_key\n        lamports = 999999999\n    }\n    set_token_account {\n        public_key = signer.caller.public_key\n        token = \"usdc\"\n        amount = 1000000\n    }\n}\n"
+      "example": "action \"setup\" \"svm::setup_surfnet\" {\n    set_account {\n        public_key = signer.caller.public_key\n        lamports = 999999999\n    }\n    set_token_account {\n        public_key = signer.caller.public_key\n        token = \"usdc\"\n        amount = 1000000\n    }\n    clone_program_account {\n        source_program_id = \"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\" // USDC program id\n        destination_program_id = variable.my_program_id\n    }\n}\n"
     }
   ],
   "telegram": [

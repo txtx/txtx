@@ -1,7 +1,7 @@
 [package]
 name = "txtx-gql"
 description = "Primitives for supervising Txtx runbooks execution"
-version = "0.2.6"
+version = "0.3.2"
 edition = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
@@ -15,7 +15,7 @@ categories = { workspace = true }
 txtx-addon-kit = { workspace = true }
 futures = { version = "0.3.22", features = ["alloc"], default-features = false }
 futures-enum = { version = "0.1.12", default-features = false }
-juniper = { version = "0.16.1" }
+juniper = { version = "0.16.2" }
 juniper_codegen = { version = "0.16.0" }
 # juniper_codegen = { git = "https://github.com/graphql-rust/juniper", rev = "c0e1b3e" }
 async-stream = "0.3.5"

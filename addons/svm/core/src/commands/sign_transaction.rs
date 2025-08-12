@@ -4,6 +4,7 @@ use crate::typing::SvmValue;
 use crate::utils::build_transaction_from_svm_value;
 use solana_sdk::signature::Signature;
 use std::collections::HashMap;
+use txtx_addon_kit::constants::META_DESCRIPTION;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
@@ -13,6 +14,8 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
+#[cfg(not(feature = "wasm"))]
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::types::ConstructDid;
 
 use crate::constants::{
@@ -29,6 +32,7 @@ pub fn check_signed_executability(
     supervision_context: &RunbookSupervisionContext,
     signers_instances: &HashMap<ConstructDid, SignerInstance>,
     mut signers: SignersState,
+    auth_context: &AuthorizationContext,
 ) -> Result<CheckSignabilityOk, SignerActionErr> {
     use txtx_addon_kit::constants::{DESCRIPTION, SIGNATURE_APPROVED};
 
@@ -39,11 +43,15 @@ pub fn check_signed_executability(
     let values = values.clone();
     let supervision_context = supervision_context.clone();
     let signers_instances = signers_instances.clone();
+    let auth_context = auth_context.clone();
 
     let mut actions = Actions::none();
 
     let description =
         values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+    let markdown_res = values.get_markdown(&auth_context);
+    let meta_description =
+        values.get_expected_string(META_DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
 
     let signers_dids_with_instances =
         get_signers_and_instance(&values, &signers_instances).unwrap();
@@ -70,11 +78,17 @@ pub fn check_signed_executability(
                 );
             };
 
+            let markdown = markdown_res
+                .clone()
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+
             let (new_signers, new_signer_state, mut signer_actions) =
                 (signer_instance.specification.check_signability)(
                     &construct_did,
                     &instance_name,
                     &description,
+                    &meta_description,
+                    &markdown,
                     &payload,
                     &signer_instance.specification,
                     &values,
@@ -82,6 +96,7 @@ pub fn check_signed_executability(
                     signers,
                     &signers_instances,
                     &supervision_context,
+                    &auth_context,
                 )?;
             signers = new_signers;
             signers.push_signer_state(new_signer_state.clone());

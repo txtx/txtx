@@ -4,10 +4,11 @@ use std::thread::sleep;
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::{DESCRIPTION, SIGNATURE_APPROVED};
+use txtx_addon_kit::constants::{DESCRIPTION, SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
-    ActionItemRequest, ActionItemStatus, ReviewInputRequest, VerifyThirdPartySignatureRequest,
+    ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
+    VerifyThirdPartySignatureRequest,
 };
 use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
@@ -22,6 +23,9 @@ use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
+};
+use txtx_addon_kit::{
+    constants::ACTION_ITEM_CHECK_BALANCE, types::frontend::ActionItemRequestUpdate,
 };
 use txtx_addon_network_svm_types::SVM_PUBKEY;
 
@@ -98,11 +102,11 @@ lazy_static! {
             ],
             outputs: [
                 public_key: {
-                    documentation: "The public key of the Squad multisig.",
+                    documentation: "The public key of the Squad vault for the provided vault index. This is an alias for the `vault_public_key` output",
                     typing: Type::string()
                 },
                 address: {
-                    documentation: "The address of the Squad multisig.",
+                    documentation: "The public key of the Squad vault for the provided vault index. This is an alias for the `vault_public_key` output",
                     typing: Type::string()
                 },
                 vault_public_key: {
@@ -110,7 +114,15 @@ lazy_static! {
                     typing: Type::string()
                 },
                 vault_address: {
-                    documentation: "The address of the Squad vault for the provided vault index.",
+                    documentation: "The public key of the Squad vault for the provided vault index. This is an alias for the `vault_public_key` output",
+                    typing: Type::string()
+                },
+                multisig_public_key: {
+                    documentation: "The public key of the Squad multisig pda. This address should not be funded.",
+                    typing: Type::string()
+                },
+                multisig_address: {
+                    documentation: "The public key of the Squad multisig pda. This address should not be funded. This is an alias for the `multisig_public_key` output",
                     typing: Type::string()
                 }
             ],
@@ -150,6 +162,7 @@ impl SignerImplementation for SvmSecretKey {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use txtx_addon_kit::constants::{DESCRIPTION, IS_BALANCE_CHECKED};
         use txtx_addon_kit::types::signers::consolidate_signer_result;
 
         use crate::{codec::squads::SquadsMultisig, constants::RPC_API_URL};
@@ -235,72 +248,137 @@ impl SignerImplementation for SvmSecretKey {
             ));
         };
 
+        let is_balance_checked = signer_state.get_bool(IS_BALANCE_CHECKED);
+        let rpc_api_url = values
+            .get_expected_string(RPC_API_URL)
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
+            .to_owned();
+        let network_id = values
+            .get_expected_string(NETWORK_ID)
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
+            .to_owned();
+
         let pubkey = squad.multisig_pda;
         let vault_pubkey = squad.vault_pda;
-        let pubkey_value = SvmValue::pubkey(pubkey.to_bytes().to_vec());
+        println!("Vault pubkey: {}", vault_pubkey);
         let vault_pubkey_value = SvmValue::pubkey(vault_pubkey.to_bytes().to_vec());
-        let pubkey_string_value = Value::string(pubkey.to_string());
         let vault_pubkey_string_value = Value::string(vault_pubkey.to_string());
         let multisig_value = squad.to_value();
+        let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let markdown = values
+            .get_markdown(auth_ctx)
+            .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
+        let mut action_items = vec![];
 
-        // if supervision_context.review_input_values {
-        if let Ok(_) = values.get_expected_string(CHECKED_ADDRESS) {
+        if let Ok(_) = signer_state.get_expected_string(CHECKED_ADDRESS) {
+            println!("Squads vault address already checked, inserting keys...");
             signer_state.insert(CHECKED_PUBLIC_KEY, vault_pubkey_value.clone());
             signer_state.insert(CHECKED_ADDRESS, vault_pubkey_string_value.clone());
+            signer_state.insert("multisig_address", Value::string(pubkey.to_string()));
+            signer_state.insert("multisig_public_key", Value::string(pubkey.to_string()));
             signer_state.insert("squads_multisig", multisig_value);
             signer_state.insert("initiator", Value::string(initiator_did.to_string()));
             if let Some((payer_did, _)) = &some_payer {
                 signer_state.insert("payer", Value::string(payer_did.to_string()));
             }
+            let update =
+                ActionItemRequestUpdate::from_context(&construct_did, ACTION_ITEM_CHECK_ADDRESS)
+                    .set_status(ActionItemStatus::Success(Some(vault_pubkey.to_string())));
+            consolidated_actions.push_action_item_update(update);
         } else {
-            consolidated_actions.push_sub_group(
-                None,
-                vec![ActionItemRequest::new(
-                    &Some(construct_did.clone()),
-                    &format!("Check {} vault expected address", instance_name),
-                    None,
-                    ActionItemStatus::Todo,
-                    ReviewInputRequest::new("", &vault_pubkey_string_value).to_action_type(),
-                    ACTION_ITEM_CHECK_ADDRESS,
-                )],
+            println!("Returning action to check Squads vault address...");
+            action_items.push(
+                ReviewInputRequest::new("", &vault_pubkey_string_value)
+                    .to_action_type()
+                    .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
+                    .with_construct_did(construct_did)
+                    .with_some_description(description)
+                    .with_meta_description(&format!(
+                        "Check {} vault expected address",
+                        instance_name
+                    ))
+                    .with_some_markdown(markdown),
             );
         }
 
+        match is_balance_checked {
+            Some(true) => {
+                consolidated_actions.push_action_item_update(
+                    ActionItemRequestUpdate::from_context(
+                        &construct_did,
+                        ACTION_ITEM_CHECK_BALANCE,
+                    )
+                    .set_status(ActionItemStatus::Success(None)),
+                );
+            }
+            Some(false) => {
+                consolidated_actions.push_action_item_update(
+                    ActionItemRequestUpdate::from_context(
+                        &construct_did,
+                        ACTION_ITEM_CHECK_BALANCE,
+                    )
+                    .set_status(ActionItemStatus::Todo),
+                );
+            }
+            None => {}
+        }
+
         let values = values.clone();
+        let construct_did = construct_did.clone();
+        let instance_name = instance_name.to_string();
         let signers_instances = signers_instances.clone();
         let supervision_context = supervision_context.clone();
         let auth_ctx = auth_ctx.clone();
         let future = async move {
-            let initiator_signer_state = signers.pop_signer_state(&initiator_did).unwrap();
-            let future = (initiator_instance.specification.check_activability)(
-                &initiator_did,
-                &initiator_instance.name,
-                &initiator_instance.specification,
-                &values,
-                initiator_signer_state,
-                signers,
-                &signers_instances,
-                &supervision_context,
-                &auth_ctx,
-                is_balance_check_required,
-                is_public_key_required,
-            )?;
-            let (updated_signers, mut actions) = match future.await {
-                Ok(res) => consolidate_signer_result(Ok(res), None).unwrap(),
-                Err(e) => return Err(e),
+            use crate::{
+                constants::REQUESTED_STARTUP_DATA, signers::get_additional_actions_for_address,
             };
-            signers = updated_signers;
 
-            consolidated_actions.append(&mut actions);
+            let is_first_pass = signer_state.get_bool(REQUESTED_STARTUP_DATA).is_none();
 
-            if let Some((payer_did, payer_instance)) = some_payer {
-                let payer_signer_state = signers.pop_signer_state(&payer_did).unwrap();
-                let future = (payer_instance.specification.check_activability)(
-                    &payer_did,
-                    &payer_instance.name,
-                    &payer_instance.specification,
+            let res = get_additional_actions_for_address(
+                &None,
+                &Some(vault_pubkey),
+                &construct_did,
+                &instance_name,
+                None,
+                None,
+                &network_id,
+                &rpc_api_url,
+                false,
+                is_balance_check_required,
+                false,
+                is_balance_checked,
+            )
+            .await;
+            signer_state.insert(&REQUESTED_STARTUP_DATA, Value::bool(true));
+            let additional_actions =
+                &mut res.map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            action_items.append(additional_actions);
+            consolidated_actions.push_group(
+                "Review the following Squads Signer related action items",
+                action_items,
+            );
+
+            let initiator_signer_state = signers.pop_signer_state(&initiator_did).unwrap();
+            let initiator_has_requested_startup_data =
+                initiator_signer_state.get_bool(REQUESTED_STARTUP_DATA).unwrap_or(false);
+
+            println!("Is first pass: {}", is_first_pass);
+            println!(
+                "Initiator has requested startup data: {}",
+                initiator_has_requested_startup_data
+            );
+
+            // if this is the first time we are checking this squad signer, but the initiator has already requested startup data,
+            // then the initiator is being used by some other actions and we don't need to check activability again
+            if is_first_pass && !initiator_has_requested_startup_data {
+                let future = (initiator_instance.specification.check_activability)(
+                    &initiator_did,
+                    &initiator_instance.name,
+                    &initiator_instance.specification,
                     &values,
-                    payer_signer_state,
+                    initiator_signer_state,
                     signers,
                     &signers_instances,
                     &supervision_context,
@@ -313,7 +391,40 @@ impl SignerImplementation for SvmSecretKey {
                     Err(e) => return Err(e),
                 };
                 signers = updated_signers;
+
                 consolidated_actions.append(&mut actions);
+            } else {
+                signers.push_signer_state(initiator_signer_state);
+            }
+
+            if let Some((payer_did, payer_instance)) = some_payer {
+                let payer_signer_state = signers.pop_signer_state(&payer_did).unwrap();
+                let payer_has_requested_startup_data =
+                    payer_signer_state.get_bool(REQUESTED_STARTUP_DATA).unwrap_or(false);
+                println!("Payer has requested startup data: {}", payer_has_requested_startup_data);
+                if is_first_pass && !payer_has_requested_startup_data {
+                    let future = (payer_instance.specification.check_activability)(
+                        &payer_did,
+                        &payer_instance.name,
+                        &payer_instance.specification,
+                        &values,
+                        payer_signer_state,
+                        signers,
+                        &signers_instances,
+                        &supervision_context,
+                        &auth_ctx,
+                        is_balance_check_required,
+                        is_public_key_required,
+                    )?;
+                    let (updated_signers, mut actions) = match future.await {
+                        Ok(res) => consolidate_signer_result(Ok(res), None).unwrap(),
+                        Err(e) => return Err(e),
+                    };
+                    signers = updated_signers;
+                    consolidated_actions.append(&mut actions);
+                } else {
+                    signers.push_signer_state(payer_signer_state);
+                }
             }
 
             Ok((signers, signer_state, consolidated_actions))
@@ -343,6 +454,13 @@ impl SignerImplementation for SvmSecretKey {
         result
             .outputs
             .insert("vault_address".into(), Value::string(multisig.vault_pda.to_string()));
+        result
+            .outputs
+            .insert("multisig_address".into(), Value::string(multisig.multisig_pda.to_string()));
+        result.outputs.insert(
+            "multisig_public_key".into(),
+            SvmValue::pubkey(multisig.multisig_pda.to_bytes().to_vec()),
+        );
         result.outputs.insert(ADDRESS.into(), address.clone());
         result.outputs.insert(PUBLIC_KEY.into(), public_key.clone());
 
@@ -353,6 +471,8 @@ impl SignerImplementation for SvmSecretKey {
         construct_did: &ConstructDid,
         instance_name: &str,
         description: &Option<String>,
+        meta_description: &Option<String>,
+        markdown: &Option<String>,
         payload: &Value,
         _spec: &SignerSpecification,
         values: &ValueStore,
@@ -360,6 +480,7 @@ impl SignerImplementation for SvmSecretKey {
         mut signers: SignersState,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
+        auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         signer_state.insert_scoped_value(
             &construct_did.to_string(),
@@ -402,28 +523,28 @@ impl SignerImplementation for SvmSecretKey {
             let formatted_payload =
                 signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
 
-            let request = ActionItemRequest::new(
-                &Some(construct_did.clone()),
-                instance_name,
-                Some(format!(
-                    "Approve Squad proposal: '{}'",
-                    description.clone().unwrap_or(instance_name.into())
-                )),
-                status,
-                VerifyThirdPartySignatureRequest::new(
-                    &signer_state.uuid,
-                    &multisig.vault_transaction_url(),
-                    &instance_name,
-                    "Squads",
-                    payload,
-                    NAMESPACE,
-                    &network_id,
-                )
-                .check_expectation_action_uuid(construct_did)
-                .formatted_payload(formatted_payload)
-                .to_action_type(),
-                ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
-            );
+            let request = VerifyThirdPartySignatureRequest::new(
+                &signer_state.uuid,
+                &multisig.vault_transaction_url(),
+                &instance_name,
+                "Squads",
+                payload,
+                NAMESPACE,
+                &network_id,
+            )
+            .check_expectation_action_uuid(construct_did)
+            .formatted_payload(formatted_payload)
+            .to_action_type()
+            .to_request(instance_name, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION)
+            .with_construct_did(construct_did)
+            .with_some_description(description.clone())
+            .with_some_meta_description(Some(format!(
+                "Approve Squad proposal: '{}'",
+                description.clone().unwrap_or(instance_name.into())
+            )))
+            .with_some_markdown(markdown.clone())
+            .with_status(status);
+
             let actions = Actions::append_item(
                 request,
                 Some("Review and sign the transactions from the list below"),
@@ -482,7 +603,8 @@ impl SignerImplementation for SvmSecretKey {
                             )
                         })?;
 
-                    let mut transaction: Transaction = deployment_transaction.transaction.clone();
+                    let mut transaction: Transaction =
+                        deployment_transaction.transaction.as_ref().unwrap().clone();
 
                     transaction.message.recent_blockhash = blockhash;
 
@@ -561,6 +683,7 @@ impl SignerImplementation for SvmSecretKey {
                 supervision_context,
                 signers_instances,
                 signers,
+                auth_ctx,
             )?;
             signers = updated_signers;
             return Ok((signers, signer_state, consolidated_actions));

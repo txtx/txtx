@@ -1,4 +1,4 @@
-use borsh::BorshSerialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use solana_sdk::{
     address_lookup_table,
     instruction::{AccountMeta, Instruction},
@@ -11,7 +11,7 @@ use super::{compiled_keys::CompiledKeys, small_vec::SmallVec};
 
 pub const CREATE_VAULT_TRANSACTION_DISCRIMINATOR: [u8; 8] = [48, 250, 78, 168, 208, 226, 218, 211];
 
-#[derive(BorshSerialize, Eq, PartialEq, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Eq, PartialEq, Clone)]
 pub struct VaultTransactionCreateArgs {
     /// Index of the vault this transaction belongs to.
     pub vault_index: u8,

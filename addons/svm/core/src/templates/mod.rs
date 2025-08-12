@@ -27,10 +27,13 @@ pub fn get_interpolated_localnet_signer_template(keypair_path: &str) -> String {
     return format!(
         r#"
 signer "payer" "svm::secret_key" {{
+    description = "Pays fees for program deployments and operations"
     keypair_json = {}
+    // See documentation for other options (mnemonic, etc): https://docs.surfpool.run/iac/svm/signers
 }}
     
 signer "authority" "svm::secret_key" {{
+    description = "Can upgrade programs and manage critical ops"
     keypair_json = {}
 }}
 "#,
@@ -42,11 +45,15 @@ pub fn get_interpolated_devnet_signer_template() -> String {
     return format!(
         r#"
 signer "payer" "svm::web_wallet" {{
-    // expected_address = input.expected_payer_address
+    description = "Pays fees for program deployments and operations"
+    // Optional: the public key of the signer can be enforced at runtime by setting an expected value
+    // expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
 }}
-    
+
 signer "authority" "svm::web_wallet" {{
+    description = "Can upgrade programs and manage critical ops"
     // expected_address = input.expected_payer_address
+    // See documentation for other options (squads, etc): https://docs.surfpool.run/iac/svm/signers
 }}
 "#,
     );
@@ -55,15 +62,19 @@ signer "authority" "svm::web_wallet" {{
 pub fn get_interpolated_mainnet_signer_template(_keypair_path: &str) -> String {
     return format!(
         r#"
-# For mainnet deployment, use web wallets, hardware wallets, or multisig for key security.
+// For mainnet deployment, use web wallets, hardware wallets or multisig to improve key security.
 
-# signer "payer" "svm::web_wallet" {{
-#   address = "YOUR_WEB_WALLET_PUBLIC_KEY"
-# }}
+signer "payer" "svm::web_wallet" {{
+    description = "Pays fees for program deployments and operations"
+    // Optional: the public key of the signer can be enforced at runtime by setting an expected value
+    // expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
+}}
 
-# signer "authority" "svm::squads" {{
-#   address = "YOUR_SQUAD_PUBLIC_KEY"
-# }}
+signer "authority" "svm::web_wallet" {{
+    description = "Can upgrade programs and manage critical ops"
+    // expected_address = input.expected_payer_address
+    // See documentation for other options (squads, etc): https://docs.surfpool.run/iac/svm/signers
+}}
 "#
     );
 }
@@ -76,6 +87,10 @@ action "deploy_{}" "svm::deploy_program" {{
     program = svm::get_program_from_anchor_project("{}") 
     authority = signer.authority
     payer = signer.payer
+    // Optional: if you want to deploy the program via a cheatcode when targeting a Surfnet, set `instant_surfnet_deployment = true`
+    // Deploying via a cheatcode will write the program data directly to the program account, rather than sending transactions.
+    // This will make deployments instantaneous, but is deviating from how the deployments will take place on devnet/mainnet.
+    // instant_surfnet_deployment = true
 }}
 "#,
         program_name, program_name, program_name
@@ -90,6 +105,10 @@ action "deploy_{}" "svm::deploy_program" {{
     program = svm::get_program_from_native_project("{}") 
     authority = signer.authority
     payer = signer.payer
+    // Optional: if you want to deploy the program via a cheatcode when targeting a Surfnet, set `instant_surfnet_deployment = true`
+    // Deploying via a cheatcode will write the program data directly to the program account, rather than sending transactions.
+    // This will make deployments instantaneous, but is deviating from how the deployments will take place on devnet/mainnet.
+    // instant_surfnet_deployment = true
 }}
 "#,
         program_name, program_name, program_name

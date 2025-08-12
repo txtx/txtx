@@ -39,7 +39,36 @@ POST support is only intended for read-only URLs, such as submitting a search.
 
 
   <Property name="headers" required="optional" type="object">
-    A map of request header field names and values.
+    A map of request header field names and values. This is an object type containing the keys:
+
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
   </Property>
 
 

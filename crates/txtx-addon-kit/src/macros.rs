@@ -89,6 +89,7 @@ macro_rules! define_command {
                     )?
                     is_sensitive
                 },
+                self_referencing: false
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {
@@ -97,6 +98,7 @@ macro_rules! define_command {
                 typing: $output_ts,
             }),*],
             inputs_post_processing_closure: $func_key::post_process_evaluated_inputs,
+            evaluate_pre_conditions: $func_key::evaluate_pre_conditions,
             prepare_nested_execution: $func_key::prepare_nested_execution,
             check_instantiability: $func_key::check_instantiability,
             check_executability: $func_key::check_executability,
@@ -113,6 +115,7 @@ macro_rules! define_command {
                 implements_cloud_service
             },
             aggregate_nested_execution_results: $func_key::aggregate_nested_execution_results,
+            evaluate_post_conditions: $func_key::evaluate_post_conditions,
             example: String::from($example),
         }
       )
@@ -179,7 +182,7 @@ macro_rules! define_documented_arbitrary_object_type {
             tainting: $tainting:expr
         }),*
     ] => {
-        Type::strict_object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
+        Type::documented_arbitrary_object(vec![$(txtx_addon_kit::types::types::ObjectProperty {
             name: String::from(stringify!($input_name)),
             documentation: String::from($input_doc),
             typing: $input_ts,
@@ -274,6 +277,7 @@ macro_rules! define_signer {
                 check_required: false,
                 check_performed: false,
                 internal: false,
+                self_referencing: false,
             }),*],
             default_inputs: CommandSpecification::default_inputs(),
             outputs: vec![$(CommandOutput {
