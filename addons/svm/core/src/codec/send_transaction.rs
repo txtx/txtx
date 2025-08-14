@@ -32,6 +32,7 @@ pub fn send_transaction_background_task(
     let already_broadcasted = inputs.get_bool("third_party_signature_complete").unwrap_or(false);
 
     if already_broadcasted {
+        println!("Already broadcasted. Outputs: {:?}", outputs);
         return Ok(Box::pin(async move {
             let result = CommandExecutionResult::from_value_store(&outputs);
             Ok(result)

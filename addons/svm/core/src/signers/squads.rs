@@ -2,9 +2,13 @@ use std::collections::HashMap;
 use std::thread::sleep;
 
 use solana_client::rpc_client::RpcClient;
+use solana_sdk::signature::Signature;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::{DESCRIPTION, SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE};
+use txtx_addon_kit::constants::{
+    DESCRIPTION, META_DESCRIPTION, SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE,
+    SIGNED_TRANSACTION_BYTES,
+};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemRequest, ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
@@ -31,12 +35,13 @@ use txtx_addon_network_svm_types::SVM_PUBKEY;
 
 use crate::codec::squads::proposal::ProposalStatus;
 use crate::codec::squads::SquadsMultisig;
+use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::codec::DeploymentTransaction;
 use crate::commands::sign_transaction::{check_signed_executability, run_signed_execution};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION, ADDRESS,
     CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, IS_DEPLOYMENT, IS_SIGNABLE,
-    NAMESPACE, NETWORK_ID, PUBLIC_KEY, RPC_API_URL, SIGNERS, TRANSACTION_BYTES,
+    NAMESPACE, NETWORK_ID, PUBLIC_KEY, RPC_API_URL, SIGNATURE, SIGNERS, TRANSACTION_BYTES,
 };
 use crate::typing::SvmValue;
 use crate::utils::build_transaction_from_svm_value;
@@ -260,7 +265,6 @@ impl SignerImplementation for SvmSecretKey {
 
         let pubkey = squad.multisig_pda;
         let vault_pubkey = squad.vault_pda;
-        println!("Vault pubkey: {}", vault_pubkey);
         let vault_pubkey_value = SvmValue::pubkey(vault_pubkey.to_bytes().to_vec());
         let vault_pubkey_string_value = Value::string(vault_pubkey.to_string());
         let multisig_value = squad.to_value();
@@ -271,7 +275,6 @@ impl SignerImplementation for SvmSecretKey {
         let mut action_items = vec![];
 
         if let Ok(_) = signer_state.get_expected_string(CHECKED_ADDRESS) {
-            println!("Squads vault address already checked, inserting keys...");
             signer_state.insert(CHECKED_PUBLIC_KEY, vault_pubkey_value.clone());
             signer_state.insert(CHECKED_ADDRESS, vault_pubkey_string_value.clone());
             signer_state.insert("multisig_address", Value::string(pubkey.to_string()));
@@ -286,7 +289,6 @@ impl SignerImplementation for SvmSecretKey {
                     .set_status(ActionItemStatus::Success(Some(vault_pubkey.to_string())));
             consolidated_actions.push_action_item_update(update);
         } else {
-            println!("Returning action to check Squads vault address...");
             action_items.push(
                 ReviewInputRequest::new("", &vault_pubkey_string_value)
                     .to_action_type()
@@ -364,12 +366,6 @@ impl SignerImplementation for SvmSecretKey {
             let initiator_has_requested_startup_data =
                 initiator_signer_state.get_bool(REQUESTED_STARTUP_DATA).unwrap_or(false);
 
-            println!("Is first pass: {}", is_first_pass);
-            println!(
-                "Initiator has requested startup data: {}",
-                initiator_has_requested_startup_data
-            );
-
             // if this is the first time we are checking this squad signer, but the initiator has already requested startup data,
             // then the initiator is being used by some other actions and we don't need to check activability again
             if is_first_pass && !initiator_has_requested_startup_data {
@@ -401,7 +397,7 @@ impl SignerImplementation for SvmSecretKey {
                 let payer_signer_state = signers.pop_signer_state(&payer_did).unwrap();
                 let payer_has_requested_startup_data =
                     payer_signer_state.get_bool(REQUESTED_STARTUP_DATA).unwrap_or(false);
-                println!("Payer has requested startup data: {}", payer_has_requested_startup_data);
+
                 if is_first_pass && !payer_has_requested_startup_data {
                     let future = (payer_instance.specification.check_activability)(
                         &payer_did,
@@ -451,6 +447,7 @@ impl SignerImplementation for SvmSecretKey {
             "vault_public_key".into(),
             SvmValue::pubkey(multisig.vault_pda.to_bytes().to_vec()),
         );
+
         result
             .outputs
             .insert("vault_address".into(), Value::string(multisig.vault_pda.to_string()));
@@ -538,10 +535,7 @@ impl SignerImplementation for SvmSecretKey {
             .to_request(instance_name, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION)
             .with_construct_did(construct_did)
             .with_some_description(description.clone())
-            .with_some_meta_description(Some(format!(
-                "Approve Squad proposal: '{}'",
-                description.clone().unwrap_or(instance_name.into())
-            )))
+            .with_some_meta_description(meta_description.clone())
             .with_some_markdown(markdown.clone())
             .with_status(status);
 
@@ -552,6 +546,7 @@ impl SignerImplementation for SvmSecretKey {
             );
             return Ok((signers, signer_state, actions));
         } else {
+            println!("Not proposal created yet, creating proposal...");
             let rpc_api_url = values
                 .get_expected_string(RPC_API_URL)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?
@@ -592,52 +587,15 @@ impl SignerImplementation for SvmSecretKey {
                 )
             })?;
 
-            let (inner_transaction, do_sign_with_txtx_signer) =
-                if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
-                    let deployment_transaction = DeploymentTransaction::from_value(&payload)
-                        .map_err(|e| {
-                            (
-                                signers.clone(),
-                                signer_state.clone(),
-                                diagnosed_error!("failed to sign transaction: {e}"),
-                            )
-                        })?;
+            let inner_transaction = {
+                let mut transaction: Transaction = build_transaction_from_svm_value(&payload)
+                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-                    let mut transaction: Transaction =
-                        deployment_transaction.transaction.as_ref().unwrap().clone();
+                transaction.message.recent_blockhash = blockhash;
+                transaction
+            };
 
-                    transaction.message.recent_blockhash = blockhash;
-
-                    let keypairs = deployment_transaction.get_keypairs().map_err(|e| {
-                        (
-                            signers.clone(),
-                            signer_state.clone(),
-                            diagnosed_error!("failed to sign transaction: {e}"),
-                        )
-                    })?;
-
-                    transaction
-                        .try_partial_sign(&keypairs, transaction.message.recent_blockhash)
-                        .map_err(|e| {
-                        (
-                            signers.clone(),
-                            signer_state.clone(),
-                            diagnosed_error!("failed to sign transaction: {e}"),
-                        )
-                    })?;
-
-                    (transaction, deployment_transaction.signers.is_some())
-                } else {
-                    let mut transaction: Transaction =
-                        build_transaction_from_svm_value(&payload)
-                            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-
-                    transaction.message.recent_blockhash = blockhash;
-
-                    (transaction, true)
-                };
-
-            let get_proposal_transaction = multisig
+            let (create_proposal_transaction, formatted_transaction) = multisig
                 .get_transaction(
                     rpc_client,
                     &initiator_pubkey,
@@ -649,33 +607,39 @@ impl SignerImplementation for SvmSecretKey {
             initiator_signer_state.insert_scoped_value(
                 &construct_did.to_string(),
                 TRANSACTION_BYTES,
-                get_proposal_transaction.clone(),
+                create_proposal_transaction.clone(),
             );
             signers.push_signer_state(initiator_signer_state);
 
-            let mut signers_dids = vec![Value::string(initiator_did.to_string())];
+            let mut signers_dids = vec![initiator_did.clone()];
             if let Some((payer_did, _)) = &some_payer {
-                signers_dids.push(Value::string(payer_did.to_string()));
+                signers_dids.push(payer_did.clone());
             }
-            // update our squad signer state to mark that we have created a proposal and are ready to do
-            // the actual squad signature
-            // signer_state.insert_scoped_value(
-            //     &construct_did.to_string(),
-            //     "proposal_created",
-            //     Value::bool(true),
-            // );
+
             signers.push_signer_state(signer_state);
             // update our transaction description to include some Squads context
             let mut values = values.clone();
+            // values.insert(
+            //     DESCRIPTION,
+            //     Value::string(format!(
+            //         "Create Squad proposal: '{}'",
+            //         values.get_string(DESCRIPTION).unwrap_or(instance_name)
+            //     )),
+            // );
             values.insert(
-                DESCRIPTION,
-                Value::string(format!(
-                    "Create Squad proposal: '{}'",
-                    values.get_string(DESCRIPTION).unwrap_or(instance_name)
+                META_DESCRIPTION,
+                Value::string(get_formatted_transaction_meta_description(
+                    &vec!["This transaction will create a Squads proposal.".into()],
+                    &signers_dids,
+                    signers_instances,
                 )),
             );
-            values.insert(TRANSACTION_BYTES, get_proposal_transaction);
-            values.insert(SIGNERS, Value::array(signers_dids));
+            values.insert(FORMATTED_TRANSACTION, formatted_transaction);
+            values.insert(TRANSACTION_BYTES, create_proposal_transaction);
+            values.insert(
+                SIGNERS,
+                Value::array(signers_dids.iter().map(|d| Value::string(d.to_string())).collect()),
+            );
             let (updated_signers, signer_state, consolidated_actions) = check_signed_executability(
                 construct_did,
                 instance_name,
@@ -720,6 +684,7 @@ impl SignerImplementation for SvmSecretKey {
                 .unwrap_or(false);
 
             if is_proposal_created {
+                println!("Proposal is created");
                 let proposal_status = multisig.get_proposal_status(&rpc_client).map_err(|e| {
                     (
                         signers.clone(),
@@ -737,13 +702,18 @@ impl SignerImplementation for SvmSecretKey {
                         ))
                     }
                     ProposalStatus::Executed { .. } => {
+                        println!("Proposal is executed");
+                        let signature = multisig
+                            .get_executed_signature(&rpc_client)
+                            .unwrap_or(Signature::default().to_string());
                         return Ok((
                             signers,
                             signer_state,
-                            CommandExecutionResult::from([(
-                                "third_party_signature_complete",
-                                Value::bool(true),
-                            )]),
+                            CommandExecutionResult::from([
+                                ("third_party_signature_complete", Value::bool(true)),
+                                (SIGNED_TRANSACTION_BYTES, Value::null()),
+                                (SIGNATURE, Value::string(signature)),
+                            ]),
                         ));
                     }
                     ProposalStatus::Cancelled { .. } => {
@@ -753,14 +723,16 @@ impl SignerImplementation for SvmSecretKey {
                             diagnosed_error!("Proposal cancelled"),
                         ))
                     }
-                    _ => {
+                    other => {
+                        println!("Proposal state: {:?}", other);
                         return Ok((
                             signers,
                             signer_state,
-                            CommandExecutionResult::from([(
-                                "third_party_signature_complete",
-                                Value::bool(false),
-                            )]),
+                            CommandExecutionResult::from([
+                                ("third_party_signature_complete", Value::bool(false)),
+                                (SIGNED_TRANSACTION_BYTES, Value::null()),
+                                (SIGNATURE, Value::string(Signature::default().to_string())),
+                            ]),
                         ));
                     }
                 }

@@ -1,7 +1,7 @@
 use multisig::Multisig;
 use proposal::{get_proposal_ix_data, Proposal, ProposalStatus};
 use serde::{Deserialize, Serialize};
-use solana_client::rpc_client::RpcClient;
+use solana_client::rpc_client::{GetConfirmedSignaturesForAddress2Config, RpcClient};
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     message::Message,
@@ -12,6 +12,8 @@ use solana_sdk::{
 use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
 use txtx_addon_network_svm_types::{SvmValue, SVM_SQUAD_MULTISIG};
 use vault_transaction::get_create_vault_transaction_ix_data;
+
+use crate::codec::ui_encode::message_to_formatted_tx;
 
 pub mod compiled_keys;
 pub mod multisig;
@@ -115,7 +117,7 @@ impl SquadsMultisig {
         initiator: &Pubkey,
         rent_payer: &Pubkey,
         mut input_message: Message,
-    ) -> Result<Value, Diagnostic> {
+    ) -> Result<(Value, Value), Diagnostic> {
         let latest_blockhash = rpc_client.get_latest_blockhash().map_err(|e| {
             diagnosed_error!("failed to retrieve latest blockhash: {}", e.to_string())
         })?;
@@ -132,8 +134,11 @@ impl SquadsMultisig {
             None,
         );
 
+        let formatted_transaction = message_to_formatted_tx(&message);
+
         message.recent_blockhash = latest_blockhash;
-        SvmValue::transaction(&Transaction::new_unsigned(message))
+        let tx_value = SvmValue::transaction(&Transaction::new_unsigned(message))?;
+        Ok((tx_value, formatted_transaction))
     }
 
     fn get_create_proposal_ix(&self, initiator: &Pubkey, rent_payer: &Pubkey) -> Instruction {
@@ -199,5 +204,16 @@ impl SquadsMultisig {
                 DEFAULT_SQUADS_FRONTEND_URL, self.vault_pda, self.transaction_pda
             )
         }
+    }
+
+    pub fn get_executed_signature(&self, rpc_client: &RpcClient) -> Option<String> {
+        rpc_client
+            .get_signatures_for_address_with_config(
+                &self.vault_pda,
+                GetConfirmedSignaturesForAddress2Config { limit: Some(1), ..Default::default() },
+            )
+            .ok()?
+            .first()
+            .map(|sig| sig.signature.clone())
     }
 }

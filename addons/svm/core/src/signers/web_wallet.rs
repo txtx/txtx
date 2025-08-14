@@ -139,7 +139,6 @@ impl SignerImplementation for SvmWebWallet {
         let (mut actions, connected_public_key) = if let Ok(public_key_bytes) =
             values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
         {
-            println!("Found connected public key: {}", public_key_bytes);
             let sol_address = public_key_from_str(&public_key_bytes)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
@@ -164,7 +163,6 @@ impl SignerImplementation for SvmWebWallet {
                 }
             }
             if success {
-                println!("Successfully connected to address: {}", sol_address);
                 signer_state.insert(CHECKED_PUBLIC_KEY, Value::string(sol_address.to_string()));
                 signer_state.insert(CHECKED_ADDRESS, Value::string(sol_address.to_string()));
                 do_request_address_check = false;
@@ -173,12 +171,10 @@ impl SignerImplementation for SvmWebWallet {
             let update =
                 ActionItemRequestUpdate::from_context(&signer_did, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
                     .set_status(status_update);
-            println!("Updating public key action item: {:?}", update);
             actions.push_action_item_update(update);
 
             (actions, Some(sol_address))
         } else if let Ok(checked_public_key) = checked_public_key {
-            println!("Found checked public key: {}", checked_public_key);
             let sol_address = public_key_from_str(&checked_public_key)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
             signer_state.insert(CHECKED_PUBLIC_KEY, Value::string(sol_address.to_string()));
@@ -188,7 +184,6 @@ impl SignerImplementation for SvmWebWallet {
             (Actions::none(), None)
         };
 
-        println!("Payer is balance checked: {:?}", is_balance_checked);
         match is_balance_checked {
             Some(true) => {
                 actions.push_action_item_update(
@@ -232,8 +227,6 @@ impl SignerImplementation for SvmWebWallet {
                     "Review and check the following signer related action items",
                     action_items,
                 );
-            } else {
-                println!("No additional actions to perform for the SVM Web Wallet signer.");
             }
 
             Ok((signers, signer_state, actions))
@@ -257,7 +250,6 @@ impl SignerImplementation for SvmWebWallet {
         let address = signer_state
             .get_expected_value(CHECKED_ADDRESS)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-        println!("Web wallet signer activated for address: {:?}", address);
         result.outputs.insert(ADDRESS.into(), address.clone());
         result.outputs.insert(PUBLIC_KEY.into(), public_key.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
@@ -276,12 +268,17 @@ impl SignerImplementation for SvmWebWallet {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
-        auth_ctx: &AuthorizationContext,
+        _auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let construct_did_str = &construct_did.to_string();
+        println!("Web wallet check_signability for construct {}", construct_did_str);
         signer_state.insert_scoped_value(&construct_did_str, TRANSACTION_BYTES, payload.clone());
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
         {
+            println!(
+                "Returning early cause found signed transaction bytes for construct {}",
+                construct_did_str
+            );
             return Ok((signers, signer_state, Actions::none()));
         }
 
@@ -347,6 +344,7 @@ impl SignerImplementation for SvmWebWallet {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> SignerSignFutureResult {
+        println!("Web wallet sign for construct {}", construct_did);
         let mut result = CommandExecutionResult::new();
 
         // value signed (partially, maybe) by the supervisor

@@ -423,7 +423,9 @@ impl CommandImplementation for DeployProgram {
         signers: SignersState,
         auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
+        println!("Checking signed executability for {}", construct_did);
         let nested_construct_did = values.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
+        println!("Found nested construct DID: {}", nested_construct_did);
 
         let transaction =
             values.get_scoped_value(&nested_construct_did.to_string(), TRANSACTION_BYTES).unwrap();
@@ -455,7 +457,7 @@ impl CommandImplementation for DeployProgram {
             _ => false,
         } {
             if authority_signer_state
-                .get_scoped_value(&&construct_did.to_string(), SIGNATURE_APPROVED)
+                .get_scoped_value(&&nested_construct_did.to_string(), SIGNATURE_APPROVED)
                 .is_some()
                 || !supervision_context.review_input_values
             {
@@ -504,6 +506,7 @@ impl CommandImplementation for DeployProgram {
         // we only need to check signability if there are signers for this transaction
         if let Some(signers_dids) = signers_dids {
             let mut values = values.clone();
+            println!("Deployment transaction type: {:?}", deployment_transaction.transaction_type);
             let transaction_value =
                 SvmValue::transaction(&deployment_transaction.transaction.as_ref().unwrap())
                     .map_err(|e| {
@@ -530,11 +533,15 @@ impl CommandImplementation for DeployProgram {
                     )
                 })?;
             if let Some((formatted_transaction, meta_description)) = formatted_transaction {
+                println!(
+                    "Calling check signed executability for deploy_program with transaction: {:?}",
+                    meta_description
+                );
                 values.insert(FORMATTED_TRANSACTION, formatted_transaction);
                 values.insert(META_DESCRIPTION, Value::string(meta_description));
             }
             let res = check_signed_executability(
-                construct_did,
+                &nested_construct_did,
                 instance_name,
                 &values,
                 supervision_context,
@@ -556,6 +563,7 @@ impl CommandImplementation for DeployProgram {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
+        println!("Running signed execution for {}", construct_did);
         let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
         let authority_signer_state =
             signers.get_signer_state(&authority_signer_did).unwrap().clone();
@@ -581,6 +589,7 @@ impl CommandImplementation for DeployProgram {
 
             let nested_construct_did =
                 values.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
+            println!("Found nested construct DID: {}", nested_construct_did);
 
             let transaction_value = values
                 .get_scoped_value(&nested_construct_did.to_string(), TRANSACTION_BYTES)
@@ -641,7 +650,7 @@ impl CommandImplementation for DeployProgram {
             values.insert(TRANSACTION_BYTES, transaction_value.clone());
 
             let run_signing_future =
-                run_signed_execution(&construct_did, &values, &signers_instances, signers);
+                run_signed_execution(&nested_construct_did, &values, &signers_instances, signers);
             let (signers, signer_state, mut signin_res) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,

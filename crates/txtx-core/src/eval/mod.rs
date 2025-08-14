@@ -70,13 +70,12 @@ pub async fn run_signers_evaluation(
         else {
             continue;
         };
-        println!("Evaluating signer instance: {}", signer_instance.name);
+        println!("Signer {} is construct {}", signer_instance.name, construct_did);
         let package_id = signer_instance.package_id.clone();
 
         let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
 
         let instantiated = runbook_execution_context.is_signer_instantiated(&construct_did);
-        println!("Is signer instantiated: {}", instantiated);
 
         let add_ctx_to_diag = add_ctx_to_diag(
             "signer".to_string(),
@@ -172,11 +171,6 @@ pub async fn run_signers_evaluation(
                     // on this one that has actions, it still is safe to check for actions on the depending signer.
                     // but for the depending signer to get this far in the execution, it needs to be able to reference
                     // the did of _this_ signer, so we insert empty execution results.
-                    println!(
-                        "Inserting empty execution results for {} construct did: {}",
-                        signer_instance.name, construct_did
-                    );
-                    println!("New actions: {:?}", new_actions);
                     runbook_execution_context
                         .commands_execution_results
                         .insert(construct_did, CommandExecutionResult::new());
@@ -220,10 +214,6 @@ pub async fn run_signers_evaluation(
         let (mut result, signers_state) = match res {
             Ok((signers_state, result)) => (Some(result), Some(signers_state)),
             Err((signers_state, diag)) => {
-                println!(
-                    "Failed to perform activation for signer {}: {}",
-                    signer_instance.name, diag
-                );
                 runbook_execution_context.signers_state = Some(signers_state);
                 pass_result.push_diagnostic(&diag, construct_id, &add_ctx_to_diag);
                 return pass_result;
@@ -231,15 +221,9 @@ pub async fn run_signers_evaluation(
         };
         runbook_execution_context.signers_state = signers_state;
         let Some(result) = result.take() else {
-            println!("No result returned from signer activation for {}", signer_instance.name);
             continue;
         };
-        println!("Signer {} activated successfully", signer_instance.name);
-        println!("With results: {:?}", result.outputs);
-        println!(
-            "Inserting non-empty execution results for {} construct did: {}",
-            signer_instance.name, construct_did
-        );
+
         runbook_execution_context.commands_execution_results.insert(construct_did.clone(), result);
     }
 
@@ -580,6 +564,7 @@ pub async fn evaluate_command_instance(
             // runtime_context.addons.index_command_instance(namespace, package_did, block)
             return LoopEvaluationResult::Continue;
         };
+        println!("command instance {} is construct {}", command_instance.name, construct_did);
 
         match command_instance.evaluate_pre_conditions(
             construct_did,
@@ -660,8 +645,8 @@ pub async fn evaluate_command_instance(
                 let signers = runbook_execution_context.signers_state.take().unwrap();
                 let signers = update_signer_instances_from_action_response(
                     signers,
-                    &construct_did,
-                    &action_item_responses.get(&construct_did),
+                    &nested_construct_did,
+                    &action_item_responses.get(&nested_construct_did),
                 );
 
                 let res = command_instance
@@ -671,7 +656,7 @@ pub async fn evaluate_command_instance(
                         &evaluated_inputs,
                         signers,
                         &mut runbook_execution_context.signers_instances,
-                        &action_item_responses.get(&construct_did),
+                        &action_item_responses.get(&nested_construct_did),
                         &action_item_requests.get(&construct_did),
                         supervision_context,
                         &runtime_context.authorization_context,
@@ -709,7 +694,7 @@ pub async fn evaluate_command_instance(
                 let mut empty_vec = vec![];
                 let action_items_requests =
                     action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
-                let action_items_response = action_item_responses.get(&construct_did);
+                let action_items_response = action_item_responses.get(&nested_construct_did);
 
                 let execution_result = command_instance
                     .perform_signed_execution(
@@ -748,7 +733,7 @@ pub async fn evaluate_command_instance(
                     nested_evaluation_values,
                     &mut evaluated_inputs,
                     &mut runbook_execution_context.signers_instances,
-                    &action_item_responses.get(&construct_did),
+                    &action_item_responses.get(&nested_construct_did),
                     supervision_context,
                     &runtime_context.authorization_context,
                 ) {
@@ -779,7 +764,7 @@ pub async fn evaluate_command_instance(
                 let mut empty_vec = vec![];
                 let action_items_requests =
                     action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
-                let action_items_response = action_item_responses.get(&construct_did);
+                let action_items_response = action_item_responses.get(&nested_construct_did);
 
                 let execution_result = {
                     command_instance
@@ -1530,6 +1515,8 @@ pub fn update_signer_instances_from_action_response(
                             let did = &construct_did.to_string();
                             match &response.signed_transaction_bytes {
                                 Some(bytes) => {
+                                    println!("Inserting signed transaction bytes for construct {} and signer {}", did, response.signer_uuid);
+
                                     signer_state.insert_scoped_value(
                                         &did,
                                         SIGNED_TRANSACTION_BYTES,
