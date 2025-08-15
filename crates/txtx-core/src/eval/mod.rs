@@ -129,7 +129,7 @@ pub async fn run_signers_evaluation(
         let evaluated_inputs = match evaluated_inputs_res {
             Ok(result) => match result {
                 CommandInputEvaluationStatus::Complete(result) => result,
-                CommandInputEvaluationStatus::NeedsUserInteraction(i) => {
+                CommandInputEvaluationStatus::NeedsUserInteraction(_) => {
                     continue;
                 }
                 CommandInputEvaluationStatus::Aborted(_, diags) => {
@@ -1597,6 +1597,9 @@ pub fn update_signer_instances_from_action_response(
                         if let Some(mut signer_state) =
                             signers.pop_signer_state(&response.signer_uuid)
                         {
+                            // If the user has requested to check if the third party signature has been completed
+                            // insert into the appropriate signer state that the check has been requested, so it
+                            // can handle accordingly
                             signer_state.insert_scoped_value(
                                 &construct_did.value().to_string(),
                                 THIRD_PARTY_SIGNATURE_STATUS,
