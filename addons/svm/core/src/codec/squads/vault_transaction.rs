@@ -144,7 +144,7 @@ pub fn get_create_vault_transaction_ix_data(
                     AccountMeta {
                         pubkey: message.account_keys[index],
                         is_signer: message.is_signer(index),
-                        is_writable: message.is_writable(index),
+                        is_writable: message.is_maybe_writable(index, None),
                     }
                 })
                 .collect(),

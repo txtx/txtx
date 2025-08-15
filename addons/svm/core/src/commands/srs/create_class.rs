@@ -207,7 +207,7 @@ impl CommandImplementation for ProcessInstructions {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -422,19 +422,16 @@ impl CommandImplementation for ProcessInstructions {
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
+        _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let progress_tx = progress_tx.clone();
         let args = args.clone();
         let signers_instances = signers_instances.clone();
         let signers = signers.clone();
         let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
 
         let future = async move {
             let signer_did = get_signer_did(&args).unwrap();

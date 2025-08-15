@@ -15,8 +15,7 @@ use txtx_addon_kit::types::commands::{
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::BlockEvent;
 use txtx_addon_kit::types::signers::{
-    return_synchronous_result, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
-    SignersState,
+    SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};

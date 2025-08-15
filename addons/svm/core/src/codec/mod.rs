@@ -8,7 +8,6 @@ pub mod ui_encode;
 pub mod utils;
 
 use crate::codec::ui_encode::get_formatted_transaction_meta_description;
-use crate::codec::ui_encode::message_data_to_formatted_value;
 use crate::codec::ui_encode::message_to_formatted_tx;
 use crate::commands::RpcVersionInfo;
 use anchor::AnchorProgramArtifacts;
@@ -42,13 +41,11 @@ use solana_sdk::{
 };
 use std::collections::HashMap;
 use std::str::FromStr;
-use txtx_addon_kit::hex;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ProgressBarStatus;
 use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 use txtx_addon_kit::types::frontend::StatusUpdater;
 use txtx_addon_kit::types::signers::SignerInstance;
-use txtx_addon_kit::types::types::ObjectType;
 use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::ConstructDid;
 

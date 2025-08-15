@@ -61,6 +61,7 @@ impl Proposal {
 
 /// The status of a proposal.
 /// Each variant wraps a timestamp of when the status was set.
+#[allow(deprecated)]
 #[derive(BorshDeserialize, Clone, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum ProposalStatus {
