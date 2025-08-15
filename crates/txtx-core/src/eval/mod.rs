@@ -4,7 +4,7 @@ use crate::runbook::{
     RuntimeContext,
 };
 use crate::types::{RunbookExecutionContext, RunbookSources};
-use kit::constants::RE_EXECUTE_COMMAND;
+use kit::constants::{RE_EXECUTE_COMMAND, THIRD_PARTY_SIGNATURE_STATUS};
 use kit::types::commands::{
     ConstructInstance, PostConditionEvaluationResult, PreConditionEvaluationResult,
 };
@@ -70,7 +70,6 @@ pub async fn run_signers_evaluation(
         else {
             continue;
         };
-        println!("Signer {} is construct {}", signer_instance.name, construct_did);
         let package_id = signer_instance.package_id.clone();
 
         let construct_id = &runbook_workspace_context.expect_construct_id(&construct_did);
@@ -327,12 +326,14 @@ fn should_skip_construct_evaluation(execution_result: &CommandExecutionResult) -
         execution_result.outputs.get(RE_EXECUTE_COMMAND).and_then(|v| v.as_bool()).unwrap_or(false);
 
     let is_third_party_signed_construct_not_yet_signed_by_third_party = {
-        let third_party_val = execution_result.outputs.get("third_party_signature_complete");
+        let third_party_val = execution_result
+            .outputs
+            .get(THIRD_PARTY_SIGNATURE_STATUS)
+            .map(|v| v.expect_third_party_signature());
         let is_action_signed_by_third_party = third_party_val.is_some();
         let is_third_party_sign_complete =
-            third_party_val.and_then(|v| v.as_bool()).unwrap_or(false);
+            third_party_val.map(|v| v.is_approved()).unwrap_or(false);
 
-        let force_recheck = is_action_signed_by_third_party && !is_third_party_sign_complete;
         is_action_signed_by_third_party && !is_third_party_sign_complete
     };
 
@@ -340,6 +341,22 @@ fn should_skip_construct_evaluation(execution_result: &CommandExecutionResult) -
     // If we have an output indicating this construct is signed by a third party, but not yet signed by the third party,
     // we should not skip the construct evaluation
     !has_re_execute_command && !is_third_party_signed_construct_not_yet_signed_by_third_party
+}
+
+fn should_retry_construct_evaluation(execution_result: &CommandExecutionResult) -> bool {
+    let is_third_party_signed_construct_not_yet_signed_by_third_party = {
+        let third_party_val = execution_result
+            .outputs
+            .get(THIRD_PARTY_SIGNATURE_STATUS)
+            .map(|v| v.expect_third_party_signature());
+        let is_action_signed_by_third_party = third_party_val.is_some();
+        let is_third_party_sign_check_requested =
+            third_party_val.as_ref().map(|v| v.is_check_requested()).unwrap_or(false);
+
+        is_action_signed_by_third_party && is_third_party_sign_check_requested
+    };
+
+    is_third_party_signed_construct_not_yet_signed_by_third_party
 }
 
 // When the graph is being traversed, we are evaluating constructs one after the other.
@@ -564,7 +581,6 @@ pub async fn evaluate_command_instance(
             // runtime_context.addons.index_command_instance(namespace, package_did, block)
             return LoopEvaluationResult::Continue;
         };
-        println!("command instance {} is construct {}", command_instance.name, construct_did);
 
         match command_instance.evaluate_pre_conditions(
             construct_did,
@@ -711,6 +727,9 @@ pub async fn evaluate_command_instance(
                 let execution_result = match execution_result {
                     Ok((updated_signers, result)) => {
                         runbook_execution_context.signers_state = Some(updated_signers);
+                        if should_retry_construct_evaluation(&result) {
+                            return LoopEvaluationResult::Continue;
+                        }
                         Ok(result)
                     }
                     Err((updated_signers, diag)) => {
@@ -1515,8 +1534,6 @@ pub fn update_signer_instances_from_action_response(
                             let did = &construct_did.to_string();
                             match &response.signed_transaction_bytes {
                                 Some(bytes) => {
-                                    println!("Inserting signed transaction bytes for construct {} and signer {}", did, response.signer_uuid);
-
                                     signer_state.insert_scoped_value(
                                         &did,
                                         SIGNED_TRANSACTION_BYTES,
@@ -1582,8 +1599,8 @@ pub fn update_signer_instances_from_action_response(
                         {
                             signer_state.insert_scoped_value(
                                 &construct_did.value().to_string(),
-                                "third_party_signature_complete",
-                                Value::bool(response.signature_complete),
+                                THIRD_PARTY_SIGNATURE_STATUS,
+                                Value::third_party_signature_check_requested(),
                             );
                             signers.push_signer_state(signer_state.clone());
                         }

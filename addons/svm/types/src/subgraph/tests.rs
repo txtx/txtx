@@ -2,9 +2,10 @@ use crate::{subgraph::idl::parse_bytes_to_value_with_expected_idl_type_def_ty, S
 
 use super::*;
 use anchor_lang_idl::types::{
-    IdlAccount, IdlEnumVariant, IdlEvent, IdlField, IdlGenericArg, IdlInstruction, IdlInstructionAccount, IdlInstructionAccountItem, IdlType, IdlTypeDefGeneric
+    IdlAccount, IdlEnumVariant, IdlEvent, IdlField, IdlGenericArg, IdlInstruction,
+    IdlInstructionAccount, IdlInstructionAccountItem, IdlType, IdlTypeDefGeneric,
 };
-use borsh_1_5_1::{BorshDeserialize, BorshSerialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 use test_case::test_case;
 use txtx_addon_kit::types::types::{ObjectProperty, ObjectType};
 
@@ -594,21 +595,21 @@ enum MyEnum {
         [1, 2, 3],
     )).unwrap(),
     IdlTypeDefTy::Struct { fields: Some(IdlDefinedFields::Tuple(vec![
-        IdlType::Bool, 
-        IdlType::Bool, 
-        IdlType::U8, 
-        IdlType::U16, 
-        IdlType::U32, 
-        IdlType::U64, 
-        IdlType::U128, 
-        IdlType::I8, 
-        IdlType::I16, 
-        IdlType::I32, 
-        IdlType::I64, 
-        IdlType::I128, 
-        IdlType::F32, 
-        IdlType::F64, 
-        IdlType::Bytes, 
+        IdlType::Bool,
+        IdlType::Bool,
+        IdlType::U8,
+        IdlType::U16,
+        IdlType::U32,
+        IdlType::U64,
+        IdlType::U128,
+        IdlType::I8,
+        IdlType::I16,
+        IdlType::I32,
+        IdlType::I64,
+        IdlType::I128,
+        IdlType::F32,
+        IdlType::F64,
+        IdlType::Bytes,
         IdlType::String,
         IdlType::Option(Box::new(IdlType::String)),
         IdlType::Option(Box::new(IdlType::String)),
@@ -694,11 +695,16 @@ enum MyEnum {
 )]
 fn test_borsh_encoded_data(data: Vec<u8>, expected_type: IdlTypeDefTy, expected_value: Value) {
     println!("data {:?}", data);
-    let decoded =
-        parse_bytes_to_value_with_expected_idl_type_def_ty(&data, &expected_type, &vec![], &vec![], &vec![]).unwrap();
+    let decoded = parse_bytes_to_value_with_expected_idl_type_def_ty(
+        &data,
+        &expected_type,
+        &vec![],
+        &vec![],
+        &vec![],
+    )
+    .unwrap();
     assert_eq!(decoded, expected_value, "Decoded value does not match expected value");
 }
-
 
 #[derive(BorshSerialize, BorshDeserialize)]
 struct ParentStruct {
@@ -710,7 +716,6 @@ struct ChildStruct {
     field: u64,
 }
 
-
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct ParentGenericStruct {
     pub my_generic_field: u64,
@@ -721,7 +726,6 @@ pub struct ParentGenericStruct {
 pub struct ChildGenericStruct<U> {
     pub my_other_generic_field: U,
 }
-
 
 #[test_case(
     borsh::to_vec(&ParentStruct {
@@ -739,9 +743,9 @@ pub struct ChildGenericStruct<U> {
         IdlTypeDef {
             name: "ChildStruct".to_string(),
             ty: IdlTypeDefTy::Struct{fields:Some(IdlDefinedFields::Named(vec![IdlField{name:"field".to_string(),docs:vec![],ty:IdlType::U64,}])),}, 
-            docs: vec![], 
-            serialization: anchor_lang_idl::types::IdlSerialization::Borsh, 
-            repr: None, 
+            docs: vec![],
+            serialization: anchor_lang_idl::types::IdlSerialization::Borsh,
+            repr: None,
             generics: vec![]
         }
     ],
@@ -754,7 +758,7 @@ pub struct ChildGenericStruct<U> {
         my_generic_field: u64::MAX,
         nested: ChildGenericStruct { my_other_generic_field: i32::MIN },
     }).unwrap(),
-    IdlTypeDefTy::Struct {  fields: 
+    IdlTypeDefTy::Struct {  fields:
         Some(IdlDefinedFields::Named(
             vec![
                 IdlField {
@@ -765,9 +769,9 @@ pub struct ChildGenericStruct<U> {
                 IdlField {
                     name: "nested".to_string(),
                     docs: vec![],
-                    ty: IdlType::Defined { 
+                    ty: IdlType::Defined {
                         name: "ChildGenericStruct".to_string(), 
-                        generics: vec![IdlGenericArg::Type { ty: IdlType::I32 }] 
+                        generics: vec![IdlGenericArg::Type { ty: IdlType::I32 }]
                     },
                 },
             ]
@@ -778,9 +782,9 @@ pub struct ChildGenericStruct<U> {
         IdlTypeDef {
             name: "ChildGenericStruct".to_string(),
             ty: IdlTypeDefTy::Struct{fields:Some(IdlDefinedFields::Named(vec![IdlField{name:"my_other_generic_field".to_string(),docs:vec![], ty:IdlType::Generic("U".to_string()),}])),}, 
-            docs: vec![], 
-            serialization: anchor_lang_idl::types::IdlSerialization::Borsh, 
-            repr: None, 
+            docs: vec![],
+            serialization: anchor_lang_idl::types::IdlSerialization::Borsh,
+            repr: None,
             generics: vec![IdlTypeDefGeneric::Type { name: "U".into() }]
         }
     ],
@@ -789,17 +793,22 @@ pub struct ChildGenericStruct<U> {
 )]
 
 fn test_borsh_encoded_data_with_additional_types(
-    data: Vec<u8>, 
-    expected_type: IdlTypeDefTy, 
+    data: Vec<u8>,
+    expected_type: IdlTypeDefTy,
     expected_value: Value,
     idl_types: Vec<IdlTypeDef>,
-    idl_type_def_generics: Vec<IdlTypeDefGeneric>,  
+    idl_type_def_generics: Vec<IdlTypeDefGeneric>,
 ) {
-    let decoded =
-        parse_bytes_to_value_with_expected_idl_type_def_ty(&data, &expected_type, &idl_types, &vec![], &idl_type_def_generics).unwrap();
+    let decoded = parse_bytes_to_value_with_expected_idl_type_def_ty(
+        &data,
+        &expected_type,
+        &idl_types,
+        &vec![],
+        &idl_type_def_generics,
+    )
+    .unwrap();
     assert_eq!(decoded, expected_value, "Decoded value does not match expected value");
 }
-
 
 #[test]
 fn rejects_leftover_bytes() {
@@ -810,23 +819,22 @@ fn rejects_leftover_bytes() {
 
     let data = [len_bytes, utf8_bytes].concat();
     let expected_type = IdlTypeDefTy::Type { alias: IdlType::String };
-    let err =
-        parse_bytes_to_value_with_expected_idl_type_def_ty(
-            &data,
-            &expected_type,
-            &vec![],
-            &vec![],
-            &vec![]
-        ).expect_err("Expected error for leftover bytes");
+    let err = parse_bytes_to_value_with_expected_idl_type_def_ty(
+        &data,
+        &expected_type,
+        &vec![],
+        &vec![],
+        &vec![],
+    )
+    .expect_err("Expected error for leftover bytes");
     assert_eq!(
         err,
         format!(
-        "expected no leftover bytes after parsing type {:?}, but found {} bytes",
-        expected_type,
-        4)
+            "expected no leftover bytes after parsing type {:?}, but found {} bytes",
+            expected_type, 4
+        )
     );
 }
-
 
 #[test]
 fn error_enum_variant() {
@@ -834,30 +842,34 @@ fn error_enum_variant() {
     let expected_type = IdlTypeDefTy::Enum {
         variants: vec![
             IdlEnumVariant { name: "UnitVariant".to_string(), fields: None },
-            IdlEnumVariant { name: "NamedVariant".to_string(), fields: Some(IdlDefinedFields::Named(
-                vec![IdlField { name: "foo".to_string(), docs: vec![], ty: IdlType::U64 }])) 
+            IdlEnumVariant {
+                name: "NamedVariant".to_string(),
+                fields: Some(IdlDefinedFields::Named(vec![IdlField {
+                    name: "foo".to_string(),
+                    docs: vec![],
+                    ty: IdlType::U64,
+                }])),
             },
-            IdlEnumVariant { name: "TupleVariant".to_string(), fields: Some(IdlDefinedFields::Tuple(vec![
-                IdlType::U8, IdlType::String
-            ])) },
+            IdlEnumVariant {
+                name: "TupleVariant".to_string(),
+                fields: Some(IdlDefinedFields::Tuple(vec![IdlType::U8, IdlType::String])),
+            },
         ],
     };
 
     let wrong_variant_idx = 4 as u32;
     let variant_bytes = u32::to_le_bytes(wrong_variant_idx);
     data.splice(0..4, variant_bytes.iter().cloned());
-    let err =
-        parse_bytes_to_value_with_expected_idl_type_def_ty(
-            &data,
-            &expected_type,
-            &vec![],
-            &vec![],
-            &vec![]
-        ).unwrap_err();
+    let err = parse_bytes_to_value_with_expected_idl_type_def_ty(
+        &data,
+        &expected_type,
+        &vec![],
+        &vec![],
+        &vec![],
+    )
+    .unwrap_err();
     assert_eq!(err, "invalid enum variant index: 4 for enum with 3 variants");
 }
-
-
 
 #[test_case(vec![], IdlTypeDefTy::Type { alias: IdlType::Bool }, "unable to decode bool: not enough bytes"; "bool not enough bytes")]
 #[test_case(vec![], IdlTypeDefTy::Type { alias: IdlType::U8 }, "unable to decode u8: not enough bytes"; "u8 not enough bytes")]
@@ -895,7 +907,13 @@ fn error_enum_variant() {
     }, "unable to decode ChildStruct: not found in IDL types"; "defined struct not found in IDL types"
 )]
 fn test_bad_data(bad_data: Vec<u8>, expected_type: IdlTypeDefTy, expected_err: &str) {
-    let actual_err =
-        parse_bytes_to_value_with_expected_idl_type_def_ty(&bad_data, &expected_type, &vec![], &vec![], &vec![]).unwrap_err();
+    let actual_err = parse_bytes_to_value_with_expected_idl_type_def_ty(
+        &bad_data,
+        &expected_type,
+        &vec![],
+        &vec![],
+        &vec![],
+    )
+    .unwrap_err();
     assert_eq!(actual_err, expected_err);
 }

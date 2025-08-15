@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 
 use crate::{
-    constants::{MARKDOWN, MARKDOWN_FILEPATH},
-    types::AuthorizationContext,
+    constants::{MARKDOWN, MARKDOWN_FILEPATH, THIRD_PARTY_SIGNATURE_STATUS},
+    types::{types::ThirdPartySignatureStatus, AuthorizationContext},
 };
 
 use super::{
@@ -217,6 +217,12 @@ impl ValueStore {
 
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         self.inputs.get_bool(key).or(self.defaults.get_bool(key))
+    }
+
+    pub fn get_third_party_signature_status(&self) -> Option<ThirdPartySignatureStatus> {
+        self.inputs
+            .get_third_party_signature_status()
+            .or(self.defaults.get_third_party_signature_status())
     }
 
     pub fn get_integer(&self, key: &str) -> Option<i128> {
@@ -650,6 +656,12 @@ impl ValueMap {
 
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         self.store.get(key).and_then(|v| v.as_bool())
+    }
+
+    pub fn get_third_party_signature_status(&self) -> Option<ThirdPartySignatureStatus> {
+        self.store
+            .get(THIRD_PARTY_SIGNATURE_STATUS)
+            .and_then(|v| v.as_third_party_signature_status())
     }
 
     pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {

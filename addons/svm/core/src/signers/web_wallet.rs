@@ -271,14 +271,9 @@ impl SignerImplementation for SvmWebWallet {
         _auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let construct_did_str = &construct_did.to_string();
-        println!("Web wallet check_signability for construct {}", construct_did_str);
         signer_state.insert_scoped_value(&construct_did_str, TRANSACTION_BYTES, payload.clone());
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNED_TRANSACTION_BYTES)
         {
-            println!(
-                "Returning early cause found signed transaction bytes for construct {}",
-                construct_did_str
-            );
             return Ok((signers, signer_state, Actions::none()));
         }
 
@@ -344,7 +339,6 @@ impl SignerImplementation for SvmWebWallet {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> SignerSignFutureResult {
-        println!("Web wallet sign for construct {}", construct_did);
         let mut result = CommandExecutionResult::new();
 
         // value signed (partially, maybe) by the supervisor

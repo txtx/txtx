@@ -134,7 +134,7 @@ impl SignerImplementation for SvmSecretKey {
 
         use crate::constants::{
             DEFAULT_DERIVATION_PATH, DERIVATION_PATH, IS_ENCRYPTED, KEYPAIR_JSON, MNEMONIC,
-            PASSWORD, SECRET_KEY,
+            PASSWORD, REQUESTED_STARTUP_DATA, SECRET_KEY,
         };
         use solana_sdk::{signature::Keypair, signer::Signer};
         use txtx_addon_kit::{constants::DESCRIPTION, crypto::secret_key_bytes_from_mnemonic};
@@ -232,6 +232,7 @@ impl SignerImplementation for SvmSecretKey {
         let secret_key = Value::buffer(secret_key_bytes);
 
         if supervision_context.review_input_values {
+            signer_state.insert(&REQUESTED_STARTUP_DATA, Value::bool(true));
             if let Ok(_) = signer_state.get_expected_string(CHECKED_ADDRESS) {
                 signer_state.insert(CHECKED_PUBLIC_KEY, public_key_value.clone());
                 signer_state.insert(CHECKED_ADDRESS, public_key_value.clone());
@@ -287,7 +288,7 @@ impl SignerImplementation for SvmSecretKey {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
-        auth_ctx: &AuthorizationContext,
+        _auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         signer_state.insert_scoped_value(
             &construct_did.to_string(),

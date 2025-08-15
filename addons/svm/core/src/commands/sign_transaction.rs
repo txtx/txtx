@@ -6,6 +6,7 @@ use solana_sdk::signature::Signature;
 use std::collections::HashMap;
 use txtx_addon_kit::constants::META_DESCRIPTION;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::THIRD_PARTY_SIGNATURE_STATUS;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::Actions;
@@ -60,19 +61,12 @@ pub fn check_signed_executability(
 
     for (signer_did, signer_instance) in signers_dids_with_instances {
         let mut signer_state = signers.get_signer_state(&signer_did).unwrap().clone();
-        println!("Checking signability for signer: {}", signer_instance.name);
-        println!("Checking if construct {} is signed", construct_did);
 
         let signer_already_signed = signer_state
             .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
             .is_some();
         let signer_already_approved =
             signer_state.get_scoped_value(&construct_did.to_string(), SIGNATURE_APPROVED).is_some();
-
-        println!(
-            "Signer already signed: {}, already approved: {}",
-            signer_already_signed, signer_already_approved
-        );
 
         if !signer_already_signed && !signer_already_approved {
             let payload = values.get_value(TRANSACTION_BYTES).unwrap().clone();
@@ -167,11 +161,7 @@ pub fn run_signed_execution(
             ) {
                 Ok(res) => match res.await {
                     Ok((new_signers, new_signer_state, results)) => {
-                        if results.outputs.get("third_party_signature_complete").is_some() {
-                            println!(
-                                "Third party signature complete for construct {}",
-                                construct_did
-                            );
+                        if results.outputs.get(THIRD_PARTY_SIGNATURE_STATUS).is_some() {
                             return Ok((new_signers, new_signer_state, results));
                         }
 

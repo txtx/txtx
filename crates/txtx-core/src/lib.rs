@@ -514,6 +514,7 @@ pub async fn start_supervised_runbook_runloop(
                     }
                     if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                         let _ = block_tx.send(BlockEvent::Error(error_event));
+                        return Err(pass_results.with_spans_filled(&runbook.sources));
                     }
                 }
             }
@@ -579,6 +580,7 @@ pub async fn start_supervised_runbook_runloop(
                 }
                 if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                     let _ = block_tx.send(BlockEvent::Error(error_event));
+                    return Err(pass_results.with_spans_filled(&runbook.sources));
                 }
             }
         };
