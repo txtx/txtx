@@ -36,8 +36,9 @@ use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::commands::sign_transaction::{check_signed_executability, run_signed_execution};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION, ADDRESS,
-    CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, IS_SIGNABLE, NAMESPACE, NETWORK_ID,
-    PUBLIC_KEY, RPC_API_URL, SIGNATURE, SIGNERS, TRANSACTION_BYTES,
+    CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, INITIATOR, IS_SIGNABLE,
+    MULTISIG_ADDRESS, MULTISIG_PUBLIC_KEY, NAMESPACE, NETWORK_ID, PAYER, PUBLIC_KEY, RPC_API_URL,
+    SIGNATURE, SIGNERS, SQUADS_MULTISIG, TRANSACTION_BYTES, VAULT_ADDRESS, VAULT_PUBLIC_KEY,
 };
 use crate::typing::SvmValue;
 use crate::utils::build_transaction_from_svm_value;
@@ -166,6 +167,7 @@ impl SignerImplementation for SvmSecretKey {
         use txtx_addon_kit::constants::{DESCRIPTION, IS_BALANCE_CHECKED};
         use txtx_addon_kit::types::signers::consolidate_signer_result;
 
+        use crate::constants::{CREATE_KEY, PROGRAM_ID, SQUADS_FRONTEND_URL, VAULT_INDEX};
         use crate::{codec::squads::SquadsMultisig, constants::RPC_API_URL};
 
         let mut consolidated_actions = Actions::none();
@@ -184,7 +186,7 @@ impl SignerImplementation for SvmSecretKey {
         let client = RpcClient::new(rpc_api_url.to_string());
 
         let vault_index = values
-            .get_u8("vault_index")
+            .get_u8(VAULT_INDEX)
             .map_err(|e| {
                 (
                     signers.clone(),
@@ -195,7 +197,7 @@ impl SignerImplementation for SvmSecretKey {
             .unwrap_or(0);
 
         let squad_program_id = values
-            .get_value("program_id")
+            .get_value(PROGRAM_ID)
             .map(|v| {
                 SvmValue::to_pubkey(v).map_err(|e| {
                     (
@@ -207,7 +209,7 @@ impl SignerImplementation for SvmSecretKey {
             })
             .transpose()?;
 
-        let squads_frontend_url = values.get_string("squads_frontend_url");
+        let squads_frontend_url = values.get_string(SQUADS_FRONTEND_URL);
 
         let squad = if let Some(address) = values.get_value(ADDRESS) {
             let address = SvmValue::to_pubkey(address).map_err(|e| {
@@ -225,7 +227,7 @@ impl SignerImplementation for SvmSecretKey {
                 squads_frontend_url,
             )
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?
-        } else if let Some(create_key) = values.get_value("create_key") {
+        } else if let Some(create_key) = values.get_value(CREATE_KEY) {
             let create_key = SvmValue::to_pubkey(create_key).map_err(|e| {
                 (
                     signers.clone(),
@@ -273,12 +275,12 @@ impl SignerImplementation for SvmSecretKey {
         if let Ok(_) = signer_state.get_expected_string(CHECKED_ADDRESS) {
             signer_state.insert(CHECKED_PUBLIC_KEY, vault_pubkey_value.clone());
             signer_state.insert(CHECKED_ADDRESS, vault_pubkey_string_value.clone());
-            signer_state.insert("multisig_address", Value::string(pubkey.to_string()));
-            signer_state.insert("multisig_public_key", Value::string(pubkey.to_string()));
-            signer_state.insert("squads_multisig", multisig_value);
-            signer_state.insert("initiator", Value::string(initiator_did.to_string()));
+            signer_state.insert(MULTISIG_ADDRESS, Value::string(pubkey.to_string()));
+            signer_state.insert(MULTISIG_PUBLIC_KEY, Value::string(pubkey.to_string()));
+            signer_state.insert(SQUADS_MULTISIG, multisig_value);
+            signer_state.insert(INITIATOR, Value::string(initiator_did.to_string()));
             if let Some((payer_did, _)) = &some_payer {
-                signer_state.insert("payer", Value::string(payer_did.to_string()));
+                signer_state.insert(PAYER, Value::string(payer_did.to_string()));
             }
             let update =
                 ActionItemRequestUpdate::from_context(&construct_did, ACTION_ITEM_CHECK_ADDRESS)
@@ -437,21 +439,19 @@ impl SignerImplementation for SvmSecretKey {
         let public_key = signer_state.get_value(CHECKED_PUBLIC_KEY).unwrap();
         let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
         let multisig =
-            signer_state.get_value("squads_multisig").map(SquadsMultisig::from_value).unwrap();
+            signer_state.get_value(SQUADS_MULTISIG).map(SquadsMultisig::from_value).unwrap();
 
         result.outputs.insert(
-            "vault_public_key".into(),
+            VAULT_PUBLIC_KEY.into(),
             SvmValue::pubkey(multisig.vault_pda.to_bytes().to_vec()),
         );
+        result.outputs.insert(VAULT_ADDRESS.into(), Value::string(multisig.vault_pda.to_string()));
 
         result
             .outputs
-            .insert("vault_address".into(), Value::string(multisig.vault_pda.to_string()));
-        result
-            .outputs
-            .insert("multisig_address".into(), Value::string(multisig.multisig_pda.to_string()));
+            .insert(MULTISIG_ADDRESS.into(), Value::string(multisig.multisig_pda.to_string()));
         result.outputs.insert(
-            "multisig_public_key".into(),
+            MULTISIG_PUBLIC_KEY.into(),
             SvmValue::pubkey(multisig.multisig_pda.to_bytes().to_vec()),
         );
         result.outputs.insert(ADDRESS.into(), address.clone());
@@ -485,135 +485,13 @@ impl SignerImplementation for SvmSecretKey {
             .get_scoped_value(&construct_did.to_string(), THIRD_PARTY_SIGNATURE_STATUS)
             .and_then(|v| v.as_third_party_signature_status());
 
+        // The squads signer will have multiple passes through `check_signability` and `sign`. The enum variants are
+        // ordered in accordance with the pass we're making through this function
         match third_party_signature_status {
-            Some(ThirdPartySignatureStatus::Approved)
-            // | Some(ThirdPartySignatureStatus::CheckRequested)
-            | Some(ThirdPartySignatureStatus::Rejected) => {
-                return Ok((signers, signer_state, Actions::none()));
-            }
-            Some(ThirdPartySignatureStatus::CheckRequested) => {
-
-                let multisig =
-                    signer_state.get_value("squads_multisig").map(SquadsMultisig::from_value).unwrap();
-
-                let rpc_api_url = values
-                    .get_expected_string(RPC_API_URL)
-                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?
-                    .to_string();
-                let rpc_client = RpcClient::new(rpc_api_url);
-                let proposal_status =
-                    multisig.get_proposal_status(&rpc_client).map_err(|e| {
-                        (
-                            signers.clone(),
-                            signer_state.clone(),
-                            diagnosed_error!("failed to get proposal status: {e}"),
-                        )
-                    })?;
-                    match proposal_status {
-                        ProposalStatus::Rejected { .. } => {
-                            return Err((
-                                signers.clone(),
-                                signer_state.clone(),
-                                diagnosed_error!("Proposal rejected"),
-                            ))
-                        }
-                        ProposalStatus::Executed { .. } => {
-                            let mut actions = Actions::none();
-                            actions.push_action_item_update(
-                                ActionItemRequestUpdate::from_context(
-                                    &construct_did,
-                                    ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
-                                )
-                                .set_status(ActionItemStatus::Success(None)),
-                            );
-                            return Ok((
-                                signers,
-                                signer_state,
-                                actions
-                            ));
-                        }
-                        ProposalStatus::Cancelled { .. } => {
-                            return Err((
-                                signers.clone(),
-                                signer_state.clone(),
-                                diagnosed_error!("Proposal cancelled"),
-                            ))
-                        }
-                        _ => {
-                            let mut actions = Actions::none();
-                            actions.push_action_item_update(
-                                ActionItemRequestUpdate::from_context(
-                                    &construct_did,
-                                    ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
-                                )
-                                .set_status(ActionItemStatus::Todo),
-                            );
-                            return Ok((signers, signer_state, actions));
-                        }
-                    }
-            }
-            Some(ThirdPartySignatureStatus::Submitted) => {
-                let mut actions = Actions::none();
-                 actions.push_action_item_update(
-                    ActionItemRequestUpdate::from_context(
-                        &construct_did,
-                        ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
-                    )
-                    .set_status(ActionItemStatus::Todo),
-                );
-                return Ok((signers, signer_state, actions));
-            }
-            Some(ThirdPartySignatureStatus::Initialized) => {
-                let construct_did_str = &construct_did.to_string();
-
-                let network_id = match values.get_expected_string(NETWORK_ID) {
-                    Ok(value) => value,
-                    Err(diag) => return Err((signers, signer_state, diag)),
-                };
-                let signable = signer_state
-                    .get_scoped_value(&construct_did_str, IS_SIGNABLE)
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(true);
-
-                let status = match signable {
-                    true => ActionItemStatus::Todo,
-                    false => ActionItemStatus::Blocked,
-                };
-
-                let multisig = signer_state
-                    .get_value("squads_multisig")
-                    .map(SquadsMultisig::from_value)
-                    .unwrap();
-
-                let formatted_payload =
-                    signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
-
-                let request = VerifyThirdPartySignatureRequest::new(
-                    &signer_state.uuid,
-                    &multisig.vault_transaction_url(),
-                    &instance_name,
-                    "Squads",
-                    payload,
-                    NAMESPACE,
-                    &network_id,
-                )
-                .check_expectation_action_uuid(construct_did)
-                .formatted_payload(formatted_payload)
-                .to_action_type()
-                .to_request(instance_name, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION)
-                .with_construct_did(construct_did)
-                .with_some_description(description.clone())
-                .with_some_meta_description(meta_description.clone())
-                .with_some_markdown(markdown.clone())
-                .with_status(status);
-
-                let actions = Actions::append_item(
-                    request,
-                    Some("Review and sign the transactions from the list below"),
-                    Some("Transaction Signing"),
-                );
-                return Ok((signers, signer_state, actions));
-            }
+            // The first pass will yield `None` for the third party signature status.
+            // This means we still need to create the squads proposal.
+            // Creating the squads proposal requires us to build the transaction and pass the details onto the
+            // initiator and payer signers so that they can return the associated action items
             None => {
                 let rpc_api_url = values
                     .get_expected_string(RPC_API_URL)
@@ -623,7 +501,7 @@ impl SignerImplementation for SvmSecretKey {
                 let rpc_client = RpcClient::new(rpc_api_url);
 
                 let multisig = signer_state
-                    .get_value("squads_multisig")
+                    .get_value(SQUADS_MULTISIG)
                     .map(SquadsMultisig::from_value)
                     .unwrap();
 
@@ -674,13 +552,18 @@ impl SignerImplementation for SvmSecretKey {
                         inner_transaction.message,
                     )
                     .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-                let mut initiator_signer_state = signers.pop_signer_state(&initiator_did).unwrap();
-                initiator_signer_state.insert_scoped_value(
-                    &construct_did.to_string(),
-                    TRANSACTION_BYTES,
-                    create_proposal_transaction.clone(),
-                );
-                signers.push_signer_state(initiator_signer_state);
+
+                // update the initiator signer state with the transaction to sign
+                {
+                    let mut initiator_signer_state =
+                        signers.pop_signer_state(&initiator_did).unwrap();
+                    initiator_signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        TRANSACTION_BYTES,
+                        create_proposal_transaction.clone(),
+                    );
+                    signers.push_signer_state(initiator_signer_state);
+                }
 
                 let mut signers_dids = vec![initiator_did.clone()];
                 if let Some((payer_did, _)) = &some_payer {
@@ -688,24 +571,30 @@ impl SignerImplementation for SvmSecretKey {
                 }
 
                 signers.push_signer_state(signer_state);
-                // update our transaction meta description to include some Squads context
-                let mut values = values.clone();
-                values.insert(
-                    META_DESCRIPTION,
-                    Value::string(get_formatted_transaction_meta_description(
-                        &vec!["This transaction will create a Squads proposal.".into()],
-                        &signers_dids,
-                        signers_instances,
-                    )),
-                );
-                values.insert(FORMATTED_TRANSACTION, formatted_transaction);
-                values.insert(TRANSACTION_BYTES, create_proposal_transaction);
-                values.insert(
-                    SIGNERS,
-                    Value::array(
-                        signers_dids.iter().map(|d| Value::string(d.to_string())).collect(),
-                    ),
-                );
+
+                // add additional context to the value store that the initiator will used for signing,
+                // including the transaction bytes, formatted transaction, and the signers that will be involved
+                let values = {
+                    let mut values = values.clone();
+                    values.insert(
+                        META_DESCRIPTION,
+                        Value::string(get_formatted_transaction_meta_description(
+                            &vec!["This transaction will create a Squads proposal.".into()],
+                            &signers_dids,
+                            signers_instances,
+                        )),
+                    );
+                    values.insert(FORMATTED_TRANSACTION, formatted_transaction);
+                    values.insert(TRANSACTION_BYTES, create_proposal_transaction);
+                    values.insert(
+                        SIGNERS,
+                        Value::array(
+                            signers_dids.iter().map(|d| Value::string(d.to_string())).collect(),
+                        ),
+                    );
+                    values
+                };
+
                 let (updated_signers, signer_state, consolidated_actions) =
                     check_signed_executability(
                         construct_did,
@@ -718,6 +607,146 @@ impl SignerImplementation for SvmSecretKey {
                     )?;
                 signers = updated_signers;
                 return Ok((signers, signer_state, consolidated_actions));
+            }
+            // Step two: now the proposal has been created by the initiator/payer, so the user needs to actually
+            // sign the squads proposal. The `sign` function, upon sending the transaction to create the proposal,
+            // has inserted the `ThirdPartySignatureStatus::Initialized` status, so we know to return an action item
+            // for the user to go through this flow.
+            Some(ThirdPartySignatureStatus::Initialized) => {
+                let construct_did_str = &construct_did.to_string();
+
+                let network_id = match values.get_expected_string(NETWORK_ID) {
+                    Ok(value) => value,
+                    Err(diag) => return Err((signers, signer_state, diag)),
+                };
+                let signable = signer_state
+                    .get_scoped_value(&construct_did_str, IS_SIGNABLE)
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+
+                let status = match signable {
+                    true => ActionItemStatus::Todo,
+                    false => ActionItemStatus::Blocked,
+                };
+
+                let multisig = signer_state
+                    .get_value(SQUADS_MULTISIG)
+                    .map(SquadsMultisig::from_value)
+                    .unwrap();
+
+                let formatted_payload =
+                    signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
+
+                let request = VerifyThirdPartySignatureRequest::new(
+                    &signer_state.uuid,
+                    &multisig.vault_transaction_url(),
+                    &instance_name,
+                    "Squads",
+                    payload,
+                    NAMESPACE,
+                    &network_id,
+                )
+                .check_expectation_action_uuid(construct_did)
+                .formatted_payload(formatted_payload)
+                .to_action_type()
+                .to_request(instance_name, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION)
+                .with_construct_did(construct_did)
+                .with_some_description(description.clone())
+                .with_some_meta_description(meta_description.clone())
+                .with_some_markdown(markdown.clone())
+                .with_status(status);
+
+                let actions = Actions::append_item(
+                    request,
+                    Some("Review and sign the transactions from the list below"),
+                    Some("Transaction Signing"),
+                );
+                return Ok((signers, signer_state, actions));
+            }
+            // Step 3: When the ThirdPartySignatureStatus is Submitted, we just need to maintain that the VerifyThirdPartySignature action
+            // is still "Todo"
+            Some(ThirdPartySignatureStatus::Submitted) => {
+                let mut actions = Actions::none();
+                actions.push_action_item_update(
+                    ActionItemRequestUpdate::from_context(
+                        &construct_did,
+                        ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
+                    )
+                    .set_status(ActionItemStatus::Todo),
+                );
+                return Ok((signers, signer_state, actions));
+            }
+            // Step 4: The `CheckRequested` status indicates that the user has clicked the button to check if the signature is complete.
+            // This means we need to check the status of the proposal and update the action accordingly.
+            Some(ThirdPartySignatureStatus::CheckRequested) => {
+                // fetch the proposal status from the Squads multisig
+                let proposal_status = {
+                    let multisig = signer_state
+                        .get_value(SQUADS_MULTISIG)
+                        .map(SquadsMultisig::from_value)
+                        .unwrap();
+
+                    let rpc_api_url = values
+                        .get_expected_string(RPC_API_URL)
+                        .map_err(|e| (signers.clone(), signer_state.clone(), e))?
+                        .to_string();
+                    let rpc_client = RpcClient::new(rpc_api_url);
+
+                    multisig.get_proposal_status(&rpc_client).map_err(|e| {
+                        (
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!("failed to get proposal status: {e}"),
+                        )
+                    })?
+                };
+
+                match proposal_status {
+                    // if Rejected or Cancelled, we can return errors
+                    ProposalStatus::Rejected { .. } => {
+                        return Err((
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!("Proposal rejected"),
+                        ))
+                    }
+                    ProposalStatus::Cancelled { .. } => {
+                        return Err((
+                            signers.clone(),
+                            signer_state.clone(),
+                            diagnosed_error!("Proposal cancelled"),
+                        ))
+                    }
+                    // If Executed, we can update the action item's status to Success, allowing the user to proceed.
+                    ProposalStatus::Executed { .. } => {
+                        let mut actions = Actions::none();
+                        actions.push_action_item_update(
+                            ActionItemRequestUpdate::from_context(
+                                &construct_did,
+                                ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
+                            )
+                            .set_status(ActionItemStatus::Success(None)),
+                        );
+                        return Ok((signers, signer_state, actions));
+                    }
+                    // Any other statuses will just keep the action as Todo, not returning an error or allowing them to proceed
+                    _ => {
+                        let mut actions = Actions::none();
+                        actions.push_action_item_update(
+                            ActionItemRequestUpdate::from_context(
+                                &construct_did,
+                                ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
+                            )
+                            .set_status(ActionItemStatus::Todo),
+                        );
+                        return Ok((signers, signer_state, actions));
+                    }
+                }
+            }
+            // If the third-party signature is approved or rejected, we can proceed without errors or action
+            Some(ThirdPartySignatureStatus::Approved)
+            | Some(ThirdPartySignatureStatus::Rejected) => {
+                return Ok((signers, signer_state, Actions::none()));
             }
         };
     }
@@ -738,7 +767,7 @@ impl SignerImplementation for SvmSecretKey {
 
         let future = async move {
             let multisig =
-                signer_state.get_value("squads_multisig").map(SquadsMultisig::from_value).unwrap();
+                signer_state.get_value(SQUADS_MULTISIG).map(SquadsMultisig::from_value).unwrap();
 
             let rpc_api_url = values
                 .get_expected_string(RPC_API_URL)
@@ -751,7 +780,73 @@ impl SignerImplementation for SvmSecretKey {
                 .get_scoped_value(&construct_did.to_string(), THIRD_PARTY_SIGNATURE_STATUS)
                 .and_then(|v| v.as_third_party_signature_status());
 
+            // The squads signer will have multiple passes through `check_signability` and `sign`. The enum variants are
+            // ordered in accordance with the pass we're making through this function
             match third_party_signature_status {
+                // Step 1: if there is no third party signature status yet, but we've made it to this `sign` function, it means
+                // the `check_signability` function has passed on actions to the initiator/payer to create the proposal. Our
+                // signer states should have the signed transaction bytes, and here we need to call _those_ signer's `sign`
+                // functions to allow the transaction to be signed/broadcasted. At this point, we can mark the third party
+                // signature status as initialized
+                None => {
+                    // add the involved signers to the signer store so the the `run_signed_execution` function can route
+                    // to the appropriate signers
+                    let values = {
+                        let ((initiator_did, _), some_payer) =
+                            get_signer_states(&signer_state, &signers_instances)
+                                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+
+                        let mut signers_dids = vec![Value::string(initiator_did.to_string())];
+                        if let Some((payer_did, _)) = &some_payer {
+                            signers_dids.push(Value::string(payer_did.to_string()));
+                        }
+                        let mut values = values.clone();
+                        values.insert(SIGNERS, Value::array(signers_dids));
+                        values
+                    };
+
+                    signer_state.insert_scoped_value(
+                        &construct_did.to_string(),
+                        THIRD_PARTY_SIGNATURE_STATUS,
+                        Value::third_party_signature_initialized(),
+                    );
+                    signers.push_signer_state(signer_state);
+
+                    let run_signing_future =
+                        run_signed_execution(&construct_did, &values, &signers_instances, signers);
+                    let (signers, signer_state, mut result) = match run_signing_future {
+                        Ok(future) => match future.await {
+                            Ok(res) => res,
+                            Err(err) => return Err(err),
+                        },
+                        Err(err) => return Err(err),
+                    };
+
+                    result.insert(
+                        THIRD_PARTY_SIGNATURE_STATUS,
+                        Value::third_party_signature_initialized(),
+                    );
+
+                    Ok((signers, signer_state, result))
+                }
+                // Step 2: if the third party signature status is check requested, we need to return that status
+                // so the upstream can route accordingly
+                Some(ThirdPartySignatureStatus::CheckRequested) => {
+                    return Ok((
+                        signers,
+                        signer_state,
+                        CommandExecutionResult::from([
+                            (
+                                THIRD_PARTY_SIGNATURE_STATUS,
+                                Value::third_party_signature_check_requested(),
+                            ),
+                            // (SIGNED_TRANSACTION_BYTES, Value::null()),
+                            // (SIGNATURE, Value::string(Signature::default().to_string())),
+                        ]),
+                    ));
+                }
+                // Step 3: if the third party signature status is approved, we can fetch the signature of the
+                // transaction that approved the proposal and return that in our execution results
                 Some(ThirdPartySignatureStatus::Approved) => {
                     let signature = multisig
                         .get_executed_signature(&rpc_client)
@@ -766,58 +861,10 @@ impl SignerImplementation for SvmSecretKey {
                         ]),
                     ));
                 }
-                Some(ThirdPartySignatureStatus::CheckRequested) => {
-                    return Ok((
-                        signers,
-                        signer_state,
-                        CommandExecutionResult::from([
-                            (
-                                THIRD_PARTY_SIGNATURE_STATUS,
-                                Value::third_party_signature_check_requested(),
-                            ),
-                            // (SIGNED_TRANSACTION_BYTES, Value::null()),
-                            (SIGNATURE, Value::string(Signature::default().to_string())),
-                        ]),
-                    ));
-                }
+                // Other states should be returning action items or errors in the `check_signability` function,
+                // so they shouldn't make it here
                 Some(_) => {
                     unreachable!()
-                }
-                None => {
-                    let ((initiator_did, _), some_payer) =
-                        get_signer_states(&signer_state, &signers_instances)
-                            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-
-                    let mut signers_dids = vec![Value::string(initiator_did.to_string())];
-                    if let Some((payer_did, _)) = &some_payer {
-                        signers_dids.push(Value::string(payer_did.to_string()));
-                    }
-
-                    signer_state.insert_scoped_value(
-                        &construct_did.to_string(),
-                        THIRD_PARTY_SIGNATURE_STATUS,
-                        Value::third_party_signature_initialized(),
-                    );
-                    signers.push_signer_state(signer_state);
-
-                    let mut values = values.clone();
-                    values.insert(SIGNERS, Value::array(signers_dids));
-
-                    let run_signing_future =
-                        run_signed_execution(&construct_did, &values, &signers_instances, signers);
-                    let (signers, signer_state, mut result) = match run_signing_future {
-                        Ok(future) => match future.await {
-                            Ok(res) => res,
-                            Err(err) => return Err(err),
-                        },
-                        Err(err) => return Err(err),
-                    };
-                    result.insert(
-                        THIRD_PARTY_SIGNATURE_STATUS,
-                        Value::third_party_signature_initialized(),
-                    );
-
-                    Ok((signers, signer_state, result))
                 }
             }
         };
@@ -831,7 +878,7 @@ pub fn get_signer_states(
     signers_instances: &HashMap<ConstructDid, SignerInstance>,
 ) -> Result<(SignerDidWithInstance, Option<SignerDidWithInstance>), Diagnostic> {
     let initiator_uuid = values
-        .get_expected_string("initiator")
+        .get_expected_string(INITIATOR)
         .map(|uuid| ConstructDid::from_hex_string(uuid))
         .map_err(|e| e)?;
     let initiator_signer_instance = signers_instances
@@ -839,7 +886,7 @@ pub fn get_signer_states(
         .ok_or_else(|| diagnosed_error!("Squads signer initiator not found"))?;
 
     let payer = if let Some(payer_uuid) =
-        values.get_string("payer").map(|uuid| ConstructDid::from_hex_string(uuid))
+        values.get_string(PAYER).map(|uuid| ConstructDid::from_hex_string(uuid))
     {
         if payer_uuid.ne(&initiator_uuid) {
             let payer_signer_instance = signers_instances

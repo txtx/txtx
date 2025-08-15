@@ -82,3 +82,14 @@ pub const ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION: &str = "provide_signed_s
 // Subgraph endpoints
 pub const MAINNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";
 pub const DEVNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";
+
+// Squads keys
+pub const VAULT_INDEX: &str = "vault_index";
+pub const SQUADS_FRONTEND_URL: &str = "squads_frontend_url";
+pub const CREATE_KEY: &str = "create_key";
+pub const MULTISIG_ADDRESS: &str = "multisig_address";
+pub const MULTISIG_PUBLIC_KEY: &str = "multisig_public_key";
+pub const SQUADS_MULTISIG: &str = "squads_multisig";
+pub const INITIATOR: &str = "initiator";
+pub const VAULT_ADDRESS: &str = "vault_address";
+pub const VAULT_PUBLIC_KEY: &str = "vault_public_key";
