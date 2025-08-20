@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
@@ -31,8 +30,8 @@ use crate::codec::DeploymentTransaction;
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, ADDRESS, CHECKED_ADDRESS,
     CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, FORMATTED_TRANSACTION, IS_DEPLOYMENT, IS_SIGNABLE,
-    NAMESPACE, NETWORK_ID, PARTIALLY_SIGNED_TRANSACTION_BYTES, PUBLIC_KEY, RPC_API_URL, SECRET_KEY,
-    TRANSACTION_BYTES,
+    NAMESPACE, NETWORK_ID, PARTIALLY_SIGNED_TRANSACTION_BYTES, PREVIOUSLY_SIGNED_BLOCKHASH,
+    PUBLIC_KEY, RPC_API_URL, SECRET_KEY, TRANSACTION_BYTES,
 };
 use crate::utils::build_transaction_from_svm_value;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -373,12 +372,12 @@ impl SignerImplementation for SvmSecretKey {
     ///   - Some device-specific protocol error occurs ([`SignerError::Protocol`]).
     ///   - Some other error occurs ([`SignerError::Custom`]).
     fn sign(
-        _caller_uuid: &ConstructDid,
+        construct_did: &ConstructDid,
         _title: &str,
         payload: &Value,
         _spec: &SignerSpecification,
         values: &ValueStore,
-        signer_state: ValueStore,
+        mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> SignerSignFutureResult {
@@ -390,73 +389,73 @@ impl SignerImplementation for SvmSecretKey {
 
         let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
 
-        let rpc_api_url = values
-            .get_expected_string(RPC_API_URL)
-            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
-            .to_string();
+        // value signed (partially, maybe) by another signer
+        let previously_signed_blockhash = signer_state
+            .remove_scoped_value(&construct_did.to_string(), PREVIOUSLY_SIGNED_BLOCKHASH);
 
-        let commitment = match values.get_string(COMMITMENT_LEVEL).unwrap_or("processed") {
-            "finalized" => CommitmentLevel::Finalized,
-            "processed" => CommitmentLevel::Processed,
-            "confirmed" => CommitmentLevel::Confirmed,
-            _ => CommitmentLevel::Processed,
+        // prevent discrepancies between new block hash and a hash on the transaction that's already been signed
+        let blockhash = if let Some(blockhash) = &previously_signed_blockhash {
+            solana_sdk::hash::Hash::new_from_array(blockhash.to_bytes().try_into().unwrap())
+        } else {
+            let rpc_api_url = values
+                .get_expected_string(RPC_API_URL)
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
+                .to_string();
+
+            let commitment = match values.get_string(COMMITMENT_LEVEL).unwrap_or("processed") {
+                "finalized" => CommitmentLevel::Finalized,
+                "processed" => CommitmentLevel::Processed,
+                "confirmed" => CommitmentLevel::Confirmed,
+                _ => CommitmentLevel::Processed,
+            };
+            let rpc_client = RpcClient::new_with_commitment(
+                rpc_api_url.clone(),
+                CommitmentConfig { commitment },
+            );
+
+            let blockhash = rpc_client.get_latest_blockhash().map_err(|e| {
+                (
+                    signers.clone(),
+                    signer_state.clone(),
+                    diagnosed_error!("failed to get latest blockhash: {e}"),
+                )
+            })?;
+            blockhash
         };
 
-        let rpc_client = Arc::new(RpcClient::new_with_commitment(
-            rpc_api_url.clone(),
-            CommitmentConfig { commitment },
-        ));
+        let is_deployment = values.get_bool(IS_DEPLOYMENT).unwrap_or(false);
 
-        let blockhash = rpc_client.get_latest_blockhash().map_err(|e| {
-            (
-                signers.clone(),
-                signer_state.clone(),
-                diagnosed_error!("failed to get latest blockhash: {e}"),
-            )
-        })?;
+        let (mut transaction, do_sign_with_txtx_signer) = if is_deployment {
+            let deployment_transaction = DeploymentTransaction::from_value(&payload)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-        let (mut transaction, do_sign_with_txtx_signer) =
-            if values.get_bool(IS_DEPLOYMENT).unwrap_or(false) {
-                let deployment_transaction =
-                    DeploymentTransaction::from_value(&payload).map_err(|e| {
-                        (
-                            signers.clone(),
-                            signer_state.clone(),
-                            diagnosed_error!("failed to sign transaction: {e}"),
-                        )
-                    })?;
+            let mut transaction: Transaction =
+                deployment_transaction.transaction.as_ref().unwrap().clone();
 
-                let mut transaction: Transaction =
-                    deployment_transaction.transaction.as_ref().unwrap().clone();
+            transaction.message.recent_blockhash = blockhash;
 
-                transaction.message.recent_blockhash = blockhash;
+            let keypairs = deployment_transaction
+                .get_keypairs()
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-                let keypairs = deployment_transaction.get_keypairs().map_err(|e| {
+            transaction.try_partial_sign(&keypairs, transaction.message.recent_blockhash).map_err(
+                |e| {
                     (
                         signers.clone(),
                         signer_state.clone(),
                         diagnosed_error!("failed to sign transaction: {e}"),
                     )
-                })?;
+                },
+            )?;
 
-                transaction
-                    .try_partial_sign(&keypairs, transaction.message.recent_blockhash)
-                    .map_err(|e| {
-                        (
-                            signers.clone(),
-                            signer_state.clone(),
-                            diagnosed_error!("failed to sign transaction: {e}"),
-                        )
-                    })?;
+            (transaction, deployment_transaction.signers.is_some())
+        } else {
+            let mut transaction: Transaction = build_transaction_from_svm_value(&payload)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+            transaction.message.recent_blockhash = blockhash;
 
-                (transaction, deployment_transaction.signers.is_some())
-            } else {
-                let mut transaction: Transaction = build_transaction_from_svm_value(&payload)
-                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
-                transaction.message.recent_blockhash = blockhash;
-
-                (transaction, true)
-            };
+            (transaction, true)
+        };
 
         if do_sign_with_txtx_signer {
             transaction

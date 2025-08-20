@@ -793,7 +793,7 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DeploymentTransactionType {
     CreateTempAuthority(Vec<u8>),
     CreateBuffer,

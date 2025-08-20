@@ -38,6 +38,7 @@ pub const PUBLIC_KEY: &str = "public_key";
 pub const TRANSACTION_BYTES: &str = "transaction_bytes";
 pub const PARTIALLY_SIGNED_TRANSACTION_BYTES: &str = "partially_signed_transaction_bytes";
 pub const UPDATED_PARTIALLY_SIGNED_TRANSACTION: &str = "updated_partially_signed_transaction";
+pub const PREVIOUSLY_SIGNED_BLOCKHASH: &str = "previously_signed_blockhash";
 pub const NETWORK_ID: &str = "network_id";
 pub const AUTO_EXTEND: &str = "auto_extend";
 pub const COMMITMENT_LEVEL: &str = "commitment_level";

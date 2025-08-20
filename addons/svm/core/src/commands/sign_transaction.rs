@@ -1,5 +1,7 @@
 use crate::codec::transaction_is_fully_signed;
+use crate::codec::DeploymentTransaction;
 use crate::commands::get_signers_did;
+use crate::constants::PREVIOUSLY_SIGNED_BLOCKHASH;
 use crate::typing::SvmValue;
 use crate::utils::build_transaction_from_svm_value;
 use solana_sdk::signature::Signature;
@@ -137,22 +139,39 @@ pub fn run_signed_execution(
             signers_dids_with_instances.first().unwrap();
         let first_signer_state = signers.get_signer_state(first_signer_did).unwrap().clone();
 
-        let payload = if is_deployment {
-            values.get_value(TRANSACTION_BYTES).unwrap()
+        let (payload, deployment_transaction) = if is_deployment {
+            let payload = values.get_value(TRANSACTION_BYTES).unwrap();
+            let deployment_transaction = DeploymentTransaction::from_value(&payload).unwrap();
+            (payload, Some(deployment_transaction))
         } else {
-            first_signer_state
+            let payload = first_signer_state
                 .get_scoped_value(&construct_did.to_string(), TRANSACTION_BYTES)
-                .unwrap()
+                .unwrap();
+            (payload, None)
         };
         let mut combined_transaction = build_transaction_from_svm_value(&payload).unwrap();
+        let mut blockhash: Option<solana_sdk::hash::Hash> = None;
         let mut cursor = 0;
 
         for (signer_did, signer_instance) in signers_dids_with_instances {
-            let signer_state = signers.pop_signer_state(&signer_did).unwrap();
+            let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
+            if let Some(blockhash) = blockhash.as_ref() {
+                signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    PREVIOUSLY_SIGNED_BLOCKHASH,
+                    txtx_addon_kit::types::types::Value::buffer(blockhash.to_bytes().to_vec()),
+                );
+            }
             match (signer_instance.specification.sign)(
                 &construct_did,
                 title,
-                &payload,
+                &if let Some(deployment_transaction) = deployment_transaction.clone() {
+                    let mut tx = deployment_transaction.to_owned();
+                    tx.transaction = Some(combined_transaction.clone());
+                    tx.to_value().unwrap()
+                } else {
+                    SvmValue::transaction(&combined_transaction).unwrap()
+                },
                 &signer_instance.specification,
                 &values,
                 signer_state,
@@ -227,6 +246,8 @@ pub fn run_signed_execution(
                             ));
                         }
 
+                        blockhash = Some(partial_signed_tx.message.recent_blockhash.clone());
+
                         // if this is the first time we're adding signatures to the combined transaction,
                         // and the new signatures were signed with a different blockhash,
                         // we'll update the combined transaction to match the updated blockhash
@@ -246,7 +267,6 @@ pub fn run_signed_execution(
 
                         if transaction_is_fully_signed(&combined_transaction) {
                             let mut result = CommandExecutionResult::new();
-
                             combined_transaction.verify_and_hash_message().map_err(|e| {
                                 (
                                     new_signers.clone(),

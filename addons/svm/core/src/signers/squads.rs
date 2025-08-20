@@ -36,9 +36,10 @@ use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::commands::sign_transaction::{check_signed_executability, run_signed_execution};
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION, ADDRESS,
-    CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, INITIATOR, IS_SIGNABLE,
-    MULTISIG_ADDRESS, MULTISIG_PUBLIC_KEY, NAMESPACE, NETWORK_ID, PAYER, PUBLIC_KEY, RPC_API_URL,
-    SIGNATURE, SIGNERS, SQUADS_MULTISIG, TRANSACTION_BYTES, VAULT_ADDRESS, VAULT_PUBLIC_KEY,
+    CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, INITIATOR, IS_DEPLOYMENT,
+    IS_SIGNABLE, MULTISIG_ADDRESS, MULTISIG_PUBLIC_KEY, NAMESPACE, NETWORK_ID, PAYER, PUBLIC_KEY,
+    RPC_API_URL, SIGNATURE, SIGNERS, SQUADS_MULTISIG, TRANSACTION_BYTES, VAULT_ADDRESS,
+    VAULT_PUBLIC_KEY,
 };
 use crate::typing::SvmValue;
 use crate::utils::build_transaction_from_svm_value;
@@ -563,6 +564,17 @@ impl SignerImplementation for SvmSecretKey {
                         create_proposal_transaction.clone(),
                     );
                     signers.push_signer_state(initiator_signer_state);
+
+                    if let Some((payer_did, _)) = &some_payer {
+                        let mut payer_signer_state = signers.pop_signer_state(&payer_did).unwrap();
+
+                        payer_signer_state.insert_scoped_value(
+                            &construct_did.to_string(),
+                            TRANSACTION_BYTES,
+                            create_proposal_transaction.clone(),
+                        );
+                        signers.push_signer_state(payer_signer_state);
+                    }
                 }
 
                 let mut signers_dids = vec![initiator_did.clone()];
@@ -592,6 +604,7 @@ impl SignerImplementation for SvmSecretKey {
                             signers_dids.iter().map(|d| Value::string(d.to_string())).collect(),
                         ),
                     );
+
                     values
                 };
 
@@ -802,6 +815,7 @@ impl SignerImplementation for SvmSecretKey {
                         }
                         let mut values = values.clone();
                         values.insert(SIGNERS, Value::array(signers_dids));
+                        values.insert(IS_DEPLOYMENT, Value::bool(false));
                         values
                     };
 

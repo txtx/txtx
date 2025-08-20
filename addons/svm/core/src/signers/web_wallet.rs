@@ -400,14 +400,8 @@ impl SignerImplementation for SvmWebWallet {
         let mut did_update_transaction = false;
         let is_deployment = values.get_bool(IS_DEPLOYMENT).unwrap_or(false);
         let (mut transaction, do_sign_with_txtx_signer) = if is_deployment {
-            let deployment_transaction =
-                DeploymentTransaction::from_value(&payload).map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to sign transaction: {e}"),
-                    )
-                })?;
+            let deployment_transaction = DeploymentTransaction::from_value(&payload)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
             // the supervisor may have changed the transaction some (specifically by adding compute budget instructions),
             // so we want to sign that new transaction
             let mut transaction = if let Some(supervisor_signed_tx) = &supervisor_signed_tx {
@@ -418,27 +412,23 @@ impl SignerImplementation for SvmWebWallet {
             };
             transaction.message.recent_blockhash = blockhash;
 
-            let keypairs = deployment_transaction.get_keypairs().map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to sign transaction: {e}"),
-                )
-            })?;
+            let keypairs = deployment_transaction
+                .get_keypairs()
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-            transaction.try_partial_sign(&keypairs, transaction.message.recent_blockhash).map_err(
-                |e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to sign transaction: {e}"),
-                    )
-                },
-            )?;
+            transaction
+                .try_partial_sign(&keypairs, transaction.message.recent_blockhash)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e.to_string().into()))?;
             (transaction, deployment_transaction.signers.is_some())
         } else {
-            let mut transaction: Transaction = build_transaction_from_svm_value(&payload)
-                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+            let mut transaction: Transaction =
+                if let Some(supervisor_signed_tx) = &supervisor_signed_tx {
+                    did_update_transaction = true;
+                    supervisor_signed_tx.clone()
+                } else {
+                    build_transaction_from_svm_value(&payload)
+                        .map_err(|e| (signers.clone(), signer_state.clone(), e))?
+                };
 
             transaction.message.recent_blockhash = blockhash;
 

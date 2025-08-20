@@ -61,7 +61,7 @@ pub fn public_key_from_str(str: &str) -> Result<Pubkey, Diagnostic> {
     Pubkey::from_str(str).map_err(|e| diagnosed_error!("invalid public key: {e}"))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TxtxDeploymentSigner {
     Payer,
     FinalAuthority,
@@ -77,7 +77,7 @@ impl TxtxDeploymentSigner {
 
 /// `transaction_with_keypairs` - The transaction to sign, with the keypairs we have on hand to sign them
 /// `signers` - The txtx signers (if any) that need to sign the transaction
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeploymentTransaction {
     pub signers: Option<Vec<TxtxDeploymentSigner>>,
     pub transaction: Option<Transaction>,
