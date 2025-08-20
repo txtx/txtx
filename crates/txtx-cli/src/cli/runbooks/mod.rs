@@ -393,20 +393,15 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
     }
     println!("{:<35}\t{}", "Name", yellow!("Description"));
     for runbook in manifest.runbooks {
-        println!(
-            "{:<35}\t{}",
-            runbook.name,
-            yellow!(format!(
-                "{}",
-                runbook
-                    .description
-                    .unwrap_or("".into())
-                    .split("\n")
-                    .collect::<Vec<_>>()
-                    .first()
-                    .unwrap()
-            ))
-        );
+        let heading = runbook
+            .description
+            .as_deref()
+            .unwrap_or("")
+            .lines()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("");
+
+        println!("{:<35}\t{}", runbook.name, yellow!(heading));
     }
     Ok(())
 }
