@@ -189,12 +189,6 @@ impl CommandImplementation for CheckEvmConfirmations {
 
             logger.pending_info("Pending", receipt_msg);
 
-            logger.trace("trace", "trace Log");
-            logger.debug("debug", "debug Log");
-            logger.info("info", "info Log");
-            logger.warn("warn", "warn Log");
-            logger.error("error", "error Log");
-
             let mut result = CommandExecutionResult::new();
 
             let backoff_ms = 500;

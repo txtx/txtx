@@ -3,6 +3,7 @@ use crate::codec::{
 };
 use crate::constants::{
     CHAIN_ID, CONTRACT, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, CONTRACT_VERIFICATION_OPTS,
+    NAMESPACE,
 };
 use crate::typing::EvmValue;
 use alloy::dyn_abi::JsonAbiExt;
@@ -13,9 +14,7 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 use txtx_addon_kit::reqwest::Url;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{
-    BlockEvent, ProgressBarStatus, ProgressBarStatusColor, StatusUpdater,
-};
+use txtx_addon_kit::types::frontend::{BlockEvent, LogDispatcher};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{ObjectType, Value};
 use txtx_addon_kit::types::ConstructDid;
@@ -31,21 +30,25 @@ const ERROR: &str = "error";
 const PROVIDER: &str = "provider";
 
 pub async fn verify_contracts(
-    construct_did: &ConstructDid,
+    _construct_did: &ConstructDid,
     inputs: &ValueStore,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-    background_tasks_uuid: &Uuid,
+    _background_tasks_uuid: &Uuid,
 ) -> Result<Value, Diagnostic> {
-    let mut status_updater =
-        StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
-
     let chain_id = inputs.get_expected_uint(CHAIN_ID)?;
 
     let contract_address = EvmValue::to_address(inputs.get_expected_value(CONTRACT_ADDRESS)?)?;
     let contract_address_str = contract_address.to_string();
 
     let Some(contract_verification_opts) = inputs.get_map(CONTRACT_VERIFICATION_OPTS) else {
-        status_updater.propagate_status(verify_skipped_status(&contract_address_str));
+        let logger = LogDispatcher::new(Uuid::new_v4(), NAMESPACE, &progress_tx);
+        logger.success_info(
+            "Verification Skipped",
+            format!(
+                "Skipping verification for contract {}; no verifier opts provided",
+                contract_address_str
+            ),
+        );
         return Ok(Value::array(vec![]));
     };
 
@@ -92,6 +95,7 @@ pub async fn verify_contracts(
     // track failures for each provider, so we can run each to completion and log or return errors afterwards
     let mut failures = vec![];
     for (i, opts) in contract_verification_opts.iter().enumerate() {
+        let logger = LogDispatcher::new(Uuid::new_v4(), NAMESPACE, &progress_tx);
         let ContractVerificationOpts { provider, .. } = opts;
         let err_ctx = format!(
             "contract verification failed for contract '{}' with provider '{}'",
@@ -106,12 +110,7 @@ pub async fn verify_contracts(
         let client = match VerificationClient::new(opts, chain, &contract_address.to_vec()) {
             Ok(client) => client,
             Err(diag) => {
-                propagate_failed_status(
-                    &mut status_updater,
-                    &contract_address_str,
-                    &provider,
-                    &diag,
-                );
+                propagate_failed_status(&logger, &contract_address_str, &provider, &diag);
                 result_for_explorer.insert(ERROR, Value::string(diag.to_string()));
                 result_for_explorer.insert(VERIFIED, Value::bool(false));
                 contract_verification_results.push(result_for_explorer.to_value());
@@ -120,23 +119,18 @@ pub async fn verify_contracts(
             }
         };
 
+        propagate_submitting_status(&logger, &contract_address_str, &provider);
+
         let max_attempts = 10;
         let mut attempts = 0;
         let guid = loop {
             attempts += 1;
 
-            propagate_submitting_status(&mut status_updater, &contract_address_str, &provider);
-
             let verification_result =
                 match client.submit_contract_verification(&artifacts, &constructor_args).await {
                     Ok(res) => res,
                     Err(diag) => {
-                        propagate_failed_status(
-                            &mut status_updater,
-                            &contract_address_str,
-                            &provider,
-                            &diag,
-                        );
+                        propagate_failed_status(&logger, &contract_address_str, &provider, &diag);
                         result_for_explorer.insert(ERROR, Value::string(diag.to_string()));
                         result_for_explorer.insert(VERIFIED, Value::bool(false));
                         contract_verification_results.push(result_for_explorer.to_value());
@@ -144,8 +138,9 @@ pub async fn verify_contracts(
                         break None;
                     }
                 };
+
             verification_result.propagate_status(
-                &mut status_updater,
+                &logger,
                 &client,
                 max_attempts == attempts, // propagate errors if this is our last attempt
             );
@@ -188,17 +183,12 @@ pub async fn verify_contracts(
         loop {
             attempts += 1;
 
-            checking_status(&mut status_updater, &contract_address_str, &provider);
+            checking_status(&logger, &contract_address_str, &provider);
 
             let res = match client.check_contract_verification_status(&guid).await {
                 Ok(res) => res,
                 Err(diag) => {
-                    propagate_failed_status(
-                        &mut status_updater,
-                        &contract_address_str,
-                        &provider,
-                        &diag,
-                    );
+                    propagate_failed_status(&logger, &contract_address_str, &provider, &diag);
                     result_for_explorer.insert(ERROR, Value::string(diag.to_string()));
                     result_for_explorer.insert(VERIFIED, Value::bool(false));
                     contract_verification_results.push(result_for_explorer.to_value());
@@ -208,7 +198,7 @@ pub async fn verify_contracts(
             };
 
             res.propagate_status(
-                &mut status_updater,
+                &logger,
                 &client,
                 max_attempts == attempts, // propagate errors if this is our last attempt
             );
@@ -256,49 +246,43 @@ pub fn sleep_ms(millis: u64) -> () {
     std::thread::sleep(t);
 }
 
-fn verify_skipped_status(address: &str) -> ProgressBarStatus {
-    ProgressBarStatus::new_msg(
-        ProgressBarStatusColor::Yellow,
-        "Verification Skipped",
-        &format!("Skipping verification for contract {}; no verifier opts provided", address),
-    )
-}
-
 fn propagate_failed_status(
-    status_updater: &mut StatusUpdater,
+    logger: &LogDispatcher,
     address: &str,
     provider: &Provider,
     diag: &Diagnostic,
 ) {
-    status_updater.propagate_status(ProgressBarStatus::new_err(
+    logger.failure_info(
         "Verification Failed",
-        &format!(
+        format!(
             "Verification failed for contract '{}' and provider '{}'",
             address,
             provider.to_string()
         ),
-        diag,
-    ));
+    );
+    logger.error("Contract Verification Failed", diag);
 }
 
-fn propagate_submitting_status(
-    status_updater: &mut StatusUpdater,
-    address: &str,
-    provider: &Provider,
-) {
-    status_updater.propagate_pending_status(&format!(
-        "Submitting contract '{}' for verification by provider '{}'",
-        address,
-        provider.to_string()
-    ));
+fn propagate_submitting_status(logger: &LogDispatcher, address: &str, provider: &Provider) {
+    logger.pending_info(
+        "Verifying Contract",
+        format!(
+            "Submitting contract '{}' for verification by provider '{}'",
+            address,
+            provider.to_string()
+        ),
+    );
 }
 
-fn checking_status(status_updater: &mut StatusUpdater, address: &str, provider: &Provider) {
-    status_updater.propagate_pending_status(&format!(
-        "Checking verification status for contract '{}' with provider '{}'",
-        address,
-        provider.to_string()
-    ));
+fn checking_status(logger: &LogDispatcher, address: &str, provider: &Provider) {
+    logger.pending_info(
+        "Verifying Contract",
+        format!(
+            "Checking verification status for contract '{}' with provider '{}'",
+            address,
+            provider.to_string()
+        ),
+    );
 }
 
 pub struct ContractVerificationOpts {
