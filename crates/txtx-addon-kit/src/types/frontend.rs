@@ -140,49 +140,34 @@ impl LogDispatcher {
         LogDispatcher { uuid, namespace: namespace.to_string(), tx: tx.clone() }
     }
 
+    fn log_static(&self, level: LogLevel, summary: impl ToString, message: impl ToString) {
+        let _ = self.tx.try_send(BlockEvent::static_log(
+            level,
+            self.uuid,
+            self.namespace.clone(),
+            summary,
+            message,
+        ));
+    }
+
     pub fn trace(&self, summary: impl ToString, message: impl ToString) {
-        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
-            level: LogLevel::Trace,
-            uuid: self.uuid,
-            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
-            namespace: self.namespace.clone(),
-        })));
+        self.log_static(LogLevel::Trace, summary, message);
     }
 
     pub fn debug(&self, summary: impl ToString, message: impl ToString) {
-        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
-            level: LogLevel::Debug,
-            uuid: self.uuid,
-            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
-            namespace: self.namespace.clone(),
-        })));
+        self.log_static(LogLevel::Debug, summary, message);
     }
 
     pub fn info(&self, summary: impl ToString, message: impl ToString) {
-        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
-            level: LogLevel::Info,
-            uuid: self.uuid,
-            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
-            namespace: self.namespace.clone(),
-        })));
+        self.log_static(LogLevel::Info, summary, message);
     }
 
     pub fn warn(&self, summary: impl ToString, message: impl ToString) {
-        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
-            level: LogLevel::Warn,
-            uuid: self.uuid,
-            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
-            namespace: self.namespace.clone(),
-        })));
+        self.log_static(LogLevel::Warn, summary, message);
     }
 
     pub fn error(&self, summary: impl ToString, message: impl ToString) {
-        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
-            level: LogLevel::Error,
-            uuid: self.uuid,
-            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
-            namespace: self.namespace.clone(),
-        })));
+        self.log_static(LogLevel::Error, summary, message);
     }
 
     pub fn pending_info(&self, summary: impl ToString, message: impl ToString) {
@@ -205,6 +190,24 @@ impl LogDispatcher {
 }
 
 impl BlockEvent {
+    pub fn static_log(
+        level: LogLevel,
+        uuid: Uuid,
+        namespace: String,
+        summary: impl ToString,
+        message: impl ToString,
+    ) -> Self {
+        BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
+            level,
+            uuid,
+            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
+            namespace,
+        }))
+    }
+
+    pub fn transient_log(event: TransientLogEvent) -> Self {
+        BlockEvent::LogEvent(LogEvent::Transient(event))
+    }
     pub fn as_block(&self) -> Option<&Block> {
         match &self {
             BlockEvent::Action(ref block) => Some(block),
