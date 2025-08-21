@@ -458,6 +458,7 @@ pub async fn execute_runbook(
                         block_store.insert(len, new_block.clone());
                     }
                     BlockEvent::Exit => break,
+                    BlockEvent::LogEvent(_) => {}
                 }
 
                 if do_propagate_event {

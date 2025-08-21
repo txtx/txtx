@@ -3,18 +3,19 @@ use crate::{get_addon_by_namespace, get_available_addons};
 use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
+use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
+use log::{debug, error, info, trace, warn};
 use std::{
     collections::{BTreeMap, HashSet},
     env,
     fs::{self, File},
-    io::Write,
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 use tokio::sync::RwLock;
 use txtx_cloud::router::TxtxAuthenticatedCloudServiceRouter;
-use txtx_core::templates::{build_manifest_data, build_runbook_data};
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     mustache,
@@ -30,7 +31,7 @@ use txtx_core::{
         types::{
             commands::{CommandId, CommandInputsEvaluationResult},
             diagnostics::Diagnostic,
-            frontend::{BlockEvent, ProgressBarStatusColor},
+            frontend::BlockEvent,
             stores::AddonDefaults,
             types::Value,
             AuthorizationContext, Did, PackageId,
@@ -47,7 +48,19 @@ use txtx_core::{
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
-use txtx_gql::kit::types::{cloud_interface::CloudServiceContext, types::AddonJsonConverter};
+use txtx_core::{
+    runbook::DEFAULT_TOP_LEVEL_INPUTS_NAME,
+    templates::{build_manifest_data, build_runbook_data},
+};
+use txtx_gql::kit::{
+    types::{
+        cloud_interface::CloudServiceContext,
+        frontend::{LogDetails, LogEvent, LogLevel, TransientLogEventStatus},
+        types::AddonJsonConverter,
+        RunbookInstanceContext,
+    },
+    uuid::Uuid,
+};
 
 #[cfg(feature = "supervisor_ui")]
 use actix_web::dev::ServerHandle;
@@ -633,52 +646,75 @@ pub async fn handle_run_command(
         // return Ok(());
     }
 
+    setup_logger(runbook.to_instance_context(), &LogLevel::Trace).unwrap();
+
     // should not be generating actions
     if is_execution_unsupervised {
         let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
+            let mut active_spinners: IndexMap<Uuid, ProgressBar> = IndexMap::new();
+
+            let style = ProgressStyle::with_template("{spinner} {msg}")
+                .unwrap()
+                .tick_strings(&["⠋", "⠙", "⠸", "⠴", "⠦", "⠇"]);
             while let Ok(msg) = progress_rx.recv() {
                 match msg {
-                    BlockEvent::UpdateProgressBarStatus(update) => {
-                        match update.new_status.status_color {
-                            ProgressBarStatusColor::Yellow => {
-                                print!(
-                                    "\r{} {} {:<150}{}",
-                                    yellow!("→"),
-                                    yellow!(format!("{}", update.new_status.status)),
-                                    update.new_status.message,
-                                    if update.new_status.newline { "\n" } else { "" }
-                                );
+                    BlockEvent::LogEvent(log) => match log {
+                        LogEvent::Static(static_log_event) => {
+                            let msg = format!(
+                                "{} {}",
+                                static_log_event.details.summary, static_log_event.details.message
+                            );
+                            match static_log_event.level {
+                                LogLevel::Trace => {
+                                    trace!(target: &static_log_event.namespace, "{}", msg);
+                                }
+                                LogLevel::Debug => {
+                                    debug!(target: &static_log_event.namespace, "{}", msg);
+                                }
+                                LogLevel::Info => {
+                                    info!(target: &static_log_event.namespace, "{}", msg);
+                                }
+                                LogLevel::Warn => {
+                                    warn!(target: &static_log_event.namespace, "{}", msg);
+                                }
+                                LogLevel::Error => {
+                                    error!(target: &static_log_event.namespace, "{}", msg);
+                                }
                             }
-                            ProgressBarStatusColor::Green => {
-                                print!(
-                                    "\r{} {} {:<150}{}",
-                                    green!("✓"),
-                                    green!(format!("{}", update.new_status.status)),
-                                    update.new_status.message,
-                                    if update.new_status.newline { "\n" } else { "" }
-                                );
+                        }
+                        LogEvent::Transient(log) => match log.status {
+                            TransientLogEventStatus::Pending(LogDetails { message, summary }) => {
+                                if let Some(pb) = active_spinners.get(&log.uuid) {
+                                    // update existing spinner
+                                    pb.set_message(format!("{} {}", yellow!(summary), message));
+                                } else {
+                                    // create new spinner
+                                    let pb = ProgressBar::new_spinner();
+                                    pb.set_style(style.clone());
+                                    pb.enable_steady_tick(Duration::from_millis(80));
+                                    pb.set_message(format!("{} {}", yellow!(summary), message));
+                                    active_spinners.insert(log.uuid, pb);
+                                }
                             }
-                            ProgressBarStatusColor::Red => {
-                                print!(
-                                    "\r{} {} {:<150}{}",
-                                    red!("x"),
-                                    red!(format!("{}", update.new_status.status)),
-                                    update.new_status.message,
-                                    if update.new_status.newline { "\n" } else { "" }
-                                );
+                            TransientLogEventStatus::Success(LogDetails { summary, message }) => {
+                                let msg =
+                                    format!("{} {} {}", green!("✓"), green!(summary), message);
+                                if let Some(pb) = active_spinners.swap_remove(&log.uuid) {
+                                    pb.finish_with_message(msg);
+                                } else {
+                                    println!("{}", msg);
+                                }
                             }
-                            ProgressBarStatusColor::Purple => {
-                                print!(
-                                    "\r{} {} {:<150}{}",
-                                    purple!("→"),
-                                    purple!(format!("{}", update.new_status.status)),
-                                    update.new_status.message,
-                                    if update.new_status.newline { "\n" } else { "" }
-                                );
+                            TransientLogEventStatus::Failure(LogDetails { summary, message }) => {
+                                let msg = format!("{} {}: {}", red!("x"), red!(summary), message);
+                                if let Some(pb) = active_spinners.swap_remove(&log.uuid) {
+                                    pb.finish_with_message(msg);
+                                } else {
+                                    println!("{}", msg);
+                                }
                             }
-                        };
-                        std::io::stdout().flush().unwrap();
-                    }
+                        },
+                    },
                     _ => {}
                 }
             }
@@ -850,6 +886,7 @@ pub async fn handle_run_command(
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
+                    BlockEvent::LogEvent(log_event) => todo!(),
                     BlockEvent::Exit => break,
                 }
 
@@ -1090,4 +1127,54 @@ fn process_runbook_execution_output(
             }
         };
     }
+}
+
+fn setup_logger(
+    runbook_instance_context: RunbookInstanceContext,
+    log_filter: &LogLevel,
+) -> Result<(), String> {
+    let log_location = {
+        let mut log_location = runbook_instance_context.get_workspace_root()?;
+        log_location.append_path(".runbook-logs")?;
+        log_location.append_path(
+            runbook_instance_context.environment_selector(DEFAULT_TOP_LEVEL_INPUTS_NAME),
+        )?;
+        let timestamp = chrono::Local::now().format("%Y-%m-%d--%H-%M-%S").to_string();
+        let filename = format!("{}_{}.log", runbook_instance_context.runbook_id.name, timestamp);
+        log_location.append_path(&filename)?;
+        if !log_location.exists() {
+            log_location.create_dir_and_file().map_err(|e| {
+                format!("Failed to create log file {}: {}", log_location.to_string(), e)
+            })?;
+        }
+        log_location
+    };
+
+    let log_filter = match log_filter {
+        LogLevel::Info => log::LevelFilter::Info,
+        LogLevel::Warn => log::LevelFilter::Warn,
+        LogLevel::Error => log::LevelFilter::Error,
+        LogLevel::Debug => log::LevelFilter::Debug,
+        LogLevel::Trace => log::LevelFilter::Trace,
+    };
+
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{} {} {}] {}",
+                chrono::Local::now().format("%Y-%m-%d--%H-%M-%S").to_string(),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(log_filter)
+        // .chain(std::io::stdout())
+        .chain(
+            fern::log_file(log_location.to_string())
+                .map_err(|e| format!("Failed to create log file: {}", e))?,
+        )
+        .apply()
+        .map_err(|e| format!("Failed to initialize logger: {}", e))?;
+    Ok(())
 }

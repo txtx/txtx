@@ -21,8 +21,187 @@ pub enum BlockEvent {
     ProgressBar(Block),
     UpdateProgressBarStatus(ProgressBarStatusUpdate),
     UpdateProgressBarVisibility(ProgressBarVisibilityUpdate),
+    LogEvent(LogEvent),
     Modal(Block),
     Error(Block),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LogLevel {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+impl LogLevel {
+    pub fn should_log(&self, level: &LogLevel) -> bool {
+        level >= self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpinnerState {
+    pub is_spinning: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LogEvent {
+    Static(StaticLogEvent),
+    Transient(TransientLogEvent),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StaticLogEvent {
+    pub level: LogLevel,
+    pub uuid: Uuid,
+    pub details: LogDetails,
+    pub namespace: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogDetails {
+    pub message: String,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TransientLogEventStatus {
+    Pending(LogDetails),
+    Success(LogDetails),
+    Failure(LogDetails),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransientLogEvent {
+    pub level: LogLevel,
+    pub uuid: Uuid,
+    pub status: TransientLogEventStatus,
+}
+
+impl TransientLogEvent {
+    fn pending(
+        level: LogLevel,
+        uuid: Uuid,
+        summary: impl ToString,
+        message: impl ToString,
+    ) -> Self {
+        TransientLogEvent {
+            level,
+            uuid,
+            status: TransientLogEventStatus::Pending(LogDetails {
+                message: message.to_string(),
+                summary: summary.to_string(),
+            }),
+        }
+    }
+    fn success(
+        level: LogLevel,
+        uuid: Uuid,
+        summary: impl ToString,
+        message: impl ToString,
+    ) -> Self {
+        TransientLogEvent {
+            level,
+            uuid,
+            status: TransientLogEventStatus::Success(LogDetails {
+                message: message.to_string(),
+                summary: summary.to_string(),
+            }),
+        }
+    }
+
+    pub fn pending_info(uuid: Uuid, summary: impl ToString, message: impl ToString) -> Self {
+        TransientLogEvent::pending(LogLevel::Info, uuid, summary, message)
+    }
+    pub fn success_info(uuid: Uuid, summary: impl ToString, message: impl ToString) -> Self {
+        TransientLogEvent::success(LogLevel::Info, uuid, summary, message)
+    }
+    pub fn failure_info(uuid: Uuid, summary: impl ToString, message: impl ToString) -> Self {
+        TransientLogEvent {
+            level: LogLevel::Error,
+            uuid,
+            status: TransientLogEventStatus::Failure(LogDetails {
+                message: message.to_string(),
+                summary: summary.to_string(),
+            }),
+        }
+    }
+}
+
+pub struct LogDispatcher {
+    uuid: Uuid,
+    namespace: String,
+    tx: channel::Sender<BlockEvent>,
+}
+impl LogDispatcher {
+    pub fn new(uuid: Uuid, namespace: &str, tx: &channel::Sender<BlockEvent>) -> Self {
+        LogDispatcher { uuid, namespace: namespace.to_string(), tx: tx.clone() }
+    }
+
+    pub fn trace(&self, summary: impl ToString, message: impl ToString) {
+        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
+            level: LogLevel::Trace,
+            uuid: self.uuid,
+            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
+            namespace: self.namespace.clone(),
+        })));
+    }
+
+    pub fn debug(&self, summary: impl ToString, message: impl ToString) {
+        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
+            level: LogLevel::Debug,
+            uuid: self.uuid,
+            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
+            namespace: self.namespace.clone(),
+        })));
+    }
+
+    pub fn info(&self, summary: impl ToString, message: impl ToString) {
+        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
+            level: LogLevel::Info,
+            uuid: self.uuid,
+            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
+            namespace: self.namespace.clone(),
+        })));
+    }
+
+    pub fn warn(&self, summary: impl ToString, message: impl ToString) {
+        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
+            level: LogLevel::Warn,
+            uuid: self.uuid,
+            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
+            namespace: self.namespace.clone(),
+        })));
+    }
+
+    pub fn error(&self, summary: impl ToString, message: impl ToString) {
+        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Static(StaticLogEvent {
+            level: LogLevel::Error,
+            uuid: self.uuid,
+            details: LogDetails { message: message.to_string(), summary: summary.to_string() },
+            namespace: self.namespace.clone(),
+        })));
+    }
+
+    pub fn pending_info(&self, summary: impl ToString, message: impl ToString) {
+        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Transient(
+            TransientLogEvent::pending_info(self.uuid, summary, message),
+        )));
+    }
+
+    pub fn success_info(&self, summary: impl ToString, message: impl ToString) {
+        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Transient(
+            TransientLogEvent::success_info(self.uuid, summary, message),
+        )));
+    }
+
+    pub fn failure_info(&self, summary: impl ToString, message: impl ToString) {
+        let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Transient(
+            TransientLogEvent::failure_info(self.uuid, summary, message),
+        )));
+    }
 }
 
 impl BlockEvent {
