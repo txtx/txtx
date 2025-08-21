@@ -91,47 +91,50 @@ pub struct TransientLogEvent {
     pub level: LogLevel,
     pub uuid: Uuid,
     pub status: TransientLogEventStatus,
+    pub namespace: String,
 }
 
 impl TransientLogEvent {
-    fn pending(
-        level: LogLevel,
+    pub fn pending_info(
         uuid: Uuid,
         summary: impl ToString,
         message: impl ToString,
+        namespace: impl ToString,
     ) -> Self {
         TransientLogEvent {
-            level,
+            level: LogLevel::Info,
             uuid,
             status: TransientLogEventStatus::Pending(LogDetails {
                 message: message.to_string(),
                 summary: summary.to_string(),
             }),
+            namespace: namespace.to_string(),
         }
     }
-    fn success(
-        level: LogLevel,
+
+    pub fn success_info(
         uuid: Uuid,
         summary: impl ToString,
         message: impl ToString,
+        namespace: impl ToString,
     ) -> Self {
         TransientLogEvent {
-            level,
+            level: LogLevel::Info,
             uuid,
             status: TransientLogEventStatus::Success(LogDetails {
                 message: message.to_string(),
                 summary: summary.to_string(),
             }),
+            namespace: namespace.to_string(),
         }
     }
 
-    pub fn pending_info(uuid: Uuid, summary: impl ToString, message: impl ToString) -> Self {
-        TransientLogEvent::pending(LogLevel::Info, uuid, summary, message)
-    }
-    pub fn success_info(uuid: Uuid, summary: impl ToString, message: impl ToString) -> Self {
-        TransientLogEvent::success(LogLevel::Info, uuid, summary, message)
-    }
-    pub fn failure_info(uuid: Uuid, summary: impl ToString, message: impl ToString) -> Self {
+    pub fn failure_info(
+        uuid: Uuid,
+        summary: impl ToString,
+        message: impl ToString,
+        namespace: impl ToString,
+    ) -> Self {
         TransientLogEvent {
             level: LogLevel::Error,
             uuid,
@@ -139,6 +142,7 @@ impl TransientLogEvent {
                 message: message.to_string(),
                 summary: summary.to_string(),
             }),
+            namespace: namespace.to_string(),
         }
     }
 }
@@ -150,7 +154,7 @@ pub struct LogDispatcher {
 }
 impl LogDispatcher {
     pub fn new(uuid: Uuid, namespace: &str, tx: &channel::Sender<BlockEvent>) -> Self {
-        LogDispatcher { uuid, namespace: namespace.to_string(), tx: tx.clone() }
+        LogDispatcher { uuid, namespace: format!("txtx::{}", namespace), tx: tx.clone() }
     }
 
     fn log_static(&self, level: LogLevel, summary: impl ToString, message: impl ToString) {
@@ -185,19 +189,19 @@ impl LogDispatcher {
 
     pub fn pending_info(&self, summary: impl ToString, message: impl ToString) {
         let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Transient(
-            TransientLogEvent::pending_info(self.uuid, summary, message),
+            TransientLogEvent::pending_info(self.uuid, summary, message, &self.namespace),
         )));
     }
 
     pub fn success_info(&self, summary: impl ToString, message: impl ToString) {
         let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Transient(
-            TransientLogEvent::success_info(self.uuid, summary, message),
+            TransientLogEvent::success_info(self.uuid, summary, message, &self.namespace),
         )));
     }
 
     pub fn failure_info(&self, summary: impl ToString, message: impl ToString) {
         let _ = self.tx.try_send(BlockEvent::LogEvent(LogEvent::Transient(
-            TransientLogEvent::failure_info(self.uuid, summary, message),
+            TransientLogEvent::failure_info(self.uuid, summary, message, &self.namespace),
         )));
     }
 }
