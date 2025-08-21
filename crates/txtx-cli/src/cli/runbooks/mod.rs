@@ -650,6 +650,7 @@ pub async fn handle_run_command(
 
     // should not be generating actions
     if is_execution_unsupervised {
+        let log_level: LogLevel = cmd.log_level.as_str().into();
         let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
             let mut active_spinners: IndexMap<Uuid, ProgressBar> = IndexMap::new();
 
@@ -660,25 +661,48 @@ pub async fn handle_run_command(
                 match msg {
                     BlockEvent::LogEvent(log) => match log {
                         LogEvent::Static(static_log_event) => {
-                            let msg = format!(
-                                "{} {}",
-                                static_log_event.details.summary, static_log_event.details.message
-                            );
+                            let LogDetails { message, summary } = static_log_event.details;
+                            let msg = format!("{} {}", summary, message);
                             match static_log_event.level {
                                 LogLevel::Trace => {
                                     trace!(target: &static_log_event.namespace, "{}", msg);
+                                    if log_level.should_log(&static_log_event.level) {
+                                        println!("- {}", msg);
+                                    }
                                 }
                                 LogLevel::Debug => {
                                     debug!(target: &static_log_event.namespace, "{}", msg);
+                                    if log_level.should_log(&static_log_event.level) {
+                                        println!("- {}", msg);
+                                    }
                                 }
                                 LogLevel::Info => {
                                     info!(target: &static_log_event.namespace, "{}", msg);
+                                    if log_level.should_log(&static_log_event.level) {
+                                        println!(
+                                            "{} {} {}",
+                                            purple!("→"),
+                                            purple!(summary),
+                                            message
+                                        );
+                                    }
                                 }
                                 LogLevel::Warn => {
                                     warn!(target: &static_log_event.namespace, "{}", msg);
+                                    if log_level.should_log(&static_log_event.level) {
+                                        println!(
+                                            "{} {} {}",
+                                            yellow!("!"),
+                                            yellow!(summary),
+                                            message
+                                        );
+                                    }
                                 }
                                 LogLevel::Error => {
                                     error!(target: &static_log_event.namespace, "{}", msg);
+                                    if log_level.should_log(&static_log_event.level) {
+                                        println!("{} {} {}", red!("x"), red!(summary), message);
+                                    }
                                 }
                             }
                         }
