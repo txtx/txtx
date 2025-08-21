@@ -453,12 +453,12 @@ pub async fn start_supervised_runbook_runloop(
                     true => ActionItemStatus::Success(None),
                     false => ActionItemStatus::Todo,
                 };
-                let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
-                    ActionItemRequestUpdate::from_id(&action_item_id)
-                        .set_status(new_status)
-                        .normalize(&action_item_requests)
-                        .unwrap(),
-                ]));
+                if let Some(update) = ActionItemRequestUpdate::from_id(&action_item_id)
+                    .set_status(new_status)
+                    .normalize(&action_item_requests)
+                {
+                    let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![update]));
+                }
                 // Some signers do not actually need the user to provide the address/pubkey,
                 // but they need to confirm it in the supervisor. when it is confirmed, we need to
                 // reprocess the signers
