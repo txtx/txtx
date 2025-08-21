@@ -35,6 +35,19 @@ pub enum LogLevel {
     Error,
 }
 
+impl From<&str> for LogLevel {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "trace" => LogLevel::Trace,
+            "debug" => LogLevel::Debug,
+            "info" => LogLevel::Info,
+            "warn" => LogLevel::Warn,
+            "error" => LogLevel::Error,
+            _ => LogLevel::Info,
+        }
+    }
+}
+
 impl LogLevel {
     pub fn should_log(&self, level: &LogLevel) -> bool {
         level >= self

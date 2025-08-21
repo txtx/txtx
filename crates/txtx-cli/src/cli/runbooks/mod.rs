@@ -646,7 +646,7 @@ pub async fn handle_run_command(
         // return Ok(());
     }
 
-    setup_logger(runbook.to_instance_context(), &LogLevel::Trace).unwrap();
+    setup_logger(runbook.to_instance_context(), &cmd.log_level).unwrap();
 
     // should not be generating actions
     if is_execution_unsupervised {
@@ -1131,7 +1131,7 @@ fn process_runbook_execution_output(
 
 fn setup_logger(
     runbook_instance_context: RunbookInstanceContext,
-    log_filter: &LogLevel,
+    log_filter: &str,
 ) -> Result<(), String> {
     let log_location = {
         let mut log_location = runbook_instance_context.get_workspace_root()?;
@@ -1150,7 +1150,7 @@ fn setup_logger(
         log_location
     };
 
-    let log_filter = match log_filter {
+    let log_filter = match log_filter.into() {
         LogLevel::Info => log::LevelFilter::Info,
         LogLevel::Warn => log::LevelFilter::Warn,
         LogLevel::Error => log::LevelFilter::Error,
