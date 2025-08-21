@@ -1,8 +1,7 @@
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, PreCommandSpecification};
-use txtx_addon_kit::types::frontend::{
-    Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusUpdate,
-};
+use txtx_addon_kit::types::frontend::LogDispatcher;
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
 use txtx_addon_kit::types::ConstructDid;
@@ -118,7 +117,7 @@ impl CommandImplementation for CheckEvmConfirmations {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        construct_did: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
@@ -130,23 +129,20 @@ impl CommandImplementation for CheckEvmConfirmations {
         use alloy_chains::{Chain, ChainKind};
         use txtx_addon_kit::{
             hex,
-            types::{
-                commands::return_synchronous_result, frontend::ProgressBarStatusColor, types::Value,
-            },
+            types::{commands::return_synchronous_result, types::Value},
         };
 
         use crate::{
             codec::abi_decode_logs,
             constants::{
-                ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, LOGS, RAW_LOGS,
-                TX_HASH,
+                ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, LOGS, NAMESPACE,
+                RAW_LOGS, TX_HASH,
             },
             rpc::EvmRpc,
             typing::{EvmValue, RawLog},
         };
 
         let inputs = inputs.clone();
-        let construct_did = construct_did.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
         let confirmations_required = inputs
             .get_expected_uint("confirmations")
@@ -158,6 +154,7 @@ impl CommandImplementation for CheckEvmConfirmations {
         };
         let address_abi_map = inputs.get_value(ADDRESS_ABI_MAP).cloned();
         let progress_tx = progress_tx.clone();
+        let logger = LogDispatcher::new(background_tasks_uuid, NAMESPACE, &progress_tx);
 
         let skip_confirmations = inputs.get_bool(ALREADY_DEPLOYED).unwrap_or(false);
         let contract_address = inputs.get_value(CONTRACT_ADDRESS).cloned();
@@ -167,19 +164,13 @@ impl CommandImplementation for CheckEvmConfirmations {
                 result.outputs.insert(CONTRACT_ADDRESS.to_string(), contract_address);
             }
 
-            let status_update = ProgressBarStatusUpdate::new(
-                &background_tasks_uuid,
-                &construct_did,
-                &ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
-                    "Confirmed",
-                    &format!(
-                        "Contract deployment transaction already confirmed on Chain {}",
-                        chain_name
-                    ),
+            logger.success_info(
+                "Confirmed",
+                format!(
+                    "Contract deployment transaction already confirmed on Chain {}",
+                    chain_name
                 ),
             );
-            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
             return return_synchronous_result(Ok(result));
         }
 
@@ -193,17 +184,16 @@ impl CommandImplementation for CheckEvmConfirmations {
 
         let future = async move {
             // initial progress status
+
             let mut progress = 0;
-            let mut status_update = ProgressBarStatusUpdate::new(
-                &background_tasks_uuid,
-                &construct_did,
-                &ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Yellow,
-                    &format!("Pending {}", progress_symbol[progress]),
-                    &receipt_msg,
-                ),
-            );
-            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+
+            logger.pending_info("Pending", receipt_msg);
+
+            logger.trace("trace", "trace Log");
+            logger.debug("debug", "debug Log");
+            logger.info("info", "info Log");
+            logger.warn("warn", "warn Log");
+            logger.error("error", "error Log");
 
             let mut result = CommandExecutionResult::new();
 
@@ -211,8 +201,8 @@ impl CommandImplementation for CheckEvmConfirmations {
 
             let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{e}"))?;
 
-            let mut included_block = u64::MAX - confirmations_required as u64;
-            let mut latest_block = 0;
+            let mut tx_inclusion_block = u64::MAX - confirmations_required as u64;
+            let mut current_block = 0;
             let _receipt = loop {
                 progress = (progress + 1) % progress_symbol.len();
 
@@ -224,14 +214,6 @@ impl CommandImplementation for CheckEvmConfirmations {
                     let mut count = 0;
                     loop {
                         count += 1;
-                        progress = (progress + 1) % progress_symbol.len();
-                        status_update.update_status(&ProgressBarStatus::new_msg(
-                            ProgressBarStatusColor::Yellow,
-                            &format!("Pending {}", progress_symbol[progress]),
-                            &receipt_msg,
-                        ));
-                        let _ = progress_tx
-                            .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
                         sleep_ms(backoff_ms);
                         if count == 10 {
                             break;
@@ -240,23 +222,20 @@ impl CommandImplementation for CheckEvmConfirmations {
                     continue;
                 };
                 let Some(block_number) = receipt.block_number else {
-                    status_update.update_status(&ProgressBarStatus::new_msg(
-                        ProgressBarStatusColor::Yellow,
-                        &format!("Pending {}", progress_symbol[progress]),
-                        &format!(
+                    logger.pending_info(
+                        "Pending",
+                        format!(
                             "Awaiting Inclusion in Block for Tx 0x{} on Chain {}",
                             tx_hash, chain_name
                         ),
-                    ));
-                    let _ = progress_tx
-                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                    );
 
                     sleep_ms(backoff_ms);
                     continue;
                 };
-                if latest_block == 0 {
-                    included_block = block_number;
-                    latest_block = block_number;
+                if current_block == 0 {
+                    tx_inclusion_block = block_number;
+                    current_block = block_number;
                 }
 
                 if !receipt.status() {
@@ -270,13 +249,11 @@ impl CommandImplementation for CheckEvmConfirmations {
                         Err(_) => diagnosed_error!("transaction reverted"),
                     };
 
-                    status_update.update_status(&ProgressBarStatus::new_err(
+                    logger.failure_info(
                         "Failed",
-                        &format!("Transaction Failed for Chain {}", chain_name),
-                        &diag,
-                    ));
-                    let _ = progress_tx
-                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                        format!("Transaction Failed for Chain {}", chain_name),
+                    );
+                    logger.error("Error", diag.to_string());
 
                     return Err(diag);
                 }
@@ -302,38 +279,36 @@ impl CommandImplementation for CheckEvmConfirmations {
                     ),
                 );
 
-                if latest_block >= included_block + confirmations_required as u64 {
+                if current_block >= tx_inclusion_block + confirmations_required as u64 {
                     break receipt;
                 } else {
-                    status_update.update_status(&ProgressBarStatus::new_msg(
-                        ProgressBarStatusColor::Yellow,
-                        &format!("Pending {}", progress_symbol[progress]),
-                        &format!(
-                            "Waiting for {} Block Confirmations on Chain {}",
-                            confirmations_required, chain_name
+                    let _ = logger.pending_info(
+                        "Pending",
+                        format!(
+                            "{}/{} blocks confirmed for Tx 0x{} on chain {}",
+                            current_block - tx_inclusion_block,
+                            confirmations_required,
+                            tx_hash,
+                            chain_name
                         ),
-                    ));
-                    let _ = progress_tx
-                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                    );
 
-                    latest_block = rpc.get_block_number().await.unwrap_or(latest_block);
+                    current_block = rpc.get_block_number().await.unwrap_or(current_block);
                     sleep_ms(backoff_ms);
                     continue;
                 }
             };
 
-            status_update.update_status(&ProgressBarStatus::new_msg(
-                ProgressBarStatusColor::Green,
+            logger.success_info(
                 "Confirmed",
-                &format!(
+                format!(
                     "Confirmed {} {} for Tx 0x{} on Chain {}",
                     &confirmations_required,
                     if confirmations_required.eq(&1) { "block" } else { "blocks" },
                     tx_hash,
                     chain_name
                 ),
-            ));
-            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+            );
 
             Ok(result)
         };
