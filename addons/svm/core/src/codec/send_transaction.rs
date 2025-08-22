@@ -9,7 +9,7 @@ use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, CommandSpecification};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{BlockEvent, ProgressBarStatus, StatusUpdater};
+use txtx_addon_kit::types::frontend::{BlockEvent, LogDispatcher};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, ThirdPartySignatureStatus, Value};
 use txtx_addon_kit::types::ConstructDid;
@@ -20,7 +20,7 @@ use crate::constants::{
 };
 
 pub fn send_transaction_background_task(
-    construct_did: &ConstructDid,
+    _construct_did: &ConstructDid,
     _spec: &CommandSpecification,
     inputs: &ValueStore,
     outputs: &ValueStore,
@@ -38,7 +38,6 @@ pub fn send_transaction_background_task(
         }));
     }
 
-    let construct_did = construct_did.clone();
     let outputs = outputs.clone();
     let inputs = inputs.clone();
     let progress_tx = progress_tx.clone();
@@ -70,8 +69,8 @@ pub fn send_transaction_background_task(
             commitment_config.clone(),
         ));
 
-        let mut status_updater =
-            StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
+        let logger =
+            LogDispatcher::new(background_tasks_uuid, "svm::send_transaction", &progress_tx);
 
         let mut result = CommandExecutionResult::from_value_store(&outputs);
 
@@ -85,11 +84,7 @@ pub fn send_transaction_background_task(
             commitment_config.commitment,
         )
         .map_err(|diag| {
-            status_updater.propagate_status(ProgressBarStatus::new_err(
-                "Failed",
-                "Failed to broadcast transaction",
-                &diag,
-            ));
+            logger.failure_with_diag("Failed", "Failed to broadcast transaction", &diag);
             diag
         })?;
         result.outputs.insert(SIGNATURE.into(), Value::string(signature.clone()));

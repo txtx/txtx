@@ -13,7 +13,7 @@ use txtx_addon_kit::types::commands::{
     PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{BlockEvent, StatusUpdater};
+use txtx_addon_kit::types::frontend::{BlockEvent, LogDispatcher};
 use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
@@ -437,8 +437,7 @@ impl CommandImplementation for SendToken {
         supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
-        let mut status_updater =
-            StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
+        let logger = LogDispatcher::new(*background_tasks_uuid, "svm::send_token", &progress_tx);
         let recipient_token_address =
             SvmValue::to_pubkey(outputs.get_expected_value(RECIPIENT_TOKEN_ADDRESS).unwrap())
                 .unwrap();
@@ -452,20 +451,29 @@ impl CommandImplementation for SendToken {
             SvmValue::to_pubkey(outputs.get_expected_value(TOKEN_MINT_ADDRESS).unwrap()).unwrap();
         let is_funding_recipient = outputs.get_bool(IS_FUNDING_RECIPIENT).unwrap_or(false);
 
-        status_updater.propagate_info(&format!("Transferring token {}", token_mint_address));
-        status_updater.propagate_info(&format!(
-            "Authority {} generated source token account {}",
-            authority_address, source_token_address
-        ));
-        status_updater.propagate_info(&format!(
-            "Recipient {} generated recipient token account {}",
-            recipient_address, recipient_token_address
-        ));
+        logger.info("Token Transfer", format!("Transferring token {}", token_mint_address));
+        logger.info(
+            "Token Transfer",
+            format!(
+                "Authority {} generated source token account {}",
+                authority_address, source_token_address
+            ),
+        );
+        logger.info(
+            "Token Transfer",
+            format!(
+                "Recipient {} generated recipient token account {}",
+                recipient_address, recipient_token_address
+            ),
+        );
         if is_funding_recipient {
-            status_updater.propagate_info(&format!(
-                "Authority {} will fund recipient token account {}",
-                authority_address, recipient_token_address
-            ));
+            logger.info(
+                "Token Transfer",
+                format!(
+                    "Authority {} will fund recipient token account {}",
+                    authority_address, recipient_token_address
+                ),
+            );
         }
 
         send_transaction_background_task(

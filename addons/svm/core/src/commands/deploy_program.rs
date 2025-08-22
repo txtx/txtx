@@ -7,8 +7,8 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
-    DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID,
-    NESTED_CONSTRUCT_INDEX, SIGNATURE_APPROVED, SIGNED_TRANSACTION_BYTES,
+    BACKGROUND_TASKS_UUID, DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT,
+    NESTED_CONSTRUCT_DID, NESTED_CONSTRUCT_INDEX, SIGNATURE_APPROVED, SIGNED_TRANSACTION_BYTES,
 };
 use txtx_addon_kit::futures::future;
 use txtx_addon_kit::indexmap::IndexMap;
@@ -19,7 +19,7 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::{
-    Actions, BlockEvent, ProvideSignedTransactionRequest, StatusUpdater,
+    Actions, BlockEvent, LogDispatcher, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous, PrepareSignedNestedExecutionResult, SignerActionsFutureResult,
@@ -318,6 +318,11 @@ impl CommandImplementation for DeployProgram {
                     PROGRAM_ID,
                     program_id.clone(),
                 );
+                authority_signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    BACKGROUND_TASKS_UUID,
+                    Value::string(Uuid::new_v4().into()),
+                );
 
                 let transactions = deployer.get_transactions().map_err(|e| {
                     (
@@ -559,6 +564,11 @@ impl CommandImplementation for DeployProgram {
         let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
         let authority_signer_state =
             signers.get_signer_state(&authority_signer_did).unwrap().clone();
+
+        let background_tasks_uuid = authority_signer_state
+            .get_scoped_value(&construct_did.to_string(), BACKGROUND_TASKS_UUID)
+            .unwrap()
+            .clone();
         let program_id_value = authority_signer_state
             .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
             .unwrap()
@@ -571,7 +581,8 @@ impl CommandImplementation for DeployProgram {
         let mut values = values.clone();
 
         let future = async move {
-            let mut result = CommandExecutionResult::new();
+            let mut result =
+                CommandExecutionResult::from([(BACKGROUND_TASKS_UUID, background_tasks_uuid)]);
 
             result.outputs.insert(PROGRAM_ID.to_string(), program_id_value.clone());
             if let Some(idl) = program_idl_value {
@@ -670,7 +681,7 @@ impl CommandImplementation for DeployProgram {
         inputs: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
         cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
@@ -679,11 +690,15 @@ impl CommandImplementation for DeployProgram {
         let mut inputs = inputs.clone();
         let outputs = outputs.clone();
         let progress_tx = progress_tx.clone();
-        let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
         let cloud_service_context = cloud_service_context.clone();
 
         let future = async move {
+            let background_tasks_uuid = outputs
+                .get_value(BACKGROUND_TASKS_UUID)
+                .and_then(|v| v.as_string().and_then(|s| Uuid::from_str(s).ok()))
+                .unwrap();
+
             let nested_construct_did =
                 inputs.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
 
@@ -704,16 +719,12 @@ impl CommandImplementation for DeployProgram {
 
             let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
 
-            let mut status_updater = StatusUpdater::new_with_default_progress_index(
-                &background_tasks_uuid,
-                &construct_did,
-                &progress_tx,
-                transaction_index as usize,
-            );
+            let logger =
+                LogDispatcher::new(background_tasks_uuid, "svm::deploy_program", &progress_tx);
 
             deployment_transaction
                 .pre_send_status_updates(
-                    &mut status_updater,
+                    &logger,
                     transaction_index as usize,
                     transaction_count as usize,
                 )
@@ -782,7 +793,7 @@ impl CommandImplementation for DeployProgram {
                 }
             };
 
-            deployment_transaction.post_send_status_updates(&mut status_updater, program_id);
+            deployment_transaction.post_send_status_updates(&logger, program_id);
 
             if transaction_index == transaction_count - 1 {
                 let rpc_client = RpcClient::new(rpc_api_url);
