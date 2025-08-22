@@ -407,16 +407,25 @@ mod demo_tests {
         }
         
         // Demonstrate interoperability
-        println!("1️⃣  OLD STYLE FUNCTION ERROR:");
+        println!("1️⃣  OLD STYLE FUNCTION ERROR (Current Diagnostic):");
         println!("{:─^60}", "");
         match old_style_function() {
             Err(diag) => {
-                println!("Diagnostic message: {}", diag.message);
+                println!("📋 Full Diagnostic Structure:");
+                println!("  Message: {}", diag.message);
+                println!("  Level: {:?}", diag.level);
+                println!("  Span: {:?}", diag.span);
+                println!("  Location: {:?}", diag.location);
+                println!("  Documentation: {:?}", diag.documentation);
+                println!("  Example: {:?}", diag.example);
+                println!("  Parent Diagnostic: {:?}", diag.parent_diagnostic);
+                println!("\n  ⚠️  Note: Most fields are None/empty!");
+                println!("  Only the message string is populated.");
             }
             Ok(_) => {}
         }
         
-        println!("\n2️⃣  NEW STYLE FUNCTION ERROR (as error-stack):");
+        println!("\n2️⃣  NEW STYLE FUNCTION ERROR (error-stack with context):");
         println!("{:─^60}", "");
         match new_style_function() {
             Err(report) => {
@@ -430,9 +439,21 @@ mod demo_tests {
         match new_style_function() {
             Err(report) => {
                 let diag = report_to_diagnostic(report);
-                println!("Diagnostic message: {}", diag.message);
-                if let Some(doc) = diag.documentation {
-                    println!("Additional context preserved: {}", doc.lines().next().unwrap_or(""));
+                println!("📋 Full Diagnostic Structure:");
+                println!("  Message: {}", diag.message);
+                println!("  Level: {:?}", diag.level);
+                println!("  Span: {:?}", diag.span);
+                println!("  Location: {:?}", diag.location);
+                println!("  Documentation: {} bytes of context", 
+                         diag.documentation.as_ref().map(|d| d.len()).unwrap_or(0));
+                println!("  Example: {:?}", diag.example);
+                println!("  Parent Diagnostic: {:?}", diag.parent_diagnostic);
+                println!("\n  ✅ Documentation field contains full error-stack context!");
+                if let Some(doc) = &diag.documentation {
+                    println!("\n  Preview of documentation field:");
+                    for line in doc.lines().take(3) {
+                        println!("    {}", line);
+                    }
                 }
             }
             Ok(_) => {}
@@ -466,5 +487,110 @@ mod demo_tests {
         println!("  • Gradual module-by-module migration");
         println!("  • Better errors internally, compatible externally");
         println!("  • Can roll back if needed");
+    }
+
+    #[test]
+    fn demo_actual_diagnostic_comparison() {
+        println!("\n{}", "=".repeat(60));
+        println!("ACCURATE COMPARISON: Current vs Enhanced Error Handling");
+        println!("{}\n", "=".repeat(60));
+        
+        // Current approach with diagnosed_error!
+        fn current_approach_insufficient_funds() -> Result<(), Diagnostic> {
+            // This is what we currently have - just a string message
+            Err(diagnosed_error!(
+                "Transaction failed: insufficient funds. Required: 1000000000000000000 wei, Available: 500000000000000 wei"
+            ))
+        }
+        
+        // New approach with error-stack
+        fn new_approach_insufficient_funds() -> EvmResult<()> {
+            Err(Report::new(EvmError::Transaction(TransactionError::InsufficientFunds {
+                required: 1000000000000000000,
+                available: 500000000000000,
+            })))
+            .attach_printable("Attempting to send 1 ETH transaction")
+            .attach(TransactionContext {
+                tx_hash: None,
+                from: Some(Address::from([0x74; 20])),
+                to: Some(Address::from([0x5f; 20])),
+                value: Some(1000000000000000000),
+                gas_limit: Some(21000),
+                chain_id: 1,
+            })
+            .attach_printable("Suggested fix: Add at least 0.5 ETH to wallet")
+            .attach(RpcContext {
+                endpoint: "https://mainnet.infura.io/v3/API_KEY".to_string(),
+                method: "eth_getBalance".to_string(),
+                params: Some(r#"["0x7474...", "latest"]"#.to_string()),
+            })
+        }
+        
+        println!("🔴 CURRENT APPROACH (diagnosed_error!):");
+        println!("{:─^60}", "");
+        match current_approach_insufficient_funds() {
+            Err(diag) => {
+                println!("What developers/users see:");
+                println!("  Error: {}", diag.message);
+                println!("\nWhat's in the Diagnostic struct:");
+                println!("  - message: ✅ (populated)");
+                println!("  - level: ✅ (Error)");
+                println!("  - span: ❌ (None)");
+                println!("  - location: ❌ (None)");
+                println!("  - documentation: ❌ (None)");
+                println!("  - example: ❌ (None)");
+                println!("  - parent_diagnostic: ❌ (None)");
+                println!("\n  Problems:");
+                println!("  • No context about what was being attempted");
+                println!("  • No information about the transaction");
+                println!("  • No suggestions for fixing the issue");
+                println!("  • No RPC endpoint information");
+                println!("  • Hard to debug without more context");
+            }
+            Ok(_) => {}
+        }
+        
+        println!("\n🟢 NEW APPROACH (error-stack):");
+        println!("{:─^60}", "");
+        match new_approach_insufficient_funds() {
+            Err(report) => {
+                println!("What developers see during debugging:");
+                println!("{:#?}", report);
+                
+                println!("\nWhat users see (display format):");
+                println!("{}", report);
+                
+                let diag = report_to_diagnostic(report);
+                println!("\nWhat's in the converted Diagnostic struct:");
+                println!("  - message: ✅ (clear error type)");
+                println!("  - level: ✅ (Error)");
+                println!("  - span: ⚪ (None - same as before)");
+                println!("  - location: ⚪ (None - same as before)");
+                println!("  - documentation: ✅ (FULL CONTEXT PRESERVED)");
+                println!("  - example: ⚪ (None - same as before)");
+                println!("  - parent_diagnostic: ⚪ (None - same as before)");
+                
+                println!("\n  Benefits:");
+                println!("  • Full transaction context available");
+                println!("  • RPC endpoint information included");
+                println!("  • Suggested fixes provided");
+                println!("  • Structured error types (not just strings)");
+                println!("  • Stack traces in debug mode");
+                println!("  • Backward compatible via conversion");
+            }
+            Ok(_) => {}
+        }
+        
+        println!("\n📊 SUMMARY:");
+        println!("{:─^60}", "");
+        println!("The current diagnosed_error! macro creates Diagnostics with:");
+        println!("  - Only the message field populated");
+        println!("  - No contextual information");
+        println!("  - Limited debugging capability");
+        println!("\nThe new error-stack approach provides:");
+        println!("  - Rich contextual information");
+        println!("  - Structured error types");
+        println!("  - Full backward compatibility");
+        println!("  - Better developer and user experience");
     }
 }
