@@ -1,6 +1,6 @@
 use std::{borrow::BorrowMut, collections::BTreeMap, fmt::Display};
 
-use crate::constants::ACTION_ITEM_BEGIN_FLOW;
+use crate::{constants::ACTION_ITEM_BEGIN_FLOW, types::stores::AddonDefaults};
 
 use super::{
     block_id::BlockId,
@@ -2241,7 +2241,7 @@ pub struct ChannelParticipantAuthResponse {
 pub struct OpenChannelRequest {
     pub runbook_name: String,
     pub runbook_description: Option<String>,
-    pub registered_addons: Vec<String>,
+    pub flow_addon_data: Vec<SupervisorAddonData>,
     pub block_store: BTreeMap<usize, Block>,
     pub uuid: Uuid,
     pub slug: String,
@@ -2269,4 +2269,18 @@ pub struct OpenChannelResponseBrowser {
     pub http_endpoint_url: String,
     pub ws_endpoint_url: String,
     pub slug: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorAddonData {
+    pub addon_name: String,
+    pub rpc_api_url: Option<String>,
+}
+
+impl SupervisorAddonData {
+    pub fn new(addon_name: &str, addon_defaults: &AddonDefaults) -> Self {
+        let rpc_api_url = addon_defaults.store.get_string("rpc_api_url").map(|s| s.to_string());
+        Self { addon_name: addon_name.to_string(), rpc_api_url }
+    }
 }

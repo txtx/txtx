@@ -51,6 +51,9 @@ use txtx_gql::kit::types::{cloud_interface::CloudServiceContext, types::AddonJso
 
 #[cfg(feature = "supervisor_ui")]
 use actix_web::dev::ServerHandle;
+#[cfg(feature = "supervisor_ui")]
+use txtx_gql::kit::types::frontend::SupervisorAddonData;
+
 #[cfg(feature = "ovm")]
 use txtx_addon_network_ovm::OvmNetworkAddon;
 #[cfg(feature = "sp1")]
@@ -713,13 +716,22 @@ pub async fn handle_run_command(
     #[cfg(feature = "supervisor_ui")]
     let runbook_description = runbook.description.clone();
     #[cfg(feature = "supervisor_ui")]
-    let registered_addons = runbook
-        .runtime_context
-        .addons_context
-        .registered_addons
-        .keys()
-        .map(|k| k.clone())
-        .collect::<Vec<_>>();
+    let supervisor_addon_data = {
+        let flow = runbook.flow_contexts.first().unwrap();
+        let mut addons = vec![];
+        for addon in flow.execution_context.addon_instances.values() {
+            if let Some(addon_defaults) = flow
+                .workspace_context
+                .addons_defaults
+                .get(&(addon.package_id.did(), addon.addon_id.clone()))
+            {
+                if !addons.iter().any(|a: &SupervisorAddonData| a.addon_name.eq(&addon.addon_id)) {
+                    addons.push(SupervisorAddonData::new(&addon.addon_id, addon_defaults));
+                }
+            }
+        }
+        addons
+    };
 
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
@@ -756,7 +768,7 @@ pub async fn handle_run_command(
         let web_ui_handle = start_supervisor_ui(
             runbook_name,
             runbook_description,
-            registered_addons,
+            supervisor_addon_data,
             block_store.clone(),
             block_broadcaster.clone(),
             action_item_events_tx,
