@@ -25,6 +25,7 @@ txtx-addon-telegram = { workspace = true }
 txtx-addon-sp1 = { workspace = true, optional = true }
 txtx-gql = { workspace = true }
 hiro-system-kit = "0.3.1"
+error-stack = { version = "0.5", default-features = false }
 clap = { version = "4.4.6", features = ["derive"], optional = true }
 clap_generate = { version = "3.0.3", optional = true }
 ctrlc = { version = "3.2.2", optional = true }
