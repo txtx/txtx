@@ -1,5 +1,4 @@
 use crate::constants::{SIGNER, SIGNERS};
-// use encode_instruction::ENCODE_INSTRUCTION;
 use deploy_program::DEPLOY_PROGRAM;
 use deploy_subraph::DEPLOY_SUBGRAPH;
 use process_instructions::PROCESS_INSTRUCTIONS;
@@ -7,7 +6,6 @@ use send_sol::SEND_SOL;
 use send_token::SEND_TOKEN;
 use serde::{Deserialize, Serialize};
 use setup_surfnet::SETUP_SURFNET;
-use sign_transaction::SIGN_TRANSACTION;
 use solana_client::rpc_request::RpcRequest;
 use srs::create_class::CREATE_CLASS;
 use srs::create_record::CREATE_RECORD;
@@ -76,8 +74,6 @@ impl RpcVersionInfo {
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
-        SIGN_TRANSACTION.clone(),
-        // ENCODE_INSTRUCTION.clone(),
         PROCESS_INSTRUCTIONS.clone(),
         DEPLOY_PROGRAM.clone(),
         SEND_SOL.clone(),

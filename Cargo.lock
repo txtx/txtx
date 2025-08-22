@@ -14954,6 +14954,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "solana-client",
+ "solana-message",
  "solana-record-service-client",
  "solana-sdk",
  "solana_idl",

@@ -453,12 +453,12 @@ pub async fn start_supervised_runbook_runloop(
                     true => ActionItemStatus::Success(None),
                     false => ActionItemStatus::Todo,
                 };
-                let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
-                    ActionItemRequestUpdate::from_id(&action_item_id)
-                        .set_status(new_status)
-                        .normalize(&action_item_requests)
-                        .unwrap(),
-                ]));
+                if let Some(update) = ActionItemRequestUpdate::from_id(&action_item_id)
+                    .set_status(new_status)
+                    .normalize(&action_item_requests)
+                {
+                    let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![update]));
+                }
                 // Some signers do not actually need the user to provide the address/pubkey,
                 // but they need to confirm it in the supervisor. when it is confirmed, we need to
                 // reprocess the signers
@@ -514,6 +514,7 @@ pub async fn start_supervised_runbook_runloop(
                     }
                     if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                         let _ = block_tx.send(BlockEvent::Error(error_event));
+                        return Err(pass_results.with_spans_filled(&runbook.sources));
                     }
                 }
             }
@@ -528,7 +529,8 @@ pub async fn start_supervised_runbook_runloop(
                 )
                 .await;
             }
-            ActionItemResponseType::ProvideSignedTransaction(_)
+            ActionItemResponseType::VerifyThirdPartySignature(_)
+            | ActionItemResponseType::ProvideSignedTransaction(_)
             | ActionItemResponseType::SendTransaction(_)
             | ActionItemResponseType::ProvideSignedMessage(_) => {
                 // Retrieve the previous requests sent and update their statuses.
@@ -578,6 +580,7 @@ pub async fn start_supervised_runbook_runloop(
                 }
                 if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                     let _ = block_tx.send(BlockEvent::Error(error_event));
+                    return Err(pass_results.with_spans_filled(&runbook.sources));
                 }
             }
         };

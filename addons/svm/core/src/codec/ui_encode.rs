@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use solana_message::Message;
 use solana_sdk::instruction::Instruction;
 use txtx_addon_kit::{
     hex,
@@ -9,6 +10,49 @@ use txtx_addon_kit::{
         ConstructDid,
     },
 };
+
+pub fn message_to_formatted_tx(message: &Message) -> Value {
+    let mut instructions = Vec::new();
+    let message_account_keys = message.account_keys.clone();
+    for instruction in message.instructions.iter() {
+        let Some(account) = message_account_keys.get(instruction.program_id_index as usize) else {
+            continue;
+        };
+        let accounts = instruction
+            .accounts
+            .iter()
+            .filter_map(|a| {
+                let Some(pubkey) = message_account_keys.get(*a as usize) else {
+                    return None;
+                };
+                Some(
+                    ObjectType::from([
+                        ("pubkey", Value::string(pubkey.to_string())),
+                        ("is_signer", Value::bool(message.is_signer(*a as usize))),
+                        ("is_writable", Value::bool(message.is_maybe_writable(*a as usize, None))),
+                    ])
+                    .to_value(),
+                )
+            })
+            .collect::<Vec<Value>>();
+        let account_name = account.to_string();
+
+        instructions.push(
+            ObjectType::from(vec![
+                ("program_id", Value::string(account_name)),
+                ("data", Value::string(format!("0x{}", hex::encode(&instruction.data)))),
+                ("accounts", Value::array(accounts)),
+            ])
+            .to_value(),
+        );
+    }
+    message_data_to_formatted_value(
+        &instructions,
+        message.header.num_required_signatures,
+        message.header.num_readonly_signed_accounts,
+        message.header.num_readonly_unsigned_accounts,
+    )
+}
 
 pub fn ix_to_formatted_value(ix: &Instruction) -> Value {
     ObjectType::from([

@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tokio::sync::RwLock;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
+use txtx_addon_kit::types::frontend::SupervisorAddonData;
 use txtx_addon_kit::Addon;
 use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
 use txtx_addon_network_evm::EvmNetworkAddon;
@@ -318,13 +319,22 @@ pub async fn execute_runbook(
     runbook.enable_full_execution_mode();
     // info!(ctx.expect_logger(), "2");
     let runbook_description = runbook.description.clone();
-    let registered_addons = runbook
-        .runtime_context
-        .addons_context
-        .registered_addons
-        .keys()
-        .map(|k| k.clone())
-        .collect::<Vec<_>>();
+    let supervisor_addon_data = {
+        let flow = runbook.flow_contexts.first().unwrap();
+        let mut addons = vec![];
+        for addon in flow.execution_context.addon_instances.values() {
+            if let Some(addon_defaults) = flow
+                .workspace_context
+                .addons_defaults
+                .get(&(addon.package_id.did(), addon.addon_id.clone()))
+            {
+                if !addons.iter().any(|a: &SupervisorAddonData| a.addon_name.eq(&addon.addon_id)) {
+                    addons.push(SupervisorAddonData::new(&addon.addon_id, addon_defaults));
+                }
+            }
+        }
+        addons
+    };
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let (_action_item_updates_tx, _action_item_updates_rx) =
@@ -364,7 +374,7 @@ pub async fn execute_runbook(
         *gql_context = Some(GqlContext {
             protocol_name: runbook_name.clone(),
             runbook_name: runbook_name.clone(),
-            registered_addons,
+            supervisor_addon_data,
             runbook_description,
             block_store: block_store.clone(),
             block_broadcaster: block_broadcaster.clone(),
@@ -532,7 +542,7 @@ async fn subscriptions(
     let ctx = GraphContext {
         protocol_name: context.protocol_name.clone(),
         runbook_name: context.runbook_name.clone(),
-        registered_addons: context.registered_addons.clone(),
+        supervisor_addon_data: context.supervisor_addon_data.clone(),
         runbook_description: context.runbook_description.clone(),
         block_store: context.block_store.clone(),
         block_broadcaster: context.block_broadcaster.clone(),

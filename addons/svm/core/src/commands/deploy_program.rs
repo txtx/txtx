@@ -10,6 +10,7 @@ use txtx_addon_kit::constants::{
     DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID,
     NESTED_CONSTRUCT_INDEX, SIGNATURE_APPROVED, SIGNED_TRANSACTION_BYTES,
 };
+use txtx_addon_kit::futures::future;
 use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::cloud_interface::{CloudService, CloudServiceContext};
 use txtx_addon_kit::types::commands::{
@@ -45,7 +46,7 @@ use crate::typing::{
 };
 
 use super::get_custom_signer_did;
-use super::sign_transaction::SignTransaction;
+use super::sign_transaction::{check_signed_executability, run_signed_execution};
 
 lazy_static! {
     pub static ref DEPLOY_PROGRAM: PreCommandSpecification = {
@@ -415,7 +416,7 @@ impl CommandImplementation for DeployProgram {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -454,7 +455,7 @@ impl CommandImplementation for DeployProgram {
             _ => false,
         } {
             if authority_signer_state
-                .get_scoped_value(&&construct_did.to_string(), SIGNATURE_APPROVED)
+                .get_scoped_value(&&nested_construct_did.to_string(), SIGNATURE_APPROVED)
                 .is_some()
                 || !supervision_context.review_input_values
             {
@@ -532,16 +533,16 @@ impl CommandImplementation for DeployProgram {
                 values.insert(FORMATTED_TRANSACTION, formatted_transaction);
                 values.insert(META_DESCRIPTION, Value::string(meta_description));
             }
-            return SignTransaction::check_signed_executability(
-                construct_did,
+            let res = check_signed_executability(
+                &nested_construct_did,
                 instance_name,
-                spec,
                 &values,
                 supervision_context,
                 signers_instances,
                 signers,
                 auth_context,
             );
+            return Ok(Box::pin(future::ready(res)));
         } else {
             return return_synchronous((signers, authority_signer_state, Actions::none()));
         }
@@ -549,9 +550,9 @@ impl CommandImplementation for DeployProgram {
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         values: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
+        _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
@@ -566,11 +567,7 @@ impl CommandImplementation for DeployProgram {
             .get_scoped_value(&construct_did.to_string(), PROGRAM_IDL)
             .cloned();
 
-        let progress_tx = progress_tx.clone();
         let signers_instances = signers_instances.clone();
-        let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
         let mut values = values.clone();
 
         let future = async move {
@@ -642,14 +639,8 @@ impl CommandImplementation for DeployProgram {
             values.insert(IS_DEPLOYMENT, Value::bool(true));
             values.insert(TRANSACTION_BYTES, transaction_value.clone());
 
-            let run_signing_future = SignTransaction::run_signed_execution(
-                &construct_did,
-                &spec,
-                &values,
-                &progress_tx,
-                &signers_instances,
-                signers,
-            );
+            let run_signing_future =
+                run_signed_execution(&nested_construct_did, &values, &signers_instances, signers);
             let (signers, signer_state, mut signin_res) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
@@ -658,14 +649,15 @@ impl CommandImplementation for DeployProgram {
                 Err(err) => return Err(err),
             };
 
-            let signed_transaction_value =
-                signin_res.outputs.remove(SIGNED_TRANSACTION_BYTES).unwrap();
+            let some_signed_transaction_value = signin_res.outputs.remove(SIGNED_TRANSACTION_BYTES);
             result.append(&mut signin_res);
 
-            result.outputs.insert(
-                format!("{}:{}", &nested_construct_did.to_string(), SIGNED_TRANSACTION_BYTES),
-                signed_transaction_value,
-            );
+            if let Some(signed_transaction_value) = some_signed_transaction_value {
+                result.outputs.insert(
+                    format!("{}:{}", &nested_construct_did.to_string(), SIGNED_TRANSACTION_BYTES),
+                    signed_transaction_value,
+                );
+            }
 
             return Ok((signers, signer_state, result));
         };
@@ -744,13 +736,15 @@ impl CommandImplementation for DeployProgram {
                     CommandExecutionResult::new()
                 }
                 _ => {
-                    let signed_transaction_value = inputs
+                    let Some(signed_transaction_value) = inputs
                         .get_scoped_value(
                             &nested_construct_did.to_string(),
                             SIGNED_TRANSACTION_BYTES,
                         )
-                        .unwrap()
-                        .clone();
+                        .cloned()
+                    else {
+                        return Ok(CommandExecutionResult::from_value_store(&outputs));
+                    };
 
                     inputs.insert(IS_DEPLOYMENT, Value::bool(true));
                     inputs.insert(SIGNED_TRANSACTION_BYTES, signed_transaction_value.clone());

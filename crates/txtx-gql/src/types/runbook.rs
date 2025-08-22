@@ -1,5 +1,6 @@
 use crate::Context;
 use juniper_codegen::graphql_object;
+use txtx_addon_kit::types::frontend::SupervisorAddonData;
 
 #[derive(Clone)]
 pub struct WorkspaceManifest {
@@ -22,18 +23,18 @@ impl WorkspaceManifest {
 pub struct RunbookMetadata {
     pub name: String,
     pub description: Option<String>,
-    pub registered_addons: Vec<String>,
+    pub supervisor_addon_data: Vec<SupervisorAddonData>,
 }
 
 impl RunbookMetadata {
     pub fn new(
         name: &String,
-        registered_addons: &Vec<String>,
+        supervisor_addon_data: &Vec<SupervisorAddonData>,
         description: &Option<String>,
     ) -> Self {
         Self {
             name: name.clone(),
-            registered_addons: registered_addons.clone(),
+            supervisor_addon_data: supervisor_addon_data.clone(),
             description: description.clone(),
         }
     }
@@ -49,7 +50,20 @@ impl RunbookMetadata {
         self.description.clone()
     }
 
-    pub fn registered_addons(&self) -> Vec<String> {
-        self.registered_addons.clone()
+    pub fn addon_data(&self) -> Vec<GqlSupervisorAddonData> {
+        self.supervisor_addon_data.iter().map(|data| GqlSupervisorAddonData(data.clone())).collect()
+    }
+}
+
+#[derive(Clone)]
+pub struct GqlSupervisorAddonData(pub SupervisorAddonData);
+#[graphql_object(context = Context)]
+impl GqlSupervisorAddonData {
+    pub fn addon_name(&self) -> String {
+        self.0.addon_name.clone()
+    }
+
+    pub fn rpc_api_url(&self) -> Option<String> {
+        self.0.rpc_api_url.clone()
     }
 }

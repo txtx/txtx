@@ -17,12 +17,12 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_kit::types::{AuthorizationContext, ConstructDid};
 
 use crate::codec::{transaction_is_fully_signed, DeploymentTransaction};
 use crate::constants::{
@@ -55,7 +55,7 @@ lazy_static! {
                 ],
                 outputs: [
                     address: {
-                        documentation: "The address of the account.",
+                        documentation: "The address of the account. This is an alias for the `public_key` output.",
                         typing: Type::string()
                     },
                     public_key: {
@@ -95,18 +95,17 @@ impl SignerImplementation for SvmWebWallet {
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
         auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
-        is_balance_check_required: bool,
-        is_public_key_required: bool,
+        _is_balance_check_required: bool,
+        _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        use crate::{codec::public_key_from_str, constants::NETWORK_ID};
         use txtx_addon_kit::constants::{
             ACTION_ITEM_CHECK_BALANCE, DESCRIPTION, IS_BALANCE_CHECKED,
             PROVIDE_PUBLIC_KEY_ACTION_RESULT,
         };
 
-        use crate::{codec::public_key_from_str, constants::NETWORK_ID};
-
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
-        let is_balance_checked = values.get_bool(IS_BALANCE_CHECKED);
+        let is_balance_checked = signer_state.get_bool(IS_BALANCE_CHECKED);
 
         let values = values.clone();
         let expected_address = values
@@ -116,10 +115,10 @@ impl SignerImplementation for SvmWebWallet {
             })
             .transpose()?;
         let mut do_request_address_check = expected_address.is_some();
-        let mut do_request_public_key = is_public_key_required;
+        let mut do_request_public_key = true;
 
         let _is_nonce_required = true;
-        let do_request_balance = is_balance_check_required;
+        let do_request_balance = true;
 
         let instance_name = instance_name.to_string();
         let signer_did = construct_did.clone();
@@ -140,12 +139,11 @@ impl SignerImplementation for SvmWebWallet {
         let (mut actions, connected_public_key) = if let Ok(public_key_bytes) =
             values.get_expected_string(PROVIDE_PUBLIC_KEY_ACTION_RESULT)
         {
-            let mut actions: Actions = Actions::none();
-            let mut success = true;
-
             let sol_address = public_key_from_str(&public_key_bytes)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
+            let mut actions: Actions = Actions::none();
+            let mut success = true;
             let mut status_update = ActionItemStatus::Success(Some(sol_address.to_string()));
             if let Some(expected_address) = expected_address.as_ref() {
                 if !expected_address.eq(&sol_address) {
@@ -230,6 +228,7 @@ impl SignerImplementation for SvmWebWallet {
                     action_items,
                 );
             }
+
             Ok((signers, signer_state, actions))
         };
         Ok(Box::pin(future))
@@ -245,8 +244,12 @@ impl SignerImplementation for SvmWebWallet {
         _progress_tx: &channel::Sender<BlockEvent>,
     ) -> SignerActivateFutureResult {
         let mut result = CommandExecutionResult::new();
-        let public_key = signer_state.get_value(CHECKED_PUBLIC_KEY).unwrap();
-        let address = signer_state.get_value(CHECKED_ADDRESS).unwrap();
+        let public_key = signer_state
+            .get_expected_value(CHECKED_PUBLIC_KEY)
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+        let address = signer_state
+            .get_expected_value(CHECKED_ADDRESS)
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
         result.outputs.insert(ADDRESS.into(), address.clone());
         result.outputs.insert(PUBLIC_KEY.into(), public_key.clone());
         return_synchronous_result(Ok((signers, signer_state, result)))
@@ -265,6 +268,7 @@ impl SignerImplementation for SvmWebWallet {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let construct_did_str = &construct_did.to_string();
         signer_state.insert_scoped_value(&construct_did_str, TRANSACTION_BYTES, payload.clone());
@@ -396,14 +400,8 @@ impl SignerImplementation for SvmWebWallet {
         let mut did_update_transaction = false;
         let is_deployment = values.get_bool(IS_DEPLOYMENT).unwrap_or(false);
         let (mut transaction, do_sign_with_txtx_signer) = if is_deployment {
-            let deployment_transaction =
-                DeploymentTransaction::from_value(&payload).map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to sign transaction: {e}"),
-                    )
-                })?;
+            let deployment_transaction = DeploymentTransaction::from_value(&payload)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
             // the supervisor may have changed the transaction some (specifically by adding compute budget instructions),
             // so we want to sign that new transaction
             let mut transaction = if let Some(supervisor_signed_tx) = &supervisor_signed_tx {
@@ -414,27 +412,23 @@ impl SignerImplementation for SvmWebWallet {
             };
             transaction.message.recent_blockhash = blockhash;
 
-            let keypairs = deployment_transaction.get_keypairs().map_err(|e| {
-                (
-                    signers.clone(),
-                    signer_state.clone(),
-                    diagnosed_error!("failed to sign transaction: {e}"),
-                )
-            })?;
+            let keypairs = deployment_transaction
+                .get_keypairs()
+                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-            transaction.try_partial_sign(&keypairs, transaction.message.recent_blockhash).map_err(
-                |e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("failed to sign transaction: {e}"),
-                    )
-                },
-            )?;
+            transaction
+                .try_partial_sign(&keypairs, transaction.message.recent_blockhash)
+                .map_err(|e| (signers.clone(), signer_state.clone(), e.to_string().into()))?;
             (transaction, deployment_transaction.signers.is_some())
         } else {
-            let mut transaction: Transaction = build_transaction_from_svm_value(&payload)
-                .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+            let mut transaction: Transaction =
+                if let Some(supervisor_signed_tx) = &supervisor_signed_tx {
+                    did_update_transaction = true;
+                    supervisor_signed_tx.clone()
+                } else {
+                    build_transaction_from_svm_value(&payload)
+                        .map_err(|e| (signers.clone(), signer_state.clone(), e))?
+                };
 
             transaction.message.recent_blockhash = blockhash;
 

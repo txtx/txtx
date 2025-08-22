@@ -38,6 +38,7 @@ pub const SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS: &str =
 pub const SVM_PAYER_SIGNED_TRANSACTION: &str = "svm::payer_signed_transaction";
 pub const SVM_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::authority_signed_transaction";
 pub const SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::temp_authority_signed_transaction";
+pub const SVM_SQUAD_MULTISIG: &str = "svm::squads_multisig";
 pub const SVM_U8: &str = "svm::u8";
 pub const SVM_U16: &str = "svm::u16";
 pub const SVM_U32: &str = "svm::u32";
@@ -390,6 +391,10 @@ impl SvmValue {
 
     pub fn close_temp_authority_transaction_parts(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS)
+    }
+
+    pub fn squads_multisig(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_SQUAD_MULTISIG)
     }
 }
 
@@ -788,7 +793,7 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DeploymentTransactionType {
     CreateTempAuthority(Vec<u8>),
     CreateBuffer,

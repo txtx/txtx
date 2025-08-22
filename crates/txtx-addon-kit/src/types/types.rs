@@ -221,6 +221,86 @@ impl<'de> Deserialize<'de> for Value {
 
 pub type AddonJsonConverter<'a> = Box<dyn Fn(&Value) -> Result<Option<JsonValue>, Diagnostic> + 'a>;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ThirdPartySignatureStatus {
+    Initialized,
+    Submitted,
+    CheckRequested,
+    Approved,
+    Rejected,
+}
+impl ThirdPartySignatureStatus {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            ThirdPartySignatureStatus::Initialized => vec![0],
+            ThirdPartySignatureStatus::Submitted => vec![1],
+            ThirdPartySignatureStatus::CheckRequested => vec![2],
+            ThirdPartySignatureStatus::Approved => vec![3],
+            ThirdPartySignatureStatus::Rejected => vec![4],
+        }
+    }
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        match bytes {
+            [0] => ThirdPartySignatureStatus::Initialized,
+            [1] => ThirdPartySignatureStatus::Submitted,
+            [2] => ThirdPartySignatureStatus::CheckRequested,
+            [3] => ThirdPartySignatureStatus::Approved,
+            [4] => ThirdPartySignatureStatus::Rejected,
+            _ => panic!("Invalid bytes for ThirdPartySignatureStatus: {:?}", bytes),
+        }
+    }
+    pub fn is_approved(&self) -> bool {
+        matches!(self, ThirdPartySignatureStatus::Approved)
+    }
+    pub fn is_submitted(&self) -> bool {
+        matches!(self, ThirdPartySignatureStatus::Submitted)
+    }
+    pub fn is_check_requested(&self) -> bool {
+        matches!(self, ThirdPartySignatureStatus::CheckRequested)
+    }
+}
+pub const THIRD_PARTY_SIGNATURE: &str = "std::third_party_signature";
+
+impl Value {
+    pub fn third_party_signature_initialized() -> Self {
+        Value::addon(ThirdPartySignatureStatus::Initialized.to_bytes(), THIRD_PARTY_SIGNATURE)
+    }
+
+    pub fn third_party_signature_submitted() -> Self {
+        Value::addon(ThirdPartySignatureStatus::Submitted.to_bytes(), THIRD_PARTY_SIGNATURE)
+    }
+
+    pub fn third_party_signature_approved() -> Self {
+        Value::addon(ThirdPartySignatureStatus::Approved.to_bytes(), THIRD_PARTY_SIGNATURE)
+    }
+
+    pub fn third_party_signature_rejected() -> Self {
+        Value::addon(ThirdPartySignatureStatus::Rejected.to_bytes(), THIRD_PARTY_SIGNATURE)
+    }
+
+    pub fn third_party_signature_check_requested() -> Self {
+        Value::addon(ThirdPartySignatureStatus::CheckRequested.to_bytes(), THIRD_PARTY_SIGNATURE)
+    }
+
+    pub fn expect_third_party_signature(&self) -> ThirdPartySignatureStatus {
+        if let Value::Addon(addon_data) = self {
+            if addon_data.id == THIRD_PARTY_SIGNATURE {
+                return ThirdPartySignatureStatus::from_bytes(&addon_data.bytes);
+            }
+        }
+        panic!("Value is not a third party signature");
+    }
+
+    pub fn as_third_party_signature_status(&self) -> Option<ThirdPartySignatureStatus> {
+        if let Value::Addon(addon_data) = self {
+            if addon_data.id == THIRD_PARTY_SIGNATURE {
+                return Some(ThirdPartySignatureStatus::from_bytes(&addon_data.bytes));
+            }
+        }
+        None
+    }
+}
+
 impl Value {
     pub fn string(value: String) -> Value {
         Value::String(value.to_string())

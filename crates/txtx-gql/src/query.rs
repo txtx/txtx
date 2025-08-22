@@ -61,7 +61,7 @@ impl Query {
     fn runbook(context: &Context) -> RunbookMetadata {
         RunbookMetadata::new(
             &context.runbook_name,
-            &context.registered_addons,
+            &context.supervisor_addon_data,
             &context.runbook_description,
         )
     }

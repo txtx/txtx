@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::future;
 use std::ops::Deref;
 
 use kaigan::types::RemainderStr;
@@ -31,13 +32,13 @@ use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
+use super::super::sign_transaction::{check_signed_executability, run_signed_execution};
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::ui_encode::{
     get_formatted_transaction_meta_description, ix_to_formatted_value,
     message_data_to_formatted_value,
 };
 use crate::commands::get_custom_signer_did;
-use crate::commands::sign_transaction::SignTransaction;
 use crate::constants::{
     AUTHORITY, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, OWNER, RPC_API_URL, SIGNERS,
     TRANSACTION_BYTES,
@@ -218,7 +219,7 @@ impl CommandImplementation for ProcessInstructions {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -523,33 +524,30 @@ impl CommandImplementation for ProcessInstructions {
             args.insert(META_DESCRIPTION, Value::string(meta_description));
 
             signers.push_signer_state(owner_signer_state);
-            SignTransaction::check_signed_executability(
+            let res = check_signed_executability(
                 construct_did,
                 instance_name,
-                spec,
                 &args,
                 supervision_context,
                 signers_instances,
                 signers,
                 auth_context,
-            )
+            );
+            Ok(Box::pin(future::ready(res)))
         }
     }
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
+        _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let progress_tx = progress_tx.clone();
         let mut args = args.clone();
         let signers_instances = signers_instances.clone();
         let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
 
         let future = async move {
             let mut signer_dids = vec![];
@@ -570,14 +568,8 @@ impl CommandImplementation for ProcessInstructions {
                     signer_dids.push(Value::string(authority_did.to_string()));
                 };
                 args.insert(SIGNERS, Value::array(signer_dids));
-                let run_signing_future = SignTransaction::run_signed_execution(
-                    &construct_did,
-                    &spec,
-                    &args,
-                    &progress_tx,
-                    &signers_instances,
-                    signers,
-                );
+                let run_signing_future =
+                    run_signed_execution(&construct_did, &args, &signers_instances, signers);
                 match run_signing_future {
                     Ok(future) => match future.await {
                         Ok(res) => res,

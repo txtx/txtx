@@ -14,12 +14,12 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
-use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
     types::{Type, Value},
 };
+use txtx_addon_kit::types::{AuthorizationContext, ConstructDid};
 
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_PUBLIC_KEY, ACTION_ITEM_SEND_TRANSACTION,
@@ -277,6 +277,7 @@ impl SignerImplementation for EvmWebWallet {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let construct_did_str = &construct_did.to_string();
         if let Some(_) = signer_state.get_scoped_value(&construct_did_str, TX_HASH) {
