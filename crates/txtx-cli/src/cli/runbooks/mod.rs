@@ -666,37 +666,37 @@ pub async fn handle_run_command(
                 log_filter: &LogLevel,
                 do_log_to_cli: bool,
             ) {
-                let msg = format!("{} {}", summary, message);
+                let msg = format!("{} - {}", summary, message);
                 match log_level {
                     LogLevel::Trace => {
                         trace!(target: &namespace, "{}", msg);
                         if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("- {}", msg);
+                            println!("→ {}", msg);
                         }
                     }
                     LogLevel::Debug => {
                         debug!(target: &namespace, "{}", msg);
                         if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("- {}", msg);
+                            println!("→ {}", msg);
                         }
                     }
 
                     LogLevel::Info => {
                         info!(target: &namespace, "{}", msg);
                         if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("{} {} {}", purple!("→"), purple!(summary), message);
+                            println!("{} {} - {}", purple!("→"), purple!(summary), message);
                         }
                     }
                     LogLevel::Warn => {
                         warn!(target: &namespace, "{}", msg);
                         if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("{} {} {}", yellow!("!"), yellow!(summary), message);
+                            println!("{} {} - {}", yellow!("!"), yellow!(summary), message);
                         }
                     }
                     LogLevel::Error => {
                         error!(target: &namespace, "{}", msg);
                         if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("{} {} {}", red!("x"), red!(summary), message);
+                            println!("{} {} - {}", red!("x"), red!(summary), message);
                         }
                     }
                 }

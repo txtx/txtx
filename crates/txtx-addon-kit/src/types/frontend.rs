@@ -204,6 +204,16 @@ impl LogDispatcher {
             TransientLogEvent::failure_info(self.uuid, summary, message, &self.namespace),
         )));
     }
+    pub fn failure_with_diag(
+        &self,
+        summary: impl ToString,
+        message: impl ToString,
+        diag: &Diagnostic,
+    ) {
+        let summary = summary.to_string();
+        self.failure_info(&summary, message);
+        self.error(summary, diag.to_string());
+    }
 }
 
 impl BlockEvent {
