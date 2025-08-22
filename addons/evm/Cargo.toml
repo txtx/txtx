@@ -40,6 +40,7 @@ alloy-provider = { version = "0.14", default-features = false, features = ["debu
 alloy-rpc-types = { version = "0.14", features = ["trace"] }
 alloy-signer-local = { version = "0.14", features = ["mnemonic"] }
 thiserror = "1.0.62"
+error-stack = "0.5.0"
 toml = "0.5"
 foundry-block-explorers = "0.13.0"
 foundry-compilers-artifacts-solc = "0.14"
