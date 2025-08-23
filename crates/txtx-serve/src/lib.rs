@@ -437,20 +437,6 @@ pub async fn execute_runbook(
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
-                    BlockEvent::ProgressBar(new_block) => {
-                        let len = block_store.len();
-                        block_store.insert(len, new_block.clone());
-                    }
-                    BlockEvent::UpdateProgressBarStatus(update) => block_store
-                        .iter_mut()
-                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
-                        .for_each(|(_, b)| {
-                            b.update_progress_bar_status(&update.construct_did, &update.new_status)
-                        }),
-                    BlockEvent::UpdateProgressBarVisibility(update) => block_store
-                        .iter_mut()
-                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
-                        .for_each(|(_, b)| b.visible = update.visible),
                     BlockEvent::RunbookCompleted => {
                         println!("\n{}", green!("Runbook complete!"));
                         break;

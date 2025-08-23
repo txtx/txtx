@@ -6,7 +6,7 @@ use solana_sdk::pubkey::Pubkey;
 use txtx_addon_kit::{
     hex,
     indexmap::IndexMap,
-    types::{diagnostics::Diagnostic, frontend::StatusUpdater, stores::ValueStore, types::Value},
+    types::{diagnostics::Diagnostic, frontend::LogDispatcher, stores::ValueStore, types::Value},
 };
 use txtx_addon_network_svm_types::SvmValue;
 
@@ -145,8 +145,8 @@ impl SurfpoolAccountUpdate {
         "surfnet_setAccount"
     }
 
-    fn update_status(&self, status_updater: &mut StatusUpdater, index: usize, total: usize) {
-        status_updater.propagate_success_status(
+    fn update_status(&self, logger: &LogDispatcher, index: usize, total: usize) {
+        logger.success_info(
             "Account Updated",
             &format!(
                 "Processed surfpool account update #{}/{} for {}",
@@ -170,11 +170,11 @@ impl SurfpoolAccountUpdate {
     pub async fn process_updates(
         account_updates: Vec<Self>,
         rpc_client: &RpcClient,
-        status_updater: &mut StatusUpdater,
+        logger: &LogDispatcher,
     ) -> Result<(), Diagnostic> {
         for (i, account_update) in account_updates.iter().enumerate() {
             let _ = account_update.send_request(rpc_client).await?;
-            account_update.update_status(status_updater, i, account_updates.len());
+            account_update.update_status(logger, i, account_updates.len());
         }
         Ok(())
     }
