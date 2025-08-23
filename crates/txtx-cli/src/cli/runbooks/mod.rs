@@ -74,6 +74,15 @@ use txtx_addon_sp1::Sp1Addon;
 #[cfg(feature = "supervisor_ui")]
 use txtx_supervisor_ui::{self, cloud_relayer::RelayerChannelEvent};
 
+lazy_static::lazy_static! {
+    static ref CLI_SPINNER_STYLE: ProgressStyle = {
+        let style = ProgressStyle::with_template("{spinner} {msg}")
+            .unwrap()
+            .tick_strings(&["⠋", "⠙", "⠸", "⠴", "⠦", "⠇"]);
+        style
+    };
+}
+
 pub fn display_snapshot_diffing(
     consolidated_changes: ConsolidatedChanges,
 ) -> Option<ConsolidatedChanges> {
@@ -647,133 +656,18 @@ pub async fn handle_run_command(
     }
 
     setup_logger(runbook.to_instance_context(), &cmd.log_level).unwrap();
+    let log_filter: LogLevel = cmd.log_level.as_str().into();
 
     // should not be generating actions
     if is_execution_unsupervised {
-        let log_filter: LogLevel = cmd.log_level.as_str().into();
         let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
             let mut active_spinners: IndexMap<Uuid, ProgressBar> = IndexMap::new();
 
-            let style = ProgressStyle::with_template("{spinner} {msg}")
-                .unwrap()
-                .tick_strings(&["⠋", "⠙", "⠸", "⠴", "⠦", "⠇"]);
-
-            fn persist_log(
-                message: &str,
-                summary: &str,
-                namespace: &str,
-                log_level: &LogLevel,
-                log_filter: &LogLevel,
-                do_log_to_cli: bool,
-            ) {
-                let msg = format!("{} - {}", summary, message);
-                match log_level {
-                    LogLevel::Trace => {
-                        trace!(target: &namespace, "{}", msg);
-                        if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("→ {}", msg);
-                        }
-                    }
-                    LogLevel::Debug => {
-                        debug!(target: &namespace, "{}", msg);
-                        if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("→ {}", msg);
-                        }
-                    }
-
-                    LogLevel::Info => {
-                        info!(target: &namespace, "{}", msg);
-                        if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("{} {} - {}", purple!("→"), purple!(summary), message);
-                        }
-                    }
-                    LogLevel::Warn => {
-                        warn!(target: &namespace, "{}", msg);
-                        if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("{} {} - {}", yellow!("!"), yellow!(summary), message);
-                        }
-                    }
-                    LogLevel::Error => {
-                        error!(target: &namespace, "{}", msg);
-                        if do_log_to_cli && log_filter.should_log(&log_level) {
-                            println!("{} {} - {}", red!("x"), red!(summary), message);
-                        }
-                    }
-                }
-            }
-
             while let Ok(msg) = progress_rx.recv() {
                 match msg {
-                    BlockEvent::LogEvent(log) => match log {
-                        LogEvent::Static(static_log_event) => {
-                            let LogDetails { message, summary } = static_log_event.details;
-                            persist_log(
-                                &message,
-                                &summary,
-                                &static_log_event.namespace,
-                                &static_log_event.level,
-                                &log_filter,
-                                true,
-                            );
-                        }
-                        LogEvent::Transient(log) => match log.status {
-                            TransientLogEventStatus::Pending(LogDetails { message, summary }) => {
-                                if let Some(pb) = active_spinners.get(&log.uuid) {
-                                    // update existing spinner
-                                    pb.set_message(format!("{} {}", yellow!(&summary), &message));
-                                } else {
-                                    // create new spinner
-                                    let pb = ProgressBar::new_spinner();
-                                    pb.set_style(style.clone());
-                                    pb.enable_steady_tick(Duration::from_millis(80));
-                                    pb.set_message(format!("{} {}", yellow!(&summary), message));
-                                    active_spinners.insert(log.uuid, pb);
-                                    persist_log(
-                                        &message,
-                                        &summary,
-                                        &log.namespace,
-                                        &log.level,
-                                        &log_filter,
-                                        false,
-                                    );
-                                }
-                            }
-                            TransientLogEventStatus::Success(LogDetails { summary, message }) => {
-                                let msg =
-                                    format!("{} {} {}", green!("✓"), green!(&summary), message);
-                                if let Some(pb) = active_spinners.swap_remove(&log.uuid) {
-                                    pb.finish_with_message(msg);
-                                } else {
-                                    println!("{}", msg);
-                                }
-
-                                persist_log(
-                                    &message,
-                                    &summary,
-                                    &log.namespace,
-                                    &log.level,
-                                    &log_filter,
-                                    false,
-                                );
-                            }
-                            TransientLogEventStatus::Failure(LogDetails { summary, message }) => {
-                                let msg = format!("{} {}: {}", red!("x"), red!(&summary), message);
-                                if let Some(pb) = active_spinners.swap_remove(&log.uuid) {
-                                    pb.finish_with_message(msg);
-                                } else {
-                                    println!("{}", msg);
-                                }
-                                persist_log(
-                                    &message,
-                                    &summary,
-                                    &log.namespace,
-                                    &log.level,
-                                    &log_filter,
-                                    false,
-                                );
-                            }
-                        },
-                    },
+                    BlockEvent::LogEvent(log) => {
+                        handle_log_event(log, &log_filter, &mut active_spinners)
+                    }
                     _ => {}
                 }
             }
@@ -800,6 +694,7 @@ pub async fn handle_run_command(
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let log_store = Arc::new(RwLock::new(Vec::new()));
     let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
     let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
 
@@ -860,6 +755,7 @@ pub async fn handle_run_command(
             runbook_description,
             supervisor_addon_data,
             block_store.clone(),
+            log_store.clone(),
             block_broadcaster.clone(),
             action_item_events_tx,
             moved_relayer_channel_tx,
@@ -893,6 +789,7 @@ pub async fn handle_run_command(
     #[cfg(feature = "supervisor_ui")]
     let moved_relayer_channel_tx = relayer_channel_tx.clone();
     let block_store_handle = tokio::spawn(async move {
+        let mut active_spinners: IndexMap<Uuid, ProgressBar> = IndexMap::new();
         loop {
             if let Ok(mut block_event) = block_rx.try_recv() {
                 let mut block_store = block_store.write().await;
@@ -945,7 +842,11 @@ pub async fn handle_run_command(
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
-                    BlockEvent::LogEvent(log_event) => todo!(),
+                    BlockEvent::LogEvent(log_event) => {
+                        handle_log_event(log_event.clone(), &log_filter, &mut active_spinners);
+                        let mut log_store = log_store.write().await;
+                        log_store.push(log_event);
+                    }
                     BlockEvent::Exit => break,
                 }
 
@@ -1236,4 +1137,103 @@ fn setup_logger(
         .apply()
         .map_err(|e| format!("Failed to initialize logger: {}", e))?;
     Ok(())
+}
+
+fn persist_log(
+    message: &str,
+    summary: &str,
+    namespace: &str,
+    log_level: &LogLevel,
+    log_filter: &LogLevel,
+    do_log_to_cli: bool,
+) {
+    let msg = format!("{} - {}", summary, message);
+    match log_level {
+        LogLevel::Trace => {
+            trace!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("→ {}", msg);
+            }
+        }
+        LogLevel::Debug => {
+            debug!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("→ {}", msg);
+            }
+        }
+
+        LogLevel::Info => {
+            info!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("{} {} - {}", purple!("→"), purple!(summary), message);
+            }
+        }
+        LogLevel::Warn => {
+            warn!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("{} {} - {}", yellow!("!"), yellow!(summary), message);
+            }
+        }
+        LogLevel::Error => {
+            error!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("{} {} - {}", red!("x"), red!(summary), message);
+            }
+        }
+    }
+}
+
+fn handle_log_event(
+    log: LogEvent,
+    log_filter: &LogLevel,
+    active_spinners: &mut IndexMap<Uuid, ProgressBar>,
+) {
+    match log {
+        LogEvent::Static(static_log_event) => {
+            let LogDetails { message, summary } = static_log_event.details;
+            persist_log(
+                &message,
+                &summary,
+                &static_log_event.namespace,
+                &static_log_event.level,
+                &log_filter,
+                true,
+            );
+        }
+        LogEvent::Transient(log) => match log.status {
+            TransientLogEventStatus::Pending(LogDetails { message, summary }) => {
+                if let Some(pb) = active_spinners.get(&log.uuid) {
+                    // update existing spinner
+                    pb.set_message(format!("{} {}", yellow!(&summary), &message));
+                } else {
+                    // create new spinner
+                    let pb = ProgressBar::new_spinner();
+                    pb.set_style(CLI_SPINNER_STYLE.clone());
+                    pb.enable_steady_tick(Duration::from_millis(80));
+                    pb.set_message(format!("{} {}", yellow!(&summary), message));
+                    active_spinners.insert(log.uuid, pb);
+                    persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
+                }
+            }
+            TransientLogEventStatus::Success(LogDetails { summary, message }) => {
+                let msg = format!("{} {} {}", green!("✓"), green!(&summary), message);
+                if let Some(pb) = active_spinners.swap_remove(&log.uuid) {
+                    pb.finish_with_message(msg);
+                } else {
+                    println!("{}", msg);
+                }
+
+                persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
+            }
+            TransientLogEventStatus::Failure(LogDetails { summary, message }) => {
+                let msg = format!("{} {}: {}", red!("x"), red!(&summary), message);
+                if let Some(pb) = active_spinners.swap_remove(&log.uuid) {
+                    pb.finish_with_message(msg);
+                } else {
+                    println!("{}", msg);
+                }
+                persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
+            }
+        },
+    }
 }

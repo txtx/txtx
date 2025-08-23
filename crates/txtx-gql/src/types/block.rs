@@ -4,7 +4,7 @@ use txtx_addon_kit::{
     serde_json,
     types::frontend::{
         ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block,
-        ConstructProgressBarStatuses, ErrorPanelData, ModalPanelData,
+        ConstructProgressBarStatuses, ErrorPanelData, LogEvent, ModalPanelData,
         NormalizedActionItemRequestUpdate, Panel, ProgressBarStatus, ProgressBarStatusUpdate,
         ProgressBarVisibilityUpdate,
     },
@@ -438,5 +438,35 @@ impl GqlActionItemRequest {
 
     pub fn action_type(&self) -> String {
         serde_json::to_string(&self.action_item.action_type).unwrap()
+    }
+}
+
+pub struct GqlLogEvent(pub LogEvent);
+
+#[graphql_object(context = Context)]
+impl GqlLogEvent {
+    #[graphql(name = "type")]
+    pub fn typing(&self) -> String {
+        self.0.typing()
+    }
+
+    pub fn uuid(&self) -> String {
+        self.0.uuid().to_string()
+    }
+
+    pub fn summary(&self) -> String {
+        self.0.summary()
+    }
+
+    pub fn message(&self) -> String {
+        self.0.message()
+    }
+
+    pub fn level(&self) -> String {
+        self.0.level().to_string()
+    }
+
+    pub fn status(&self) -> Option<String> {
+        self.0.status()
     }
 }

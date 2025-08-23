@@ -34,7 +34,17 @@ pub enum LogLevel {
     Warn,
     Error,
 }
-
+impl ToString for LogLevel {
+    fn to_string(&self) -> String {
+        match self {
+            LogLevel::Trace => "trace".to_string(),
+            LogLevel::Debug => "debug".to_string(),
+            LogLevel::Info => "info".to_string(),
+            LogLevel::Warn => "warn".to_string(),
+            LogLevel::Error => "error".to_string(),
+        }
+    }
+}
 impl From<&str> for LogLevel {
     fn from(s: &str) -> Self {
         match s.to_lowercase().as_str() {
@@ -48,6 +58,12 @@ impl From<&str> for LogLevel {
     }
 }
 
+impl From<String> for LogLevel {
+    fn from(s: String) -> Self {
+        LogLevel::from(s.as_str())
+    }
+}
+
 impl LogLevel {
     pub fn should_log(&self, level: &LogLevel) -> bool {
         level >= self
@@ -55,17 +71,61 @@ impl LogLevel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SpinnerState {
-    pub is_spinning: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "log")]
 pub enum LogEvent {
     Static(StaticLogEvent),
     Transient(TransientLogEvent),
 }
 
+impl LogEvent {
+    pub fn typing(&self) -> String {
+        match self {
+            LogEvent::Static(_) => "Static".into(),
+            LogEvent::Transient(_) => "Transient".into(),
+        }
+    }
+    pub fn uuid(&self) -> Uuid {
+        match self {
+            LogEvent::Static(event) => event.uuid,
+            LogEvent::Transient(event) => event.uuid,
+        }
+    }
+    pub fn status(&self) -> Option<String> {
+        match self {
+            LogEvent::Static(_) => None,
+            LogEvent::Transient(event) => Some(event.status()),
+        }
+    }
+    pub fn summary(&self) -> String {
+        match self {
+            LogEvent::Static(event) => event.details.summary.clone(),
+            LogEvent::Transient(event) => event.summary(),
+        }
+    }
+    pub fn message(&self) -> String {
+        match self {
+            LogEvent::Static(event) => event.details.message.clone(),
+            LogEvent::Transient(event) => event.message(),
+        }
+    }
+
+    pub fn level(&self) -> LogLevel {
+        match self {
+            LogEvent::Static(event) => event.level.clone(),
+            LogEvent::Transient(event) => event.level.clone(),
+        }
+    }
+
+    pub fn namespace(&self) -> &str {
+        match self {
+            LogEvent::Static(event) => &event.namespace,
+            LogEvent::Transient(event) => &event.namespace,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StaticLogEvent {
     pub level: LogLevel,
     pub uuid: Uuid,
@@ -74,12 +134,14 @@ pub struct StaticLogEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LogDetails {
     pub message: String,
     pub summary: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "status", content = "details")]
 pub enum TransientLogEventStatus {
     Pending(LogDetails),
     Success(LogDetails),
@@ -87,11 +149,36 @@ pub enum TransientLogEventStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransientLogEvent {
     pub level: LogLevel,
     pub uuid: Uuid,
     pub status: TransientLogEventStatus,
     pub namespace: String,
+}
+
+impl TransientLogEvent {
+    pub fn summary(&self) -> String {
+        match &self.status {
+            TransientLogEventStatus::Pending(log_details) => log_details.summary.clone(),
+            TransientLogEventStatus::Success(log_details) => log_details.summary.clone(),
+            TransientLogEventStatus::Failure(log_details) => log_details.summary.clone(),
+        }
+    }
+    pub fn message(&self) -> String {
+        match &self.status {
+            TransientLogEventStatus::Pending(log_details) => log_details.message.clone(),
+            TransientLogEventStatus::Success(log_details) => log_details.message.clone(),
+            TransientLogEventStatus::Failure(log_details) => log_details.message.clone(),
+        }
+    }
+    pub fn status(&self) -> String {
+        match &self.status {
+            TransientLogEventStatus::Pending(_) => "Pending".into(),
+            TransientLogEventStatus::Success(_) => "Success".into(),
+            TransientLogEventStatus::Failure(_) => "Failure".into(),
+        }
+    }
 }
 
 impl TransientLogEvent {

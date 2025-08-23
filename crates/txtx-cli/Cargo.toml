@@ -51,9 +51,10 @@ actix-web = "4"
 indicatif = "0.18.0"
 fern = "0.7.1"
 log = "0.4.27"
+lazy_static = "1.4.0"
 
 [features]
-default = ["cli"]
+default = ["cli", "supervisor_ui"]
 cli = ["clap", "clap_generate", "ctrlc", "hiro-system-kit/log"]
 supervisor_ui = ["txtx-supervisor-ui"]
 txtx_serve = ["txtx-serve"]

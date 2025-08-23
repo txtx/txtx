@@ -9,7 +9,9 @@ use include_dir::{include_dir, Dir};
 use tokio::sync::{broadcast::Sender as TokioBroadcastSender, RwLock};
 use txtx_addon_kit::{
     channel::{Receiver, Sender},
-    types::frontend::{ActionItemResponse, Block as ActionBlock, BlockEvent, SupervisorAddonData},
+    types::frontend::{
+        ActionItemResponse, Block as ActionBlock, BlockEvent, LogEvent, SupervisorAddonData,
+    },
 };
 use txtx_gql::Context as GqlContext;
 
@@ -36,6 +38,7 @@ pub async fn start_supervisor_ui(
     runbook_description: Option<String>,
     supervisor_addon_data: Vec<SupervisorAddonData>,
     block_store: Arc<RwLock<BTreeMap<usize, ActionBlock>>>,
+    log_store: Arc<RwLock<Vec<LogEvent>>>,
     block_broadcaster: TokioBroadcastSender<BlockEvent>,
     action_item_events_tx: TokioBroadcastSender<ActionItemResponse>,
     relayer_channel_tx: Sender<RelayerChannelEvent>,
@@ -47,10 +50,11 @@ pub async fn start_supervisor_ui(
 ) -> Result<ServerHandle, String> {
     let gql_context = GqlContext {
         protocol_name: runbook_name.clone(),
-        runbook_name: runbook_name.clone(),
+        runbook_name,
         supervisor_addon_data,
         runbook_description,
-        block_store: block_store.clone(),
+        block_store,
+        log_store,
         block_broadcaster: block_broadcaster.clone(),
         action_item_events_tx: action_item_events_tx.clone(),
     };

@@ -14958,6 +14958,7 @@ dependencies = [
  "hiro-system-kit 0.3.4",
  "indicatif 0.18.0",
  "itertools 0.12.1",
+ "lazy_static",
  "log 0.4.27",
  "openssl",
  "openssl-sys",
