@@ -1,7 +1,9 @@
 use std::pin::Pin;
 
 use crate::{
-    types::block::{GqlActionBlock, GqlActionItemRequestUpdate, GqlErrorBlock, GqlModalBlock},
+    types::block::{
+        GqlActionBlock, GqlActionItemRequestUpdate, GqlErrorBlock, GqlLogEvent, GqlModalBlock,
+    },
     Context,
 };
 use futures::Stream;
@@ -19,6 +21,7 @@ type GqlActionItemRequestUpdateStream =
 
 type ClearBlockEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
 type RunbookCompletedEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
+type LogEventStream = Pin<Box<dyn Stream<Item = Result<GqlLogEvent, FieldError>> + Send>>;
 
 #[graphql_subscription(
   context = Context,
@@ -117,6 +120,19 @@ impl Subscription {
                   BlockEvent::RunbookCompleted => yield Ok(true),
                     _ => {}
                 }
+              }
+            }
+        };
+        Box::pin(stream)
+    }
+
+    async fn log_event(context: &Context) -> LogEventStream {
+        let log_tx = context.log_broadcaster.clone();
+        let mut log_rx = log_tx.subscribe();
+        let stream = async_stream::stream! {
+            loop {
+              if let Ok(log_event) = log_rx.recv().await {
+                yield Ok(GqlLogEvent(log_event));
               }
             }
         };

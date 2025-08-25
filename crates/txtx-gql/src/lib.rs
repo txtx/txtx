@@ -24,6 +24,7 @@ pub struct Context {
     pub block_store: Arc<RwLock<BTreeMap<usize, Block>>>,
     pub log_store: Arc<RwLock<Vec<LogEvent>>>,
     pub block_broadcaster: tokio::sync::broadcast::Sender<BlockEvent>,
+    pub log_broadcaster: tokio::sync::broadcast::Sender<LogEvent>,
     pub action_item_events_tx: tokio::sync::broadcast::Sender<ActionItemResponse>,
 }
 

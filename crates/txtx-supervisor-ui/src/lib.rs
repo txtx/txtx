@@ -40,6 +40,7 @@ pub async fn start_supervisor_ui(
     block_store: Arc<RwLock<BTreeMap<usize, ActionBlock>>>,
     log_store: Arc<RwLock<Vec<LogEvent>>>,
     block_broadcaster: TokioBroadcastSender<BlockEvent>,
+    log_broadcaster: TokioBroadcastSender<LogEvent>,
     action_item_events_tx: TokioBroadcastSender<ActionItemResponse>,
     relayer_channel_tx: Sender<RelayerChannelEvent>,
     relayer_channel_rx: Receiver<RelayerChannelEvent>,
@@ -56,6 +57,7 @@ pub async fn start_supervisor_ui(
         block_store,
         log_store,
         block_broadcaster: block_broadcaster.clone(),
+        log_broadcaster: log_broadcaster.clone(),
         action_item_events_tx: action_item_events_tx.clone(),
     };
 

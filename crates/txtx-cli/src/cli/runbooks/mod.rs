@@ -693,6 +693,7 @@ pub async fn handle_run_command(
 
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let (log_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
     let log_store = Arc::new(RwLock::new(Vec::new()));
     let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
@@ -757,6 +758,7 @@ pub async fn handle_run_command(
             block_store.clone(),
             log_store.clone(),
             block_broadcaster.clone(),
+            log_broadcaster.clone(),
             action_item_events_tx,
             moved_relayer_channel_tx,
             relayer_channel_rx,
@@ -831,7 +833,8 @@ pub async fn handle_run_command(
                     BlockEvent::LogEvent(log_event) => {
                         handle_log_event(log_event.clone(), &log_filter, &mut active_spinners);
                         let mut log_store = log_store.write().await;
-                        log_store.push(log_event);
+                        log_store.push(log_event.clone());
+                        let _ = log_broadcaster.send(log_event);
                     }
                     BlockEvent::Exit => break,
                 }

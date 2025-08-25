@@ -337,6 +337,7 @@ pub async fn execute_runbook(
     };
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let (log_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let (_action_item_updates_tx, _action_item_updates_rx) =
         channel::unbounded::<ActionItemRequest>();
     let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
@@ -380,6 +381,7 @@ pub async fn execute_runbook(
             log_store: log_store.clone(),
             block_store: block_store.clone(),
             block_broadcaster: block_broadcaster.clone(),
+            log_broadcaster: log_broadcaster.clone(),
             action_item_events_tx: action_item_events_tx.clone(),
         });
     }
@@ -539,6 +541,7 @@ async fn subscriptions(
         block_store: context.block_store.clone(),
         log_store: context.log_store.clone(),
         block_broadcaster: context.block_broadcaster.clone(),
+        log_broadcaster: context.log_broadcaster.clone(),
         action_item_events_tx: context.action_item_events_tx.clone(),
     };
     let config = ConnectionConfig::new(ctx);
