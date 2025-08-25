@@ -106,12 +106,12 @@ impl CommandImplementation for CreateProof {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        construct_did: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
-        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
@@ -122,10 +122,7 @@ impl CommandImplementation for CreateProof {
         };
 
         use sp1_sdk::{HashableKey, MockProver, NetworkProver, ProverClient, SP1Stdin};
-        use txtx_addon_kit::{
-            hex,
-            types::frontend::{ProgressBarStatus, ProgressBarStatusColor, ProgressBarStatusUpdate},
-        };
+        use txtx_addon_kit::hex;
 
         use crate::typing::Sp1Value;
 
@@ -138,10 +135,6 @@ impl CommandImplementation for CreateProof {
         let sp1_private_key =
             inputs.get_string("sp1_private_key").and_then(|k| Some(k.to_string()));
         let do_verify_proof = inputs.get_bool("verify").unwrap_or(false);
-
-        let construct_did = construct_did.clone();
-        let background_tasks_uuid = background_tasks_uuid.clone();
-        let progress_tx = progress_tx.clone();
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
@@ -191,53 +184,53 @@ impl CommandImplementation for CreateProof {
                 *done = Some(Ok(proof));
             });
 
-            let msg = format!("Creating proof");
-            let progress_tx = progress_tx.clone();
-            let mut progress = 0;
-            let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
-            let mut status_update = ProgressBarStatusUpdate::new(
-                &background_tasks_uuid,
-                &construct_did,
-                &ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Yellow,
-                    &format!("Pending {}", progress_symbol[progress]),
-                    &msg,
-                ),
-            );
-            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+            // let msg = format!("Creating proof");
+            // let progress_tx = progress_tx.clone();
+            // let mut progress = 0;
+            // let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
+            // let mut status_update = ProgressBarStatusUpdate::new(
+            //     &background_tasks_uuid,
+            //     &construct_did,
+            //     &ProgressBarStatus::new_msg(
+            //         ProgressBarStatusColor::Yellow,
+            //         &format!("Pending {}", progress_symbol[progress]),
+            //         &msg,
+            //     ),
+            // );
+            // let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
             // Polling loop to update the user
             while proof.lock().unwrap().is_none() {
-                progress = (progress + 1) % progress_symbol.len();
-                status_update.update_status(&ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Yellow,
-                    &format!("Pending {}", progress_symbol[progress]),
-                    &msg,
-                ));
-                let _ =
-                    progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                // progress = (progress + 1) % progress_symbol.len();
+                // status_update.update_status(&ProgressBarStatus::new_msg(
+                //     ProgressBarStatusColor::Yellow,
+                //     &format!("Pending {}", progress_symbol[progress]),
+                //     &msg,
+                // ));
+                // let _ =
+                //     progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
                 thread::sleep(Duration::from_millis(500));
             }
             let Some(ref proof) = *proof.lock().unwrap() else { unimplemented!() };
             let proof = match proof {
                 Ok(proof) => proof,
                 Err(e) => {
-                    status_update.update_status(&ProgressBarStatus::new_err(
-                        "Failed",
-                        "Failed to generate proof",
-                        &e,
-                    ));
-                    let _ = progress_tx
-                        .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+                    // status_update.update_status(&ProgressBarStatus::new_err(
+                    //     "Failed",
+                    //     "Failed to generate proof",
+                    //     &e,
+                    // ));
+                    // let _ = progress_tx
+                    //     .send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
                     return Err(e.clone());
                 }
             };
 
-            status_update.update_status(&ProgressBarStatus::new_msg(
-                ProgressBarStatusColor::Green,
-                &format!("Proof Created"),
-                "",
-            ));
-            let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
+            // status_update.update_status(&ProgressBarStatus::new_msg(
+            //     ProgressBarStatusColor::Green,
+            //     &format!("Proof Created"),
+            //     "",
+            // ));
+            // let _ = progress_tx.send(BlockEvent::UpdateProgressBarStatus(status_update.clone()));
 
             // Ensure the long-running task completes
             handle.join().unwrap();

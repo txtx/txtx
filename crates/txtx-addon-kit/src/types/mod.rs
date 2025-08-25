@@ -150,6 +150,21 @@ impl RunbookId {
     }
 }
 
+pub struct RunbookInstanceContext {
+    pub runbook_id: RunbookId,
+    pub workspace_location: FileLocation,
+    pub environment_selector: Option<String>,
+}
+
+impl RunbookInstanceContext {
+    pub fn get_workspace_root(&self) -> Result<FileLocation, String> {
+        self.workspace_location.get_parent_location()
+    }
+    pub fn environment_selector<'a>(&'a self, default: &'a str) -> &'a str {
+        self.environment_selector.as_deref().unwrap_or(default)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PackageDid(pub Did);
 

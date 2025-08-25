@@ -58,17 +58,6 @@ fn test_ab_c_runbook_no_env() {
         assert_eq!(&input_a_action.internal_key, "check_input");
         assert_eq!(&input_b_action.internal_key, "provide_input");
 
-        harness.send_and_expect_progress_bar_visibility_update(
-            ActionItemResponse {
-                action_item_id: input_a_action.id.clone(),
-                payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
-                    value_checked: true,
-                    input_name: "value".into(),
-                    force_execution: false,
-                }),
-            },
-            false,
-        );
         // review input a and expect action item update
         harness.expect_action_item_update(
             None,
@@ -115,6 +104,5 @@ fn test_ab_c_runbook_no_env() {
         harness.expect_action_panel(None, "output review", vec![vec![1]]);
     }
 
-    harness.expect_progress_bar_visibility_update(None, false);
     harness.expect_runbook_complete();
 }

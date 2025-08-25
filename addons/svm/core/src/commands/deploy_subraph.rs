@@ -11,9 +11,7 @@ use txtx_addon_kit::types::commands::{
     CommandSpecification, PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{
-    Actions, BlockEvent, ProgressBarStatus, ProgressBarStatusColor, StatusUpdater,
-};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent, LogDispatcher};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::ConstructDid;
@@ -229,7 +227,7 @@ impl CommandImplementation for DeployProgram {
     }
 
     fn build_background_task(
-        construct_did: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         _inputs: &ValueStore,
         outputs: &ValueStore,
@@ -238,7 +236,6 @@ impl CommandImplementation for DeployProgram {
         _supervision_context: &RunbookSupervisionContext,
         cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
-        let construct_did = construct_did.clone();
         let outputs = outputs.clone();
         let progress_tx = progress_tx.clone();
         let background_tasks_uuid = background_tasks_uuid.clone();
@@ -252,8 +249,8 @@ impl CommandImplementation for DeployProgram {
             let subgraph_url = outputs.get_expected_string(SUBGRAPH_ENDPOINT_URL)?;
             let do_include_token = outputs.get_expected_bool(DO_INCLUDE_TOKEN)?;
 
-            let status_updater =
-                StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
+            let logger =
+                LogDispatcher::new(background_tasks_uuid, "svm::deploy_subgraph", &progress_tx);
 
             let mut client = SubgraphRequestClient::new(
                 cloud_service_context
@@ -262,7 +259,7 @@ impl CommandImplementation for DeployProgram {
                     .expect("authenticated cloud service router not found"),
                 subgraph_request,
                 SubgraphPluginType::SurfpoolSubgraph,
-                status_updater,
+                logger,
                 subgraph_url,
                 do_include_token,
             );
@@ -280,7 +277,7 @@ impl CommandImplementation for DeployProgram {
 pub struct SubgraphRequestClient {
     router: Arc<dyn AuthenticatedCloudServiceRouter>,
     plugin_config: PluginConfig,
-    status_updater: StatusUpdater,
+    logger: LogDispatcher,
     subgraph_endpoint_url: String,
     do_include_token: bool,
 }
@@ -290,14 +287,14 @@ impl SubgraphRequestClient {
         router: Arc<dyn AuthenticatedCloudServiceRouter>,
         request: SubgraphRequest,
         plugin_name: SubgraphPluginType,
-        status_updater: StatusUpdater,
+        logger: LogDispatcher,
         subgraph_endpoint_url: &str,
         do_include_token: bool,
     ) -> Self {
         Self {
             router,
             plugin_config: PluginConfig::new(plugin_name, request),
-            status_updater,
+            logger,
             subgraph_endpoint_url: subgraph_endpoint_url.to_string(),
             do_include_token,
         }
@@ -318,17 +315,16 @@ impl SubgraphRequestClient {
             .await
             .map_err(|e| diagnosed_error!("failed to deploy subgraph: {e}"))?;
 
-        self.status_updater.propagate_status(ProgressBarStatus::new_msg(
-            ProgressBarStatusColor::Green,
+        self.logger.success_info(
             "Subgraph Deployed",
-            &format!(
+            format!(
                 "Subgraph {} for program {} has been deployed",
                 self.plugin_config.data.subgraph_name(),
                 self.plugin_config.data.program_id(),
             ),
-        ));
+        );
 
-        self.status_updater.propagate_info(&format!("Your subgraph can be reached at {}", res));
+        self.logger.info("Subgraph Deployed", format!("Your subgraph can be reached at {}", res));
 
         Ok(res)
     }

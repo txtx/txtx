@@ -2,7 +2,9 @@ use serde::ser::{Serialize, SerializeMap, Serializer};
 use std::borrow::BorrowMut;
 use std::fmt::{self, Display, Formatter};
 use std::fs;
+use std::fs::File;
 use std::hash::{Hash, Hasher};
+use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 use std::{collections::HashMap, future::Future, path::PathBuf, pin::Pin};
@@ -159,10 +161,7 @@ impl FileLocation {
     fn fs_exists(path: &Path) -> bool {
         path.exists()
     }
-
     fn fs_write_content(file_path: &PathBuf, content: &[u8]) -> Result<(), String> {
-        use std::fs::{self, File};
-        use std::io::Write;
         let mut parent_directory = file_path.clone();
         parent_directory.pop();
         fs::create_dir_all(&parent_directory).map_err(|e| {
@@ -172,6 +171,26 @@ impl FileLocation {
             .map_err(|e| format!("unable to open file {}\n{}", file_path.display(), e))?;
         file.write_all(content)
             .map_err(|e| format!("unable to write file {}\n{}", file_path.display(), e))?;
+        Ok(())
+    }
+
+    fn fs_create_dir_all(path: &Path) -> Result<(), String> {
+        fs::create_dir_all(path).map_err(|e| {
+            format!("unable to create directory {}\n{}", path.display(), e.to_string())
+        })
+    }
+
+    fn fs_create_file_with_dirs(file_path: &PathBuf) -> Result<(), String> {
+        let mut parent_directory = file_path.clone();
+        parent_directory.pop();
+        if !parent_directory.exists() {
+            fs::create_dir_all(&parent_directory).map_err(|e| {
+                format!("unable to create parent directory {}\n{}", parent_directory.display(), e)
+            })?;
+        }
+        let _ = File::create(file_path)
+            .map_err(|e| format!("unable to open file {}\n{}", file_path.display(), e))?;
+
         Ok(())
     }
 
@@ -334,6 +353,20 @@ impl FileLocation {
         match self {
             FileLocation::FileSystem { path } => FileLocation::fs_write_content(path, content),
             FileLocation::Url { url: _url } => unimplemented!(),
+        }
+    }
+
+    pub fn create_dir_all(&self) -> Result<(), String> {
+        match self {
+            FileLocation::FileSystem { path } => FileLocation::fs_create_dir_all(path),
+            FileLocation::Url { url: _url } => Ok(()),
+        }
+    }
+
+    pub fn create_dir_and_file(&self) -> Result<(), String> {
+        match self {
+            FileLocation::FileSystem { path } => FileLocation::fs_create_file_with_dirs(path),
+            FileLocation::Url { .. } => Ok(()),
         }
     }
 

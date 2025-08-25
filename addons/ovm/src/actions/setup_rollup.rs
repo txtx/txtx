@@ -6,7 +6,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent, StatusUpdater};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 use txtx_addon_kit::types::{types::RunbookSupervisionContext, ConstructDid};
@@ -142,19 +142,16 @@ impl CommandImplementation for SetupRollup {
     }
 
     fn build_background_task(
-        construct_did: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
-        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
-        let construct_did = construct_did.clone();
         let inputs = inputs.clone();
-        let progress_tx = progress_tx.clone();
-        let background_tasks_uuid = background_tasks_uuid.clone();
 
         let future = async move {
             let network_name = "ovm_network";
@@ -183,28 +180,28 @@ impl CommandImplementation for SetupRollup {
                 proposer_secret_key,
                 jwt,
             )?;
-            let mut status_updater =
-                StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
+            // let mut status_updater =
+            //     StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
 
-            status_updater.propagate_pending_status("Initializing rollup configuration");
+            // status_updater.propagate_pending_status("Initializing rollup configuration");
 
             rollup_deployer.init().await.map_err(|e| {
                 let diag = diagnosed_error!("Failed to initialize rollup: {e}");
-                status_updater.propagate_failed_status("Failed to initialize rollup", &diag);
+                // status_updater.propagate_failed_status("Failed to initialize rollup", &diag);
                 diag
             })?;
 
-            status_updater.propagate_success_status("Initialized", "Rollup configuration complete");
+            // status_updater.propagate_success_status("Initialized", "Rollup configuration complete");
 
-            status_updater.propagate_pending_status("Starting rollup");
+            // status_updater.propagate_pending_status("Starting rollup");
 
             rollup_deployer.start().await.map_err(|e| {
                 let diag = diagnosed_error!("Failed to start rollup: {e}");
-                status_updater.propagate_failed_status("Failed to start rollup", &diag);
+                // status_updater.propagate_failed_status("Failed to start rollup", &diag);
                 diag
             })?;
 
-            status_updater.propagate_success_status("Complete", "All rollup services online");
+            // status_updater.propagate_success_status("Complete", "All rollup services online");
 
             let max_attempts = 30;
             let mut attempts = 0;
@@ -213,16 +210,16 @@ impl CommandImplementation for SetupRollup {
                 if attempts == max_attempts {
                     break;
                 }
-                status_updater.propagate_pending_status(
-                    "Waiting for rollup to be ready to receive transactions",
-                );
+                // status_updater.propagate_pending_status(
+                //     "Waiting for rollup to be ready to receive transactions",
+                // );
                 sleep(Duration::from_secs(1));
                 // if rollup_deployer.check_ready_state().await {
                 //     break;
                 // }
             }
-            status_updater
-                .propagate_success_status("Ready", "Rollup is ready to receive transactions");
+            // status_updater
+            //     .propagate_success_status("Ready", "Rollup is ready to receive transactions");
 
             let mut result = CommandExecutionResult::new();
             let rollup_container_ids = rollup_deployer.get_container_ids();

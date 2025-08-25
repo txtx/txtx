@@ -15,7 +15,7 @@ use txtx_addon_kit::types::commands::{
     CommandImplementation, CommandSpecification, PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent, StatusUpdater};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent, LogDispatcher};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
@@ -143,14 +143,13 @@ impl CommandImplementation for SetupSurfpool {
     }
 
     fn run_execution(
-        construct_did: &ConstructDid,
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         values: &ValueStore,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::types::commands::CommandExecutionResult;
 
-        let construct_did = construct_did.clone();
         let values = values.clone();
         let progress_tx = progress_tx.clone();
 
@@ -168,45 +167,26 @@ impl CommandImplementation for SetupSurfpool {
                 ));
             }
 
-            let mut status_updater = StatusUpdater::new(
-                &Uuid::from_bytes(
-                    construct_did.0 .0[0..16].try_into().expect("Failed to convert slice to array"),
-                ),
-                &construct_did,
-                &progress_tx,
-            );
+            let logger = LogDispatcher::new(Uuid::new_v4(), "svm::setup_surfnet", &progress_tx);
 
             let account_updates = SurfpoolAccountUpdate::parse_value_store(&values)?;
-            SurfpoolAccountUpdate::process_updates(
-                account_updates,
-                &rpc_client,
-                &mut status_updater,
-            )
-            .await?;
+            SurfpoolAccountUpdate::process_updates(account_updates, &rpc_client, &logger).await?;
 
             let token_account_updates = SurfpoolTokenAccountUpdate::parse_value_store(&values)?;
             SurfpoolTokenAccountUpdate::process_updates(
                 token_account_updates,
                 &rpc_client,
-                &mut status_updater,
+                &logger,
             )
             .await?;
 
             let program_account_clones = SurfpoolProgramCloning::parse_value_store(&values)?;
-            SurfpoolProgramCloning::process_updates(
-                program_account_clones,
-                &rpc_client,
-                &mut status_updater,
-            )
-            .await?;
+            SurfpoolProgramCloning::process_updates(program_account_clones, &rpc_client, &logger)
+                .await?;
 
             let set_authorities = SurfpoolSetProgramAuthority::parse_value_store(&values)?;
-            SurfpoolSetProgramAuthority::process_updates(
-                set_authorities,
-                &rpc_client,
-                &mut status_updater,
-            )
-            .await?;
+            SurfpoolSetProgramAuthority::process_updates(set_authorities, &rpc_client, &logger)
+                .await?;
 
             Ok(result)
         };

@@ -145,6 +145,7 @@ async fn subscriptions(
         supervisor_addon_data: context.supervisor_addon_data.clone(),
         runbook_description: context.runbook_description.clone(),
         block_store: context.block_store.clone(),
+        log_store: context.log_store.clone(),
         block_broadcaster: context.block_broadcaster.clone(),
         action_item_events_tx: context.action_item_events_tx.clone(),
     };

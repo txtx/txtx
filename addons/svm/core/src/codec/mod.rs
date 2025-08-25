@@ -33,6 +33,7 @@ use solana_sdk::signature::Signature;
 use solana_sdk::signer::Signer;
 use solana_sdk::system_instruction;
 use solana_sdk::system_instruction::MAX_PERMITTED_DATA_LENGTH;
+use txtx_addon_kit::types::frontend::LogDispatcher;
 // use solana_sdk::loader_v4::finalize;
 use crate::typing::DeploymentTransactionType;
 use solana_sdk::{
@@ -42,9 +43,6 @@ use solana_sdk::{
 use std::collections::HashMap;
 use std::str::FromStr;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::ProgressBarStatus;
-use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
-use txtx_addon_kit::types::frontend::StatusUpdater;
 use txtx_addon_kit::types::signers::SignerInstance;
 use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::ConstructDid;
@@ -415,13 +413,15 @@ impl DeploymentTransaction {
 
     pub fn pre_send_status_updates(
         &self,
-        status_updater: &mut StatusUpdater,
+        logger: &LogDispatcher,
         transaction_index: usize,
         transaction_count: usize,
     ) -> Result<(), Diagnostic> {
         match &self.transaction_type {
             DeploymentTransactionType::SkipCloseTempAuthority => {
-                status_updater.propagate_info(&format!(
+                logger.info(
+                    "Ephemeral Account Closed",
+                    format!(
                     "Ephemeral authority account has no leftover funds; skipping transaction to close the account",
                 ));
                 return Ok(());
@@ -431,18 +431,21 @@ impl DeploymentTransaction {
                     .map_err(|e| {
                         diagnosed_error!("failed to deserialize temp authority keypair: {}", e)
                     })?;
-                status_updater
-                    .propagate_info("An ephemeral authority account will be created and funded to write to the buffer account.");
-                status_updater
-                    .propagate_info("Please save the following information in case the deployment fails and the account needs to be recovered:");
-                status_updater.propagate_info(&format!(
-                    "Ephemeral authority public key: {}",
-                    temp_authority_keypair.pubkey()
-                ));
-                status_updater.propagate_info(&format!(
-                    "Ephemeral authority secret key: {}",
-                    temp_authority_keypair.to_base58_string()
-                ));
+                logger
+                    .info("Failure Recovery Info","An ephemeral authority account will be created and funded to write to the buffer account.");
+                logger
+                    .info("Failure Recovery Info","Please save the following information in case the deployment fails and the account needs to be recovered:");
+                logger.info(
+                    "Failure Recovery Info",
+                    format!("Ephemeral authority public key: {}", temp_authority_keypair.pubkey()),
+                );
+                logger.info(
+                    "Failure Recovery Info",
+                    format!(
+                        "Ephemeral authority secret key: {}",
+                        temp_authority_keypair.to_base58_string()
+                    ),
+                );
             }
             _ => {}
         };
@@ -452,66 +455,45 @@ impl DeploymentTransaction {
             | DeploymentTransactionType::CheatcodeUpgrade => false,
             _ => true,
         } {
-            status_updater.propagate_pending_status(&format!(
-                "Sending transaction {}/{}",
-                transaction_index + 1,
-                transaction_count
-            ));
+            logger.pending_info(
+                "Pending",
+                &format!("Sending transaction {}/{}", transaction_index + 1, transaction_count),
+            );
         }
 
         Ok(())
     }
 
-    pub fn post_send_status_updates(&self, status_updater: &mut StatusUpdater, program_id: Pubkey) {
+    pub fn post_send_status_updates(&self, logger: &LogDispatcher, program_id: Pubkey) {
         match self.transaction_type {
             DeploymentTransactionType::CreateTempAuthority(_) => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
+                logger.info(
                     "Account Created",
-                    "Ephemeral authority account created to write to buffer",
-                ));
+                    "Ephemeral authority account created and funded to write to buffer",
+                );
             }
             DeploymentTransactionType::CreateBuffer => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
-                    "Account Created",
-                    "Program buffer creation complete",
-                ));
+                logger.info("Account Created", "Program buffer account created");
             }
             DeploymentTransactionType::DeployProgram => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
-                    "Program Created",
-                    &format!("Program {} has been deployed", program_id,),
-                ));
+                logger.info("Program Created", format!("Program {} has been deployed", program_id));
             }
             DeploymentTransactionType::UpgradeProgram => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
-                    "Program Upgraded",
-                    &format!("Program {} has been upgraded", program_id,),
-                ));
+                logger
+                    .info("Program Upgraded", format!("Program {} has been upgraded", program_id));
             }
             DeploymentTransactionType::CloseTempAuthority => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
+                logger.success_info(
                     "Complete",
                     "Ephemeral authority account closed and leftover funds returned to payer",
-                ));
+                );
             }
             DeploymentTransactionType::CheatcodeDeployment => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
-                    "Program Created",
-                    &format!("Program {} has been deployed", program_id,),
-                ));
+                logger.info("Program Created", format!("Program {} has been deployed", program_id));
             }
             DeploymentTransactionType::CheatcodeUpgrade => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
-                    "Program Upgraded",
-                    &format!("Program {} has been upgraded", program_id,),
-                ));
+                logger
+                    .info("Program Upgraded", format!("Program {} has been upgraded", program_id));
             }
             _ => {}
         }
