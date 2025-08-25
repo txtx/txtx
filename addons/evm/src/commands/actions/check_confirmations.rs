@@ -197,6 +197,7 @@ impl CommandImplementation for CheckEvmConfirmations {
 
             let mut tx_inclusion_block = u64::MAX - confirmations_required as u64;
             let mut current_block = 0;
+            let mut previous_block = 0;
             let _receipt = loop {
                 progress = (progress + 1) % progress_symbol.len();
 
@@ -204,15 +205,7 @@ impl CommandImplementation for CheckEvmConfirmations {
                     diagnosed_error!("failed to verify transaction {}: {}", tx_hash, e)
                 })?
                 else {
-                    // loop to update our progress symbol every 500ms, but still waiting 5000ms before refetching for receipt
-                    let mut count = 0;
-                    loop {
-                        count += 1;
-                        sleep_ms(backoff_ms);
-                        if count == 10 {
-                            break;
-                        }
-                    }
+                    sleep_ms(backoff_ms * 10);
                     continue;
                 };
                 let Some(block_number) = receipt.block_number else {
@@ -230,6 +223,7 @@ impl CommandImplementation for CheckEvmConfirmations {
                 if current_block == 0 {
                     tx_inclusion_block = block_number;
                     current_block = block_number;
+                    previous_block = block_number;
                 }
 
                 if !receipt.status() {
@@ -276,18 +270,22 @@ impl CommandImplementation for CheckEvmConfirmations {
                 if current_block >= tx_inclusion_block + confirmations_required as u64 {
                     break receipt;
                 } else {
-                    let _ = logger.pending_info(
-                        "Pending",
-                        format!(
-                            "{}/{} blocks confirmed for Tx 0x{} on chain {}",
-                            current_block - tx_inclusion_block,
-                            confirmations_required,
-                            tx_hash,
-                            chain_name
-                        ),
-                    );
-
                     current_block = rpc.get_block_number().await.unwrap_or(current_block);
+                    // only send updates when the mined block is actually updated, so we're not spamming with updates every 500ms
+                    if previous_block != current_block {
+                        let _ = logger.pending_info(
+                            "Pending",
+                            format!(
+                                "{}/{} blocks confirmed for Tx 0x{} on chain {}",
+                                current_block - tx_inclusion_block,
+                                confirmations_required,
+                                tx_hash,
+                                chain_name
+                            ),
+                        );
+                        previous_block = current_block.clone();
+                    }
+
                     sleep_ms(backoff_ms);
                     continue;
                 }
