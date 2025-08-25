@@ -4366,6 +4366,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5d9305ccc6942a704f4335694ecd3de2ea531b114ac2d51f5f843750787a92f"
 
 [[package]]
+name = "error-stack"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe413319145d1063f080f27556fd30b1d70b01e2ba10c2a6e40d4be982ffc5d1"
+dependencies = [
+ "anyhow",
+ "rustc_version 0.4.1",
+]
+
+[[package]]
 name = "eth-keystore"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14815,6 +14825,7 @@ dependencies = [
  "alloy-rpc-types",
  "alloy-signer-local",
  "async-recursion",
+ "error-stack",
  "foundry-block-explorers",
  "foundry-compilers",
  "foundry-compilers-artifacts-solc",
