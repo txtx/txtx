@@ -9,6 +9,7 @@ pub mod utils;
 
 use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::codec::ui_encode::message_to_formatted_tx;
+use crate::codec::utils::wait_n_slots;
 use crate::commands::RpcVersionInfo;
 use anchor::AnchorProgramArtifacts;
 use bip39::Language;
@@ -512,6 +513,19 @@ impl DeploymentTransaction {
                     "Program Upgraded",
                     &format!("Program {} has been upgraded", program_id,),
                 ));
+            }
+            _ => {}
+        }
+    }
+
+    pub fn post_send_actions(&self, rpc_api_url: &str) {
+        match self.transaction_type {
+            // We want to avoid more than one transaction impacting the program account in a single slot
+            // (because the bpf program throws if so), so after the create buffer tx (which could be writing to the program account)
+            // we'll wait one slot before continuing
+            DeploymentTransactionType::CreateBuffer => {
+                let rpc_client = RpcClient::new(rpc_api_url.to_string());
+                wait_n_slots(&rpc_client, 1);
             }
             _ => {}
         }

@@ -783,6 +783,7 @@ impl CommandImplementation for DeployProgram {
             };
 
             deployment_transaction.post_send_status_updates(&mut status_updater, program_id);
+            deployment_transaction.post_send_actions(&rpc_api_url);
 
             if transaction_index == transaction_count - 1 {
                 let rpc_client = RpcClient::new(rpc_api_url);
