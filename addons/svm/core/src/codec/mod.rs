@@ -476,11 +476,16 @@ impl DeploymentTransaction {
                 logger.info("Account Created", "Program buffer account created");
             }
             DeploymentTransactionType::DeployProgram => {
-                logger.info("Program Created", format!("Program {} has been deployed", program_id));
+                logger.success_info(
+                    "Program Created",
+                    format!("Program {} has been deployed", program_id),
+                );
             }
             DeploymentTransactionType::UpgradeProgram => {
-                logger
-                    .info("Program Upgraded", format!("Program {} has been upgraded", program_id));
+                logger.success_info(
+                    "Program Upgraded",
+                    format!("Program {} has been upgraded", program_id),
+                );
             }
             DeploymentTransactionType::CloseTempAuthority => {
                 logger.success_info(
@@ -494,6 +499,19 @@ impl DeploymentTransaction {
             DeploymentTransactionType::CheatcodeUpgrade => {
                 logger
                     .info("Program Upgraded", format!("Program {} has been upgraded", program_id));
+            }
+            DeploymentTransactionType::WriteToBuffer =>
+            // if it's a buffer write and do_await_confirmation=true, this is our last buffer write tx
+            {
+                if self.do_await_confirmation {
+                    logger.success_info("Buffer Ready", "Writing to buffer account is complete")
+                }
+            }
+            DeploymentTransactionType::TransferBufferAuthority => {
+                logger.success_info(
+                    "Buffer Authority Transferred",
+                    "Buffer authority has been transferred to authority signer",
+                );
             }
             _ => {}
         }
