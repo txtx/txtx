@@ -104,13 +104,13 @@ pub enum PostConditionEvaluationResult {
 }
 
 pub fn evaluate_post_conditions(
-    _construct_did: &ConstructDid,
+    construct_did: &ConstructDid,
     instance_name: &str,
     spec: &CommandSpecification,
     values: &ValueStore,
     execution_results: &mut CommandExecutionResult,
     progress_tx: &channel::Sender<BlockEvent>,
-    background_tasks_uuid: &Uuid,
+    _background_tasks_uuid: &Uuid,
 ) -> Result<PostConditionEvaluationResult, Diagnostic> {
     let Some(post_conditions) = values.get_map(POST_CONDITION) else {
         return Ok(PostConditionEvaluationResult::Noop);
@@ -121,7 +121,7 @@ pub fn evaluate_post_conditions(
     let mut diags = vec![];
     let mut do_skip = false;
 
-    let logger = LogDispatcher::new(*background_tasks_uuid, "svm::post_conditions", progress_tx);
+    let logger = LogDispatcher::new(construct_did.as_uuid(), "std::post_conditions", progress_tx);
     for (i, post_condition) in post_conditions.iter().enumerate() {
         if let AssertionResult::Failure(assertion_msg) = &post_condition.assertion {
             if post_condition.retries > 0 {

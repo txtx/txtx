@@ -76,12 +76,12 @@ pub enum PreConditionEvaluationResult {
 }
 
 pub fn evaluate_pre_conditions(
-    _construct_did: &ConstructDid,
+    construct_did: &ConstructDid,
     instance_name: &str,
     spec: &CommandSpecification,
     values: &ValueStore,
     progress_tx: &channel::Sender<BlockEvent>,
-    background_tasks_uuid: &Uuid,
+    _background_tasks_uuid: &Uuid,
 ) -> Result<PreConditionEvaluationResult, Diagnostic> {
     let Some(pre_conditions) = values.get_map(PRE_CONDITION) else {
         return Ok(PreConditionEvaluationResult::Noop);
@@ -92,7 +92,7 @@ pub fn evaluate_pre_conditions(
     let mut diags = vec![];
     let mut do_skip = false;
 
-    let logger = LogDispatcher::new(*background_tasks_uuid, "svm::pre_conditions", progress_tx);
+    let logger = LogDispatcher::new(construct_did.as_uuid(), "std::pre_conditions", progress_tx);
     for (i, pre_condition) in pre_conditions.iter().enumerate() {
         if let AssertionResult::Failure(assertion_msg) = &pre_condition.assertion {
             match pre_condition.behavior {

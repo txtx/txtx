@@ -3,7 +3,6 @@ use crate::codec::{
 };
 use crate::constants::{
     CHAIN_ID, CONTRACT, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, CONTRACT_VERIFICATION_OPTS,
-    NAMESPACE,
 };
 use crate::typing::EvmValue;
 use alloy::dyn_abi::JsonAbiExt;
@@ -41,7 +40,8 @@ pub async fn verify_contracts(
     let contract_address_str = contract_address.to_string();
 
     let Some(contract_verification_opts) = inputs.get_map(CONTRACT_VERIFICATION_OPTS) else {
-        let logger = LogDispatcher::new(construct_did.as_uuid(), NAMESPACE, &progress_tx);
+        let logger =
+            LogDispatcher::new(construct_did.as_uuid(), "evm::verify_contract", &progress_tx);
         logger.success_info(
             "Verification Skipped",
             format!(
@@ -95,7 +95,8 @@ pub async fn verify_contracts(
     // track failures for each provider, so we can run each to completion and log or return errors afterwards
     let mut failures = vec![];
     for (i, opts) in contract_verification_opts.iter().enumerate() {
-        let logger = LogDispatcher::new(construct_did.as_uuid(), NAMESPACE, &progress_tx);
+        let logger =
+            LogDispatcher::new(construct_did.as_uuid(), "evm::verify_contract", &progress_tx);
         let ContractVerificationOpts { provider, .. } = opts;
         let err_ctx = format!(
             "contract verification failed for contract '{}' with provider '{}'",
