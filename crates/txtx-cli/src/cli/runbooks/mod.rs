@@ -3,7 +3,7 @@ use crate::{get_addon_by_namespace, get_available_addons};
 use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
 use std::{
@@ -662,12 +662,16 @@ pub async fn handle_run_command(
     if is_execution_unsupervised {
         let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
             let mut active_spinners: IndexMap<Uuid, ProgressBar> = IndexMap::new();
+            let mut multi_progress = MultiProgress::new();
 
             while let Ok(msg) = progress_rx.recv() {
                 match msg {
-                    BlockEvent::LogEvent(log) => {
-                        handle_log_event(log, &log_filter, &mut active_spinners)
-                    }
+                    BlockEvent::LogEvent(log) => handle_log_event(
+                        &mut multi_progress,
+                        log,
+                        &log_filter,
+                        &mut active_spinners,
+                    ),
                     _ => {}
                 }
             }
@@ -792,6 +796,7 @@ pub async fn handle_run_command(
     let moved_relayer_channel_tx = relayer_channel_tx.clone();
     let block_store_handle = tokio::spawn(async move {
         let mut active_spinners: IndexMap<Uuid, ProgressBar> = IndexMap::new();
+        let mut multi_progress = MultiProgress::new();
         loop {
             if let Ok(mut block_event) = block_rx.try_recv() {
                 let mut block_store = block_store.write().await;
@@ -831,7 +836,12 @@ pub async fn handle_run_command(
                         block_store.insert(len, new_block.clone());
                     }
                     BlockEvent::LogEvent(log_event) => {
-                        handle_log_event(log_event.clone(), &log_filter, &mut active_spinners);
+                        handle_log_event(
+                            &mut multi_progress,
+                            log_event.clone(),
+                            &log_filter,
+                            &mut active_spinners,
+                        );
                         let mut log_store = log_store.write().await;
                         log_store.push(log_event.clone());
                         let _ = log_broadcaster.send(log_event);
@@ -1173,6 +1183,7 @@ fn persist_log(
 }
 
 fn handle_log_event(
+    multi_progress: &mut MultiProgress,
     log: LogEvent,
     log_filter: &LogLevel,
     active_spinners: &mut IndexMap<Uuid, ProgressBar>,
@@ -1196,10 +1207,11 @@ fn handle_log_event(
                     pb.set_message(format!("{} {}", yellow!(&summary), &message));
                 } else {
                     // create new spinner
-                    let pb = ProgressBar::new_spinner();
+                    let mut pb = multi_progress.add(ProgressBar::new_spinner());
                     pb.set_style(CLI_SPINNER_STYLE.clone());
                     pb.enable_steady_tick(Duration::from_millis(80));
-                    pb.set_message(format!("{} {}", yellow!(&summary), message));
+                    pb = pb.with_prefix("summary");
+                    pb.set_message(format!("{} {}\n", yellow!(&summary), message));
                     active_spinners.insert(log.uuid, pb);
                     persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
                 }
