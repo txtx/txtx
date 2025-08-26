@@ -1207,11 +1207,10 @@ fn handle_log_event(
                     pb.set_message(format!("{} {}", yellow!(&summary), &message));
                 } else {
                     // create new spinner
-                    let mut pb = multi_progress.add(ProgressBar::new_spinner());
+                    let pb = multi_progress.add(ProgressBar::new_spinner());
                     pb.set_style(CLI_SPINNER_STYLE.clone());
                     pb.enable_steady_tick(Duration::from_millis(80));
-                    pb = pb.with_prefix("summary");
-                    pb.set_message(format!("{} {}\n", yellow!(&summary), message));
+                    pb.set_message(format!("{} {}", yellow!(&summary), message));
                     active_spinners.insert(log.uuid, pb);
                     persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
                 }
