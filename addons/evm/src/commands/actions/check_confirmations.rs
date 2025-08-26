@@ -117,12 +117,12 @@ impl CommandImplementation for CheckEvmConfirmations {
 
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
-        _construct_did: &ConstructDid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
@@ -135,15 +135,14 @@ impl CommandImplementation for CheckEvmConfirmations {
         use crate::{
             codec::abi_decode_logs,
             constants::{
-                ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, LOGS, NAMESPACE,
-                RAW_LOGS, TX_HASH,
+                ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, LOGS, RAW_LOGS,
+                TX_HASH,
             },
             rpc::EvmRpc,
             typing::{EvmValue, RawLog},
         };
 
         let inputs = inputs.clone();
-        let background_tasks_uuid = background_tasks_uuid.clone();
         let confirmations_required = inputs
             .get_expected_uint("confirmations")
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
@@ -154,7 +153,8 @@ impl CommandImplementation for CheckEvmConfirmations {
         };
         let address_abi_map = inputs.get_value(ADDRESS_ABI_MAP).cloned();
         let progress_tx = progress_tx.clone();
-        let logger = LogDispatcher::new(background_tasks_uuid, NAMESPACE, &progress_tx);
+        let logger =
+            LogDispatcher::new(construct_did.as_uuid(), "evm::check_confirmations", &progress_tx);
 
         let skip_confirmations = inputs.get_bool(ALREADY_DEPLOYED).unwrap_or(false);
         let contract_address = inputs.get_value(CONTRACT_ADDRESS).cloned();
@@ -270,9 +270,9 @@ impl CommandImplementation for CheckEvmConfirmations {
                 if current_block >= tx_inclusion_block + confirmations_required as u64 {
                     break receipt;
                 } else {
-                    current_block = rpc.get_block_number().await.unwrap_or(current_block);
+                    let block = rpc.get_block_number().await.unwrap_or(current_block);
                     // only send updates when the mined block is actually updated, so we're not spamming with updates every 500ms
-                    if previous_block != current_block {
+                    if previous_block != block {
                         let _ = logger.pending_info(
                             "Pending",
                             format!(
@@ -283,8 +283,9 @@ impl CommandImplementation for CheckEvmConfirmations {
                                 chain_name
                             ),
                         );
-                        previous_block = current_block.clone();
+                        previous_block = block.clone();
                     }
+                    current_block = block;
 
                     sleep_ms(backoff_ms);
                     continue;

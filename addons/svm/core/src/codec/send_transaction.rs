@@ -13,19 +13,17 @@ use txtx_addon_kit::types::frontend::{BlockEvent, LogDispatcher};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, ThirdPartySignatureStatus, Value};
 use txtx_addon_kit::types::ConstructDid;
-use txtx_addon_kit::uuid::Uuid;
 
 use crate::constants::{
     COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT, RPC_API_URL, SIGNATURE,
 };
 
 pub fn send_transaction_background_task(
-    _construct_did: &ConstructDid,
+    construct_did: &ConstructDid,
     _spec: &CommandSpecification,
     inputs: &ValueStore,
     outputs: &ValueStore,
     progress_tx: &channel::Sender<BlockEvent>,
-    background_tasks_uuid: &Uuid,
     _supervision_context: &RunbookSupervisionContext,
 ) -> CommandExecutionFutureResult {
     let outputs = outputs.clone();
@@ -41,7 +39,7 @@ pub fn send_transaction_background_task(
     let outputs = outputs.clone();
     let inputs = inputs.clone();
     let progress_tx = progress_tx.clone();
-    let background_tasks_uuid = background_tasks_uuid.clone();
+    let construct_did = construct_did.clone();
 
     let future = async move {
         let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
@@ -70,7 +68,7 @@ pub fn send_transaction_background_task(
         ));
 
         let logger =
-            LogDispatcher::new(background_tasks_uuid, "svm::send_transaction", &progress_tx);
+            LogDispatcher::new(construct_did.as_uuid(), "svm::send_transaction", &progress_tx);
 
         let mut result = CommandExecutionResult::from_value_store(&outputs);
 

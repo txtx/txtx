@@ -30,7 +30,7 @@ const ERROR: &str = "error";
 const PROVIDER: &str = "provider";
 
 pub async fn verify_contracts(
-    _construct_did: &ConstructDid,
+    construct_did: &ConstructDid,
     inputs: &ValueStore,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     _background_tasks_uuid: &Uuid,
@@ -41,7 +41,7 @@ pub async fn verify_contracts(
     let contract_address_str = contract_address.to_string();
 
     let Some(contract_verification_opts) = inputs.get_map(CONTRACT_VERIFICATION_OPTS) else {
-        let logger = LogDispatcher::new(Uuid::new_v4(), NAMESPACE, &progress_tx);
+        let logger = LogDispatcher::new(construct_did.as_uuid(), NAMESPACE, &progress_tx);
         logger.success_info(
             "Verification Skipped",
             format!(
@@ -95,7 +95,7 @@ pub async fn verify_contracts(
     // track failures for each provider, so we can run each to completion and log or return errors afterwards
     let mut failures = vec![];
     for (i, opts) in contract_verification_opts.iter().enumerate() {
-        let logger = LogDispatcher::new(Uuid::new_v4(), NAMESPACE, &progress_tx);
+        let logger = LogDispatcher::new(construct_did.as_uuid(), NAMESPACE, &progress_tx);
         let ContractVerificationOpts { provider, .. } = opts;
         let err_ctx = format!(
             "contract verification failed for contract '{}' with provider '{}'",
