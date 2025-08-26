@@ -433,11 +433,11 @@ impl CommandImplementation for SendToken {
         values: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
-        let logger = LogDispatcher::new(*background_tasks_uuid, "svm::send_token", &progress_tx);
+        let logger = LogDispatcher::new(construct_did.as_uuid(), "svm::send_token", &progress_tx);
         let recipient_token_address =
             SvmValue::to_pubkey(outputs.get_expected_value(RECIPIENT_TOKEN_ADDRESS).unwrap())
                 .unwrap();
@@ -482,7 +482,6 @@ impl CommandImplementation for SendToken {
             &values,
             &outputs,
             &progress_tx,
-            &background_tasks_uuid,
             &supervision_context,
         )
     }

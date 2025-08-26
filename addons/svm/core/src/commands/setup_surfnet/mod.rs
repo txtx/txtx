@@ -143,7 +143,7 @@ impl CommandImplementation for SetupSurfpool {
     }
 
     fn run_execution(
-        _construct_did: &ConstructDid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         values: &ValueStore,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
@@ -152,6 +152,7 @@ impl CommandImplementation for SetupSurfpool {
 
         let values = values.clone();
         let progress_tx = progress_tx.clone();
+        let construct_did = construct_did.clone();
 
         let future = async move {
             let result = CommandExecutionResult::new();
@@ -167,7 +168,8 @@ impl CommandImplementation for SetupSurfpool {
                 ));
             }
 
-            let logger = LogDispatcher::new(Uuid::new_v4(), "svm::setup_surfnet", &progress_tx);
+            let logger =
+                LogDispatcher::new(construct_did.as_uuid(), "svm::setup_surfnet", &progress_tx);
 
             let account_updates = SurfpoolAccountUpdate::parse_value_store(&values)?;
             SurfpoolAccountUpdate::process_updates(account_updates, &rpc_client, &logger).await?;

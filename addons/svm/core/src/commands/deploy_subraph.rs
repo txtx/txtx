@@ -227,18 +227,18 @@ impl CommandImplementation for DeployProgram {
     }
 
     fn build_background_task(
-        _construct_did: &ConstructDid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         _inputs: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
         cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         let outputs = outputs.clone();
         let progress_tx = progress_tx.clone();
-        let background_tasks_uuid = background_tasks_uuid.clone();
+        let construct_did = construct_did.clone();
         let cloud_service_context = cloud_service_context.clone();
 
         let future = async move {
@@ -250,7 +250,7 @@ impl CommandImplementation for DeployProgram {
             let do_include_token = outputs.get_expected_bool(DO_INCLUDE_TOKEN)?;
 
             let logger =
-                LogDispatcher::new(background_tasks_uuid, "svm::deploy_subgraph", &progress_tx);
+                LogDispatcher::new(construct_did.as_uuid(), "svm::deploy_subgraph", &progress_tx);
 
             let mut client = SubgraphRequestClient::new(
                 cloud_service_context

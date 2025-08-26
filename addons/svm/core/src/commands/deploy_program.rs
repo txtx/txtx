@@ -7,8 +7,8 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
-    BACKGROUND_TASKS_UUID, DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT,
-    NESTED_CONSTRUCT_DID, NESTED_CONSTRUCT_INDEX, SIGNATURE_APPROVED, SIGNED_TRANSACTION_BYTES,
+    DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID,
+    NESTED_CONSTRUCT_INDEX, SIGNATURE_APPROVED, SIGNED_TRANSACTION_BYTES,
 };
 use txtx_addon_kit::futures::future;
 use txtx_addon_kit::indexmap::IndexMap;
@@ -318,11 +318,6 @@ impl CommandImplementation for DeployProgram {
                     PROGRAM_ID,
                     program_id.clone(),
                 );
-                authority_signer_state.insert_scoped_value(
-                    &construct_did.to_string(),
-                    BACKGROUND_TASKS_UUID,
-                    Value::string(Uuid::new_v4().into()),
-                );
 
                 let transactions = deployer.get_transactions().map_err(|e| {
                     (
@@ -565,10 +560,6 @@ impl CommandImplementation for DeployProgram {
         let authority_signer_state =
             signers.get_signer_state(&authority_signer_did).unwrap().clone();
 
-        let background_tasks_uuid = authority_signer_state
-            .get_scoped_value(&construct_did.to_string(), BACKGROUND_TASKS_UUID)
-            .unwrap()
-            .clone();
         let program_id_value = authority_signer_state
             .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
             .unwrap()
@@ -581,8 +572,7 @@ impl CommandImplementation for DeployProgram {
         let mut values = values.clone();
 
         let future = async move {
-            let mut result =
-                CommandExecutionResult::from([(BACKGROUND_TASKS_UUID, background_tasks_uuid)]);
+            let mut result = CommandExecutionResult::new();
 
             result.outputs.insert(PROGRAM_ID.to_string(), program_id_value.clone());
             if let Some(idl) = program_idl_value {
@@ -694,11 +684,6 @@ impl CommandImplementation for DeployProgram {
         let cloud_service_context = cloud_service_context.clone();
 
         let future = async move {
-            let background_tasks_uuid = outputs
-                .get_value(BACKGROUND_TASKS_UUID)
-                .and_then(|v| v.as_string().and_then(|s| Uuid::from_str(s).ok()))
-                .unwrap();
-
             let nested_construct_did =
                 inputs.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
 
@@ -720,7 +705,7 @@ impl CommandImplementation for DeployProgram {
             let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
 
             let logger =
-                LogDispatcher::new(background_tasks_uuid, "svm::deploy_program", &progress_tx);
+                LogDispatcher::new(construct_did.as_uuid(), "svm::deploy_program", &progress_tx);
 
             deployment_transaction
                 .pre_send_status_updates(
@@ -774,7 +759,6 @@ impl CommandImplementation for DeployProgram {
                         &inputs,
                         &outputs,
                         &progress_tx,
-                        &background_tasks_uuid,
                         &supervision_context,
                     ) {
                         Ok(res) => match res.await {

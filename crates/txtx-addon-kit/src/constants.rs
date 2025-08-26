@@ -21,4 +21,3 @@ pub const ACTION_ITEM_BEGIN_FLOW: &str = "begin_flow";
 pub const RE_EXECUTE_COMMAND: &str = "re_execute_command";
 
 pub const THIRD_PARTY_SIGNATURE_STATUS: &str = "third_party_signature_status";
-pub const BACKGROUND_TASKS_UUID: &str = "background_tasks_uuid";

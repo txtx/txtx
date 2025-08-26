@@ -599,7 +599,7 @@ impl CommandImplementation for ProcessInstructions {
         inputs: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
@@ -608,7 +608,6 @@ impl CommandImplementation for ProcessInstructions {
         let inputs = inputs.clone();
         let outputs = outputs.clone();
         let progress_tx = progress_tx.clone();
-        let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
 
         let future = async move {
@@ -629,7 +628,7 @@ impl CommandImplementation for ProcessInstructions {
                 .unwrap();
 
             let logger =
-                LogDispatcher::new(background_tasks_uuid, "svm::create_record", &progress_tx);
+                LogDispatcher::new(construct_did.as_uuid(), "svm::create_record", &progress_tx);
 
             let mut result = if record_actions.is_empty() {
                 logger.success_info(
@@ -647,7 +646,6 @@ impl CommandImplementation for ProcessInstructions {
                     &inputs,
                     &outputs,
                     &progress_tx,
-                    &background_tasks_uuid,
                     &supervision_context,
                 ) {
                     Ok(res) => match res.await {
