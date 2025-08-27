@@ -142,7 +142,7 @@ async fn subscriptions(
     let ctx = GraphContext {
         protocol_name: context.protocol_name.clone(),
         runbook_name: context.runbook_name.clone(),
-        registered_addons: context.registered_addons.clone(),
+        supervisor_addon_data: context.supervisor_addon_data.clone(),
         runbook_description: context.runbook_description.clone(),
         block_store: context.block_store.clone(),
         block_broadcaster: context.block_broadcaster.clone(),

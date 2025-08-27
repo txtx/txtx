@@ -11,7 +11,7 @@ use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, CommandSpeci
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::{BlockEvent, ProgressBarStatus, StatusUpdater};
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::{RunbookSupervisionContext, Value};
+use txtx_addon_kit::types::types::{RunbookSupervisionContext, ThirdPartySignatureStatus, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
@@ -28,6 +28,16 @@ pub fn send_transaction_background_task(
     background_tasks_uuid: &Uuid,
     _supervision_context: &RunbookSupervisionContext,
 ) -> CommandExecutionFutureResult {
+    let outputs = outputs.clone();
+    let third_party_signature_status = inputs.get_third_party_signature_status();
+
+    if let Some(ThirdPartySignatureStatus::Approved) = third_party_signature_status {
+        return Ok(Box::pin(async move {
+            let result = CommandExecutionResult::from_value_store(&outputs);
+            Ok(result)
+        }));
+    }
+
     let construct_did = construct_did.clone();
     let outputs = outputs.clone();
     let inputs = inputs.clone();

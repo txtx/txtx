@@ -19,3 +19,5 @@ pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
 pub const IS_BALANCE_CHECKED: &str = "is_balance_checked";
 pub const ACTION_ITEM_BEGIN_FLOW: &str = "begin_flow";
 pub const RE_EXECUTE_COMMAND: &str = "re_execute_command";
+
+pub const THIRD_PARTY_SIGNATURE_STATUS: &str = "third_party_signature_status";

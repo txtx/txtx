@@ -244,6 +244,7 @@ impl CommandImplementation for SignEvmTransaction {
                     signers,
                     &signers_instances,
                     &supervision_context,
+                    &auth_ctx,
                 )?;
             actions.append(&mut signer_actions);
             Ok((signers, signer_state, actions))

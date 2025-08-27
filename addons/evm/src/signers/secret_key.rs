@@ -16,6 +16,7 @@ use txtx_addon_kit::types::signers::{
 };
 use txtx_addon_kit::types::signers::{SignerImplementation, SignerSpecification};
 use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
@@ -165,7 +166,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         let expected_address: Address = expected_signer.address();
 
         if supervision_context.review_input_values {
-            if let Ok(_) = values.get_expected_string(CHECKED_ADDRESS) {
+            if let Ok(_) = signer_state.get_expected_string(CHECKED_ADDRESS) {
                 signer_state.insert(
                     "signer_field_bytes",
                     EvmValue::signer_field_bytes(expected_signer.to_field_bytes().to_vec()),
@@ -226,6 +227,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
+        _auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();

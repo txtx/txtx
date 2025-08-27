@@ -38,6 +38,7 @@ pub const PUBLIC_KEY: &str = "public_key";
 pub const TRANSACTION_BYTES: &str = "transaction_bytes";
 pub const PARTIALLY_SIGNED_TRANSACTION_BYTES: &str = "partially_signed_transaction_bytes";
 pub const UPDATED_PARTIALLY_SIGNED_TRANSACTION: &str = "updated_partially_signed_transaction";
+pub const PREVIOUSLY_SIGNED_BLOCKHASH: &str = "previously_signed_blockhash";
 pub const NETWORK_ID: &str = "network_id";
 pub const AUTO_EXTEND: &str = "auto_extend";
 pub const COMMITMENT_LEVEL: &str = "commitment_level";
@@ -77,7 +78,19 @@ pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
 pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
 pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
 pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
+pub const ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION: &str = "provide_signed_squad_transaction";
 
 // Subgraph endpoints
 pub const MAINNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";
 pub const DEVNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";
+
+// Squads keys
+pub const VAULT_INDEX: &str = "vault_index";
+pub const SQUADS_FRONTEND_URL: &str = "squads_frontend_url";
+pub const CREATE_KEY: &str = "create_key";
+pub const MULTISIG_ADDRESS: &str = "multisig_address";
+pub const MULTISIG_PUBLIC_KEY: &str = "multisig_public_key";
+pub const SQUADS_MULTISIG: &str = "squads_multisig";
+pub const INITIATOR: &str = "initiator";
+pub const VAULT_ADDRESS: &str = "vault_address";
+pub const VAULT_PUBLIC_KEY: &str = "vault_public_key";

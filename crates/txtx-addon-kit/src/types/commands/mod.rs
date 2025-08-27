@@ -1169,6 +1169,12 @@ impl CommandInstance {
                         request.action_status = status.clone();
                     }
                 }
+                // idk what this does
+                ActionItemRequestType::VerifyThirdPartySignature(_) => {
+                    // if success {
+                    //     request.action_status = status.clone();
+                    // }
+                }
                 _ => {}
             }
         }

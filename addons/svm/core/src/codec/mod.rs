@@ -3,11 +3,12 @@ pub mod idl;
 pub mod instruction;
 pub mod native;
 pub mod send_transaction;
+pub mod squads;
 pub mod ui_encode;
 pub mod utils;
 
 use crate::codec::ui_encode::get_formatted_transaction_meta_description;
-use crate::codec::ui_encode::message_data_to_formatted_value;
+use crate::codec::ui_encode::message_to_formatted_tx;
 use crate::commands::RpcVersionInfo;
 use anchor::AnchorProgramArtifacts;
 use bip39::Language;
@@ -40,13 +41,11 @@ use solana_sdk::{
 };
 use std::collections::HashMap;
 use std::str::FromStr;
-use txtx_addon_kit::hex;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::ProgressBarStatus;
 use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
 use txtx_addon_kit::types::frontend::StatusUpdater;
 use txtx_addon_kit::types::signers::SignerInstance;
-use txtx_addon_kit::types::types::ObjectType;
 use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::ConstructDid;
 
@@ -62,7 +61,7 @@ pub fn public_key_from_str(str: &str) -> Result<Pubkey, Diagnostic> {
     Pubkey::from_str(str).map_err(|e| diagnosed_error!("invalid public key: {e}"))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TxtxDeploymentSigner {
     Payer,
     FinalAuthority,
@@ -78,7 +77,7 @@ impl TxtxDeploymentSigner {
 
 /// `transaction_with_keypairs` - The transaction to sign, with the keypairs we have on hand to sign them
 /// `signers` - The txtx signers (if any) that need to sign the transaction
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeploymentTransaction {
     pub signers: Option<Vec<TxtxDeploymentSigner>>,
     pub transaction: Option<Transaction>,
@@ -352,7 +351,7 @@ impl DeploymentTransaction {
     ) -> Result<Option<(Value, String)>, Diagnostic> {
         let meta_description = match &self.transaction_type {
             DeploymentTransactionType::CreateTempAuthority(_) => {
-                "This transaction creates an ephemeral account that will execute the deployment."
+                "This transaction creates an ephemeral account that will write to the program buffer. This reduces the number of manual signatures required."
             }
             DeploymentTransactionType::CreateBuffer => return Ok(None),
             DeploymentTransactionType::WriteToBuffer => return Ok(None),
@@ -374,45 +373,8 @@ impl DeploymentTransaction {
             signers_instances,
         );
 
-        let mut instructions = vec![];
-
-        let transaction = self.transaction.as_ref().unwrap();
-        let message_account_keys = transaction.message.account_keys.clone();
-        for instruction in transaction.message.instructions.iter() {
-            let Some(account) = message_account_keys.get(instruction.program_id_index as usize)
-            else {
-                continue;
-            };
-            let accounts = instruction
-                .accounts
-                .iter()
-                .filter_map(|a| {
-                    let Some(account) = message_account_keys.get(*a as usize) else {
-                        return None;
-                    };
-                    Some(Value::string(account.to_string()))
-                })
-                .collect::<Vec<Value>>();
-            let account_name = account.to_string();
-
-            instructions.push(
-                ObjectType::from(vec![
-                    ("program_id", Value::string(account_name)),
-                    (
-                        "instruction_data",
-                        Value::string(format!("0x{}", hex::encode(&instruction.data))),
-                    ),
-                    ("accounts", Value::array(accounts)),
-                ])
-                .to_value(),
-            );
-        }
-        let formatted_transaction = message_data_to_formatted_value(
-            &instructions,
-            transaction.message.header.num_required_signatures,
-            transaction.message.header.num_readonly_signed_accounts,
-            transaction.message.header.num_readonly_unsigned_accounts,
-        );
+        let formatted_transaction =
+            message_to_formatted_tx(&self.transaction.as_ref().unwrap().message);
 
         Ok(Some((formatted_transaction, meta_description)))
     }

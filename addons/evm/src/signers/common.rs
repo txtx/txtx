@@ -66,7 +66,8 @@ pub async fn get_additional_actions_for_address(
                     .to_action_type()
                     .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
                     .with_construct_did(signer_did)
-                    .with_meta_description(&format!("Check '{}' expected address", instance_name)),
+                    .with_meta_description(&format!("Check '{}' expected address", instance_name))
+                    .with_some_description(Some("".into())),
             );
         }
         if do_request_balance {
@@ -90,6 +91,7 @@ pub async fn get_additional_actions_for_address(
                 .to_request(instance_name, ACTION_ITEM_CHECK_BALANCE)
                 .with_construct_did(signer_did)
                 .with_meta_description(&format!("Check '{}' signer balance", instance_name))
+                .with_some_description(Some("".into()))
                 .with_status(action_status);
             action_items.push(check_balance);
         }
@@ -99,7 +101,8 @@ pub async fn get_additional_actions_for_address(
                 .to_action_type()
                 .to_request(instance_name, ACTION_ITEM_CHECK_BALANCE)
                 .with_construct_did(signer_did)
-                .with_meta_description(&format!("Check '{}' signer balance", instance_name));
+                .with_meta_description(&format!("Check '{}' signer balance", instance_name))
+                .with_some_description(Some("".into()));
 
             action_items.push(check_balance);
         }

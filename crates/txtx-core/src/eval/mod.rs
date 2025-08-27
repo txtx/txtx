@@ -4,7 +4,7 @@ use crate::runbook::{
     RuntimeContext,
 };
 use crate::types::{RunbookExecutionContext, RunbookSources};
-use kit::constants::RE_EXECUTE_COMMAND;
+use kit::constants::{RE_EXECUTE_COMMAND, THIRD_PARTY_SIGNATURE_STATUS};
 use kit::types::commands::{
     ConstructInstance, PostConditionEvaluationResult, PreConditionEvaluationResult,
 };
@@ -162,11 +162,17 @@ pub async fn run_signers_evaluation(
                 instantiated,
             )
             .await;
-
         let signers_state = match res {
             Ok((signers_state, mut new_actions)) => {
                 if new_actions.has_pending_actions() {
                     runbook_execution_context.signers_state = Some(signers_state);
+                    // a signer could be dependent on a reference to a signer. if this another signer is depending
+                    // on this one that has actions, it still is safe to check for actions on the depending signer.
+                    // but for the depending signer to get this far in the execution, it needs to be able to reference
+                    // the did of _this_ signer, so we insert empty execution results.
+                    runbook_execution_context
+                        .commands_execution_results
+                        .insert(construct_did, CommandExecutionResult::new());
                     pass_result.actions.append(&mut new_actions);
                     continue;
                 }
@@ -318,7 +324,39 @@ fn should_skip_construct_evaluation(execution_result: &CommandExecutionResult) -
     // Check if the execution result indicates that the construct should be skipped
     let has_re_execute_command =
         execution_result.outputs.get(RE_EXECUTE_COMMAND).and_then(|v| v.as_bool()).unwrap_or(false);
-    !has_re_execute_command
+
+    let is_third_party_signed_construct_not_yet_signed_by_third_party = {
+        let third_party_val = execution_result
+            .outputs
+            .get(THIRD_PARTY_SIGNATURE_STATUS)
+            .map(|v| v.expect_third_party_signature());
+        let is_action_signed_by_third_party = third_party_val.is_some();
+        let is_third_party_sign_complete =
+            third_party_val.map(|v| v.is_approved()).unwrap_or(false);
+
+        is_action_signed_by_third_party && !is_third_party_sign_complete
+    };
+
+    // If we have an output dictating to re execute command, we should not skip the construct evaluation
+    // If we have an output indicating this construct is signed by a third party, but not yet signed by the third party,
+    // we should not skip the construct evaluation
+    !has_re_execute_command && !is_third_party_signed_construct_not_yet_signed_by_third_party
+}
+
+fn should_retry_construct_evaluation(execution_result: &CommandExecutionResult) -> bool {
+    let is_third_party_signed_construct_not_yet_signed_by_third_party = {
+        let third_party_val = execution_result
+            .outputs
+            .get(THIRD_PARTY_SIGNATURE_STATUS)
+            .map(|v| v.expect_third_party_signature());
+        let is_action_signed_by_third_party = third_party_val.is_some();
+        let is_third_party_sign_check_requested =
+            third_party_val.as_ref().map(|v| v.is_check_requested()).unwrap_or(false);
+
+        is_action_signed_by_third_party && is_third_party_sign_check_requested
+    };
+
+    is_third_party_signed_construct_not_yet_signed_by_third_party
 }
 
 // When the graph is being traversed, we are evaluating constructs one after the other.
@@ -623,8 +661,8 @@ pub async fn evaluate_command_instance(
                 let signers = runbook_execution_context.signers_state.take().unwrap();
                 let signers = update_signer_instances_from_action_response(
                     signers,
-                    &construct_did,
-                    &action_item_responses.get(&construct_did),
+                    &nested_construct_did,
+                    &action_item_responses.get(&nested_construct_did),
                 );
 
                 let res = command_instance
@@ -634,7 +672,7 @@ pub async fn evaluate_command_instance(
                         &evaluated_inputs,
                         signers,
                         &mut runbook_execution_context.signers_instances,
-                        &action_item_responses.get(&construct_did),
+                        &action_item_responses.get(&nested_construct_did),
                         &action_item_requests.get(&construct_did),
                         supervision_context,
                         &runtime_context.authorization_context,
@@ -672,7 +710,7 @@ pub async fn evaluate_command_instance(
                 let mut empty_vec = vec![];
                 let action_items_requests =
                     action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
-                let action_items_response = action_item_responses.get(&construct_did);
+                let action_items_response = action_item_responses.get(&nested_construct_did);
 
                 let execution_result = command_instance
                     .perform_signed_execution(
@@ -689,6 +727,9 @@ pub async fn evaluate_command_instance(
                 let execution_result = match execution_result {
                     Ok((updated_signers, result)) => {
                         runbook_execution_context.signers_state = Some(updated_signers);
+                        if should_retry_construct_evaluation(&result) {
+                            return LoopEvaluationResult::Continue;
+                        }
                         Ok(result)
                     }
                     Err((updated_signers, diag)) => {
@@ -711,7 +752,7 @@ pub async fn evaluate_command_instance(
                     nested_evaluation_values,
                     &mut evaluated_inputs,
                     &mut runbook_execution_context.signers_instances,
-                    &action_item_responses.get(&construct_did),
+                    &action_item_responses.get(&nested_construct_did),
                     supervision_context,
                     &runtime_context.authorization_context,
                 ) {
@@ -742,7 +783,7 @@ pub async fn evaluate_command_instance(
                 let mut empty_vec = vec![];
                 let action_items_requests =
                     action_item_requests.get_mut(&construct_did).unwrap_or(&mut empty_vec);
-                let action_items_response = action_item_responses.get(&construct_did);
+                let action_items_response = action_item_responses.get(&nested_construct_did);
 
                 let execution_result = {
                     command_instance
@@ -1351,7 +1392,9 @@ pub fn eval_expression(
                 },
             };
 
-            let attribute = components.pop_front().unwrap_or("value".into());
+            let some_attribute = components.pop_front();
+            let no_attribute = some_attribute.is_none();
+            let attribute = some_attribute.unwrap_or("value".into());
 
             match res.outputs.get(&attribute) {
                 Some(output) => {
@@ -1374,7 +1417,17 @@ pub fn eval_expression(
                             output.clone()
                         }
                     }
-                    None => return Ok(ExpressionEvaluationStatus::DependencyNotComputed),
+                    None => {
+                        // if the user didn't provide any attributes from the traversal to access, they possibly
+                        // are referencing the dependency itself, i.e. `signer.deployer` just wants the deployer dep
+                        if no_attribute {
+                            return Ok(ExpressionEvaluationStatus::CompleteOk(Value::string(
+                                dependency.to_string(),
+                            )));
+                        } else {
+                            return Ok(ExpressionEvaluationStatus::DependencyNotComputed);
+                        }
+                    }
                 },
             }
         }
@@ -1536,6 +1589,21 @@ pub fn update_signer_instances_from_action_response(
                                 &construct_did.value().to_string(),
                                 SIGNED_MESSAGE_BYTES,
                                 Value::string(response.signed_message_bytes.clone()),
+                            );
+                            signers.push_signer_state(signer_state.clone());
+                        }
+                    }
+                    ActionItemResponseType::VerifyThirdPartySignature(response) => {
+                        if let Some(mut signer_state) =
+                            signers.pop_signer_state(&response.signer_uuid)
+                        {
+                            // If the user has requested to check if the third party signature has been completed
+                            // insert into the appropriate signer state that the check has been requested, so it
+                            // can handle accordingly
+                            signer_state.insert_scoped_value(
+                                &construct_did.value().to_string(),
+                                THIRD_PARTY_SIGNATURE_STATUS,
+                                Value::third_party_signature_check_requested(),
                             );
                             signers.push_signer_state(signer_state.clone());
                         }
