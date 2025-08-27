@@ -59,8 +59,15 @@ fn test_ab_c_runbook_no_env() {
         assert_eq!(&input_b_action.internal_key, "provide_input");
 
         // review input a and expect action item update
-        harness.expect_action_item_update(
-            None,
+        harness.send_and_expect_action_item_update(
+            ActionItemResponse {
+                action_item_id: input_a_action.id.clone(),
+                payload: ActionItemResponseType::ReviewInput(ReviewedInputResponse {
+                    value_checked: true,
+                    input_name: "value".into(),
+                    force_execution: false,
+                }),
+            },
             vec![(&input_a_action.id, Some(ActionItemStatus::Success(None)))],
         );
 

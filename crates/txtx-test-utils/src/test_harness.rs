@@ -10,7 +10,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         frontend::{
             ActionItemRequest, ActionItemResponse, ActionItemStatus, ActionPanelData, BlockEvent,
-            ModalPanelData, NormalizedActionItemRequestUpdate,
+            LogEvent, ModalPanelData, NormalizedActionItemRequestUpdate,
         },
         types::Value,
         AuthorizationContext, RunbookId,
@@ -42,6 +42,11 @@ impl TestHarness {
             panic!("unable to receive input block");
         };
         event
+    }
+
+    pub fn send_and_expect_log_event(&self, response: ActionItemResponse) -> LogEvent {
+        self.send(&response);
+        self.expect_log_event(Some(response))
     }
 
     pub fn send_and_expect_action_item_update(
@@ -76,6 +81,17 @@ impl TestHarness {
             assert_eq!(expected_updates[i].1.clone(), u.action_status, "{}", ctx);
         });
         updates.clone()
+    }
+
+    pub fn expect_log_event(&self, response: Option<ActionItemResponse>) -> LogEvent {
+        let Ok(event) = self.block_rx.recv_timeout(Duration::from_secs(5)) else {
+            panic!(
+                "unable to receive input block after sending action item response: {:?}",
+                response
+            );
+        };
+        let event = event.expect_log_event();
+        event.clone()
     }
 
     pub fn send_and_expect_action_panel(

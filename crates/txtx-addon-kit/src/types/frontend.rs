@@ -361,6 +361,13 @@ impl BlockEvent {
         }
     }
 
+    pub fn expect_log_event(&self) -> &LogEvent {
+        match &self {
+            BlockEvent::LogEvent(ref log_event) => log_event,
+            _ => unreachable!("log event expected"),
+        }
+    }
+
     pub fn new_modal(title: &str, description: &str, groups: Vec<ActionGroup>) -> Block {
         Block {
             uuid: Uuid::new_v4(),
