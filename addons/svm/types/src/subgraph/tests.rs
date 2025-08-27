@@ -830,7 +830,7 @@ fn rejects_leftover_bytes() {
     assert_eq!(
         err,
         format!(
-            "expected no leftover bytes after parsing type {:?}, but found {} bytes",
+            "expected no leftover bytes after parsing type {:?}, but found {} bytes of non-zero data",
             expected_type, 4
         )
     );

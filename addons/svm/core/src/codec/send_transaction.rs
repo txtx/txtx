@@ -36,6 +36,7 @@ pub fn send_transaction_background_task(
         }));
     }
 
+    let construct_did = construct_did.clone();
     let outputs = outputs.clone();
     let inputs = inputs.clone();
     let progress_tx = progress_tx.clone();
