@@ -337,10 +337,12 @@ pub async fn execute_runbook(
     };
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let (log_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let (_action_item_updates_tx, _action_item_updates_rx) =
         channel::unbounded::<ActionItemRequest>();
     let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let log_store = Arc::new(RwLock::new(Vec::new()));
     let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
     let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
 
@@ -376,8 +378,10 @@ pub async fn execute_runbook(
             runbook_name: runbook_name.clone(),
             supervisor_addon_data,
             runbook_description,
+            log_store: log_store.clone(),
             block_store: block_store.clone(),
             block_broadcaster: block_broadcaster.clone(),
+            log_broadcaster: log_broadcaster.clone(),
             action_item_events_tx: action_item_events_tx.clone(),
         });
     }
@@ -435,20 +439,6 @@ pub async fn execute_runbook(
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
-                    BlockEvent::ProgressBar(new_block) => {
-                        let len = block_store.len();
-                        block_store.insert(len, new_block.clone());
-                    }
-                    BlockEvent::UpdateProgressBarStatus(update) => block_store
-                        .iter_mut()
-                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
-                        .for_each(|(_, b)| {
-                            b.update_progress_bar_status(&update.construct_did, &update.new_status)
-                        }),
-                    BlockEvent::UpdateProgressBarVisibility(update) => block_store
-                        .iter_mut()
-                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
-                        .for_each(|(_, b)| b.visible = update.visible),
                     BlockEvent::RunbookCompleted => {
                         println!("\n{}", green!("Runbook complete!"));
                         break;
@@ -458,6 +448,10 @@ pub async fn execute_runbook(
                         block_store.insert(len, new_block.clone());
                     }
                     BlockEvent::Exit => break,
+                    BlockEvent::LogEvent(log) => {
+                        let mut log_store = log_store.write().await;
+                        log_store.push(log);
+                    }
                 }
 
                 if do_propagate_event {
@@ -545,7 +539,9 @@ async fn subscriptions(
         supervisor_addon_data: context.supervisor_addon_data.clone(),
         runbook_description: context.runbook_description.clone(),
         block_store: context.block_store.clone(),
+        log_store: context.log_store.clone(),
         block_broadcaster: context.block_broadcaster.clone(),
+        log_broadcaster: context.log_broadcaster.clone(),
         action_item_events_tx: context.action_item_events_tx.clone(),
     };
     let config = ConnectionConfig::new(ctx);

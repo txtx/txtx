@@ -22,7 +22,7 @@ use txtx_addon_kit::types::commands::{
     CommandSpecification, PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent, StatusUpdater};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent, LogDispatcher};
 use txtx_addon_kit::types::signers::{
     return_synchronous_actions, SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
     SignersState,
@@ -599,7 +599,7 @@ impl CommandImplementation for ProcessInstructions {
         inputs: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
@@ -608,7 +608,6 @@ impl CommandImplementation for ProcessInstructions {
         let inputs = inputs.clone();
         let outputs = outputs.clone();
         let progress_tx = progress_tx.clone();
-        let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
 
         let future = async move {
@@ -628,13 +627,13 @@ impl CommandImplementation for ProcessInstructions {
                 })
                 .unwrap();
 
-            let mut status_updater =
-                StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
+            let logger =
+                LogDispatcher::new(construct_did.as_uuid(), "svm::create_record", &progress_tx);
 
             let mut result = if record_actions.is_empty() {
-                status_updater.propagate_success_status(
+                logger.success_info(
                     "Record Unchanged",
-                    &format!(
+                    format!(
                         "Record {} already exists on chain, and no changes were applied",
                         name.as_string().unwrap()
                     ),
@@ -647,7 +646,6 @@ impl CommandImplementation for ProcessInstructions {
                     &inputs,
                     &outputs,
                     &progress_tx,
-                    &background_tasks_uuid,
                     &supervision_context,
                 ) {
                     Ok(res) => match res.await {
@@ -661,27 +659,27 @@ impl CommandImplementation for ProcessInstructions {
             for action in record_actions {
                 match action {
                     RecordAction::Freeze => {
-                        status_updater.propagate_success_status(
+                        logger.success_info(
                             "Record Frozen",
-                            &format!("Record {} frozen", name.as_string().unwrap()),
+                            format!("Record {} frozen", name.as_string().unwrap()),
                         );
                     }
                     RecordAction::UpdateData => {
-                        status_updater.propagate_success_status(
+                        logger.success_info(
                             "Record Data Updated",
-                            &format!("Record {} data updated", name.as_string().unwrap()),
+                            format!("Record {} data updated", name.as_string().unwrap()),
                         );
                     }
                     RecordAction::Transfer => {
-                        status_updater.propagate_success_status(
+                        logger.success_info(
                             "Record Transferred",
-                            &format!("Record {} transferred", name.as_string().unwrap()),
+                            format!("Record {} transferred", name.as_string().unwrap()),
                         );
                     }
                     RecordAction::Create => {
-                        status_updater.propagate_success_status(
+                        logger.success_info(
                             "Record Created",
-                            &format!("Record {} created", name.as_string().unwrap()),
+                            format!("Record {} created", name.as_string().unwrap()),
                         );
                     }
                 }

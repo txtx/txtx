@@ -7,7 +7,7 @@ use etherscan::EtherscanVerificationClient;
 use sourcify::SourcifyVerificationClient;
 use txtx_addon_kit::{
     reqwest::Url,
-    types::{diagnostics::Diagnostic, frontend::StatusUpdater},
+    types::{diagnostics::Diagnostic, frontend::LogDispatcher},
 };
 
 use crate::codec::contract_deployment::compiled_artifacts::CompiledContractArtifacts;
@@ -26,33 +26,33 @@ impl SubmitVerificationResult {
     /// For each verification result, propagate an associated message to the status updater.
     pub fn propagate_status(
         &self,
-        status_updater: &mut StatusUpdater,
+        logger: &LogDispatcher,
         client: &VerificationClient,
         propagate_errors: bool,
     ) {
         match &self {
             SubmitVerificationResult::Verified => {
-                propagate_contract_verified(status_updater, client, &client.address_url());
+                propagate_contract_verified(logger, client, &client.address_url());
             }
             SubmitVerificationResult::NotVerified(err) => {
                 if propagate_errors {
                     let diag = diagnosed_error!("failed to verify contract: {}", err);
-                    status_updater.propagate_failed_status("Contract Not Verified", &diag);
+                    logger.failure_info("Contract Not Verified", diag);
                 }
             }
             SubmitVerificationResult::AlreadyVerified => {
-                propagate_contract_already_verified(status_updater, client, &client.address_url());
+                propagate_contract_already_verified(logger, client, &client.address_url());
             }
             SubmitVerificationResult::PartiallyVerified => {
                 if let Some(address_url) = &client.address_url() {
-                    status_updater.propagate_success_status(
+                    logger.success_info(
                         "Partially Verified",
-                        &format!("Contract partially verified at {}", address_url),
+                        format!("Contract partially verified at {}", address_url),
                     );
                 } else {
-                    status_updater.propagate_success_status(
+                    logger.success_info(
                         "Verified",
-                        &format!(
+                        format!(
                             "Contract '{}' partially verified with '{}' provider",
                             client.address(),
                             client.provider()
@@ -61,11 +61,14 @@ impl SubmitVerificationResult {
                 }
             }
             SubmitVerificationResult::CheckVerification(_) => {
-                status_updater.propagate_pending_status(&format!(
-                    "Checking verification status for contract '{}' with provider '{}'",
-                    client.address(),
-                    client.provider()
-                ));
+                logger.pending_info(
+                    "Verifying Contract",
+                    format!(
+                        "Checking verification status for contract '{}' with provider '{}'",
+                        client.address(),
+                        client.provider()
+                    ),
+                );
             }
         }
     }
@@ -80,41 +83,39 @@ pub enum CheckVerificationStatusResult {
 impl CheckVerificationStatusResult {
     pub fn propagate_status(
         &self,
-        status_updater: &mut StatusUpdater,
+        logger: &LogDispatcher,
         client: &VerificationClient,
         propagate_errors: bool,
     ) {
         match &self {
             CheckVerificationStatusResult::Verified => {
-                propagate_contract_verified(status_updater, client, &client.address_url());
+                propagate_contract_verified(logger, client, &client.address_url());
             }
             CheckVerificationStatusResult::NotVerified(err) => {
                 if propagate_errors {
                     let diag = diagnosed_error!("failed to verify contract: {}", err);
-                    status_updater.propagate_failed_status("Contract Not Verified", &diag);
+                    logger.failure_info("Contract Not Verified", diag);
                 }
             }
             CheckVerificationStatusResult::AlreadyVerified => {
-                propagate_contract_already_verified(status_updater, client, &client.address_url());
+                propagate_contract_already_verified(logger, client, &client.address_url());
             }
         }
     }
 }
 
 fn propagate_contract_verified(
-    status_updater: &mut StatusUpdater,
+    logger: &LogDispatcher,
     client: &VerificationClient,
     some_address_url: &Option<String>,
 ) {
     if let Some(address_url) = some_address_url {
-        status_updater.propagate_success_status(
-            "Verified",
-            &format!("Contract successfully verified at {}", address_url),
-        );
+        logger
+            .success_info("Verified", format!("Contract successfully verified at {}", address_url));
     } else {
-        status_updater.propagate_success_status(
+        logger.success_info(
             "Verified",
-            &format!(
+            format!(
                 "Contract '{}' successfully verified with '{}' provider",
                 client.address(),
                 client.provider()
@@ -124,19 +125,19 @@ fn propagate_contract_verified(
 }
 
 fn propagate_contract_already_verified(
-    status_updater: &mut StatusUpdater,
+    logger: &LogDispatcher,
     client: &VerificationClient,
     some_address_url: &Option<String>,
 ) {
     if let Some(address_url) = some_address_url {
-        status_updater.propagate_success_status(
+        logger.success_info(
             "Already Verified",
-            &format!("Contract already verified at {}", address_url),
+            format!("Contract already verified at {}", address_url),
         );
     } else {
-        status_updater.propagate_success_status(
+        logger.success_info(
             "Already Verified",
-            &format!(
+            format!(
                 "Contract '{}' already verified with '{}' provider",
                 client.address(),
                 client.provider()

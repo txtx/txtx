@@ -9,11 +9,10 @@ use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, CommandSpecification};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{BlockEvent, ProgressBarStatus, StatusUpdater};
+use txtx_addon_kit::types::frontend::{BlockEvent, LogDispatcher};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, ThirdPartySignatureStatus, Value};
 use txtx_addon_kit::types::ConstructDid;
-use txtx_addon_kit::uuid::Uuid;
 
 use crate::constants::{
     COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, IS_DEPLOYMENT, RPC_API_URL, SIGNATURE,
@@ -25,7 +24,6 @@ pub fn send_transaction_background_task(
     inputs: &ValueStore,
     outputs: &ValueStore,
     progress_tx: &channel::Sender<BlockEvent>,
-    background_tasks_uuid: &Uuid,
     _supervision_context: &RunbookSupervisionContext,
 ) -> CommandExecutionFutureResult {
     let outputs = outputs.clone();
@@ -42,7 +40,7 @@ pub fn send_transaction_background_task(
     let outputs = outputs.clone();
     let inputs = inputs.clone();
     let progress_tx = progress_tx.clone();
-    let background_tasks_uuid = background_tasks_uuid.clone();
+    let construct_did = construct_did.clone();
 
     let future = async move {
         let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
@@ -70,8 +68,8 @@ pub fn send_transaction_background_task(
             commitment_config.clone(),
         ));
 
-        let mut status_updater =
-            StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
+        let logger =
+            LogDispatcher::new(construct_did.as_uuid(), "svm::send_transaction", &progress_tx);
 
         let mut result = CommandExecutionResult::from_value_store(&outputs);
 
@@ -85,11 +83,7 @@ pub fn send_transaction_background_task(
             commitment_config.commitment,
         )
         .map_err(|diag| {
-            status_updater.propagate_status(ProgressBarStatus::new_err(
-                "Failed",
-                "Failed to broadcast transaction",
-                &diag,
-            ));
+            logger.failure_with_diag("Failed", "Failed to broadcast transaction", &diag);
             diag
         })?;
         result.outputs.insert(SIGNATURE.into(), Value::string(signature.clone()));
