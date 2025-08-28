@@ -1,8 +1,9 @@
-use std::str::FromStr;
+use std::{str::FromStr, thread::sleep, time::Duration};
 
 use solana_client::rpc_request::RpcRequest;
 use solana_sdk::{
     bpf_loader_upgradeable::{self, get_program_data_address, UpgradeableLoaderState},
+    clock::DEFAULT_MS_PER_SLOT,
     pubkey::Pubkey,
 };
 use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
@@ -105,4 +106,15 @@ pub fn cheatcode_deploy_program(
     set_account_cheatcode(&rpc_client, &program_payload)?;
 
     Ok(())
+}
+
+pub fn wait_n_slots(rpc_client: &solana_client::rpc_client::RpcClient, n: u64) -> u64 {
+    let slot = rpc_client.get_slot().unwrap();
+    loop {
+        sleep(Duration::from_millis(DEFAULT_MS_PER_SLOT));
+        let new_slot = rpc_client.get_slot().unwrap();
+        if new_slot.saturating_sub(slot) >= n {
+            return new_slot;
+        }
+    }
 }
