@@ -9,12 +9,13 @@
 #[cfg(test)]
 mod transaction_types_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_legacy_transaction() {
+    #[tokio::test]
+    async fn test_legacy_transaction() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_legacy_transaction - Anvil not installed");
             return;
@@ -27,7 +28,7 @@ mod transaction_types_tests {
         
         let access_list = r#"[]"#;
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -37,10 +38,12 @@ mod transaction_types_tests {
             .with_input("gas_price", "20000000000")
             .with_input("max_fee_per_gas", "30000000000")
             .with_input("max_priority_fee", "2000000000")
-            .with_input("access_list", access_list);
+            .with_input("access_list", access_list)
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute legacy transaction test");
+        
         
         assert!(result.success, "Legacy transaction should succeed");
         
@@ -56,8 +59,8 @@ mod transaction_types_tests {
         println!("✅ Legacy transaction sent: {}", tx_hash);
     }
     
-    #[test]
-    fn test_eip2930_access_list_transaction() {
+    #[tokio::test]
+    async fn test_eip2930_access_list_transaction() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_eip2930_access_list_transaction - Anvil not installed");
             return;
@@ -76,7 +79,7 @@ mod transaction_types_tests {
             }
         ]"#;
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -86,10 +89,12 @@ mod transaction_types_tests {
             .with_input("gas_price", "25000000000")
             .with_input("max_fee_per_gas", "30000000000")
             .with_input("max_priority_fee", "2000000000")
-            .with_input("access_list", access_list);
+            .with_input("access_list", access_list)
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute EIP-2930 transaction test");
+        
         
         assert!(result.success, "EIP-2930 transaction should succeed");
         
@@ -105,8 +110,8 @@ mod transaction_types_tests {
         println!("✅ EIP-2930 transaction sent: {}", tx_hash);
     }
     
-    #[test]
-    fn test_eip1559_dynamic_fee_transaction() {
+    #[tokio::test]
+    async fn test_eip1559_dynamic_fee_transaction() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_eip1559_dynamic_fee_transaction - Anvil not installed");
             return;
@@ -117,7 +122,7 @@ mod transaction_types_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_types.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -127,10 +132,12 @@ mod transaction_types_tests {
             .with_input("gas_price", "20000000000")
             .with_input("max_fee_per_gas", "40000000000")
             .with_input("max_priority_fee", "3000000000")
-            .with_input("access_list", "[]");
+            .with_input("access_list", "[]")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute EIP-1559 transaction test");
+        
         
         assert!(result.success, "EIP-1559 transaction should succeed");
         

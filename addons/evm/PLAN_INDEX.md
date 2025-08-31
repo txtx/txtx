@@ -2,7 +2,7 @@
 
 ## 📚 Overview
 
-This index provides a central reference point for all test migration and fixture system documentation for the EVM addon. The migration effort aims to transform ~83 tests from direct Alloy usage to txtx framework integration using a YAML-based fixture system.
+This index provides a central reference point for all test migration and fixture system documentation for the EVM addon. The migration effort aims to transform ~83 tests from direct Alloy usage to txtx framework integration using runbook-based fixtures.
 
 ## STATUS 
 
@@ -182,7 +182,7 @@ Tests need to be validated.
 3. **Follow the migration guide:**
    - Open [TEST_MIGRATION_GUIDE.md](./TEST_MIGRATION_GUIDE.md#step-by-step-migration-process)
    - Find similar example pattern
-   - Create YAML fixture
+   - Create runbook fixture
    - Test and validate
 
 4. **Track your progress:**

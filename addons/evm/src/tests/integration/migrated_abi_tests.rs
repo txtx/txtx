@@ -2,12 +2,13 @@
 
 #[cfg(test)]
 mod abi_tests {
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
     use std::path::PathBuf;
+    use tokio;
 
-    #[test]
-    fn test_complex_abi_encoding() {
+    #[tokio::test]
+    async fn test_complex_abi_encoding() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("Warning: Skipping test - Anvil not installed");
@@ -132,11 +133,14 @@ output "arrays_call_tx" {
 }
 "#;
 
-        let harness = ProjectTestHarness::new_foundry("complex_abi_test.tx", runbook.to_string())
+        let result = ProjectTestHarness::new_foundry("complex_abi_test.tx", runbook.to_string())
             .with_anvil()
-            .with_input("deployer_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+            .with_input("deployer_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+            .execute()
+            .await
+            .expect("Failed to execute test");
 
-        match harness.execute_runbook() {
+        match result.execute().await {
             Ok(result) => {
                 assert!(result.success, "Complex ABI calls should succeed");
                 
@@ -148,8 +152,8 @@ output "arrays_call_tx" {
         }
     }
 
-    #[test]
-    fn test_abi_edge_cases() {
+    #[tokio::test]
+    async fn test_abi_edge_cases() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test - Anvil not installed");
@@ -272,11 +276,14 @@ output "bytes32_tx" {
 }
 "#;
 
-        let harness = ProjectTestHarness::new_foundry("abi_edge_cases.tx", runbook.to_string())
+        let result = ProjectTestHarness::new_foundry("abi_edge_cases.tx", runbook.to_string())
             .with_anvil()
-            .with_input("deployer_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+            .with_input("deployer_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+            .execute()
+            .await
+            .expect("Failed to execute test");
 
-        match harness.execute_runbook() {
+        match result.execute().await {
             Ok(result) => {
                 assert!(result.success, "ABI edge case calls should succeed");
                 

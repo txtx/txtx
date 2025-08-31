@@ -315,17 +315,21 @@ impl From<EvmErrorReport> for Diagnostic {
     fn from(wrapper: EvmErrorReport) -> Self {
         let report = wrapper.0;
         
-        // Build the error message chain
-        let error_chain = format!("{:?}", report);
-        
         // Extract main error message
         let main_message = report.to_string();
+        
+        // Build the error message chain  
+        let error_chain = format!("{:?}", &report);
         
         // Create diagnostic with full context
         let mut diagnostic = Diagnostic::error_from_string(main_message);
         
         // Add the full error chain as documentation for debugging
         diagnostic.documentation = Some(format!("Full error context:\n{}", error_chain));
+        
+        // Preserve the original Report<EvmError> directly
+        // This is the idiomatic approach - store the Report without cloning
+        diagnostic.source_error = Some(Box::new(report));
         
         diagnostic
     }

@@ -1,7 +1,6 @@
-use crate::codec::abi::encoding::{value_to_abi_param, value_to_abi_params};
+use crate::codec::abi::encoding::{value_to_abi_param, value_to_abi_params, value_to_struct_abi_type};
 use crate::codec::abi::types::value_to_sol_value;
 use crate::codec::abi::decoding::sol_value_to_value;
-use crate::codec::abi::value_to_struct_abi_type;
 use crate::typing::EvmValue;
 use alloy::json_abi::Param;
 use alloy::dyn_abi::DynSolValue;

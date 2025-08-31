@@ -2,11 +2,11 @@
 
 #[cfg(test)]
 mod view_function_tests {
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
 
-    #[test]
-    fn test_view_function_call_without_gas() {
+    #[tokio::test]
+    async fn test_view_function_call_without_gas() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test - Anvil not installed");
@@ -16,12 +16,15 @@ mod view_function_tests {
         println!("🔍 Testing view function calls without gas fees");
 
         // Create test harness using the fixture
-        let harness = ProjectTestHarness::new_foundry_from_fixture("integration/test_view_function.tx")
+        let result = ProjectTestHarness::new_foundry_from_fixture("integration/test_view_function.tx")
             .with_anvil()
-            .with_input("caller_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+            .with_input("caller_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+            .execute()
+            .await
+            .expect("Failed to execute test");
 
         // Execute the runbook
-        match harness.execute_runbook() {
+        match result.execute().await {
             Ok(result) => {
                 assert!(result.success, "Runbook execution failed");
                 println!("View function call succeeded without gas fees");
@@ -39,8 +42,8 @@ mod view_function_tests {
         }
     }
 
-    #[test]
-    fn test_state_changing_function_requires_gas() {
+    #[tokio::test]
+    async fn test_state_changing_function_requires_gas() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test - Anvil not installed");
@@ -50,14 +53,18 @@ mod view_function_tests {
         println!("⛽ Testing state-changing functions require gas");
 
         use std::path::PathBuf;
+    use tokio;
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/view_functions/state_changing_function.tx");
 
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
-            .with_input("caller_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+            .with_input("caller_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+            .execute()
+            .await
+            .expect("Failed to execute test");
 
-        match harness.execute_runbook() {
+        match result.execute().await {
             Ok(result) => {
                 assert!(result.success, "Runbook execution failed");
                 println!("State-changing function executed with gas");

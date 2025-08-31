@@ -5,11 +5,12 @@
 #[cfg(test)]
 mod transaction_management_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_nonce_management() {
+    #[tokio::test]
+    async fn test_nonce_management() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_nonce_management - Anvil not installed");
@@ -21,12 +22,14 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/nonce_management.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
-            .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8");
+            .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         
         assert!(result.success, "All transactions should succeed with proper nonces");
         
@@ -49,8 +52,8 @@ mod transaction_management_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_gas_estimation_transfer() {
+    #[tokio::test]
+    async fn test_gas_estimation_transfer() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_gas_estimation_transfer - Anvil not installed");
@@ -62,15 +65,17 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/gas_estimation.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("test_transfer", "true")
             .with_input("test_deploy", "false")
             .with_input("test_call", "false")
-            .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8");
+            .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         
         assert!(result.success, "Transfer should succeed");
         
@@ -90,8 +95,8 @@ mod transaction_management_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_gas_estimation_deployment() {
+    #[tokio::test]
+    async fn test_gas_estimation_deployment() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_gas_estimation_deployment - Anvil not installed");
@@ -103,14 +108,16 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/gas_estimation.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("test_transfer", "false")
             .with_input("test_deploy", "true")
-            .with_input("test_call", "false");
+            .with_input("test_call", "false")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         
         assert!(result.success, "Deployment should succeed");
         
@@ -129,8 +136,8 @@ mod transaction_management_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_eip1559_transaction() {
+    #[tokio::test]
+    async fn test_eip1559_transaction() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_eip1559_transaction - Anvil not installed");
@@ -142,15 +149,17 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/eip1559_transaction.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000") // 0.001 ETH
             .with_input("max_fee_per_gas", "20000000000") // 20 gwei
-            .with_input("max_priority_fee_per_gas", "1000000000"); // 1 gwei
+            .with_input("max_priority_fee_per_gas", "1000000000")
+            .execute()
+            .await
+            .expect("Failed to execute test"); // 1 gwei
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         
         assert!(result.success, "EIP-1559 transaction should succeed");
         
@@ -172,8 +181,8 @@ mod transaction_management_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_legacy_transaction() {
+    #[tokio::test]
+    async fn test_legacy_transaction() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_legacy_transaction - Anvil not installed");
@@ -185,13 +194,15 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/legacy_transaction.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
-            .with_input("amount", "1000000000000000"); // 0.001 ETH
+            .with_input("amount", "1000000000000000")
+            .execute()
+            .await
+            .expect("Failed to execute test"); // 0.001 ETH
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         
         assert!(result.success, "Legacy transaction should succeed");
         
@@ -207,8 +218,8 @@ mod transaction_management_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_batch_transactions() {
+    #[tokio::test]
+    async fn test_batch_transactions() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_batch_transactions - Anvil not installed");
@@ -220,11 +231,10 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/batch_transactions.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let harness = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil();
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         
         assert!(result.success, "Batch transactions should succeed");
         

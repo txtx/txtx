@@ -13,8 +13,8 @@ mod eth_transfer_tests {
     use alloy::primitives::{Address, U256};
     use std::str::FromStr;
     
-    #[test]
-    fn test_eth_transfer_through_txtx() {
+    #[tokio::test]
+    async fn test_eth_transfer_through_txtx() {
         // Skip if Anvil not available
         use crate::tests::integration::anvil_harness::AnvilInstance;
         if !AnvilInstance::is_available() {
@@ -31,7 +31,7 @@ mod eth_transfer_tests {
         
         // Get Anvil accounts for verification (store them before borrowing)
         let (sender_address, recipient_address, sender_key, anvil_url) = {
-            let anvil = harness.anvil().expect("Anvil should be running");
+            let anvil = harness.anvil.as_ref().expect("Anvil should be running");
             (
                 anvil.accounts[0].address,
                 anvil.accounts[1].address,
@@ -48,7 +48,7 @@ mod eth_transfer_tests {
         
         // Execute the runbook through txtx
         println!("🔄 Executing runbook through txtx...");
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Check execution succeeded
         assert!(result.is_ok(), "Runbook execution failed: {:?}", result);

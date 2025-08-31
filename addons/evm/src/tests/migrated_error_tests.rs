@@ -31,8 +31,9 @@ mod migrated_error_tests {
         assert!(result.is_err(), "Should fail with insufficient funds");
         
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("insufficient") || error_msg.contains("Insufficient"),
-                "Error should mention insufficient funds: {}", error_msg);
+        let error_str = format!("{:?}", error_msg);
+        assert!(error_str.contains("insufficient") || error_str.contains("Insufficient"),
+                "Error should mention insufficient funds: {}", error_str);
         
         harness.cleanup();
     }
@@ -59,9 +60,10 @@ mod migrated_error_tests {
         assert!(result.is_err(), "Should fail with function not found");
         
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("function") || error_msg.contains("Function") || 
-                error_msg.contains("selector") || error_msg.contains("not found"),
-                "Error should mention function not found: {}", error_msg);
+        let error_str = format!("{:?}", error_msg);
+        assert!(error_str.contains("function") || error_str.contains("Function") || 
+                error_str.contains("selector") || error_str.contains("not found"),
+                "Error should mention function not found: {}", error_str);
         
         harness.cleanup();
     }
@@ -88,9 +90,10 @@ mod migrated_error_tests {
         assert!(result.is_err(), "Should fail with invalid hex");
         
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("hex") || error_msg.contains("Hex") || 
-                error_msg.contains("invalid") || error_msg.contains("Invalid"),
-                "Error should mention invalid hex: {}", error_msg);
+        let error_str = format!("{:?}", error_msg);
+        assert!(error_str.contains("hex") || error_str.contains("Hex") || 
+                error_str.contains("invalid") || error_str.contains("Invalid"),
+                "Error should mention invalid hex: {}", error_str);
         
         harness.cleanup();
     }
@@ -117,9 +120,10 @@ mod migrated_error_tests {
         assert!(result.is_err(), "Should fail with signer not found");
         
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("signer") || error_msg.contains("Signer") || 
-                error_msg.contains("not found") || error_msg.contains("undefined"),
-                "Error should mention signer not found: {}", error_msg);
+        let error_str = format!("{:?}", error_msg);
+        assert!(error_str.contains("signer") || error_str.contains("Signer") || 
+                error_str.contains("not found") || error_str.contains("undefined"),
+                "Error should mention signer not found: {}", error_str);
         
         harness.cleanup();
     }
@@ -169,9 +173,10 @@ action "call_reverting" "evm::call_contract_function" {
         assert!(result.is_err(), "Should fail with transaction revert");
         
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("revert") || error_msg.contains("Revert") || 
-                error_msg.contains("execution reverted"),
-                "Error should mention revert: {}", error_msg);
+        let error_str = format!("{:?}", error_msg);
+        assert!(error_str.contains("revert") || error_str.contains("Revert") || 
+                error_str.contains("execution reverted"),
+                "Error should mention revert: {}", error_str);
         
         harness.cleanup();
     }
@@ -214,8 +219,9 @@ action "low_gas_tx" "evm::send_eth" {
         assert!(result.is_err(), "Should fail with out of gas");
         
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("gas") || error_msg.contains("Gas"),
-                "Error should mention gas: {}", error_msg);
+        let error_str = format!("{:?}", error_msg);
+        assert!(error_str.contains("gas") || error_str.contains("Gas"),
+                "Error should mention gas: {}", error_str);
         
         harness.cleanup();
     }

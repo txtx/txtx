@@ -1,5 +1,4 @@
 use crate::codec::abi::encoding::*;
-use crate::codec::abi::value_to_struct_abi_type;
 use alloy::json_abi::{Function, JsonAbi, Param, StateMutability, Constructor};
 use alloy::primitives::{address, U256};
 use alloy::dyn_abi::DynSolValue;

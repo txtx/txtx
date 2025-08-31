@@ -143,6 +143,21 @@ impl AnvilInstance {
         &self.accounts[index]
     }
     
+    /// Alias for spawn() to match test expectations
+    pub fn start() -> Self {
+        Self::spawn()
+    }
+    
+    /// Get the endpoint URL
+    pub fn endpoint(&self) -> String {
+        self.url.clone()
+    }
+    
+    /// Get the chain ID
+    pub fn chain_id(&self) -> u64 {
+        self.chain_id
+    }
+    
     /// Fund an address with ETH
     pub async fn fund_account(&self, address: Address, amount: U256) -> Result<(), Box<dyn std::error::Error>> {
         // Use first account as funder

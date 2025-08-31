@@ -9,8 +9,8 @@ mod create2_tests {
     use alloy::primitives::{Address, Bytes, B256};
     use std::str::FromStr;
     
-    #[test]
-    fn test_create2_address_calculation() {
+    #[tokio::test]
+    async fn test_create2_address_calculation() {
         println!("🔍 Testing CREATE2 address calculation");
         
         // Test data

@@ -9,8 +9,6 @@ pub mod types;
 pub use encoding::{
     value_to_abi_function_args,
     value_to_abi_constructor_args,
-    value_to_abi_param,
-    value_to_struct_abi_type,
 };
 
 pub use decoding::abi_decode_logs;

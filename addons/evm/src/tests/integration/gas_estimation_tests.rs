@@ -9,12 +9,13 @@
 #[cfg(test)]
 mod gas_estimation_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_estimate_simple_transfer() {
+    #[tokio::test]
+    async fn test_estimate_simple_transfer() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_estimate_simple_transfer - Anvil not installed");
             return;
@@ -25,7 +26,7 @@ mod gas_estimation_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/gas_estimation.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -33,10 +34,12 @@ mod gas_estimation_tests {
             .with_input("recipient", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
             .with_input("amount", "1000000000000000000") // 1 ETH
             .with_input("contract_bytecode", "0x6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea265627a7a7231582053f")
-            .with_input("custom_gas_limit", "100000");
+            .with_input("custom_gas_limit", "100000")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute gas estimation");
+        
         
         assert!(result.success, "Gas estimation should succeed");
         
@@ -56,8 +59,8 @@ mod gas_estimation_tests {
         println!("✅ Simple transfer gas estimation: {} gas", estimated_gas);
     }
     
-    #[test]
-    fn test_estimate_contract_deployment() {
+    #[tokio::test]
+    async fn test_estimate_contract_deployment() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_estimate_contract_deployment - Anvil not installed");
             return;
@@ -71,7 +74,7 @@ mod gas_estimation_tests {
         // Simple storage contract bytecode
         let bytecode = "0x608060405234801561001057600080fd5b5060b88061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c80632e64cec11460375780636057361d14604c575b600080fd5b60005460405190815260200160405180910390f35b6059605736600460536565565b50565b005b600055565b600060608284031215607657600080fd5b5035919050565b56fea264697066735822122035f";
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -79,10 +82,12 @@ mod gas_estimation_tests {
             .with_input("recipient", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
             .with_input("amount", "0")
             .with_input("contract_bytecode", bytecode)
-            .with_input("custom_gas_limit", "500000");
+            .with_input("custom_gas_limit", "500000")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute deployment gas estimation");
+        
         
         assert!(result.success, "Deployment gas estimation should succeed");
         
@@ -101,8 +106,8 @@ mod gas_estimation_tests {
         println!("✅ Contract deployment gas estimation: {} gas", deployment_gas);
     }
     
-    #[test]
-    fn test_estimated_gas_sufficient() {
+    #[tokio::test]
+    async fn test_estimated_gas_sufficient() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_estimated_gas_sufficient - Anvil not installed");
             return;
@@ -113,7 +118,7 @@ mod gas_estimation_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/gas_estimation.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -121,10 +126,12 @@ mod gas_estimation_tests {
             .with_input("recipient", "0x90f8bf6a479f320ead074411a4b0e7944ea8c9c1")
             .with_input("amount", "5000000000000000") // 0.005 ETH
             .with_input("contract_bytecode", "0x00")
-            .with_input("custom_gas_limit", "21000");
+            .with_input("custom_gas_limit", "21000")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute gas estimation test");
+        
         
         assert!(result.success, "Transaction with estimated gas should succeed");
         
@@ -153,8 +160,8 @@ mod gas_estimation_tests {
         }
     }
     
-    #[test]
-    fn test_custom_gas_limit() {
+    #[tokio::test]
+    async fn test_custom_gas_limit() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_custom_gas_limit - Anvil not installed");
             return;
@@ -165,7 +172,7 @@ mod gas_estimation_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/gas_estimation.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -173,10 +180,12 @@ mod gas_estimation_tests {
             .with_input("recipient", "0xffcf8fdee72ac11b5c542428b35eef5769c409f0")
             .with_input("amount", "1000000000000000")
             .with_input("contract_bytecode", "0x00")
-            .with_input("custom_gas_limit", "50000"); // More than needed
+            .with_input("custom_gas_limit", "50000")
+            .execute()
+            .await
+            .expect("Failed to execute test"); // More than needed
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute custom gas limit test");
+        
         
         assert!(result.success, "Transaction with custom gas limit should succeed");
         

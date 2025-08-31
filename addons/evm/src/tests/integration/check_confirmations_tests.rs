@@ -10,12 +10,13 @@
 #[cfg(test)]
 mod check_confirmations_integration_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_check_confirmations_basic() {
+    #[tokio::test]
+    async fn test_check_confirmations_basic() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_check_confirmations_basic - Anvil not installed");
@@ -27,14 +28,13 @@ mod check_confirmations_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/check_confirmations_transfer.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil()
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("recipient_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000") // 0.001 ETH
-            .with_input("confirmations", "3");
-        
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+            .with_input("confirmations", "3")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
         assert!(result.success, "Check confirmations should succeed");
         
@@ -52,8 +52,8 @@ mod check_confirmations_integration_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_check_confirmations_with_contract_deployment() {
+    #[tokio::test]
+    async fn test_check_confirmations_with_contract_deployment() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_check_confirmations_with_contract_deployment - Anvil not installed");
@@ -65,13 +65,15 @@ mod check_confirmations_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/check_confirmations_deployment.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil()
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            
             .with_input("bytecode", "0x602a60005260206000f3") // Returns 42
-            .with_input("confirmations", "2");
+            .with_input("confirmations", "2")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         
         assert!(result.success, "Deployment and confirmation should succeed");
         
@@ -99,8 +101,8 @@ mod check_confirmations_integration_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_check_confirmations_with_different_counts() {
+    #[tokio::test]
+    async fn test_check_confirmations_with_different_counts() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_check_confirmations_with_different_counts - Anvil not installed");
@@ -114,27 +116,31 @@ mod check_confirmations_integration_tests {
         
         // Test 1: Quick confirmation (1 block)
         println!("   Testing with 1 confirmation...");
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil()
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            
             .with_input("recipient_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000")
-            .with_input("confirmations", "1");
+            .with_input("confirmations", "1")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         assert!(result.success, "1 confirmation should succeed");
         harness.cleanup();
         
         // Test 2: More secure confirmation (5 blocks)
         println!("   Testing with 5 confirmations...");
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil()
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            
             .with_input("recipient_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000")
-            .with_input("confirmations", "5");
+            .with_input("confirmations", "5")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         assert!(result.success, "5 confirmations should succeed");
         
         println!("✅ Different confirmation counts test passed");

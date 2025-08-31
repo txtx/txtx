@@ -8,23 +8,26 @@
 
 #[cfg(test)]
 mod function_selector_tests {
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_encode_transfer_selector() {
+    #[tokio::test]
+    async fn test_encode_transfer_selector() {
         println!("🔍 Testing function selector for transfer(address,uint256)");
         
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/function_selector_test.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", "transfer(address,uint256)")
-            .with_input("function_params", r#"["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8", "1000000"]"#);
+            .with_input("function_params", r#"["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8", "1000000"]"#)
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to encode function selector");
+        
         
         assert!(result.success, "Function selector encoding should succeed");
         
@@ -42,19 +45,21 @@ mod function_selector_tests {
         println!("✅ Transfer selector test passed: {}", selector);
     }
     
-    #[test]
-    fn test_encode_approve_selector() {
+    #[tokio::test]
+    async fn test_encode_approve_selector() {
         println!("🔍 Testing function selector for approve(address,uint256)");
         
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/function_selector_test.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", "approve(address,uint256)")
-            .with_input("function_params", r#"["0x0000000000000000000000000000000000000000", "0"]"#);
+            .with_input("function_params", r#"["0x0000000000000000000000000000000000000000", "0"]"#)
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to encode function selector");
+        
         
         assert!(result.success, "Function selector encoding should succeed");
         
@@ -72,19 +77,21 @@ mod function_selector_tests {
         println!("✅ Approve selector test passed: {}", selector);
     }
     
-    #[test]
-    fn test_encode_balanceof_selector() {
+    #[tokio::test]
+    async fn test_encode_balanceof_selector() {
         println!("🔍 Testing function selector for balanceOf(address)");
         
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/function_selector_test.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", "balanceOf(address)")
-            .with_input("function_params", r#"["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8"]"#);
+            .with_input("function_params", r#"["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8"]"#)
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to encode function selector");
+        
         
         assert!(result.success, "Function selector encoding should succeed");
         
@@ -102,8 +109,8 @@ mod function_selector_tests {
         println!("✅ BalanceOf selector test passed: {}", selector);
     }
     
-    #[test]
-    fn test_encode_complex_function_selector() {
+    #[tokio::test]
+    async fn test_encode_complex_function_selector() {
         println!("🔍 Testing function selector for complex signature");
         
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -112,7 +119,7 @@ mod function_selector_tests {
         // Complex function with multiple parameter types
         let signature = "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)";
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", signature)
             .with_input("function_params", r#"[
                 "1000000",
@@ -120,10 +127,12 @@ mod function_selector_tests {
                 ["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8", "0x0000000000000000000000000000000000000000"],
                 "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
                 "1234567890"
-            ]"#);
+            ]"#)
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to encode complex function selector");
+        
         
         assert!(result.success, "Complex function selector encoding should succeed");
         
@@ -140,19 +149,21 @@ mod function_selector_tests {
         println!("✅ Complex selector test passed: {}", selector);
     }
     
-    #[test]
-    fn test_encode_function_with_no_params() {
+    #[tokio::test]
+    async fn test_encode_function_with_no_params() {
         println!("🔍 Testing function selector for parameterless function");
         
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/function_selector_test.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", "totalSupply()")
-            .with_input("function_params", r#"[]"#);
+            .with_input("function_params", r#"[]"#)
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to encode parameterless function");
+        
         
         assert!(result.success, "Parameterless function encoding should succeed");
         

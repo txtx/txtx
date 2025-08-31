@@ -25,8 +25,8 @@ mod deployment_integration_tests {
     use alloy::primitives::{Address, Bytes, B256, U256};
     use std::str::FromStr;
     
-    #[test]
-    fn test_create2_address_calculation() {
+    #[tokio::test]
+    async fn test_create2_address_calculation() {
         // Test CREATE2 address calculation without deployment
         let deployer = Address::from_str("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8").unwrap();
         let salt = B256::from([42u8; 32]);

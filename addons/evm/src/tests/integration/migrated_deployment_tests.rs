@@ -2,22 +2,22 @@
 
 #[cfg(test)]
 mod migrated_deployment_tests {
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
+    use tokio;
 
-    #[test]
-    fn test_minimal_contract_deployment_txtx() {
+    #[tokio::test]
+    async fn test_minimal_contract_deployment_txtx() {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/minimal_contract.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture);
-        harness
-            .with_input("chain_id", Value::integer(anvil.chain_id()))
-            .with_input("rpc_url", Value::string(anvil.endpoint()));
+        let harness = MigrationHelper::from_fixture(&fixture)
+            .with_input("chain_id", &anvil.chain_id().to_string())
+            .with_input("rpc_url", &anvil.endpoint());
 
-        let result = harness.run(vec![], vec![]);
+        let result = result.execute().await;
         
         match result {
             Ok(result) => {
@@ -42,17 +42,16 @@ mod migrated_deployment_tests {
         harness.cleanup();
     }
 
-    #[test]
-    fn test_constructor_args_deployment_txtx() {
+    #[tokio::test]
+    async fn test_constructor_args_deployment_txtx() {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/constructor_args.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture);
-        harness
-            .with_input("chain_id", Value::integer(anvil.chain_id()))
-            .with_input("rpc_url", Value::string(anvil.endpoint()));
+        let harness = MigrationHelper::from_fixture(&fixture)
+            .with_input("chain_id", &anvil.chain_id().to_string())
+            .with_input("rpc_url", &anvil.endpoint());
 
-        let result = harness.run(vec![], vec![]);
+        let result = result.execute().await;
         
         match result {
             Ok(result) => {
@@ -61,7 +60,7 @@ mod migrated_deployment_tests {
                 // Verify constructor value was set
                 if let Some(stored_value) = result.outputs.get("stored_value") {
                     match stored_value {
-                        Value::Integer(v) => assert_eq!(*v, 42),
+                        Value::Integer(v) => assert_eq!(*v, 42i128),
                         _ => panic!("Expected integer value"),
                     }
                 }
@@ -74,17 +73,16 @@ mod migrated_deployment_tests {
         harness.cleanup();
     }
 
-    #[test]
-    fn test_complex_constructor_deployment_txtx() {
+    #[tokio::test]
+    async fn test_complex_constructor_deployment_txtx() {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/complex_constructor.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture);
-        harness
-            .with_input("chain_id", Value::integer(anvil.chain_id()))
-            .with_input("rpc_url", Value::string(anvil.endpoint()));
+        let harness = MigrationHelper::from_fixture(&fixture)
+            .with_input("chain_id", &anvil.chain_id().to_string())
+            .with_input("rpc_url", &anvil.endpoint());
 
-        let result = harness.run(vec![], vec![]);
+        let result = result.execute().await;
         
         match result {
             Ok(result) => {
@@ -98,17 +96,16 @@ mod migrated_deployment_tests {
         harness.cleanup();
     }
 
-    #[test]
-    fn test_storage_contract_deployment_txtx() {
+    #[tokio::test]
+    async fn test_storage_contract_deployment_txtx() {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/storage_contract.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture);
-        harness
-            .with_input("chain_id", Value::integer(anvil.chain_id()))
-            .with_input("rpc_url", Value::string(anvil.endpoint()));
+        let harness = MigrationHelper::from_fixture(&fixture)
+            .with_input("chain_id", &anvil.chain_id().to_string())
+            .with_input("rpc_url", &anvil.endpoint());
 
-        let result = harness.run(vec![], vec![]);
+        let result = result.execute().await;
         
         match result {
             Ok(result) => {
@@ -121,17 +118,16 @@ mod migrated_deployment_tests {
         harness.cleanup();
     }
 
-    #[test]
-    fn test_factory_pattern_deployment_txtx() {
+    #[tokio::test]
+    async fn test_factory_pattern_deployment_txtx() {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/factory_pattern.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture);
-        harness
-            .with_input("chain_id", Value::integer(anvil.chain_id()))
-            .with_input("rpc_url", Value::string(anvil.endpoint()));
+        let harness = MigrationHelper::from_fixture(&fixture)
+            .with_input("chain_id", &anvil.chain_id().to_string())
+            .with_input("rpc_url", &anvil.endpoint());
 
-        let result = harness.run(vec![], vec![]);
+        let result = result.execute().await;
         
         match result {
             Ok(result) => {
@@ -149,17 +145,16 @@ mod migrated_deployment_tests {
         harness.cleanup();
     }
 
-    #[test]
-    fn test_upgradeable_proxy_deployment_txtx() {
+    #[tokio::test]
+    async fn test_upgradeable_proxy_deployment_txtx() {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/upgradeable_proxy.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture);
-        harness
-            .with_input("chain_id", Value::integer(anvil.chain_id()))
-            .with_input("rpc_url", Value::string(anvil.endpoint()));
+        let harness = MigrationHelper::from_fixture(&fixture)
+            .with_input("chain_id", &anvil.chain_id().to_string())
+            .with_input("rpc_url", &anvil.endpoint());
 
-        let result = harness.run(vec![], vec![]);
+        let result = result.execute().await;
         
         match result {
             Ok(result) => {
@@ -177,17 +172,16 @@ mod migrated_deployment_tests {
         harness.cleanup();
     }
 
-    #[test]
-    fn test_deployment_with_interaction_txtx() {
+    #[tokio::test]
+    async fn test_deployment_with_interaction_txtx() {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/deploy_and_interact.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture);
-        harness
-            .with_input("chain_id", Value::integer(anvil.chain_id()))
-            .with_input("rpc_url", Value::string(anvil.endpoint()));
+        let harness = MigrationHelper::from_fixture(&fixture)
+            .with_input("chain_id", &anvil.chain_id().to_string())
+            .with_input("rpc_url", &anvil.endpoint());
 
-        let result = harness.run(vec![], vec![]);
+        let result = result.execute().await;
         
         match result {
             Ok(result) => {

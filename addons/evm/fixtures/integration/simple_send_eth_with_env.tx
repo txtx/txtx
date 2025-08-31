@@ -1,0 +1,25 @@
+# Simple ETH transfer fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::secret_key" {
+    secret_key = input.private_key
+}
+
+# Send ETH to recipient
+action "send_eth" "evm::send_eth" {
+    signer = signer.test_signer
+    to = input.recipient
+    amount = input.amount
+}
+
+# Output transaction hash for verification
+output "tx_hash" {
+    value = action.send_eth.tx_hash
+}
+
+output "success" {
+    value = action.send_eth.success
+}

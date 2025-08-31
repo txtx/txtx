@@ -1,0 +1,60 @@
+# ETH transfer with structured test logging
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::secret_key" {
+    secret_key = input.private_key
+}
+
+# Send ETH to recipient
+action "send_eth" "evm::send_eth" {
+    signer = signer.test_signer
+    to = input.recipient
+    amount = input.amount
+    confirmations = 0
+}
+
+# Create a structured test log object for easy assertions
+output "test_log" {
+    value = {
+        test_metadata = {
+            test_name = "eth_transfer_test"
+            timestamp = "2024-08-31"
+            chain_id = input.chain_id
+        }
+        
+        inputs = {
+            sender = input.sender_address
+            recipient = input.recipient
+            amount = input.amount
+            rpc_url = input.rpc_url
+        }
+        
+        actions = {
+            send_eth = {
+                executed = true
+                tx_hash = action.send_eth.tx_hash
+                success = action.send_eth.success
+                gas_used = action.send_eth.gas_used
+                receipt = action.send_eth.receipt
+            }
+        }
+        
+        validation = {
+            amount_correct = (input.amount == 1000000000000000000)
+            recipient_valid = (input.recipient != "")
+            tx_hash_present = (action.send_eth.tx_hash != "")
+        }
+    }
+}
+
+# Also output individual values for backward compatibility
+output "tx_hash" {
+    value = action.send_eth.tx_hash
+}
+
+output "success" {
+    value = action.send_eth.success
+}

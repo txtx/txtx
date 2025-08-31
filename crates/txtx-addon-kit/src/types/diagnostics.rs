@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Range};
+use std::{any::Any, fmt::Display, ops::Range};
 
 use hcl_edit::{expr::Expression, structure::Block};
 
@@ -11,6 +11,7 @@ pub struct DiagnosticSpan {
     pub column_start: u32,
     pub column_end: u32,
 }
+
 impl DiagnosticSpan {
     pub fn new() -> Self {
         DiagnosticSpan { line_start: 0, line_end: 0, column_start: 0, column_end: 0 }
@@ -34,7 +35,7 @@ impl Display for DiagnosticLevel {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Diagnostic {
     pub span: Option<DiagnosticSpan>,
     span_range: Option<Range<usize>>,
@@ -44,7 +45,42 @@ pub struct Diagnostic {
     pub documentation: Option<String>,
     pub example: Option<String>,
     pub parent_diagnostic: Option<Box<Diagnostic>>,
+    /// Original error preserved for addons using error-stack
+    #[serde(skip)]
+    pub source_error: Option<Box<dyn Any + Send + Sync>>,
 }
+
+impl Clone for Diagnostic {
+    fn clone(&self) -> Self {
+        Diagnostic {
+            span: self.span.clone(),
+            span_range: self.span_range.clone(),
+            location: self.location.clone(),
+            message: self.message.clone(),
+            level: self.level.clone(),
+            documentation: self.documentation.clone(),
+            example: self.example.clone(),
+            parent_diagnostic: self.parent_diagnostic.clone(),
+            source_error: None, // Don't clone the source error
+        }
+    }
+}
+
+impl PartialEq for Diagnostic {
+    fn eq(&self, other: &Self) -> bool {
+        self.span == other.span
+            && self.span_range == other.span_range
+            && self.location == other.location
+            && self.message == other.message
+            && self.level == other.level
+            && self.documentation == other.documentation
+            && self.example == other.example
+            && self.parent_diagnostic == other.parent_diagnostic
+        // Ignore source_error in comparison
+    }
+}
+
+impl Eq for Diagnostic {}
 
 impl Diagnostic {
     pub fn error_from_expression(
@@ -81,8 +117,10 @@ impl Diagnostic {
             documentation: None,
             example: None,
             parent_diagnostic: None,
+            source_error: None,
         }
     }
+    
     pub fn warning_from_string(message: String) -> Diagnostic {
         Diagnostic {
             span: None,
@@ -93,8 +131,10 @@ impl Diagnostic {
             documentation: None,
             example: None,
             parent_diagnostic: None,
+            source_error: None,
         }
     }
+    
     pub fn note_from_string(message: String) -> Diagnostic {
         Diagnostic {
             span: None,
@@ -105,7 +145,20 @@ impl Diagnostic {
             documentation: None,
             example: None,
             parent_diagnostic: None,
+            source_error: None,
         }
+    }
+
+    /// Try to downcast the source error to a specific type
+    pub fn downcast_source<T: Any>(&self) -> Option<&T> {
+        self.source_error
+            .as_ref()
+            .and_then(|e| e.downcast_ref::<T>())
+    }
+    
+    /// Check if this diagnostic contains a specific error type
+    pub fn has_source_error_type<T: Any>(&self) -> bool {
+        self.downcast_source::<T>().is_some()
     }
 
     pub fn location(mut self, location: &FileLocation) -> Self {

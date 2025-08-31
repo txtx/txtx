@@ -81,7 +81,7 @@ fn test_format_transaction_cost_valid() {
 }
 
 #[test]
-fn test_format_transaction_cost_valid() {
+fn test_format_transaction_cost_negative() {
     // Test formatting 1 ETH
     let cost: i128 = 1_000_000_000_000_000_000;
     let result = format_transaction_cost(cost);

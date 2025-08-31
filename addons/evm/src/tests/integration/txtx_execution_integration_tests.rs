@@ -18,19 +18,22 @@ mod txtx_execution_tests {
         let anvil = AnvilInstance::spawn();
 
         // Set up project with the runbook fixture
-        let harness = ProjectTestHarness::new_foundry_from_fixture(
+        let result = ProjectTestHarness::new_foundry_from_fixture(
             "integration/send_eth.tx"
         )
         .with_input("rpc_url", anvil.rpc_url())
         .with_input("sender_address", ANVIL_ACCOUNTS[0])
         .with_input("recipient_address", ANVIL_ACCOUNTS[1])
-        .with_input("sender_private_key", ANVIL_PRIVATE_KEYS[0]);
+        .with_input("sender_private_key", ANVIL_PRIVATE_KEYS[0])
+            .execute()
+            .await
+            .expect("Failed to execute test");
 
         // Setup the project structure
         harness.setup().expect("Failed to setup project");
 
         // Execute the runbook through txtx
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Verify execution succeeded
         assert!(result.is_ok(), "Runbook execution failed: {:?}", result);
@@ -63,18 +66,21 @@ mod txtx_execution_tests {
         let anvil = AnvilInstance::spawn();
 
         // Set up Foundry-based project with fixture
-        let harness = ProjectTestHarness::new_foundry_from_fixture(
+        let result = ProjectTestHarness::new_foundry_from_fixture(
             "integration/deploy_contract.tx"
         )
         .with_input("rpc_url", anvil.rpc_url())
         .with_input("deployer_address", ANVIL_ACCOUNTS[0])
-        .with_input("deployer_private_key", ANVIL_PRIVATE_KEYS[0]);
+        .with_input("deployer_private_key", ANVIL_PRIVATE_KEYS[0])
+            .execute()
+            .await
+            .expect("Failed to execute test");
 
         // Setup the project structure
         harness.setup().expect("Failed to setup Foundry project");
 
         // Execute the runbook
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Verify execution succeeded
         assert!(result.is_ok(), "Runbook execution failed: {:?}", result);
@@ -107,18 +113,21 @@ mod txtx_execution_tests {
         let anvil = AnvilInstance::spawn();
 
         // Set up project with interaction fixture
-        let harness = ProjectTestHarness::new_foundry_from_fixture(
+        let result = ProjectTestHarness::new_foundry_from_fixture(
             "integration/interact_contract.tx"
         )
         .with_input("rpc_url", anvil.rpc_url())
         .with_input("deployer_address", ANVIL_ACCOUNTS[0])
-        .with_input("deployer_private_key", ANVIL_PRIVATE_KEYS[0]);
+        .with_input("deployer_private_key", ANVIL_PRIVATE_KEYS[0])
+            .execute()
+            .await
+            .expect("Failed to execute test");
 
         // Setup the project structure
         harness.setup().expect("Failed to setup project");
 
         // Execute the runbook
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Verify execution succeeded
         assert!(result.is_ok(), "Runbook execution failed: {:?}", result);
@@ -156,18 +165,21 @@ mod txtx_execution_tests {
         let anvil = AnvilInstance::spawn();
 
         // Set up Hardhat-based project with fixture
-        let harness = ProjectTestHarness::new_hardhat_from_fixture(
+        let result = ProjectTestHarness::new_hardhat_from_fixture(
             "integration/hardhat_deploy.tx"
         )
         .with_input("rpc_url", anvil.rpc_url())
         .with_input("deployer_address", ANVIL_ACCOUNTS[0])
-        .with_input("deployer_private_key", ANVIL_PRIVATE_KEYS[0]);
+        .with_input("deployer_private_key", ANVIL_PRIVATE_KEYS[0])
+            .execute()
+            .await
+            .expect("Failed to execute test");
 
         // Setup the project structure
         harness.setup().expect("Failed to setup Hardhat project");
 
         // Execute the runbook
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Verify execution succeeded
         assert!(result.is_ok(), "Runbook execution failed: {:?}", result);
@@ -188,7 +200,7 @@ mod txtx_execution_tests {
         
         // Verify deployment status
         if let Some(Value::Integer(status)) = execution_result.outputs.get("deployment_status") {
-            assert_eq!(*status, 1, "Hardhat deployment failed with status 0");
+            assert_eq!(*status, 1i128, "Hardhat deployment failed with status 0");
         }
     });
 }

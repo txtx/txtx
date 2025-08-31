@@ -51,8 +51,8 @@ mod codec_integration_tests {
         }
     ]"#;
     
-    #[test]
-    fn test_encode_primitive_types() {
+    #[tokio::test]
+    async fn test_encode_primitive_types() {
         let abi: JsonAbi = serde_json::from_str(TYPE_TEST_ABI).unwrap();
         
         // Create test values for all primitive types
@@ -85,8 +85,8 @@ mod codec_integration_tests {
         }
     }
     
-    #[test]
-    fn test_encode_struct() {
+    #[tokio::test]
+    async fn test_encode_struct() {
         let abi: JsonAbi = serde_json::from_str(TYPE_TEST_ABI).unwrap();
         
         // Create a struct value
@@ -110,8 +110,8 @@ mod codec_integration_tests {
         }
     }
     
-    #[test]
-    fn test_encode_invalid_address_with_context() {
+    #[tokio::test]
+    async fn test_encode_invalid_address_with_context() {
         let param = Param {
             name: "recipient".to_string(),
             ty: "address".to_string(),
@@ -146,8 +146,8 @@ mod codec_integration_tests {
         }
     }
     
-    #[test]
-    fn test_encode_array_with_invalid_element() {
+    #[tokio::test]
+    async fn test_encode_array_with_invalid_element() {
         let param = Param {
             name: "recipients".to_string(),
             ty: "address[]".to_string(),
@@ -172,8 +172,8 @@ mod codec_integration_tests {
         // With enhanced errors, we'd see: "Element 2 (address): Invalid address format"
     }
     
-    #[test]
-    fn test_uint_overflow_detection() {
+    #[tokio::test]
+    async fn test_uint_overflow_detection() {
         // Test uint8 with value > 255
         let param_u8 = Param {
             name: "age".to_string(),
@@ -210,8 +210,8 @@ mod codec_integration_tests {
         }
     }
     
-    #[test]
-    fn test_negative_to_unsigned() {
+    #[tokio::test]
+    async fn test_negative_to_unsigned() {
         let param = Param {
             name: "amount".to_string(),
             ty: "uint256".to_string(),
@@ -230,8 +230,8 @@ mod codec_integration_tests {
         }
     }
     
-    #[test]
-    fn test_nested_struct_encoding() {
+    #[tokio::test]
+    async fn test_nested_struct_encoding() {
         // Define a nested struct parameter
         let param = Param {
             name: "order".to_string(),

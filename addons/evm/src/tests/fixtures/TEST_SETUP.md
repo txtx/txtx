@@ -21,7 +21,7 @@ temp_dir/
 
 The `ProjectTestHarness::create_txtx_yml()` method generates:
 
-```yaml
+```
 name: Test Project
 description: Test project for EVM addon
 runbooks:

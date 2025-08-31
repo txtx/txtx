@@ -7,8 +7,8 @@ mod txtx_command_tests {
     use crate::errors::{EvmError, TransactionError, ContractError, CodecError};
     use error_stack::Report;
     
-    #[test]
-    fn test_error_types_are_used_in_commands() {
+    #[tokio::test]
+    async fn test_error_types_are_used_in_commands() {
         // This test verifies that our error types are actually used
         // in the command implementations
         
@@ -35,8 +35,8 @@ mod txtx_command_tests {
         assert!(invalid_address.to_string().contains("Invalid address"));
     }
     
-    #[test]
-    fn test_command_error_context_structure() {
+    #[tokio::test]
+    async fn test_command_error_context_structure() {
         // Verify that commands can attach proper context to errors
         
         let base_error = Report::new(EvmError::Transaction(
@@ -62,8 +62,8 @@ mod txtx_command_tests {
         assert!(display_output.len() > 0, "Error display output: {}", display_output);
     }
     
-    #[test]
-    fn test_command_module_exports() {
+    #[tokio::test]
+    async fn test_command_module_exports() {
         // Verify that all command modules export their specifications
         use crate::commands::actions::{
             send_eth::SEND_ETH,
@@ -80,8 +80,8 @@ mod txtx_command_tests {
         let _ = &*SIGN_TRANSACTION;
     }
     
-    #[test]
-    fn test_error_detection_logic() {
+    #[tokio::test]
+    async fn test_error_detection_logic() {
         // Test the error detection patterns used in commands
         
         let rpc_errors = vec![
@@ -112,8 +112,8 @@ mod txtx_command_tests {
         }
     }
     
-    #[test]
-    fn test_command_inputs_validation() {
+    #[tokio::test]
+    async fn test_command_inputs_validation() {
         // Test that commands properly validate their inputs
         // This represents what happens during runbook parsing
         

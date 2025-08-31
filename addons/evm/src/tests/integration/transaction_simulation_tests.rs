@@ -9,12 +9,13 @@
 #[cfg(test)]
 mod transaction_simulation_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_simulate_transfer() {
+    #[tokio::test]
+    async fn test_simulate_transfer() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_simulate_transfer - Anvil not installed");
             return;
@@ -25,7 +26,7 @@ mod transaction_simulation_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_simulation.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -34,10 +35,12 @@ mod transaction_simulation_tests {
             .with_input("amount", "1000000000000000000")
             .with_input("contract_address", "0x0000000000000000000000000000000000000000")
             .with_input("function_data", "0x")
-            .with_input("invalid_data", "0xdeadbeef");
+            .with_input("invalid_data", "0xdeadbeef")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute transfer simulation");
+        
         
         assert!(result.success, "Transfer simulation should succeed");
         
@@ -111,8 +114,8 @@ mod transaction_simulation_tests {
         panic!("Test needs contract that can revert with reason");
     }
     
-    #[test]
-    fn test_dry_run_transaction() {
+    #[tokio::test]
+    async fn test_dry_run_transaction() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_dry_run_transaction - Anvil not installed");
             return;
@@ -123,7 +126,7 @@ mod transaction_simulation_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_simulation.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -132,10 +135,12 @@ mod transaction_simulation_tests {
             .with_input("amount", "500000000000000000")
             .with_input("contract_address", "0x0000000000000000000000000000000000000000")
             .with_input("function_data", "0x")
-            .with_input("invalid_data", "0x");
+            .with_input("invalid_data", "0x")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute dry-run test");
+        
         
         assert!(result.success, "Dry-run should succeed");
         

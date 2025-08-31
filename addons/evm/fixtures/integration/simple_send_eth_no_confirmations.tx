@@ -1,0 +1,26 @@
+# Simple ETH transfer fixture with no confirmations
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::secret_key" {
+    secret_key = input.private_key
+}
+
+# Send ETH to recipient - no confirmations wait
+action "send_eth" "evm::send_eth" {
+    signer = signer.test_signer
+    to = input.recipient
+    amount = input.amount
+    confirmations = 0  # Don't wait for confirmations in tests
+}
+
+# Output transaction hash for verification
+output "tx_hash" {
+    value = action.send_eth.tx_hash
+}
+
+output "success" {
+    value = action.send_eth.success
+}

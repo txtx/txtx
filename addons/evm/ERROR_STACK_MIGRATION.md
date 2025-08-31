@@ -187,7 +187,7 @@ fn test_insufficient_funds_error() {
 
 ## Migration Status
 
-### ✅ MIGRATION COMPLETE (December 2024)
+### ✅ MIGRATION COMPLETE
 
 The error-stack migration for the EVM addon is now **100% complete**. All modules have been successfully migrated from string-based errors to typed error-stack errors.
 

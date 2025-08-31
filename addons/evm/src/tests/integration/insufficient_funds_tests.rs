@@ -2,13 +2,14 @@
 
 #[cfg(test)]
 mod insufficient_funds_tests {
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
     use crate::errors::{EvmError, TransactionError};
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_insufficient_funds_for_transfer() {
+    #[tokio::test]
+    async fn test_insufficient_funds_for_transfer() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_insufficient_funds_for_transfer - Anvil not installed");
@@ -22,14 +23,14 @@ mod insufficient_funds_tests {
             .join("fixtures/integration/errors/insufficient_funds_transfer.tx");
         
         // Create harness with Anvil
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let harness = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil();
         
         // Setup project
         harness.setup().expect("Failed to setup project");
         
         // Execute runbook - should fail
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Verify it failed
         assert!(result.is_err(), "Transaction should fail due to insufficient funds");
@@ -53,8 +54,8 @@ mod insufficient_funds_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_insufficient_funds_for_transfer_with_fixture() {
+    #[tokio::test]
+    async fn test_insufficient_funds_for_transfer_with_fixture() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("Warning: Skipping test_insufficient_funds_for_transfer_with_fixture - Anvil not installed");
@@ -68,14 +69,14 @@ mod insufficient_funds_tests {
             .join("fixtures/integration/errors/insufficient_funds_transfer.tx");
         
         // Create harness with Anvil
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let harness = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil();
         
         // Setup project
         harness.setup().expect("Failed to setup project");
         
         // Execute runbook - should fail
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Verify it failed with the right error
         assert!(result.is_err(), "Transaction should fail due to insufficient funds");
@@ -99,8 +100,8 @@ mod insufficient_funds_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_insufficient_funds_for_gas() {
+    #[tokio::test]
+    async fn test_insufficient_funds_for_gas() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_insufficient_funds_for_gas - Anvil not installed");
@@ -114,14 +115,14 @@ mod insufficient_funds_tests {
             .join("fixtures/integration/errors/insufficient_gas.tx");
         
         // Create harness with Anvil
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let harness = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil();
         
         // Setup project
         harness.setup().expect("Failed to setup project");
         
         // Execute runbook - should fail
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Verify it failed
         assert!(result.is_err(), "Transaction should fail due to insufficient funds for gas");

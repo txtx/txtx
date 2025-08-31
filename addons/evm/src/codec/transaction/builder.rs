@@ -4,7 +4,7 @@ use super::eip1559::build_unsigned_eip1559_transaction_v2;
 use super::cost::set_gas_limit_v2;
 
 use crate::commands::actions::get_expected_address;
-use crate::errors::{EvmError, EvmResult, TransactionError, CodecError, TransactionContext};
+use crate::errors::{EvmError, EvmResult, TransactionError, TransactionContext};
 use crate::rpc::EvmRpc;
 
 use alloy::network::TransactionBuilder;

@@ -2,11 +2,11 @@
 
 #[cfg(test)]
 mod foundry_deploy_tests {
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
     
-    #[test]
-    fn test_deploy_simple_storage_from_foundry() {
+    #[tokio::test]
+    async fn test_deploy_simple_storage_from_foundry() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test - Anvil not installed");
@@ -38,8 +38,7 @@ mod foundry_deploy_tests {
         println!("Foundry project structure copied successfully");
         
         // Execute runbook
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         
         // Verify deployment succeeded
         assert!(result.success, "Deployment should succeed");
@@ -53,7 +52,7 @@ mod foundry_deploy_tests {
         let contract_addr_str = contract_address.as_string().unwrap_or_default();
         
         // Use Anvil instance to verify
-        let anvil = harness.anvil().expect("Anvil should be running");
+        let anvil = harness.anvil.as_ref().expect("Anvil should be running");
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             use alloy::providers::{Provider, ProviderBuilder};
@@ -96,8 +95,8 @@ mod foundry_deploy_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_deploy_with_create2_from_foundry() {
+    #[tokio::test]
+    async fn test_deploy_with_create2_from_foundry() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("Warning: Skipping test - Anvil not installed");
@@ -162,8 +161,7 @@ output "deployed_address" {
         
         harness.setup().expect("Failed to setup project");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute runbook");
+        
         
         assert!(result.success, "Deployment should succeed");
         

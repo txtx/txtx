@@ -9,12 +9,13 @@
 #[cfg(test)]
 mod transaction_cost_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_legacy_transaction_cost() {
+    #[tokio::test]
+    async fn test_legacy_transaction_cost() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_legacy_transaction_cost - Anvil not installed");
             return;
@@ -25,7 +26,7 @@ mod transaction_cost_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cost.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -35,10 +36,12 @@ mod transaction_cost_tests {
             .with_input("gas_price", "20000000000") // 20 gwei
             .with_input("gas_limit", "21000")
             .with_input("max_fee_per_gas", "25000000000")
-            .with_input("max_priority_fee", "2000000000");
+            .with_input("max_priority_fee", "2000000000")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute cost calculation");
+        
         
         assert!(result.success, "Cost calculation should succeed");
         
@@ -58,8 +61,8 @@ mod transaction_cost_tests {
         println!("✅ Legacy transaction cost: {} wei", estimated_cost);
     }
     
-    #[test]
-    fn test_eip1559_transaction_cost() {
+    #[tokio::test]
+    async fn test_eip1559_transaction_cost() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_eip1559_transaction_cost - Anvil not installed");
             return;
@@ -70,7 +73,7 @@ mod transaction_cost_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cost.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -80,10 +83,12 @@ mod transaction_cost_tests {
             .with_input("gas_price", "15000000000")
             .with_input("gas_limit", "21000")
             .with_input("max_fee_per_gas", "30000000000") // 30 gwei
-            .with_input("max_priority_fee", "3000000000"); // 3 gwei
+            .with_input("max_priority_fee", "3000000000")
+            .execute()
+            .await
+            .expect("Failed to execute test"); // 3 gwei
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute EIP-1559 cost calculation");
+        
         
         assert!(result.success, "EIP-1559 cost calculation should succeed");
         
@@ -102,8 +107,8 @@ mod transaction_cost_tests {
         println!("✅ EIP-1559 max transaction cost: {} wei", estimated_cost);
     }
     
-    #[test]
-    fn test_high_gas_price_cost() {
+    #[tokio::test]
+    async fn test_high_gas_price_cost() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_high_gas_price_cost - Anvil not installed");
             return;
@@ -114,7 +119,7 @@ mod transaction_cost_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cost.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -124,10 +129,12 @@ mod transaction_cost_tests {
             .with_input("gas_price", "100000000000") // 100 gwei (high)
             .with_input("gas_limit", "21000")
             .with_input("max_fee_per_gas", "150000000000")
-            .with_input("max_priority_fee", "10000000000");
+            .with_input("max_priority_fee", "10000000000")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute high gas price test");
+        
         
         assert!(result.success, "High gas price calculation should succeed");
         
@@ -145,8 +152,8 @@ mod transaction_cost_tests {
         println!("✅ High gas price cost: {} wei (0.0021 ETH)", high_cost);
     }
     
-    #[test] 
-    fn test_zero_gas_price() {
+    #[tokio::test]
+    async fn test_zero_gas_price() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_zero_gas_price - Anvil not installed");
             return;
@@ -157,7 +164,7 @@ mod transaction_cost_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cost.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -167,10 +174,12 @@ mod transaction_cost_tests {
             .with_input("gas_price", "0") // Free gas (test networks)
             .with_input("gas_limit", "21000")
             .with_input("max_fee_per_gas", "0")
-            .with_input("max_priority_fee", "0");
+            .with_input("max_priority_fee", "0")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute zero gas price test");
+        
         
         assert!(result.success, "Zero gas price calculation should succeed");
         

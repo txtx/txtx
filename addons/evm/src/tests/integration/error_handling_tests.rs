@@ -5,12 +5,13 @@
 #[cfg(test)]
 mod error_handling_integration_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::errors::{EvmError, TransactionError, CodecError, SignerError};
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_insufficient_funds_error() {
+    #[tokio::test]
+    async fn test_insufficient_funds_error() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_insufficient_funds_error - Anvil not installed");
@@ -22,12 +23,16 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/insufficient_funds_transfer.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil()
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
-            .with_input("amount", "1000000000000000000000"); // 1000 ETH (way too much)
+            .with_input("amount", "1000000000000000000000")
+            .execute()
+            .await
+            .expect("Failed to execute test"); // 1000 ETH (way too much)
         
-        let result = harness.execute_runbook();
+        harness.setup().expect("Failed to setup project");
+        let result = result.execute().await;
         
         // Should fail due to insufficient funds
         assert!(result.is_err() || !result.as_ref().unwrap().success,
@@ -50,8 +55,8 @@ mod error_handling_integration_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_invalid_address_error() {
+    #[tokio::test]
+    async fn test_invalid_address_error() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_invalid_address_error - Anvil not installed");
@@ -63,10 +68,10 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/invalid_hex_address.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil();
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            ;
         
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Should fail due to invalid address format
         assert!(result.is_err() || !result.as_ref().unwrap().success,
@@ -90,8 +95,8 @@ mod error_handling_integration_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_missing_signer_error() {
+    #[tokio::test]
+    async fn test_missing_signer_error() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_missing_signer_error - Anvil not installed");
@@ -103,10 +108,10 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/missing_signer.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil();
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            ;
         
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Should fail due to missing signer
         assert!(result.is_err() || !result.as_ref().unwrap().success,
@@ -129,8 +134,8 @@ mod error_handling_integration_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_invalid_function_call_error() {
+    #[tokio::test]
+    async fn test_invalid_function_call_error() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_invalid_function_call_error - Anvil not installed");
@@ -142,10 +147,10 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/invalid_function_call.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil();
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            ;
         
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Should fail due to invalid function
         assert!(result.is_err() || !result.as_ref().unwrap().success,
@@ -156,8 +161,8 @@ mod error_handling_integration_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_out_of_gas_error() {
+    #[tokio::test]
+    async fn test_out_of_gas_error() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_out_of_gas_error - Anvil not installed");
@@ -169,11 +174,14 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/out_of_gas.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil()
-            .with_input("contract_bytecode", "0x608060405234801561001057600080fd5b50610150806100206000396000f3fe");
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            
+            .with_input("contract_bytecode", "0x608060405234801561001057600080fd5b50610150806100206000396000f3fe")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Should fail due to insufficient gas
         assert!(result.is_err() || !result.as_ref().unwrap().success,
@@ -196,8 +204,8 @@ mod error_handling_integration_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_invalid_nonce_too_high() {
+    #[tokio::test]
+    async fn test_invalid_nonce_too_high() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_invalid_nonce_too_high - Anvil not installed");
@@ -209,12 +217,15 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/invalid_nonce.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil()
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
-            .with_input("wrong_nonce", "999"); // Way too high
+            .with_input("wrong_nonce", "999")
+            .execute()
+            .await
+            .expect("Failed to execute test"); // Way too high
         
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Should fail due to invalid nonce
         assert!(result.is_err() || !result.as_ref().unwrap().success,
@@ -237,8 +248,8 @@ mod error_handling_integration_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_call_non_contract_address() {
+    #[tokio::test]
+    async fn test_call_non_contract_address() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_call_non_contract_address - Anvil not installed");
@@ -250,12 +261,15 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/invalid_contract_address.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil()
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            
             // Use a regular EOA address (no contract code)
-            .with_input("non_contract_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8");
+            .with_input("non_contract_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Should fail because there's no contract at the address
         assert!(result.is_err() || !result.as_ref().unwrap().success,
@@ -266,8 +280,8 @@ mod error_handling_integration_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_insufficient_gas_price() {
+    #[tokio::test]
+    async fn test_insufficient_gas_price() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_insufficient_gas_price - Anvil not installed");
@@ -279,10 +293,10 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/insufficient_gas.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil();
+        let result = MigrationHelper::from_fixture(&fixture_path)
+            ;
         
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // Transaction might be rejected or stuck
         // The exact behavior depends on the fixture implementation

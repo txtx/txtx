@@ -5,11 +5,12 @@
 #[cfg(test)]
 mod contract_interaction_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_multi_contract_calls() {
+    #[tokio::test]
+    async fn test_multi_contract_calls() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_multi_contract_calls - Anvil not installed");
@@ -22,10 +23,8 @@ mod contract_interaction_tests {
         let deploy_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/deployments/storage_contract.tx");
         
-        let mut deploy_harness = ProjectTestHarness::from_fixture(&deploy_fixture)
-            .with_anvil();
-        
-        let deploy_result = deploy_harness.execute_runbook()
+        let deploy_result = MigrationHelper::from_fixture(&deploy_fixture)
+            .execute().await
             .expect("Failed to deploy storage contract");
         
         let contract_address = deploy_result.outputs.get("contract_address")
@@ -38,12 +37,11 @@ mod contract_interaction_tests {
         let multi_call_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/contracts/multi_call.tx");
         
-        let mut call_harness = ProjectTestHarness::from_fixture(&multi_call_fixture)
-            .with_anvil()
-            .with_input("contract_address", &contract_address)
-            .with_input("value_to_set", "100");
-        
-        let call_result = call_harness.execute_runbook()
+        let call_result = MigrationHelper::from_fixture(&multi_call_fixture)
+            .with_input("contract_address", contract_address)
+            .with_input("value_to_set", "100")
+            .execute()
+            .await
             .expect("Failed to execute multi-call");
         
         // Verify we got transaction hashes for state-changing calls
@@ -66,8 +64,8 @@ mod contract_interaction_tests {
         call_harness.cleanup();
     }
     
-    #[test]
-    fn test_transaction_receipt_data() {
+    #[tokio::test]
+    async fn test_transaction_receipt_data() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_transaction_receipt_data - Anvil not installed");
@@ -79,13 +77,15 @@ mod contract_interaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/transaction_receipt.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil()
+        let harness = MigrationHelper::from_fixture(&fixture_path)
+            
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
-            .with_input("amount", "1000000000000000"); // 0.001 ETH
+            .with_input("amount", "1000000000000000")
+            .execute()
+            .await
+            .expect("Failed to execute test"); // 0.001 ETH
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute transaction");
+        
         
         // Verify receipt data was extracted
         let tx_hash = result.outputs.get("tx_hash")
@@ -105,8 +105,8 @@ mod contract_interaction_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_view_function_calls() {
+    #[tokio::test]
+    async fn test_view_function_calls() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_view_function_calls - Anvil not installed");
@@ -119,11 +119,10 @@ mod contract_interaction_tests {
         let deploy_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/deployments/storage_contract.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&deploy_fixture)
-            .with_anvil();
+        let harness = MigrationHelper::from_fixture(&deploy_fixture)
+            ;
         
-        let result = harness.execute_runbook()
-            .expect("Failed to deploy contract");
+        
         
         let contract_address = result.outputs.get("contract_address")
             .and_then(|v| v.as_string())
@@ -148,8 +147,8 @@ mod contract_interaction_tests {
         harness.cleanup();
     }
     
-    #[test]
-    fn test_contract_deployment_with_args() {
+    #[tokio::test]
+    async fn test_contract_deployment_with_args() {
         // Skip if Anvil not available
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_contract_deployment_with_args - Anvil not installed");
@@ -161,11 +160,10 @@ mod contract_interaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/deployments/constructor_args.tx");
         
-        let mut harness = ProjectTestHarness::from_fixture(&fixture_path)
-            .with_anvil();
+        let harness = MigrationHelper::from_fixture(&fixture_path)
+            ;
         
-        let result = harness.execute_runbook()
-            .expect("Failed to deploy with constructor args");
+        
         
         let contract_address = result.outputs.get("contract_address")
             .and_then(|v| v.as_string())

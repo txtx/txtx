@@ -1,6 +1,5 @@
 use crate::codec::transaction::types::{TransactionType, CommonTransactionFields};
 use crate::codec::{get_typed_transaction_bytes, typed_transaction_bytes, string_to_address, format_transaction_cost};
-use crate::codec::transaction::format_transaction_cost;
 use crate::rpc::EvmRpc;
 use crate::typing::EvmValue;
 use alloy::primitives::{address, Address, U256, TxKind};
@@ -202,15 +201,7 @@ async fn test_format_transaction_cost() {
     assert!(!formatted.is_empty());
 }
 
-#[tokio::test]
-async fn test_format_transaction_cost() {
-    let cost: i128 = 1000000000000000000; // 1 ETH
-    let result = format_transaction_cost(cost);
-    assert!(result.is_ok());
-    
-    let formatted = result.unwrap();
-    assert!(!formatted.is_empty());
-}
+
 
 #[test]
 fn test_string_to_address_valid() {

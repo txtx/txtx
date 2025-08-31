@@ -15,7 +15,6 @@ use crate::typing::{
 };
 
 // For backward compatibility
-use txtx_addon_kit::types::diagnostics::Diagnostic;
 
 pub fn value_to_abi_function_args(
     function_name: &str,

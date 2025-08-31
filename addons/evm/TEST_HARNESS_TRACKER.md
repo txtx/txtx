@@ -14,7 +14,7 @@
 | Phase | Status | Completion | Notes |
 |-------|--------|------------|-------|
 | Phase 0: Core Execution | ✅ Complete | 100% | txtx-core integration working |
-| Phase 1: Fixture System | ✅ Complete | 100% | YAML-based system implemented |
+| Phase 1: Fixture System | ✅ Complete | 100% | Runbook-based system implemented |
 | Phase 2: Action Tests | 🚧 In Progress | 5% | 2/40 tests migrated |
 | Phase 3: Codec Tests | ⏳ Pending | 0% | 60 tests to migrate |
 | Phase 4: Integration | ⏳ Pending | 0% | Complex scenarios |
@@ -44,7 +44,7 @@
 - 🚧 Identified signer initialization issue
 
 ### Session 3 (Fixture System Implementation)
-- ✅ Designed and implemented YAML-based fixture system
+- ✅ Designed and implemented runbook-based fixture system
 - ✅ Created 5 core modules (loader, executor, validator, tracker)
 - ✅ Built SQLite tracking and HTML dashboard
 - ✅ Added CLI tool for fixture management

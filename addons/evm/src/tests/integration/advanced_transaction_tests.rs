@@ -9,12 +9,13 @@
 #[cfg(test)]
 mod advanced_transaction_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::test_harness::ProjectTestHarness;
+    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
+    use tokio;
     
-    #[test]
-    fn test_transaction_replacement() {
+    #[tokio::test]
+    async fn test_transaction_replacement() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_transaction_replacement - Anvil not installed");
             return;
@@ -25,7 +26,7 @@ mod advanced_transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_replacement.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -35,10 +36,12 @@ mod advanced_transaction_tests {
             .with_input("replacement_amount", "2000000000000000") // 0.002 ETH
             .with_input("initial_gas_price", "10000000000") // 10 gwei
             .with_input("replacement_gas_price", "20000000000") // 20 gwei (higher)
-            .with_input("nonce", "100"); // Use specific nonce
+            .with_input("nonce", "100")
+            .execute()
+            .await
+            .expect("Failed to execute test"); // Use specific nonce
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute transaction replacement");
+        
         
         assert!(result.success, "Transaction replacement should succeed");
         
@@ -55,8 +58,8 @@ mod advanced_transaction_tests {
         println!("✅ Transaction replacement successful: {}", replacement_hash);
     }
     
-    #[test]
-    fn test_transaction_cancellation() {
+    #[tokio::test]
+    async fn test_transaction_cancellation() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_transaction_cancellation - Anvil not installed");
             return;
@@ -67,7 +70,7 @@ mod advanced_transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cancellation.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -76,10 +79,12 @@ mod advanced_transaction_tests {
             .with_input("amount", "5000000000000000") // 0.005 ETH
             .with_input("initial_gas_price", "10000000000") // 10 gwei
             .with_input("cancel_gas_price", "30000000000") // 30 gwei (much higher)
-            .with_input("nonce", "200");
+            .with_input("nonce", "200")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute transaction cancellation");
+        
         
         assert!(result.success, "Transaction cancellation should succeed");
         
@@ -96,8 +101,8 @@ mod advanced_transaction_tests {
         println!("✅ Transaction cancelled successfully: {}", cancel_hash);
     }
     
-    #[test]
-    fn test_pending_transactions() {
+    #[tokio::test]
+    async fn test_pending_transactions() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_pending_transactions - Anvil not installed");
             return;
@@ -111,17 +116,19 @@ mod advanced_transaction_tests {
         let recipients = r#"["0x70997970c51812dc3a010c7d01b50e0d17dc79c8", "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc", "0x90f8bf6a479f320ead074411a4b0e7944ea8c9c1"]"#;
         let amounts = r#"["1000000000000000", "2000000000000000", "3000000000000000"]"#;
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
             .with_input("private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
             .with_input("recipients", recipients)
             .with_input("amounts", amounts)
-            .with_input("gas_price", "15000000000");
+            .with_input("gas_price", "15000000000")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute pending transactions test");
+        
         
         assert!(result.success, "Pending transactions test should succeed");
         
@@ -138,8 +145,8 @@ mod advanced_transaction_tests {
         println!("✅ Pending transactions managed successfully");
     }
     
-    #[test]
-    fn test_batch_transactions() {
+    #[tokio::test]
+    async fn test_batch_transactions() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_batch_transactions - Anvil not installed");
             return;
@@ -155,7 +162,7 @@ mod advanced_transaction_tests {
         let gas_prices = r#"["10000000000", "15000000000", "20000000000"]"#;
         let data = r#"["0x", "0x", "0x"]"#;
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -163,10 +170,12 @@ mod advanced_transaction_tests {
             .with_input("recipients", recipients)
             .with_input("amounts", amounts)
             .with_input("gas_prices", gas_prices)
-            .with_input("data_payloads", data);
+            .with_input("data_payloads", data)
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute batch transactions test");
+        
         
         assert!(result.success, "Batch transactions should succeed");
         
@@ -209,7 +218,7 @@ mod advanced_transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_replacement.tx");
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -219,16 +228,19 @@ mod advanced_transaction_tests {
             .with_input("replacement_amount", "1000000000000000")
             .with_input("initial_gas_price", "10000000000")
             .with_input("replacement_gas_price", "10000000000")
-            .with_input("nonce", "9999"); // Very high nonce
+            .with_input("nonce", "9999")
+            .execute()
+            .await
+            .expect("Failed to execute test"); // Very high nonce
         
-        let result = harness.execute_runbook();
+        let result = result.execute().await;
         
         // TODO: Add proper assertions once requirements are defined
         panic!("Test needs requirements: How should nonce gaps be handled?");
     }
     
-    #[test]
-    fn test_concurrent_transactions() {
+    #[tokio::test]
+    async fn test_concurrent_transactions() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_concurrent_transactions - Anvil not installed");
             return;
@@ -242,17 +254,19 @@ mod advanced_transaction_tests {
         let recipients = r#"["0x70997970c51812dc3a010c7d01b50e0d17dc79c8", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"]"#;
         let amounts = r#"["100000000000000", "200000000000000", "300000000000000"]"#;
         
-        let harness = ProjectTestHarness::from_fixture(&fixture_path)
+        let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
             .with_input("private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
             .with_input("recipients", recipients)
             .with_input("amounts", amounts)
-            .with_input("gas_price", "10000000000");
+            .with_input("gas_price", "10000000000")
+            .execute()
+            .await
+            .expect("Failed to execute test");
         
-        let result = harness.execute_runbook()
-            .expect("Failed to execute concurrent transactions");
+        
         
         assert!(result.success, "Concurrent transactions should succeed");
         
