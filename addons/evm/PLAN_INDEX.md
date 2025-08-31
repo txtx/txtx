@@ -4,6 +4,19 @@
 
 This index provides a central reference point for all test migration and fixture system documentation for the EVM addon. The migration effort aims to transform ~83 tests from direct Alloy usage to txtx framework integration using a YAML-based fixture system.
 
+## STATUS 
+
+- [ ] Initial test harness framework. The current tests are a little better than nonsense,
+to test the harness workflow
+  - [ ] Anvil interaction created; but is naive;
+  - [ ] Could explore using a single instance of Anvil with CREATE2, or
+  different deployers for testing
+  - [x] Foundry contract framework works
+  - [ ] Hardhat contract framework tbd
+- [ ] Tests are not yet valid. There needs to be a better criteria/spec for them
+
+Tests need to be validated. 
+
 ## 📁 Documentation Structure
 
 ### 1. **[TEST_MIGRATION_TRACKER.md](./TEST_MIGRATION_TRACKER.md)** - Test Migration Status 📊
@@ -217,6 +230,5 @@ When migrating tests:
 
 ---
 
-_Last Updated: Session 3 Complete - Fixture system implemented, ready for mass migration_
 
 _For questions or updates, refer to [TEST_HARNESS_TRACKER.md](./TEST_HARNESS_TRACKER.md#known-issues--blockers) for current blockers and contact information._
