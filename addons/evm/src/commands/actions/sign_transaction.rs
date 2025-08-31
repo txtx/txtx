@@ -26,6 +26,10 @@ use crate::typing::EvmValue;
 use txtx_addon_kit::constants::TX_HASH;
 
 use super::get_signer_did;
+use crate::errors::{EvmError, TransactionError, CodecError};
+use error_stack::{Report, ResultExt};
+
+
 
 lazy_static! {
     pub static ref SIGN_TRANSACTION: PreCommandSpecification = define_command! {
@@ -95,12 +99,10 @@ impl CommandImplementation for SignEvmTransaction {
         mut signers: SignersState,
         auth_ctx: &AuthorizationContext,
     ) -> SignerActionsFutureResult {
-        use alloy::{
-            network::TransactionBuilder, primitives::TxKind, rpc::types::TransactionRequest,
-        };
+        use alloy::network::TransactionBuilder;
 
-        use crate::{
-            codec::{
+            use crate::{
+                codec::{
                 format_transaction_cost, format_transaction_for_display, typed_transaction_bytes,
             },
             constants::{
@@ -149,34 +151,34 @@ impl CommandImplementation for SignEvmTransaction {
                     actions.push_sub_group(description.clone(), vec![]);
                 }
             } else {
-                use txtx_addon_kit::constants::SIGNATURE_APPROVED;
-
                 let transaction_request_bytes = values
                     .get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
-                let mut transaction: TransactionRequest =
-                    serde_json::from_slice(&transaction_request_bytes[..]).map_err(|e| {
-                        (
-                            signers.clone(),
-                            signer_state.clone(),
-                            diagnosed_error!("error deserializing transaction: {e}"),
-                        )
-                    })?;
+                // Deserialize transaction with better error handling
+                let mut transaction: alloy::rpc::types::TransactionRequest =
+                    serde_json::from_slice(&transaction_request_bytes[..])
+                        .map_err(|e| {
+                            let err = Report::new(EvmError::Codec(CodecError::AbiDecodingFailed(
+                                format!("Failed to deserialize transaction: {}", e)
+                            )))
+                            .attach_printable("Deserializing transaction payload");
+                            (signers.clone(), signer_state.clone(), diagnosed_error!("{}", err))
+                        })?;
 
-                // The transaction kind isn't serialized as part of the tx, so we need to ensure that the tx kind
-                // is Create if there is no to address. maybe we should consider some additional checks here to
-                // ensure we aren't errantly setting it to create
-                if None == transaction.to {
-                    transaction = transaction.with_kind(TxKind::Create);
+                // Set transaction kind to Create if no recipient
+                if transaction.to.is_none() {
+                    transaction = transaction.with_kind(alloy::primitives::TxKind::Create);
                 }
-                let transaction = transaction.build_unsigned().map_err(|e| {
-                    (
-                        signers.clone(),
-                        signer_state.clone(),
-                        diagnosed_error!("error building unsigned transaction: {e}"),
-                    )
-                })?;
+                
+                let transaction = transaction.build_unsigned()
+                    .map_err(|e| {
+                        let err = Report::new(EvmError::Transaction(TransactionError::InvalidType(
+                            format!("Failed to build unsigned transaction: {}", e)
+                        )))
+                        .attach_printable("Building unsigned transaction from request");
+                        (signers.clone(), signer_state.clone(), diagnosed_error!("{}", err))
+                    })?;
 
                 let web_wallet_payload_bytes = typed_transaction_bytes(&transaction);
                 let web_wallet_payload = Value::buffer(web_wallet_payload_bytes);
@@ -201,20 +203,12 @@ impl CommandImplementation for SignEvmTransaction {
                     display_payload,
                 );
 
-                let mut action_items = vec![];
-                let already_signed = signer_state
-                    .get_scoped_bool(&construct_did.to_string(), SIGNATURE_APPROVED)
-                    .unwrap_or(false);
-
-                if !already_signed {
-                    action_items.push(
-                        ReviewInputRequest::new("", &Value::integer(transaction.nonce().into()))
-                            .to_action_type()
-                            .to_request(&instance_name, ACTION_ITEM_CHECK_NONCE)
-                            .with_construct_did(&construct_did)
-                            .with_meta_description("Check transaction nonce"),
-                    );
-                }
+                let mut action_items =
+                    vec![ReviewInputRequest::new("", &Value::integer(transaction.nonce().into()))
+                        .to_action_type()
+                        .to_request(&instance_name, ACTION_ITEM_CHECK_NONCE)
+                        .with_construct_did(&construct_did)
+                        .with_meta_description("Check transaction nonce")];
 
                 if let Some(tx_cost) =
                     signer_state.get_scoped_integer(&construct_did.to_string(), TRANSACTION_COST)
@@ -223,18 +217,16 @@ impl CommandImplementation for SignEvmTransaction {
                         (
                             signers.clone(),
                             signer_state.clone(),
-                            diagnosed_error!("failed to format transaction cost: {e}"),
+                            diagnosed_error!("{}", e),
                         )
                     })?;
-                    if !already_signed {
-                        action_items.push(
-                            ReviewInputRequest::new("", &Value::string(formatted_cost))
-                                .to_action_type()
-                                .to_request(&instance_name, ACTION_ITEM_CHECK_FEE)
-                                .with_meta_description("Check transaction cost (Wei)")
-                                .with_construct_did(&construct_did),
-                        );
-                    }
+                    action_items.push(
+                        ReviewInputRequest::new("", &Value::string(formatted_cost))
+                            .to_action_type()
+                            .to_request(&instance_name, ACTION_ITEM_CHECK_FEE)
+                            .with_meta_description("Check transaction cost (Wei)")
+                            .with_construct_did(&construct_did),
+                    );
                 }
                 if supervision_context.review_input_values {
                     actions.push_panel("Transaction Execution", "");

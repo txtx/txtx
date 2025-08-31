@@ -1,0 +1,31 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# Minimal contract that just returns 42
+variable "minimal_bytecode" {
+    value = "0x602a60005260206000f3"
+    description = "Bytecode that returns 42"
+}
+
+action "deploy_minimal" "evm::deploy_contract" {
+    contract = {
+        bytecode = variable.minimal_bytecode
+        abi = []
+    }
+    signer = signer.deployer
+    confirmations = 0
+}
+
+output "contract_address" {
+    value = action.deploy_minimal.contract_address
+}
+
+output "tx_hash" {
+    value = action.deploy_minimal.tx_hash
+}

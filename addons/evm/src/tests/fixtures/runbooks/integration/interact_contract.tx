@@ -1,0 +1,67 @@
+# Deploy and interact with SimpleStorage contract
+addon "evm" {
+    chain_id = 31337
+    rpc_api_url = input.rpc_url
+}
+
+variable "deployer" {
+    value = input.deployer_address
+    description = "Account deploying and interacting with contract"
+}
+
+variable "deployer_key" {
+    value = input.deployer_private_key
+    description = "Private key for signing transactions"
+}
+
+signer "deployer_signer" "evm::local_wallet" {
+    private_key = variable.deployer_key
+}
+
+# Deploy the contract
+action "deploy" "evm::deploy_contract" {
+    from = variable.deployer
+    contract = "SimpleStorage"
+    source_path = "./out/SimpleStorage.sol/SimpleStorage.json"
+    signer = signer.deployer_signer
+    description = "Deploy SimpleStorage"
+}
+
+# Set a value in the contract
+action "set_value" "evm::call_contract" {
+    from = variable.deployer
+    contract_address = action.deploy.contract_address
+    function_name = "set"
+    function_args = [42]
+    abi = action.deploy.abi
+    signer = signer.deployer_signer
+    description = "Set value to 42"
+    depends_on = [action.deploy]
+}
+
+# Read the value from the contract (view function, no signer needed)
+action "get_value" "evm::call_contract" {
+    from = variable.deployer
+    contract_address = action.deploy.contract_address
+    function_name = "get"
+    function_args = []
+    abi = action.deploy.abi
+    description = "Get stored value"
+    depends_on = [action.set_value]
+}
+
+output "contract_address" {
+    value = action.deploy.contract_address
+}
+
+output "set_tx" {
+    value = action.set_value.tx_hash
+}
+
+output "stored_value" {
+    value = action.get_value.result
+}
+
+output "set_status" {
+    value = action.set_value.receipt.status
+}

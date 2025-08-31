@@ -1,0 +1,57 @@
+# Test event emission and log parsing
+# Deploys a contract that emits events and verifies logs
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# Deploy an ERC20-like contract that emits Transfer events
+# Simplified bytecode that emits events
+variable "event_contract_bytecode" {
+    value = input.event_contract_bytecode
+}
+
+variable "event_contract_abi" {
+    value = input.event_contract_abi
+}
+
+action "deploy_event_contract" "evm::deploy_contract" {
+    contract = {
+        bytecode = variable.event_contract_bytecode
+        abi = variable.event_contract_abi
+    }
+    signer = signer.deployer
+}
+
+# Call function that emits event
+action "trigger_event" "evm::call_contract_function" {
+    contract_address = action.deploy_event_contract.contract_address
+    function_signature = input.event_function_signature
+    function_args = input.event_function_args
+    signer = signer.deployer
+}
+
+# Check that transaction was confirmed and get logs
+action "check_logs" "evm::check_confirmations" {
+    tx_hash = action.trigger_event.tx_hash
+    confirmations = 1
+    rpc_api_url = addon.evm.rpc_api_url
+    chain_id = addon.evm.chain_id
+}
+
+output "contract_address" {
+    value = action.deploy_event_contract.contract_address
+}
+
+output "event_tx_hash" {
+    value = action.trigger_event.tx_hash
+}
+
+output "logs" {
+    value = action.check_logs.logs
+}

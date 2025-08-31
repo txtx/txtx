@@ -1,0 +1,57 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+# Define recipients
+variable "recipients" {
+    value = [
+        "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+    ]
+}
+
+# Send to first recipient
+action "transfer_1" "evm::send_eth" {
+    recipient_address = variable.recipients[0]
+    amount = "100000000000000000"  # 0.1 ETH
+    signer = signer.sender
+    confirmations = 1
+}
+
+# Send to second recipient
+action "transfer_2" "evm::send_eth" {
+    recipient_address = variable.recipients[1]
+    amount = "200000000000000000"  # 0.2 ETH
+    signer = signer.sender
+    confirmations = 1
+}
+
+# Send to third recipient
+action "transfer_3" "evm::send_eth" {
+    recipient_address = variable.recipients[2]
+    amount = "300000000000000000"  # 0.3 ETH
+    signer = signer.sender
+    confirmations = 1
+}
+
+output "tx1_hash" {
+    value = action.transfer_1.tx_hash
+}
+
+output "tx2_hash" {
+    value = action.transfer_2.tx_hash
+}
+
+output "tx3_hash" {
+    value = action.transfer_3.tx_hash
+}
+
+output "batch_complete" {
+    value = "true"
+}

@@ -1,0 +1,36 @@
+# Simple ETH transfer test runbook
+addon "evm" {
+    chain_id = 31337
+    rpc_api_url = "http://127.0.0.1:8545"  # Will be overridden by test
+}
+
+variable "sender" {
+    value = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"  # Anvil account 0
+    description = "Sender account"
+}
+
+variable "recipient" {
+    value = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"  # Anvil account 1
+    description = "Recipient account"  
+}
+
+variable "amount" {
+    value = "1000000000000000000"  # 1 ETH in wei
+    description = "Amount to send"
+}
+
+action "transfer" "evm::send_eth" {
+    from = variable.sender
+    to = variable.recipient
+    amount = variable.amount
+    signer = signer.sender_signer
+    description = "Transfer 1 ETH"
+}
+
+output "tx_hash" {
+    value = action.transfer.tx_hash
+}
+
+output "success" {
+    value = true  # Simple success flag for testing
+}

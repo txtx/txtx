@@ -31,7 +31,7 @@ use crate::codec::contract_deployment::{
 };
 use crate::codec::verify::verify_contracts;
 use crate::codec::{
-    get_typed_transaction_bytes, value_to_abi_constructor_args, value_to_sol_value, TransactionType,
+    get_typed_transaction_bytes, value_to_abi_constructor_args, value_to_sol_value_compat as value_to_sol_value, TransactionType,
 };
 
 use crate::constants::{
@@ -514,8 +514,12 @@ impl CommandImplementation for DeployContract {
             let proxy_contract_value = signer_state
                 .get_scoped_value(&construct_did.to_string(), PROXY_CONTRACT_ADDRESS)
                 .unwrap();
-            let impl_contract_address = get_expected_address(impl_contract_value).unwrap();
-            let proxy_contract_address = get_expected_address(proxy_contract_value).unwrap();
+            let impl_contract_address = get_expected_address(impl_contract_value)
+                .map_err(|e| e.to_string())
+                .unwrap();
+            let proxy_contract_address = get_expected_address(proxy_contract_value)
+                .map_err(|e| e.to_string())
+                .unwrap();
 
             result.outputs.insert(IMPL_CONTRACT_ADDRESS.to_string(), impl_contract_value.clone());
 
@@ -526,7 +530,9 @@ impl CommandImplementation for DeployContract {
             address_abi_map.insert_proxy_factory_abi();
         } else {
             address_abi_map
-                .insert_opt(&get_expected_address(contract_address).unwrap(), &contract_abi);
+                .insert_opt(&get_expected_address(contract_address)
+                    .map_err(|e| e.to_string())
+                    .unwrap(), &contract_abi);
         }
 
         result.outputs.insert(ADDRESS_ABI_MAP.to_string(), address_abi_map.to_value());
@@ -676,8 +682,9 @@ impl ContractDeploymentTransactionRequestBuilder {
         signer_state: &ValueStore,
         values: &ValueStore,
     ) -> Result<Self, String> {
-        let rpc = EvmRpc::new(&rpc_api_url)?;
-        let from_address = get_expected_address(from_address)?;
+        let rpc = EvmRpc::new_compat(&rpc_api_url)?;
+        let from_address = get_expected_address(from_address)
+            .map_err(|e| e.to_string())?;
 
         let is_proxy_contract =
             values.get_bool("proxied").unwrap_or(false) || values.get_value("proxy").is_some();
@@ -701,7 +708,7 @@ impl ContractDeploymentTransactionRequestBuilder {
                 if let Some(constructor) = &abi.constructor {
                     Some(
                         value_to_abi_constructor_args(&function_args, &constructor)
-                            .map_err(|e| e.message)?,
+                            .map_err(|e| e.to_string())?,
                     )
                 } else {
                     return Err(format!(
@@ -729,7 +736,8 @@ impl ContractDeploymentTransactionRequestBuilder {
             linked_libraries,
         )?;
 
-        let (amount, gas_limit, nonce) = get_common_tx_params_from_args(values)?;
+        let (amount, gas_limit, nonce) = get_common_tx_params_from_args(values)
+            .map_err(|e| e.to_string())?;
         let signer_starting_nonce = match nonce {
             Some(user_set_nonce) => user_set_nonce,
             None => {

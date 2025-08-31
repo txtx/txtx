@@ -1,6 +1,9 @@
 use crate::{
     indoc,
-    types::{frontend::LogDispatcher, types::ObjectProperty},
+    types::{
+        frontend::{Block, Panel, StatusUpdater},
+        types::ObjectProperty,
+    },
 };
 use uuid::Uuid;
 
@@ -81,7 +84,7 @@ pub fn evaluate_pre_conditions(
     spec: &CommandSpecification,
     values: &ValueStore,
     progress_tx: &channel::Sender<BlockEvent>,
-    _background_tasks_uuid: &Uuid,
+    background_tasks_uuid: &Uuid,
 ) -> Result<PreConditionEvaluationResult, Diagnostic> {
     let Some(pre_conditions) = values.get_map(PRE_CONDITION) else {
         return Ok(PreConditionEvaluationResult::Noop);
@@ -92,7 +95,11 @@ pub fn evaluate_pre_conditions(
     let mut diags = vec![];
     let mut do_skip = false;
 
-    let logger = LogDispatcher::new(construct_did.as_uuid(), "std::pre_conditions", progress_tx);
+    let _ = progress_tx.send(BlockEvent::ProgressBar(Block::new(
+        &background_tasks_uuid,
+        Panel::ProgressBar(vec![]),
+    )));
+    let mut status_updater = StatusUpdater::new(background_tasks_uuid, construct_did, progress_tx);
     for (i, pre_condition) in pre_conditions.iter().enumerate() {
         if let AssertionResult::Failure(assertion_msg) = &pre_condition.assertion {
             match pre_condition.behavior {
@@ -105,22 +112,17 @@ pub fn evaluate_pre_conditions(
                     )));
                 }
                 PreConditionBehavior::Log => {
-                    logger.warn(
-                        "Pre-condition failed",
-                        format!(
-                            "'{}' command '{}': pre_condition #{}: {}",
-                            spec.matcher,
-                            instance_name,
-                            i + 1,
-                            assertion_msg
-                        ),
-                    );
+                    status_updater.propagate_warning_status(&format!(
+                        "'{}' command '{}': pre_condition #{}: {}",
+                        spec.matcher,
+                        instance_name,
+                        i + 1,
+                        assertion_msg
+                    ));
                 }
                 PreConditionBehavior::Skip => {
                     do_skip = true;
-                    logger.warn(
-                        "Pre-condition failed",
-                        format!(
+                    status_updater.propagate_warning_status(&format!(
                         "'{}' command '{}': pre_condition #{}: {}: skipping execution of this command and all downstream commands",
                         spec.matcher,
                         instance_name,

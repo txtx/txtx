@@ -1,0 +1,55 @@
+# Test CREATE2 address calculation
+addon "evm" {
+    chain_id = 31337
+    rpc_api_url = "http://localhost:8545"  # Not used but required
+}
+
+# Test inputs
+variable "deployer_address" {
+    value = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8"
+    description = "Deployer address for CREATE2 calculation"
+}
+
+variable "salt" {
+    value = "0x2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a"  # 42 repeated
+    description = "Salt for CREATE2"
+}
+
+variable "bytecode" {
+    value = "0x602a60005260206000f3"  # Minimal contract (returns 42)
+    description = "Contract bytecode"
+}
+
+# Calculate CREATE2 address
+variable "create2_address" {
+    value = evm::get_create2_address(
+        variable.deployer_address,
+        variable.salt,
+        variable.bytecode
+    )
+    description = "Calculated CREATE2 address"
+}
+
+# Recalculate to verify determinism
+variable "recalculated_address" {
+    value = evm::get_create2_address(
+        variable.deployer_address,
+        variable.salt,
+        variable.bytecode
+    )
+    description = "Recalculated address to verify determinism"
+}
+
+# Output results
+output "create2_address" {
+    value = variable.create2_address
+}
+
+output "addresses_match" {
+    value = std::is_equal(variable.create2_address, variable.recalculated_address)
+}
+
+output "expected_address" {
+    # Pre-calculated expected address for this specific combination
+    value = "0x1a790701A191049949B35D2217fE95d5E228DdBE"
+}

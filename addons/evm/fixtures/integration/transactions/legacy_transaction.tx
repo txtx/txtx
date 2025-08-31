@@ -1,0 +1,27 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+# Send using legacy transaction type
+action "legacy_transfer" "evm::send_eth" {
+    recipient_address = input.recipient
+    amount = input.amount
+    transaction_type = "legacy"
+    gas_price = "10000000000"  # 10 gwei
+    gas_limit = 21000
+    signer = signer.sender
+    confirmations = 1
+}
+
+output "tx_hash" {
+    value = action.legacy_transfer.tx_hash
+}
+
+output "transaction_type" {
+    value = "legacy"
+}

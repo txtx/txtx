@@ -1,0 +1,133 @@
+# Batch contract deployment test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Deploy multiple contracts in sequence
+action "deploy_token" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.token_bytecode
+    constructor_args = ["TestToken", "TEST", 18, 1000000]
+    description = "Deploy ERC20 token"
+}
+
+action "deploy_nft" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.nft_bytecode
+    constructor_args = ["TestNFT", "TNFT"]
+    description = "Deploy ERC721 NFT"
+}
+
+action "deploy_vault" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.vault_bytecode
+    constructor_args = [action.deploy_token.contract_address]
+    description = "Deploy vault for token"
+}
+
+action "deploy_marketplace" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.marketplace_bytecode
+    constructor_args = [
+        action.deploy_nft.contract_address,
+        action.deploy_token.contract_address,
+        250  # 2.5% fee
+    ]
+    description = "Deploy NFT marketplace"
+}
+
+# Deploy with CREATE2 for deterministic addresses
+action "calculate_create2_address" "evm::calculate_create2_address" {
+    deployer = signer.deployer.address
+    salt = input.salt
+    bytecode = input.deterministic_bytecode
+}
+
+action "deploy_deterministic" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.deterministic_bytecode
+    salt = input.salt
+    use_create2 = true
+    description = "Deploy with CREATE2"
+}
+
+# Verify all deployments
+action "verify_token" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_token.contract_address
+    function = "totalSupply()"
+    args = []
+}
+
+action "verify_nft" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_nft.contract_address
+    function = "name()"
+    args = []
+}
+
+action "verify_vault" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_vault.contract_address
+    function = "token()"
+    args = []
+}
+
+action "verify_marketplace" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_marketplace.contract_address
+    function = "feePercentage()"
+    args = []
+}
+
+# Batch deployment summary
+action "get_deployment_count" "evm::get_transaction_count" {
+    address = signer.deployer.address
+    block = "latest"
+}
+
+# Outputs
+output "token_address" {
+    value = action.deploy_token.contract_address
+}
+
+output "nft_address" {
+    value = action.deploy_nft.contract_address
+}
+
+output "vault_address" {
+    value = action.deploy_vault.contract_address
+}
+
+output "marketplace_address" {
+    value = action.deploy_marketplace.contract_address
+}
+
+output "predicted_create2" {
+    value = action.calculate_create2_address.address
+}
+
+output "actual_create2" {
+    value = action.deploy_deterministic.contract_address
+}
+
+output "create2_match" {
+    value = action.calculate_create2_address.address == action.deploy_deterministic.contract_address
+}
+
+output "total_deployments" {
+    value = action.get_deployment_count.count
+}
+
+output "token_supply" {
+    value = action.verify_token.result
+}
+
+output "vault_token" {
+    value = action.verify_vault.result
+}

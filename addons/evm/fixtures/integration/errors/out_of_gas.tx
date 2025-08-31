@@ -1,0 +1,25 @@
+# Test out of gas error
+# Attempts transaction with insufficient gas limit
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+# Deploy a contract with very low gas limit (will fail)
+action "deploy_with_low_gas" "evm::deploy_contract" {
+    contract = {
+        bytecode = input.contract_bytecode
+        abi = []
+    }
+    gas_limit = 1000  # Way too low for deployment
+    signer = signer.sender
+}
+
+output "should_fail" {
+    value = "Deployment should fail due to out of gas"
+}

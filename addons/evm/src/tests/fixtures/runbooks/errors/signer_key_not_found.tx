@@ -1,0 +1,19 @@
+# Test: Signer key not found error
+# Expected: Should fail with SignerError::KeyNotFound
+
+addon "evm" {
+  chain_id = 31337
+  rpc_api_url = "http://127.0.0.1:8545"
+}
+
+variable "unknown_address" {
+  value = "0x9999999999999999999999999999999999999999"
+  description = "Address without corresponding private key"
+}
+
+action "sign_with_missing_key" "evm::sign_transaction" {
+  from = variable.unknown_address
+  to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+  amount = "1000000000000000"
+  description = "Attempt to sign transaction with unknown address"
+}

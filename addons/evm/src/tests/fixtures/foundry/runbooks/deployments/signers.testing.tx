@@ -1,0 +1,3 @@
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_secret_key
+}

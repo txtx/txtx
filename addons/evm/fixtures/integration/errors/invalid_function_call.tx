@@ -1,0 +1,27 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+}
+
+# Deploy a simple contract
+action "deploy" "evm::deploy_contract" {
+    contract_name = "SimpleContract"
+    artifact_source = "inline:0x6080604052348015600e575f5ffd5b5060405160208061001f833981016040525060005550603e8061003a5f395ff3fe"
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Try to call non-existent function - should fail
+action "call_invalid" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "nonExistentFunction()"
+    signer = signer.deployer
+}
+
+output "result" {
+    value = action.call_invalid.result
+}

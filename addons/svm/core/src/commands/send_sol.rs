@@ -228,7 +228,7 @@ impl CommandImplementation for SendSol {
         values: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
-        _background_tasks_uuid: &Uuid,
+        background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
@@ -238,6 +238,7 @@ impl CommandImplementation for SendSol {
             &values,
             &outputs,
             &progress_tx,
+            &background_tasks_uuid,
             &supervision_context,
         )
     }

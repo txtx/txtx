@@ -1,0 +1,50 @@
+# Test gas estimation for different transaction types
+# Inputs: test_type (transfer, deploy, call)
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+# ETH transfer - should use ~21000 gas
+action "transfer" "evm::send_eth" {
+    recipient_address = input.recipient
+    amount = 1000000000000000  # 0.001 ETH
+    signer = signer.sender
+    enabled = input.test_transfer
+}
+
+# Contract deployment - should use more gas
+action "deploy" "evm::deploy_contract" {
+    contract = {
+        bytecode = "0x608060405234801561001057600080fd5b50610150806100206000396000f3fe"
+        abi = []
+    }
+    signer = signer.sender
+    enabled = input.test_deploy
+}
+
+# Contract call - gas depends on function complexity
+action "call" "evm::call_contract_function" {
+    contract_address = input.contract_address
+    function_signature = "store(uint256)"
+    function_args = [42]
+    signer = signer.sender
+    enabled = input.test_call
+}
+
+output "transfer_gas" {
+    value = input.test_transfer ? action.transfer.gas_used : "0"
+}
+
+output "deploy_gas" {
+    value = input.test_deploy ? action.deploy.gas_used : "0"
+}
+
+output "call_gas" {
+    value = input.test_call ? action.call.gas_used : "0"
+}

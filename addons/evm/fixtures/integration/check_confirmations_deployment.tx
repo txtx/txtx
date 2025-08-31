@@ -1,0 +1,40 @@
+# Test check_confirmations with contract deployment
+# Inputs: confirmations, bytecode
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# Deploy contract
+action "deploy" "evm::deploy_contract" {
+    contract = {
+        bytecode = input.bytecode
+        abi = []
+    }
+    signer = signer.deployer
+}
+
+# Wait for deployment confirmations
+action "check_confirmations" "evm::check_confirmations" {
+    tx_hash = action.deploy.tx_hash
+    confirmations = input.confirmations
+    rpc_api_url = addon.evm.rpc_api_url
+    chain_id = addon.evm.chain_id
+}
+
+output "deployed_address" {
+    value = action.deploy.contract_address
+}
+
+output "confirmed_address" {
+    value = action.check_confirmations.contract_address
+}
+
+output "tx_hash" {
+    value = action.deploy.tx_hash
+}

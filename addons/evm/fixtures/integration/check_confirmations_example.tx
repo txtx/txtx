@@ -1,0 +1,34 @@
+# Example of using check_confirmations action
+# This fixture demonstrates waiting for transaction confirmations
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# Send a transaction
+action "send_tx" "evm::send_eth" {
+    recipient_address = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8"
+    amount = 1000000000000000  # 0.001 ETH
+    signer = signer.sender
+}
+
+# Wait for 3 confirmations
+action "wait_for_confirmations" "evm::check_confirmations" {
+    tx_hash = action.send_tx.tx_hash
+    confirmations = 3
+    rpc_api_url = addon.evm.rpc_api_url
+    chain_id = addon.evm.chain_id
+}
+
+output "tx_hash" {
+    value = action.send_tx.tx_hash
+}
+
+output "confirmed" {
+    value = "Transaction confirmed after 3 blocks"
+}

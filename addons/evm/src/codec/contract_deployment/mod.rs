@@ -183,7 +183,8 @@ impl AddressAbiMap {
         let mut map = IndexMap::new();
         for item in array.iter() {
             let object = item.as_object().ok_or("expected object")?;
-            let address = get_expected_address(object.get("address").ok_or("missing address")?)?;
+            let address = get_expected_address(object.get("address").ok_or("missing address")?)
+                .map_err(|e| e.to_string())?;
             let abis = object
                 .get("abis")
                 .ok_or("missing abi")?

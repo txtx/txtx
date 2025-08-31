@@ -15,6 +15,11 @@ mod functions;
 pub mod rpc;
 mod signers;
 mod typing;
+mod errors;
+#[cfg(test)]
+mod errors_demo;
+#[cfg(test)]
+mod tests;
 
 use constants::NAMESPACE;
 use txtx_addon_kit::{

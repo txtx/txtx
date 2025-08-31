@@ -1,0 +1,20 @@
+# Test: Invalid hex string conversion
+# Expected: Should fail with CodecError::InvalidHex
+
+addon "evm" {
+  chain_id = 1
+  rpc_api_url = "http://unused"
+}
+
+variable "invalid_hex" {
+  value = "0xZZZ"
+  description = "Invalid hex string with non-hex characters"
+}
+
+function "decode_hex" "evm::decode_hex" {
+  input = variable.invalid_hex
+}
+
+output "decoded" {
+  value = function.decode_hex
+}

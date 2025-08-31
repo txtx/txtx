@@ -1,0 +1,88 @@
+# Transaction replacement test fixture (RBF - Replace By Fee)
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "recipient" {
+    value = input.recipient
+    description = "Recipient address"
+}
+
+variable "initial_amount" {
+    value = input.initial_amount
+    description = "Initial transaction amount"
+}
+
+variable "replacement_amount" {
+    value = input.replacement_amount
+    description = "Replacement transaction amount"
+}
+
+variable "initial_gas_price" {
+    value = input.initial_gas_price
+    description = "Initial gas price"
+}
+
+variable "replacement_gas_price" {
+    value = input.replacement_gas_price
+    description = "Higher gas price for replacement"
+}
+
+variable "nonce" {
+    value = input.nonce
+    description = "Nonce to use for both transactions"
+}
+
+# Send initial transaction with low gas price
+action "send_initial" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.initial_amount
+    gas_price = variable.initial_gas_price
+    nonce = variable.nonce
+    description = "Initial transaction with low gas price"
+}
+
+# Replace transaction with higher gas price (same nonce)
+action "send_replacement" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.replacement_amount
+    gas_price = variable.replacement_gas_price
+    nonce = variable.nonce
+    description = "Replacement transaction with higher gas price"
+}
+
+# Wait for confirmation
+action "wait_for_replacement" "evm::wait_for_confirmation" {
+    tx_hash = action.send_replacement.tx_hash
+    confirmations = 1
+}
+
+# Get final receipt to verify which transaction succeeded
+action "get_final_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.send_replacement.tx_hash
+}
+
+# Outputs
+output "initial_tx_hash" {
+    value = action.send_initial.tx_hash
+}
+
+output "replacement_tx_hash" {
+    value = action.send_replacement.tx_hash
+}
+
+output "final_value" {
+    value = action.get_final_receipt.value
+}
+
+output "final_gas_price" {
+    value = action.get_final_receipt.effective_gas_price
+}

@@ -1,0 +1,101 @@
+# Revert reason extraction test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Deploy a contract with revert conditions
+action "deploy_reverter" "evm::deploy_contract" {
+    from = signer.test_signer
+    # Contract that reverts with custom messages
+    bytecode = input.reverter_bytecode
+}
+
+# Test require statement revert
+action "test_require_revert" "evm::call" {
+    from = signer.test_signer
+    to = action.deploy_reverter.contract_address
+    function = "requireTest(uint256)"
+    args = [0]  # Will fail require(value > 0, "Value must be positive")
+    catch_revert = true
+}
+
+# Test assert statement revert  
+action "test_assert_revert" "evm::call" {
+    from = signer.test_signer
+    to = action.deploy_reverter.contract_address
+    function = "assertTest(uint256)"
+    args = [10]  # Will fail assert
+    catch_revert = true
+}
+
+# Test custom error revert
+action "test_custom_error" "evm::call" {
+    from = signer.test_signer
+    to = action.deploy_reverter.contract_address
+    function = "customErrorTest(address)"
+    args = ["0x0000000000000000000000000000000000000000"]
+    catch_revert = true
+}
+
+# Test revert with no message
+action "test_plain_revert" "evm::call" {
+    from = signer.test_signer
+    to = action.deploy_reverter.contract_address
+    function = "plainRevert()"
+    args = []
+    catch_revert = true
+}
+
+# Test out of gas revert
+action "test_out_of_gas" "evm::call" {
+    from = signer.test_signer
+    to = action.deploy_reverter.contract_address
+    function = "infiniteLoop()"
+    args = []
+    gas_limit = "50000"  # Too low for infinite loop
+    catch_revert = true
+}
+
+# Parse revert reasons
+action "parse_require_reason" "evm::parse_revert_reason" {
+    revert_data = action.test_require_revert.revert_data
+}
+
+action "parse_custom_error" "evm::parse_custom_error" {
+    revert_data = action.test_custom_error.revert_data
+    abi = action.deploy_reverter.abi
+}
+
+# Outputs
+output "deployed_address" {
+    value = action.deploy_reverter.contract_address
+}
+
+output "require_revert_reason" {
+    value = action.test_require_revert.revert_reason
+}
+
+output "assert_revert_data" {
+    value = action.test_assert_revert.revert_data
+}
+
+output "custom_error_details" {
+    value = action.parse_custom_error.error_details
+}
+
+output "plain_revert_caught" {
+    value = action.test_plain_revert.reverted
+}
+
+output "out_of_gas_caught" {
+    value = action.test_out_of_gas.reverted
+}
+
+output "parsed_require_message" {
+    value = action.parse_require_reason.message
+}

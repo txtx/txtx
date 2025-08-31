@@ -1,0 +1,20 @@
+# Test: Calling non-existent contract function
+# Expected: Should fail with ContractError::FunctionNotFound
+
+addon "evm" {
+  chain_id = 31337
+  rpc_api_url = "http://127.0.0.1:8545"
+}
+
+variable "contract_address" {
+  value = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+  description = "Test contract address"
+}
+
+action "call_missing_function" "evm::call_contract" {
+  contract_address = variable.contract_address
+  function_name = "nonExistentFunction"
+  function_args = []
+  abi = '[{"name":"transfer","type":"function","inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"outputs":[{"type":"bool"}]}]'
+  description = "Call a function that doesn't exist in the ABI"
+}

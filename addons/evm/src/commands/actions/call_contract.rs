@@ -34,8 +34,10 @@ use crate::constants::{
 use crate::rpc::EvmRpc;
 use crate::typing::{DECODED_LOG_OUTPUT, EVM_ADDRESS, EVM_SIM_RESULT, RAW_LOG_OUTPUT};
 use txtx_addon_kit::constants::TX_HASH;
+use crate::errors::{EvmError, EvmResult, ContractError, report_to_diagnostic};
+use error_stack::{Report, ResultExt};
 
-use super::{get_expected_address, get_signer_did};
+use super::{get_expected_address, get_signer_did, get_common_tx_params_from_args};
 
 lazy_static! {
     pub static ref SIGN_EVM_CONTRACT_CALL: PreCommandSpecification = define_command! {
@@ -248,9 +250,9 @@ impl CommandImplementation for SignEvmContractCall {
                 sim_result_raw,
                 sim_result_with_encoding,
                 meta_description,
-            ) = build_unsigned_contract_call(&signer_state, &spec, &values)
+            ) = build_unsigned_contract_call_v2(&signer_state, &spec, &values)
                 .await
-                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
             let meta_description =
                 get_meta_description(meta_description, &signer_did, &signers_instances);
@@ -324,7 +326,9 @@ impl CommandImplementation for SignEvmContractCall {
 
         let future = async move {
             let contract_address =
-                get_expected_address(values.get_value(CONTRACT_ADDRESS).unwrap()).unwrap();
+                get_expected_address(values.get_value(CONTRACT_ADDRESS).unwrap())
+                    .map_err(|e| e.to_string())
+                    .unwrap();
 
             let signer_did = get_signer_did(&values).unwrap();
             let signer_state = signers.get_signer_state(&signer_did).unwrap();
@@ -472,6 +476,11 @@ async fn build_unsigned_contract_call(
                 let abi: JsonAbi = serde_json::from_str(&abi_str)
                     .map_err(|e| diagnosed_error!("invalid contract abi: {}", e))?;
                 value_to_abi_function_args(&function_name, &v, &abi)
+                    .map_err(|e| {
+                        use crate::errors::EvmErrorReport;
+                        let diagnostic: Diagnostic = EvmErrorReport(e).into();
+                        diagnostic
+                    })
             })
             .unwrap_or(Ok(vec![]))?
     } else {
@@ -480,14 +489,18 @@ async fn build_unsigned_contract_call(
             .map(|v| {
                 v.expect_array()
                     .iter()
-                    .map(|v| value_to_sol_value(&v).map_err(|e| diagnosed_error!("{}", e)))
+                    .map(|v| value_to_sol_value(&v).map_err(|e| {
+                        use crate::errors::EvmErrorReport;
+                        let diagnostic: Diagnostic = EvmErrorReport(e).into();
+                        diagnostic
+                    }))
                     .collect::<Result<Vec<DynSolValue>, Diagnostic>>()
             })
             .unwrap_or(Ok(vec![]))?
     };
 
     let (amount, gas_limit, mut nonce) =
-        get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{}", e))?;
+        get_common_tx_params_from_args(values).map_err(|e| report_to_diagnostic(e))?;
     if nonce.is_none() {
         if let Some(signer_nonce) =
             get_signer_nonce(signer_state, chain_id).map_err(|e| diagnosed_error!("{}", e))?
@@ -567,6 +580,211 @@ pub fn encode_contract_call_inputs_from_selector(
     data.extend_from_slice(&selector[..]);
     data.extend_from_slice(&encoded_args[..]);
     Ok(data)
+}
+
+#[cfg(not(feature = "wasm"))]
+async fn build_unsigned_contract_call_v2(
+    signer_state: &ValueStore,
+    _spec: &CommandSpecification,
+    values: &ValueStore,
+) -> EvmResult<(TransactionRequest, i128, String, Value, String)> {
+    use crate::{
+        codec::{
+            build_unsigned_transaction_v2, value_to_abi_function_args, value_to_sol_value,
+            TransactionType,
+        },
+        constants::{
+            CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
+            CONTRACT_FUNCTION_NAME, TRANSACTION_TYPE,
+        },
+        signers::common::get_signer_nonce,
+        typing::EvmValue,
+    };
+    use alloy::json_abi::StateMutability;
+
+    let from = signer_state
+        .get_expected_value("signer_address")
+        .map_err(|e| Report::new(EvmError::Config(crate::errors::ConfigError::MissingField(
+            format!("signer_address: {}", e)
+        ))))?;
+
+    let contract_address_value = values
+        .get_expected_value(CONTRACT_ADDRESS)
+        .map_err(|e| Report::new(EvmError::Config(crate::errors::ConfigError::MissingField(
+            format!("contract_address: {}", e)
+        ))))?;
+    
+    let contract_address = get_expected_address(&contract_address_value)
+        .attach_printable("Parsing contract address")?;
+
+    let rpc_api_url = values
+        .get_expected_string(RPC_API_URL)
+        .map_err(|e| Report::new(EvmError::Config(crate::errors::ConfigError::MissingField(
+            format!("rpc_api_url: {}", e)
+        ))))?;
+    
+    let chain_id = values
+        .get_expected_uint(CHAIN_ID)
+        .map_err(|e| Report::new(EvmError::Config(crate::errors::ConfigError::MissingField(
+            format!("chain_id: {}", e)
+        ))))?;
+
+    let contract_abi = values.get_string(CONTRACT_ABI);
+    let function_name = values
+        .get_expected_string(CONTRACT_FUNCTION_NAME)
+        .map_err(|e| Report::new(EvmError::Contract(ContractError::FunctionNotFound(
+            format!("function_name: {}", e)
+        ))))?;
+
+    // Check if function is view/pure (read-only)
+    let is_readonly = if let Some(abi_str) = &contract_abi {
+        let abi: JsonAbi = serde_json::from_str(&abi_str)
+            .map_err(|e| Report::new(EvmError::Contract(ContractError::InvalidAbi(
+                format!("Failed to parse ABI: {}", e)
+            ))))?;
+        
+        if let Some(function) = abi.function(&function_name).and_then(|f| f.first()) {
+            matches!(
+                function.state_mutability,
+                StateMutability::View | StateMutability::Pure
+            )
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    let function_args = if let Some(function_args) = values.get_value(CONTRACT_FUNCTION_ARGS) {
+        if let Some(abi_str) = &contract_abi {
+            let abi: JsonAbi = serde_json::from_str(&abi_str)
+                .map_err(|e| Report::new(EvmError::Contract(ContractError::InvalidAbi(
+                    format!("Failed to parse ABI: {}", e)
+                ))))?;
+            value_to_abi_function_args(&function_name, &function_args, &abi)
+                .map_err(|e| Report::new(EvmError::Contract(ContractError::InvalidArguments(e.to_string()))))?
+        } else {
+            vec![value_to_sol_value(&function_args)
+                .map_err(|e| Report::new(EvmError::Contract(ContractError::InvalidArguments(e.to_string()))))?]
+        }
+    } else {
+        vec![]
+    };
+
+    let rpc = EvmRpc::new(&rpc_api_url)?;
+
+    let input = if let Some(ref abi_str) = contract_abi {
+        encode_contract_call_inputs_from_abi_str(abi_str, function_name, &function_args)
+            .map_err(|e| Report::new(EvmError::Contract(ContractError::InvalidAbi(e))))?
+    } else {
+        encode_contract_call_inputs_from_selector(function_name, &function_args)
+            .map_err(|e| Report::new(EvmError::Contract(ContractError::InvalidArguments(e))))?
+    };
+
+    let function_spec = if let Some(ref abi_str) = contract_abi {
+        let abi: JsonAbi = serde_json::from_str(&abi_str)
+            .map_err(|e| Report::new(EvmError::Contract(ContractError::InvalidAbi(
+                format!("Failed to parse ABI: {}", e)
+            ))))?;
+
+        if let Some(function) = abi.function(&function_name).and_then(|f| f.first()) {
+            serde_json::to_vec(&function).ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // For read-only functions (view/pure), we only need to call eth_call
+    // We don't need to build a full transaction with gas fees
+    let (tx, cost, sim_result_raw) = if is_readonly {
+        // Create a minimal transaction request for eth_call
+        let call_request = TransactionRequest {
+            from: Some(get_expected_address(&from).attach_printable("Parsing from address")?),
+            to: Some(alloy::primitives::TxKind::Call(contract_address.clone())),
+            input: alloy::rpc::types::TransactionInput::new(input.into()),
+            ..Default::default()
+        };
+
+        // Use eth_call to get the result without sending a transaction
+        let result = rpc.call(&call_request, false)
+            .await
+            .map_err(|e| Report::new(EvmError::Rpc(crate::errors::RpcError::NodeError(
+                format!("Contract call failed: {}", e)
+            ))))
+            .attach_printable(format!("Calling view function {} on {}", function_name, contract_address))?;
+
+        // For read-only calls, return the call request directly with zero cost
+        (call_request, 0, result)
+    } else {
+        // For state-changing functions, build a full transaction with gas fees
+        let (amount, gas_limit, mut nonce) = get_common_tx_params_from_args(values)?;
+        
+        if nonce.is_none() {
+            if let Some(signer_nonce) = get_signer_nonce(signer_state, chain_id)
+                .map_err(|e| Report::new(EvmError::Signer(crate::errors::SignerError::SignatureFailed))
+                    .attach_printable(format!("Failed to get signer nonce: {}", e)))? 
+            {
+                nonce = Some(signer_nonce + 1);
+            }
+        }
+
+        let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))
+            .map_err(|e| Report::new(EvmError::Transaction(crate::errors::TransactionError::InvalidType(e.to_string()))))?;
+
+        let common = CommonTransactionFields {
+            to: Some(contract_address_value.clone()),
+            from: from.clone(),
+            nonce,
+            chain_id,
+            amount,
+            gas_limit,
+            tx_type,
+            input: Some(input),
+            deploy_code: None,
+        };
+
+        let (tx, cost, _cost_string) = build_unsigned_transaction_v2(rpc.clone(), values, common)
+            .await
+            .attach_printable(format!("Building contract call to {} function {}", contract_address, function_name))
+            .attach_printable(format!("Function arguments: {:?}", function_args))?;
+
+        // Simulate the transaction to get the result
+        let sim_result = rpc.call(&tx, false)
+            .await
+            .map_err(|e| Report::new(EvmError::Rpc(crate::errors::RpcError::NodeError(
+                format!("Contract call simulation failed: {}", e)
+            ))))
+            .attach_printable(format!("Simulating call to {} function {}", contract_address, function_name))?;
+
+        (tx, cost, sim_result)
+    };
+
+    // Handle simulation result - decode the returned hex data
+    let sim_result_bytes = if sim_result_raw == "0x" || sim_result_raw.is_empty() {
+        // Empty result from simulation
+        vec![]
+    } else {
+        // Remove 0x prefix if present and decode
+        let raw = sim_result_raw.strip_prefix("0x").unwrap_or(&sim_result_raw);
+        hex::decode(raw)
+            .map_err(|e| Report::new(EvmError::Codec(crate::errors::CodecError::AbiDecodingFailed(
+                format!("Failed to decode simulation result: {}", e)
+            ))))
+            .attach_printable(format!("Raw simulation result: {}", sim_result_raw))
+            .attach_printable("The contract call may have reverted or returned invalid data")?
+    };
+
+    let sim_result = EvmValue::sim_result(sim_result_bytes, function_spec);
+
+    let description = if is_readonly {
+        format!("Read-only call to `{}` function on contract at address `{}`", function_name, contract_address)
+    } else {
+        format!("The transaction will call the `{}` function on the contract at address `{}` with the provided arguments.", 
+            function_name, contract_address)
+    };
+    Ok((tx, cost, sim_result_raw.clone(), sim_result, description))
 }
 
 pub fn encode_contract_call_inputs_from_abi_str(

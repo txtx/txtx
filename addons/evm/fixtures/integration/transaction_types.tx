@@ -1,0 +1,114 @@
+# Transaction types test fixture (Legacy, EIP-2930, EIP-1559)
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "recipient" {
+    value = input.recipient
+    description = "Recipient address"
+}
+
+variable "amount" {
+    value = input.amount
+    description = "Amount to send"
+}
+
+variable "gas_price" {
+    value = input.gas_price
+    description = "Gas price for legacy tx"
+}
+
+variable "max_fee_per_gas" {
+    value = input.max_fee_per_gas
+    description = "Max fee for EIP-1559"
+}
+
+variable "max_priority_fee" {
+    value = input.max_priority_fee
+    description = "Priority fee for EIP-1559"
+}
+
+variable "access_list" {
+    value = input.access_list
+    description = "Access list for EIP-2930"
+}
+
+# Send legacy transaction (Type 0)
+action "send_legacy" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.amount
+    gas_price = variable.gas_price
+    type = "0"
+    description = "Legacy transaction (Type 0)"
+}
+
+# Send EIP-2930 transaction with access list (Type 1)
+action "send_eip2930" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.amount
+    gas_price = variable.gas_price
+    access_list = variable.access_list
+    type = "1"
+    description = "EIP-2930 transaction with access list (Type 1)"
+}
+
+# Send EIP-1559 transaction (Type 2)
+action "send_eip1559" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.amount
+    max_fee_per_gas = variable.max_fee_per_gas
+    max_priority_fee_per_gas = variable.max_priority_fee
+    type = "2"
+    description = "EIP-1559 transaction (Type 2)"
+}
+
+# Get receipts to verify transaction types
+action "get_legacy_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.send_legacy.tx_hash
+}
+
+action "get_eip2930_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.send_eip2930.tx_hash
+}
+
+action "get_eip1559_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.send_eip1559.tx_hash
+}
+
+# Outputs
+output "legacy_tx_hash" {
+    value = action.send_legacy.tx_hash
+}
+
+output "legacy_type" {
+    value = action.get_legacy_receipt.type
+}
+
+output "eip2930_tx_hash" {
+    value = action.send_eip2930.tx_hash
+}
+
+output "eip2930_type" {
+    value = action.get_eip2930_receipt.type
+}
+
+output "eip1559_tx_hash" {
+    value = action.send_eip1559.tx_hash
+}
+
+output "eip1559_type" {
+    value = action.get_eip1559_receipt.type
+}
+
+output "eip1559_base_fee" {
+    value = action.get_eip1559_receipt.base_fee_per_gas
+}

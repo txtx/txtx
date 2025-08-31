@@ -1,0 +1,38 @@
+# Simple ETH transfer test runbook without explicit signer
+# This is for testing basic execution flow
+addon "evm" {
+    chain_id = 31337
+    rpc_api_url = "http://127.0.0.1:8545"
+}
+
+variable "sender" {
+    value = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"  # Anvil account 0
+}
+
+variable "recipient" {
+    value = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"  # Anvil account 1 
+}
+
+variable "amount" {
+    value = "1000000000000000000"  # 1 ETH in wei
+}
+
+# For now, try without signer to see if basic execution works
+# action "transfer" "evm::send_eth" {
+#     from = variable.sender
+#     to = variable.recipient
+#     amount = variable.amount
+# }
+
+# Just output something to verify execution works
+output "test_output" {
+    value = "Execution completed"
+}
+
+output "sender_address" {
+    value = variable.sender
+}
+
+output "recipient_address" {
+    value = variable.recipient
+}

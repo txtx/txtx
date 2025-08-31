@@ -1,0 +1,16 @@
+# Minimal check_confirmations fixture for parsing tests
+# This fixture tests that the EVM addon correctly parses confirmation checks
+
+addon "evm" {
+    chain_id = 1
+    rpc_api_url = "http://localhost:8545"
+}
+
+action "check" "evm::check_confirmations" {
+    tx_hash = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb87f3c3b3c3b3c3b3c3b3c3b3c"
+    confirmations = 12
+}
+
+output "confirmed" {
+    value = action.check.confirmed
+}

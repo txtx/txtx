@@ -1,0 +1,25 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+# Signer with no funds
+signer "poor_sender" "evm::secret_key" {
+    secret_key = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+}
+
+# Try to send 0 ETH but still need gas
+action "transfer" "evm::send_eth" {
+    recipient_address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    amount = 0  # Send 0 ETH
+    signer = signer.poor_sender
+    type = "Legacy"
+    gas_limit = 21000
+    gas_price = 20000000000  # 20 Gwei
+    confirmations = 0
+    description = "Attempt transfer with no funds for gas"
+}
+
+output "tx_hash" {
+    value = action.transfer.tx_hash
+}

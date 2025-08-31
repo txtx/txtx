@@ -28,7 +28,9 @@ use crate::rpc::EvmRpc;
 use crate::typing::EVM_ADDRESS;
 use txtx_addon_kit::constants::TX_HASH;
 
-use super::get_signer_did;
+use super::{get_signer_did, get_common_tx_params_from_args};
+use crate::errors::{EvmError, EvmResult, TransactionError, ConfigError, report_to_diagnostic};
+use error_stack::{Report, ResultExt};
 
 lazy_static! {
     pub static ref SEND_ETH: PreCommandSpecification = define_command! {
@@ -196,7 +198,7 @@ impl CommandImplementation for SendEth {
             let (transaction, transaction_cost, _, tx_description) =
                 build_unsigned_transfer(&signer_state, &spec, &values)
                     .await
-                    .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+                    .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
 
             let meta_description =
                 get_meta_description(tx_description, &signer_did, &signers_instances);
@@ -341,7 +343,7 @@ impl CommandImplementation for SendEth {
 }
 
 #[cfg(not(feature = "wasm"))]
-async fn build_unsigned_transfer(
+async fn build_unsigned_transfer_v1(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
@@ -362,7 +364,7 @@ async fn build_unsigned_transfer(
     let recipient_address_value = values.get_expected_value("recipient_address")?;
 
     let (amount, gas_limit, mut nonce) =
-        get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{}", e))?;
+        get_common_tx_params_from_args(values).map_err(|e| report_to_diagnostic(e))?;
     if nonce.is_none() {
         if let Some(signer_nonce) =
             get_signer_nonce(signer_state, chain_id).map_err(|e| diagnosed_error!("{}", e))?
@@ -391,6 +393,95 @@ async fn build_unsigned_transfer(
     };
 
     let (tx, tx_cost, sim_result) = build_unsigned_transaction(rpc, values, common).await?;
+    Ok((
+        tx,
+        tx_cost,
+        sim_result,
+        format!("The transaction will transfer {amount} WEI from {from_address} to {recipient_address}."),
+    ))
+}
+
+#[cfg(not(feature = "wasm"))]
+async fn build_unsigned_transfer(
+    signer_state: &ValueStore,
+    _spec: &CommandSpecification,
+    values: &ValueStore,
+) -> EvmResult<(TransactionRequest, i128, String, String)> {
+    use crate::{
+        codec::{build_unsigned_transaction_v2, TransactionType},
+        constants::{CHAIN_ID, TRANSACTION_TYPE},
+        signers::common::get_signer_nonce,
+        typing::EvmValue,
+    };
+
+    let from = signer_state
+        .get_expected_value("signer_address")
+        .map_err(|e| Report::new(EvmError::Config(ConfigError::MissingField(
+            format!("signer_address: {}", e)
+        ))))?;
+
+    let rpc_api_url = values
+        .get_expected_string(RPC_API_URL)
+        .map_err(|e| Report::new(EvmError::Config(ConfigError::MissingField(
+            format!("rpc_api_url: {}", e)
+        ))))?;
+    
+    let chain_id = values
+        .get_expected_uint(CHAIN_ID)
+        .map_err(|e| Report::new(EvmError::Config(ConfigError::MissingField(
+            format!("chain_id: {}", e)
+        ))))?;
+
+    let recipient_address_value = values
+        .get_expected_value("recipient_address")
+        .map_err(|e| Report::new(EvmError::Config(ConfigError::MissingField(
+            format!("recipient_address: {}", e)
+        ))))?;
+
+    let (amount, gas_limit, mut nonce) = get_common_tx_params_from_args(values)?;
+    
+    if nonce.is_none() {
+        if let Some(signer_nonce) = get_signer_nonce(signer_state, chain_id)
+            .map_err(|e| Report::new(EvmError::Signer(crate::errors::SignerError::SignatureFailed))
+                .attach_printable(format!("Failed to get signer nonce: {}", e)))? 
+        {
+            nonce = Some(signer_nonce + 1);
+        }
+    }
+
+    let tx_type = TransactionType::from_some_value(values.get_string(TRANSACTION_TYPE))
+        .map_err(|e| Report::new(EvmError::Transaction(TransactionError::InvalidType(e.to_string()))))?;
+
+    let rpc = EvmRpc::new(&rpc_api_url)?;
+
+    let from_address = EvmValue::to_address(from)
+        .map_err(|e| Report::new(EvmError::Config(ConfigError::InvalidValue {
+            field: "from_address".to_string(),
+            value: e.to_string(),
+        })))?;
+    
+    let recipient_address = EvmValue::to_address(&recipient_address_value)
+        .map_err(|e| Report::new(EvmError::Transaction(TransactionError::InvalidRecipient(
+            format!("Invalid recipient address: {}", e)
+        ))))?;
+
+    let common = CommonTransactionFields {
+        to: Some(recipient_address_value.clone()),
+        from: from.clone(),
+        nonce,
+        chain_id,
+        amount,
+        gas_limit,
+        tx_type,
+        input: None,
+        deploy_code: None,
+    };
+
+    let (tx, tx_cost, sim_result) = build_unsigned_transaction_v2(rpc, values, common)
+        .await
+        .attach_printable(format!("Building ETH transfer from {} to {}", from_address, recipient_address))
+        .attach_printable(format!("Amount: {} WEI", amount))?;
+    
     Ok((
         tx,
         tx_cost,

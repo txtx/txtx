@@ -1,7 +1,11 @@
 use crate::{
     constants::RE_EXECUTE_COMMAND,
     indoc,
-    types::{commands::CommandExecutionResult, frontend::LogDispatcher, types::ObjectProperty},
+    types::{
+        commands::CommandExecutionResult,
+        frontend::{Block, Panel, StatusUpdater},
+        types::ObjectProperty,
+    },
 };
 use uuid::Uuid;
 
@@ -110,7 +114,7 @@ pub fn evaluate_post_conditions(
     values: &ValueStore,
     execution_results: &mut CommandExecutionResult,
     progress_tx: &channel::Sender<BlockEvent>,
-    _background_tasks_uuid: &Uuid,
+    background_tasks_uuid: &Uuid,
 ) -> Result<PostConditionEvaluationResult, Diagnostic> {
     let Some(post_conditions) = values.get_map(POST_CONDITION) else {
         return Ok(PostConditionEvaluationResult::Noop);
@@ -121,7 +125,12 @@ pub fn evaluate_post_conditions(
     let mut diags = vec![];
     let mut do_skip = false;
 
-    let logger = LogDispatcher::new(construct_did.as_uuid(), "std::post_conditions", progress_tx);
+    let _ = progress_tx.send(BlockEvent::ProgressBar(Block::new(
+        &background_tasks_uuid,
+        Panel::ProgressBar(vec![]),
+    )));
+
+    let mut status_updater = StatusUpdater::new(background_tasks_uuid, construct_did, progress_tx);
     for (i, post_condition) in post_conditions.iter().enumerate() {
         if let AssertionResult::Failure(assertion_msg) = &post_condition.assertion {
             if post_condition.retries > 0 {
@@ -133,10 +142,7 @@ pub fn evaluate_post_conditions(
 
                 if attempts < post_condition.retries as i128 {
                     // If the assertion is false, we will retry the command
-
-                    logger.warn(
-                        "Post-condition failed",
-                        format!(
+                    status_updater.propagate_warning_status(&format!(
                         "'{}' command '{}': post_condition #{} attempt {}/{}: retrying execution of command in {} milliseconds",
                         spec.matcher,
                         instance_name,
@@ -168,21 +174,17 @@ pub fn evaluate_post_conditions(
                     )));
                 }
                 PostConditionBehavior::Log => {
-                    logger.warn(
-                        "Post-condition failed",
-                        format!(
-                            "'{}' command '{}': post_condition #{}: {}",
-                            spec.matcher,
-                            instance_name,
-                            i + 1,
-                            assertion_msg
-                        ),
-                    );
+                    status_updater.propagate_warning_status(&format!(
+                        "'{}' command '{}': post_condition #{}: {}",
+                        spec.matcher,
+                        instance_name,
+                        i + 1,
+                        assertion_msg
+                    ));
                 }
                 PostConditionBehavior::Skip => {
                     do_skip = true;
-                    logger.warn(
-                        "Post-condition failed",format!(
+                    status_updater.propagate_warning_status(&format!(
                         "'{}' command '{}': post_condition #{}: {}: skipping execution of this command and all downstream commands",
                         spec.matcher,
                         instance_name,

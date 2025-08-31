@@ -1,0 +1,108 @@
+# Complex ABI encoding test with structs and arrays
+# Tests encoding of complex types including tuples and dynamic arrays
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# Deploy a contract that accepts complex types
+variable "complex_contract" {
+    value = {
+        bytecode = "0x608060405234801561001057600080fd5b50610474806100206000396000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c80632e1a7d4d14610046578063b8966710146100625780639c6f1a2a14610092575b600080fd5b610060600480360381019061005b91906102e0565b6100ae565b005b61007c600480360381019061007791906102e0565b6100fb565b6040516100899190610318565b60405180910390f35b6100ac60048036038101906100a791906103a8565b610112565b005b806000808282546100bf9190610437565b9250508190555050565b600080610106610290565b90508091505092915050565b50505050565b600081519050919050565b600082825260208201905092915050565b60005b83811015610153578082015181840152602081019050610138565b60008484015250505050565b6000601f19601f8301169050919050565b600061017c82610119565b6101868185610124565b9350610196818560208601610135565b61019f8161015f565b840191505092915050565b600060208201905081810360008301526101c48184610170565b905092915050565b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b60006101f7826101cc565b9050919050565b610207816101ec565b82525050565b6000602082019050610222600083018461"
+        abi = evm::json_encode([
+            {
+                "name": "processOrder",
+                "type": "function",
+                "inputs": [
+                    {
+                        "name": "order",
+                        "type": "tuple",
+                        "components": [
+                            {"name": "orderId", "type": "uint256"},
+                            {"name": "buyer", "type": "address"},
+                            {"name": "amounts", "type": "uint256[]"}
+                        ]
+                    }
+                ],
+                "outputs": [],
+                "stateMutability": "nonpayable"
+            },
+            {
+                "name": "processMultipleAddresses",
+                "type": "function",
+                "inputs": [
+                    {"name": "addresses", "type": "address[]"},
+                    {"name": "amounts", "type": "uint256[]"}
+                ],
+                "outputs": [],
+                "stateMutability": "nonpayable"
+            },
+            {
+                "name": "getBalance",
+                "type": "function",
+                "inputs": [{"name": "account", "type": "address"}],
+                "outputs": [{"name": "", "type": "uint256"}],
+                "stateMutability": "view"
+            }
+        ])
+    }
+}
+
+action "deploy" "evm::deploy_contract" {
+    contract = variable.complex_contract
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test calling with struct parameter
+variable "order_struct" {
+    value = [
+        42,  # orderId
+        "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",  # buyer
+        [100, 200, 300]  # amounts array
+    ]
+}
+
+action "call_with_struct" "evm::call_contract" {
+    contract_address = action.deploy.contract_address
+    contract_abi = variable.complex_contract.abi
+    function_name = "processOrder"
+    function_args = [variable.order_struct]
+    signer = signer.deployer
+    confirmations = 1
+}
+
+# Test calling with multiple arrays
+variable "addresses_list" {
+    value = [
+        "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+    ]
+}
+
+variable "amounts_list" {
+    value = [1000, 2000, 3000]
+}
+
+action "call_with_arrays" "evm::call_contract" {
+    contract_address = action.deploy.contract_address
+    contract_abi = variable.complex_contract.abi
+    function_name = "processMultipleAddresses"
+    function_args = [variable.addresses_list, variable.amounts_list]
+    signer = signer.deployer
+    confirmations = 1
+}
+
+output "struct_call_tx" {
+    value = action.call_with_struct.tx_hash
+}
+
+output "arrays_call_tx" {
+    value = action.call_with_arrays.tx_hash
+}

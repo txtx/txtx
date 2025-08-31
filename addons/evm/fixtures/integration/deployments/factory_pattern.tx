@@ -1,0 +1,43 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+}
+
+# Deploy factory contract
+action "deploy_factory" "evm::deploy_contract" {
+    contract_name = "FactoryContract"
+    artifact_source = "foundry"
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Use factory to create child contract
+action "create_child" "evm::call_contract_function" {
+    contract_address = action.deploy_factory.contract_address
+    function_signature = "createChild(string)"
+    function_args = ["TestChild"]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Get deployed child address
+action "get_child_address" "evm::call_contract_function" {
+    contract_address = action.deploy_factory.contract_address
+    function_signature = "getLastChild()"
+}
+
+output "factory_address" {
+    value = action.deploy_factory.contract_address
+}
+
+output "child_address" {
+    value = action.get_child_address.result
+}
+
+output "creation_tx" {
+    value = action.create_child.tx_hash
+}

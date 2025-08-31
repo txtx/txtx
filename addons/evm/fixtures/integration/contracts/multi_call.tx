@@ -1,0 +1,57 @@
+# Test multiple contract calls in sequence
+# Simulates complex contract interactions
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "caller" "evm::secret_key" {
+    secret_key = input.caller_private_key
+}
+
+# First call - set a value
+action "call_setter" "evm::call_contract_function" {
+    contract_address = input.contract_address
+    function_signature = "setValue(uint256)"
+    function_args = [input.value_to_set]
+    signer = signer.caller
+}
+
+# Second call - read the value (view function, no signer needed)
+action "call_getter" "evm::call_contract_function" {
+    contract_address = input.contract_address
+    function_signature = "getValue()"
+    function_args = []
+}
+
+# Third call - modify the value
+action "call_increment" "evm::call_contract_function" {
+    contract_address = input.contract_address
+    function_signature = "increment()"
+    function_args = []
+    signer = signer.caller
+}
+
+# Final read to verify
+action "final_read" "evm::call_contract_function" {
+    contract_address = input.contract_address
+    function_signature = "getValue()"
+    function_args = []
+}
+
+output "initial_value" {
+    value = action.call_getter.result
+}
+
+output "final_value" {
+    value = action.final_read.result
+}
+
+output "setter_tx" {
+    value = action.call_setter.tx_hash
+}
+
+output "increment_tx" {
+    value = action.call_increment.tx_hash
+}

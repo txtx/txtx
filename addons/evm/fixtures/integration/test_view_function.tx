@@ -1,0 +1,58 @@
+# Test calling view functions without gas fees
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "caller" "evm::secret_key" {
+    secret_key = input.caller_private_key
+}
+
+# Deploy a simple contract with view function
+variable "simple_contract_bytecode" {
+    value = "0x608060405234801561001057600080fd5b5060ff806100206000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c806306661abd1460375780636d4ce63c14604c575b600080fd5b60005460405190815260200160405180910390f35b60005460405190815260200160405180910390f3"
+    description = "Bytecode for contract with get() view function"
+}
+
+variable "simple_contract_abi" {
+    value = evm::json_encode([
+        {
+            "name": "count",
+            "type": "function",
+            "inputs": [],
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view"
+        },
+        {
+            "name": "get",
+            "type": "function", 
+            "inputs": [],
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view"
+        }
+    ])
+}
+
+action "deploy" "evm::deploy_contract" {
+    contract = {
+        bytecode = variable.simple_contract_bytecode,
+        abi = variable.simple_contract_abi
+    }
+    signer = signer.caller
+    confirmations = 0
+}
+
+# This should work without gas fees since it's a view function
+action "call_view" "evm::call_contract" {
+    contract_address = action.deploy.contract_address
+    contract_abi = variable.simple_contract_abi
+    function_name = "get"
+    function_args = []
+    signer = signer.caller
+    confirmations = 0
+    description = "Call view function"
+}
+
+output "view_result" {
+    value = action.call_view.result
+}

@@ -1,0 +1,49 @@
+# Send ETH between accounts using txtx
+addon "evm" {
+    chain_id = 31337
+    rpc_api_url = input.rpc_url
+}
+
+variable "sender" {
+    value = input.sender_address
+    description = "Sender account"
+}
+
+variable "recipient" {
+    value = input.recipient_address
+    description = "Recipient account"
+}
+
+variable "sender_key" {
+    value = input.sender_private_key
+    description = "Sender's private key for signing"
+}
+
+variable "amount" {
+    value = "1000000000000000000"  # 1 ETH in wei
+    description = "Amount to send"
+}
+
+signer "sender_signer" "evm::local_wallet" {
+    private_key = variable.sender_key
+}
+
+action "transfer" "evm::send_eth" {
+    from = variable.sender
+    to = variable.recipient
+    amount = variable.amount
+    signer = signer.sender_signer
+    description = "Transfer 1 ETH"
+}
+
+output "tx_hash" {
+    value = action.transfer.tx_hash
+}
+
+output "receipt_status" {
+    value = action.transfer.receipt.status
+}
+
+output "gas_used" {
+    value = action.transfer.receipt.gasUsed
+}

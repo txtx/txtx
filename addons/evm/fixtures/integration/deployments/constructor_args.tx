@@ -1,0 +1,60 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# SimpleStorage contract with constructor
+variable "storage_contract" {
+    value = {
+        bytecode = "0x608060405234801561001057600080fd5b5060405161016f38038061016f8339818101604052810190610032919061007a565b80600081905550506100a7565b600080fd5b6000819050919050565b61005781610044565b811461006257600080fd5b50565b6000815190506100748161004e565b92915050565b6000602082840312156100905761008f61003f565b5b600061009e84828501610065565b91505092915050565b60b9806100b66000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c80632e64cec11460375780636057361d146051575b600080fd5b603d6069565b6040516048919060a4565b60405180910390f35b6067600480360381019060639190607f565b6072565b005b60008054905090565b8060008190555050565b600080fd5b6000819050919050565b6092816081565b8114609c57600080fd5b50565b60008135905060a981608b565b92915050565b60006020828403121560c25760c1607a565b5b600060ce84828501609f565b91505092915050565b60d6816081565b82525050565b600060208201905060ef600083018460cd565b9291505056fea2646970667358221220"
+        abi = evm::json_encode([
+            {
+                "inputs": [{"name": "_initialValue", "type": "uint256"}],
+                "type": "constructor"
+            },
+            {
+                "name": "set",
+                "type": "function",
+                "inputs": [{"name": "x", "type": "uint256"}],
+                "outputs": [],
+                "stateMutability": "nonpayable"
+            },
+            {
+                "name": "get",
+                "type": "function",
+                "inputs": [],
+                "outputs": [{"name": "", "type": "uint256"}],
+                "stateMutability": "view"
+            }
+        ])
+    }
+}
+
+action "deploy_storage" "evm::deploy_contract" {
+    contract = variable.storage_contract
+    constructor_args = [100]  # Initial value
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Call the get function to verify deployment
+action "verify_value" "evm::call_contract" {
+    contract_address = action.deploy_storage.contract_address
+    contract_abi = variable.storage_contract.abi
+    function_name = "get"
+    function_args = []
+    signer = signer.deployer
+    confirmations = 0
+}
+
+output "contract_address" {
+    value = action.deploy_storage.contract_address
+}
+
+output "initial_value" {
+    value = action.verify_value.result
+}

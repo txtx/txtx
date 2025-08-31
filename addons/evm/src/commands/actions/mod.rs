@@ -23,6 +23,8 @@ use sign_transaction::SIGN_TRANSACTION;
 
 use crate::constants::{GAS_LIMIT, NONCE, SIGNER, TRANSACTION_AMOUNT};
 use crate::typing::EvmValue;
+use crate::errors::{EvmError, EvmResult};
+use error_stack::Report;
 
 lazy_static! {
     pub static ref ACTIONS: Vec<PreCommandSpecification> = vec![
@@ -35,16 +37,28 @@ lazy_static! {
     ];
 }
 
-pub fn get_expected_address(value: &Value) -> Result<Address, String> {
-    EvmValue::to_address(value).map_err(|e| format!("failed to parse address: {}", e.message))
+pub fn get_expected_address(value: &Value) -> EvmResult<Address> {
+    use crate::errors::ConfigError;
+    
+    EvmValue::to_address(value)
+        .map_err(|e| Report::new(EvmError::Config(ConfigError::ParseError(format!("failed to parse address: {}", e.message)))))
 }
 
 pub fn get_common_tx_params_from_args(
     args: &ValueStore,
-) -> Result<(u64, Option<u64>, Option<u64>), String> {
-    let amount = args.get_uint(TRANSACTION_AMOUNT)?.unwrap_or(0);
-    let gas_limit = args.get_uint(GAS_LIMIT)?;
-    let nonce = args.get_uint(NONCE)?;
+) -> EvmResult<(u64, Option<u64>, Option<u64>)> {
+    use crate::errors::ConfigError;
+    
+    let amount = args
+        .get_uint(TRANSACTION_AMOUNT)
+        .map_err(|e| Report::new(EvmError::Config(ConfigError::ParseError(format!("failed to get transaction amount: {}", e)))))?
+        .unwrap_or(0);
+    let gas_limit = args
+        .get_uint(GAS_LIMIT)
+        .map_err(|e| Report::new(EvmError::Config(ConfigError::ParseError(format!("failed to get gas limit: {}", e)))))?;
+    let nonce = args
+        .get_uint(NONCE)
+        .map_err(|e| Report::new(EvmError::Config(ConfigError::ParseError(format!("failed to get nonce: {}", e)))))?;
     Ok((amount, gas_limit, nonce))
 }
 

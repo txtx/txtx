@@ -1,0 +1,88 @@
+# Transaction cancellation test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "recipient" {
+    value = input.recipient
+    description = "Original transaction recipient"
+}
+
+variable "amount" {
+    value = input.amount
+    description = "Transaction amount to send"
+}
+
+variable "initial_gas_price" {
+    value = input.initial_gas_price
+    description = "Gas price for initial transaction"
+}
+
+variable "cancel_gas_price" {
+    value = input.cancel_gas_price
+    description = "Higher gas price for cancellation"
+}
+
+variable "nonce" {
+    value = input.nonce
+    description = "Nonce for the transaction to cancel"
+}
+
+# Send initial transaction
+action "send_transaction" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.amount
+    gas_price = variable.initial_gas_price
+    nonce = variable.nonce
+    description = "Transaction to be cancelled"
+}
+
+# Cancel transaction by sending 0 value to self with same nonce
+action "cancel_transaction" "evm::send_transaction" {
+    from = signer.test_signer
+    to = signer.test_signer.address
+    value = "0"
+    gas_price = variable.cancel_gas_price
+    nonce = variable.nonce
+    description = "Cancel transaction by sending 0 to self"
+}
+
+# Check pending transactions
+action "check_pending" "evm::get_pending_transactions" {
+    address = signer.test_signer.address
+}
+
+# Wait for the cancellation to be mined
+action "wait_for_cancellation" "evm::wait_for_confirmation" {
+    tx_hash = action.cancel_transaction.tx_hash
+    confirmations = 1
+}
+
+# Verify cancellation succeeded
+action "verify_cancellation" "evm::get_transaction_receipt" {
+    tx_hash = action.cancel_transaction.tx_hash
+}
+
+# Outputs
+output "original_tx_hash" {
+    value = action.send_transaction.tx_hash
+}
+
+output "cancel_tx_hash" {
+    value = action.cancel_transaction.tx_hash
+}
+
+output "pending_count" {
+    value = action.check_pending.count
+}
+
+output "cancellation_confirmed" {
+    value = action.verify_cancellation.status
+}

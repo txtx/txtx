@@ -12,7 +12,6 @@ use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use types::{ObjectDefinition, ObjectProperty, Type};
-use uuid::Uuid;
 
 use crate::helpers::fs::FileLocation;
 
@@ -67,10 +66,6 @@ impl Did {
 
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_slice()
-    }
-
-    pub fn as_uuid(&self) -> Uuid {
-        Uuid::from_bytes(self.0[0..16].try_into().unwrap())
     }
 }
 
@@ -246,10 +241,6 @@ impl ConstructDid {
 
     pub fn from_hex_string(did_str: &str) -> Self {
         ConstructDid(Did::from_hex_string(did_str))
-    }
-
-    pub fn as_uuid(&self) -> Uuid {
-        self.0.as_uuid()
     }
 }
 

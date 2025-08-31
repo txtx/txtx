@@ -1,0 +1,44 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# Get contract from foundry project
+variable "simple_storage" {
+    value = evm::get_contract_from_foundry_project("SimpleStorage")
+    description = "SimpleStorage contract from foundry"
+}
+
+# Deploy the contract with constructor arg
+action "deploy" "evm::deploy_contract" {
+    contract = variable.simple_storage
+    constructor_args = [42]  # Initial value
+    signer = signer.deployer
+    confirmations = 0
+    description = "Deploy SimpleStorage"
+}
+
+# Call retrieve to verify deployment
+action "get_value" "evm::call_contract" {
+    contract_address = action.deploy.contract_address
+    contract_abi = variable.simple_storage.abi
+    function_name = "retrieve"
+    function_args = []
+    signer = signer.deployer
+}
+
+output "contract_address" {
+    value = action.deploy.contract_address
+}
+
+output "initial_value" {
+    value = action.get_value.result
+}
+
+output "tx_hash" {
+    value = action.deploy.tx_hash
+}

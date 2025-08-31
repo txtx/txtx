@@ -1,0 +1,50 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+}
+
+# Deploy contract with multiple constructor parameters of different types
+action "deploy" "evm::deploy_contract" {
+    contract_name = "ComplexConstructor"
+    # Contract accepts (uint256, uint256, uint256)
+    artifact_source = "inline:0x608060405234801561001057600080fd5b5060405161025b38038061025b8339818101604052606081101561003357600080fd5b8101908080519060200190929190805190602001909291908051906020019092919050505082600081905550816001819055508060028190555050505060e9806101726000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c80636057361d1460375780636c25b3461060625780638381f58a14607d575b600080fd5b606060048036036020811015604b57600080fd5b8101908080359060200190929190505050609857600080fd5b005b606b60a2565b60408051918252519081900360200190f35b608660a8565b60408051918252519081900360200190f35b8060008190555050565b60015481565b6000548156fea264697066735822122098e9e7a5c9f3a9e3c9f3a9e3c9f3a9e3c9f3a9e3c9f3a9e3c9f3a9e3c9f3a9e36"
+    constructor_args = [100, 200, 300]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Verify deployment succeeded
+action "get_value0" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "getValue0()"
+}
+
+action "get_value1" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "getValue1()"
+}
+
+action "get_value2" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "getValue2()"
+}
+
+output "contract_address" {
+    value = action.deploy.contract_address
+}
+
+output "constructor_arg_0" {
+    value = action.get_value0.result
+}
+
+output "constructor_arg_1" {
+    value = action.get_value1.result
+}
+
+output "constructor_arg_2" {
+    value = action.get_value2.result
+}

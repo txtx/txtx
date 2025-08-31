@@ -1,0 +1,87 @@
+# ABI encoding test fixture for basic types
+addon "evm" {
+    chain_id = 31337
+}
+
+# Input parameters for testing different encoding scenarios
+variable "address_value" {
+    value = input.address_value
+    description = "Address to encode"
+}
+
+variable "uint_value" {
+    value = input.uint_value  
+    description = "Unsigned integer to encode"
+}
+
+variable "bool_value" {
+    value = input.bool_value
+    description = "Boolean value to encode"
+}
+
+variable "bytes_value" {
+    value = input.bytes_value
+    description = "Bytes value to encode"
+}
+
+variable "string_value" {
+    value = input.string_value
+    description = "String value to encode"
+}
+
+# Encode different types
+action "encode_address" "evm::encode_abi" {
+    types = ["address"]
+    values = [variable.address_value]
+}
+
+action "encode_uint256" "evm::encode_abi" {
+    types = ["uint256"]
+    values = [variable.uint_value]
+}
+
+action "encode_bool" "evm::encode_abi" {
+    types = ["bool"]
+    values = [variable.bool_value]
+}
+
+action "encode_bytes32" "evm::encode_abi" {
+    types = ["bytes32"]
+    values = [variable.bytes_value]
+}
+
+action "encode_string" "evm::encode_abi" {
+    types = ["string"]
+    values = [variable.string_value]
+}
+
+# Multi-parameter encoding
+action "encode_multiple" "evm::encode_abi" {
+    types = ["address", "uint256", "bool"]
+    values = [variable.address_value, variable.uint_value, variable.bool_value]
+}
+
+# Outputs
+output "encoded_address" {
+    value = action.encode_address.result
+}
+
+output "encoded_uint" {
+    value = action.encode_uint256.result
+}
+
+output "encoded_bool" {
+    value = action.encode_bool.result
+}
+
+output "encoded_bytes" {
+    value = action.encode_bytes32.result
+}
+
+output "encoded_string" {
+    value = action.encode_string.result
+}
+
+output "encoded_multiple" {
+    value = action.encode_multiple.result
+}

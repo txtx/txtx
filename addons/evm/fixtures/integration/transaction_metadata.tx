@@ -1,0 +1,111 @@
+# Transaction metadata and mempool test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "recipient" {
+    value = input.recipient
+    description = "Recipient address"
+}
+
+variable "amounts" {
+    value = input.amounts
+    description = "Different amounts for transactions"
+}
+
+variable "gas_prices" {
+    value = input.gas_prices
+    description = "Different gas prices"
+}
+
+# Send transactions with different priorities
+action "send_low_priority" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.amounts[0]
+    gas_price = variable.gas_prices[0]
+    metadata = {
+        priority = "low"
+        submitted_at = evm::current_timestamp()
+        memo = "Low priority transaction"
+    }
+}
+
+action "send_high_priority" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.amounts[1]
+    gas_price = variable.gas_prices[2]
+    metadata = {
+        priority = "high"
+        submitted_at = evm::current_timestamp()
+        memo = "High priority transaction"
+    }
+}
+
+# Get mempool content
+action "get_mempool" "evm::get_mempool_content" {
+    address = signer.test_signer.address
+}
+
+# Get transaction by hash with full details
+action "get_tx_details" "evm::get_transaction" {
+    tx_hash = action.send_low_priority.tx_hash
+    include_access_list = true
+}
+
+# Get block with transactions
+action "get_block" "evm::get_block" {
+    block_number = "latest"
+    full_transactions = true
+}
+
+# Query transaction status
+action "query_status" "evm::get_transaction_status" {
+    tx_hash = action.send_high_priority.tx_hash
+}
+
+# Get transaction count (nonce)
+action "get_nonce" "evm::get_transaction_count" {
+    address = signer.test_signer.address
+    block = "pending"
+}
+
+# Outputs
+output "low_priority_hash" {
+    value = action.send_low_priority.tx_hash
+}
+
+output "high_priority_hash" {
+    value = action.send_high_priority.tx_hash
+}
+
+output "mempool_size" {
+    value = action.get_mempool.pending_count
+}
+
+output "mempool_transactions" {
+    value = action.get_mempool.transactions
+}
+
+output "transaction_details" {
+    value = action.get_tx_details
+}
+
+output "block_info" {
+    value = action.get_block
+}
+
+output "tx_status" {
+    value = action.query_status.status
+}
+
+output "pending_nonce" {
+    value = action.get_nonce.count
+}

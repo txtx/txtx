@@ -1,0 +1,108 @@
+# Large contract deployment test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Check gas limit for large deployment
+action "check_block_gas_limit" "evm::get_block" {
+    block_number = "latest"
+}
+
+# Estimate gas for large contract
+action "estimate_large_deployment" "evm::estimate_gas" {
+    from = signer.deployer.address
+    data = input.large_contract_bytecode
+}
+
+# Deploy large contract with high gas limit
+action "deploy_large_contract" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.large_contract_bytecode
+    gas_limit = action.estimate_large_deployment.gas_limit * 1.2
+    gas_price = input.gas_price
+    description = "Deploy large contract near block gas limit"
+}
+
+# Split large contract into libraries
+action "deploy_library_1" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.library_1_bytecode
+    description = "Deploy first library"
+}
+
+action "deploy_library_2" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.library_2_bytecode
+    description = "Deploy second library"
+}
+
+# Deploy main contract linking libraries
+action "deploy_with_libraries" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.main_contract_bytecode
+    libraries = {
+        "Library1": action.deploy_library_1.contract_address,
+        "Library2": action.deploy_library_2.contract_address
+    }
+    description = "Deploy main contract with linked libraries"
+}
+
+# Verify contract size
+action "get_contract_code" "evm::get_code" {
+    address = action.deploy_large_contract.contract_address
+}
+
+# Test contract functionality
+action "call_large_contract" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_large_contract.contract_address
+    function = "complexOperation(uint256[])"
+    args = [input.test_array]
+}
+
+# Get deployment cost
+action "get_deployment_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.deploy_large_contract.tx_hash
+}
+
+# Outputs
+output "estimated_gas" {
+    value = action.estimate_large_deployment.gas_limit
+}
+
+output "actual_gas_used" {
+    value = action.get_deployment_receipt.gas_used
+}
+
+output "contract_address" {
+    value = action.deploy_large_contract.contract_address
+}
+
+output "contract_size_bytes" {
+    value = len(action.get_contract_code.code)
+}
+
+output "library_1_address" {
+    value = action.deploy_library_1.contract_address
+}
+
+output "library_2_address" {
+    value = action.deploy_library_2.contract_address
+}
+
+output "main_with_libraries" {
+    value = action.deploy_with_libraries.contract_address
+}
+
+output "deployment_cost_eth" {
+    value = action.get_deployment_receipt.gas_used * input.gas_price / 1000000000000000000
+}
+
+output "function_result" {
+    value = action.call_large_contract.result
+}

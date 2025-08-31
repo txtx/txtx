@@ -1,0 +1,23 @@
+# Test calling non-existent contract
+# Attempts to call a function on an address with no code
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "caller" "evm::secret_key" {
+    secret_key = input.caller_private_key
+}
+
+# Try to call a function on a non-contract address
+action "call_non_contract" "evm::call_contract_function" {
+    contract_address = input.non_contract_address
+    function_signature = "balanceOf(address)"
+    function_args = [signer.caller.address]
+    signer = signer.caller
+}
+
+output "should_fail" {
+    value = "Call should fail - no contract at address"
+}

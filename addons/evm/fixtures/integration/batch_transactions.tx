@@ -1,0 +1,92 @@
+# Batch transactions test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "recipients" {
+    value = input.recipients
+    description = "Array of recipient addresses"
+}
+
+variable "amounts" {
+    value = input.amounts
+    description = "Array of amounts to send"
+}
+
+variable "gas_prices" {
+    value = input.gas_prices
+    description = "Different gas prices for each transaction"
+}
+
+variable "data_payloads" {
+    value = input.data_payloads
+    description = "Optional data for transactions"
+}
+
+# Send batch of transactions with different parameters
+action "batch_send" "evm::send_batch_transactions" {
+    from = signer.test_signer
+    transactions = [
+        {
+            to = variable.recipients[0]
+            value = variable.amounts[0]
+            gas_price = variable.gas_prices[0]
+            data = variable.data_payloads[0]
+        },
+        {
+            to = variable.recipients[1]
+            value = variable.amounts[1]
+            gas_price = variable.gas_prices[1]
+            data = variable.data_payloads[1]
+        },
+        {
+            to = variable.recipients[2]
+            value = variable.amounts[2]
+            gas_price = variable.gas_prices[2]
+            data = variable.data_payloads[2]
+        }
+    ]
+}
+
+# Wait for all batch transactions
+action "wait_batch_confirmation" "evm::wait_for_confirmations" {
+    tx_hashes = action.batch_send.tx_hashes
+    confirmations = 2
+}
+
+# Get receipts for all transactions
+action "get_batch_receipts" "evm::get_transaction_receipts" {
+    tx_hashes = action.batch_send.tx_hashes
+}
+
+# Verify all succeeded
+action "verify_batch_success" "evm::verify_transactions" {
+    tx_hashes = action.batch_send.tx_hashes
+}
+
+# Outputs
+output "batch_tx_hashes" {
+    value = action.batch_send.tx_hashes
+}
+
+output "batch_count" {
+    value = action.batch_send.count
+}
+
+output "all_confirmed" {
+    value = action.wait_batch_confirmation.all_confirmed
+}
+
+output "batch_gas_used" {
+    value = action.get_batch_receipts.total_gas_used
+}
+
+output "batch_success" {
+    value = action.verify_batch_success.all_successful
+}

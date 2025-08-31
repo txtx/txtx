@@ -1,0 +1,41 @@
+# Test contract revert with custom error message
+# Deploys a contract that can revert with a reason
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# Deploy a contract with a revert function
+# This simple contract has a function that always reverts with "Not authorized"
+variable "revert_contract_bytecode" {
+    value = "0x608060405234801561001057600080fd5b5060f58061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c8063a9059cbb14602d575b600080fd5b60336035565b005b6040517f08c379a00000000000000000000000000000000000000000000000000000000081526004018080602001828103825260108152602001807f4e6f7420617574686f72697a65642100000000000000000000000000000000008152506020019150506040518091039"
+}
+
+action "deploy_revert_contract" "evm::deploy_contract" {
+    contract = {
+        bytecode = variable.revert_contract_bytecode
+        abi = input.revert_contract_abi
+    }
+    signer = signer.deployer
+}
+
+# Try to call the function that reverts
+action "call_reverting_function" "evm::call_contract_function" {
+    contract_address = action.deploy_revert_contract.contract_address
+    function_signature = "transfer(address,uint256)"
+    function_args = ["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8", 100]
+    signer = signer.deployer
+}
+
+output "contract_address" {
+    value = action.deploy_revert_contract.contract_address
+}
+
+output "should_have_reverted" {
+    value = "true"
+}

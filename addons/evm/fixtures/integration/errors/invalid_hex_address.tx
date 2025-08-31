@@ -1,0 +1,13 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+# Test invalid hex encoding in address
+action "invalid_balance" "evm::get_balance" {
+    address = "0xINVALIDHEXADDRESS"
+}
+
+output "balance" {
+    value = action.invalid_balance.balance
+}

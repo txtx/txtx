@@ -1,0 +1,43 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+variable "recipient" {
+    value = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+}
+
+# Get initial balance of recipient
+action "get_initial_balance" "evm::get_balance" {
+    address = variable.recipient
+}
+
+# Send 1 ETH
+action "transfer" "evm::send_eth" {
+    from = signer.sender.address
+    to = variable.recipient
+    amount = "1000000000000000000"  # 1 ETH in wei
+    signer = signer.sender
+    confirmations = 1
+}
+
+# Get final balance of recipient
+action "get_final_balance" "evm::get_balance" {
+    address = variable.recipient
+}
+
+output "tx_hash" {
+    value = action.transfer.tx_hash
+}
+
+output "initial_balance" {
+    value = action.get_initial_balance.balance
+}
+
+output "final_balance" {
+    value = action.get_final_balance.balance
+}

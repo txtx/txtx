@@ -1,0 +1,109 @@
+# Access list transaction test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "contract_address" {
+    value = input.contract_address
+    description = "Contract to interact with"
+}
+
+variable "storage_keys" {
+    value = input.storage_keys
+    description = "Storage keys to pre-warm"
+}
+
+variable "amount" {
+    value = input.amount
+    description = "Amount to send"
+}
+
+variable "function_data" {
+    value = input.function_data
+    description = "Function call data"
+}
+
+# Create access list for optimization
+action "create_access_list" "evm::create_access_list" {
+    from = signer.test_signer.address
+    to = variable.contract_address
+    data = variable.function_data
+}
+
+# Send transaction without access list
+action "send_without_access_list" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.contract_address
+    value = variable.amount
+    data = variable.function_data
+    gas_price = "20000000000"
+}
+
+# Send transaction with manual access list
+action "send_with_manual_access_list" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.contract_address
+    value = variable.amount
+    data = variable.function_data
+    gas_price = "20000000000"
+    access_list = [
+        {
+            address = variable.contract_address
+            storage_keys = variable.storage_keys
+        }
+    ]
+}
+
+# Send transaction with auto-generated access list
+action "send_with_auto_access_list" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.contract_address
+    value = variable.amount
+    data = variable.function_data
+    gas_price = "20000000000"
+    access_list = action.create_access_list.access_list
+}
+
+# Compare gas usage
+action "get_receipt_no_list" "evm::get_transaction_receipt" {
+    tx_hash = action.send_without_access_list.tx_hash
+}
+
+action "get_receipt_manual_list" "evm::get_transaction_receipt" {
+    tx_hash = action.send_with_manual_access_list.tx_hash
+}
+
+action "get_receipt_auto_list" "evm::get_transaction_receipt" {
+    tx_hash = action.send_with_auto_access_list.tx_hash
+}
+
+# Outputs
+output "generated_access_list" {
+    value = action.create_access_list.access_list
+}
+
+output "gas_no_list" {
+    value = action.get_receipt_no_list.gas_used
+}
+
+output "gas_manual_list" {
+    value = action.get_receipt_manual_list.gas_used
+}
+
+output "gas_auto_list" {
+    value = action.get_receipt_auto_list.gas_used
+}
+
+output "gas_savings_manual" {
+    value = action.get_receipt_no_list.gas_used - action.get_receipt_manual_list.gas_used
+}
+
+output "gas_savings_auto" {
+    value = action.get_receipt_no_list.gas_used - action.get_receipt_auto_list.gas_used
+}

@@ -4,18 +4,18 @@ id: simple-storage
 runbooks:
   - name: simple-storage
     id: simple-storage
-    description: 
+    description: Deploy and interact with SimpleStorage contract
     location: runbooks/deployments/simple-storage.tx
 environments:
   devnet:
-    stacks_network_id: devnet
-    stacks_api_url: http://localhost:3999
-    stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
+    evm_chain_id: 31337
+    evm_rpc_api_url: http://localhost:8545
+    evm_operator_address: "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
   testnet:
-    stacks_network_id: testnet
-    stacks_api_url: https://api.testnet.hiro.so
-    stacks_operator_address: ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC
+    evm_chain_id: 11155111  # Sepolia
+    evm_rpc_api_url: https://sepolia.infura.io/v3/${INFURA_API_KEY}
+    evm_operator_address: "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
   mainnet:
-    stacks_network_id: mainnet
-    stacks_api_url: https://api.hiro.so
-    stacks_operator_address: SP2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1J5QKA2F
+    evm_chain_id: 1
+    evm_rpc_api_url: https://mainnet.infura.io/v3/${INFURA_API_KEY}
+    evm_operator_address: "0xCe246168E59dd8e28e367BB49b38Dc621768F425"

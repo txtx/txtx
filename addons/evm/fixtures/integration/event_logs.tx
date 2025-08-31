@@ -1,0 +1,100 @@
+# Event logs test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "contract_address" {
+    value = input.contract_address
+    description = "Contract address to filter logs"
+}
+
+variable "from_block" {
+    value = input.from_block
+    description = "Starting block for log filter"
+}
+
+variable "to_block" {
+    value = input.to_block
+    description = "Ending block for log filter"
+}
+
+variable "event_signature" {
+    value = input.event_signature
+    description = "Event signature to filter (e.g., Transfer(address,address,uint256))"
+}
+
+variable "topic_filter" {
+    value = input.topic_filter
+    description = "Topic to filter logs by"
+}
+
+# Deploy a contract that emits events
+action "deploy_event_emitter" "evm::deploy_contract" {
+    from = signer.test_signer
+    bytecode = input.event_emitter_bytecode
+}
+
+# Call function that emits event
+action "emit_event" "evm::call" {
+    from = signer.test_signer
+    to = action.deploy_event_emitter.contract_address
+    function = "emitEvent(string)"
+    args = [input.event_message]
+}
+
+# Get logs from specific contract
+action "get_contract_logs" "evm::get_logs" {
+    address = action.deploy_event_emitter.contract_address
+    from_block = "latest"
+    to_block = "latest"
+}
+
+# Get logs with topic filter
+action "get_filtered_logs" "evm::get_logs" {
+    address = variable.contract_address
+    topics = [variable.topic_filter]
+    from_block = variable.from_block
+    to_block = variable.to_block
+}
+
+# Parse event from logs
+action "parse_transfer_event" "evm::parse_log" {
+    log = action.get_contract_logs.logs[0]
+    event_signature = variable.event_signature
+}
+
+# Get transaction receipt with logs
+action "get_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.emit_event.tx_hash
+}
+
+# Outputs
+output "deployed_address" {
+    value = action.deploy_event_emitter.contract_address
+}
+
+output "event_tx_hash" {
+    value = action.emit_event.tx_hash
+}
+
+output "contract_logs" {
+    value = action.get_contract_logs.logs
+}
+
+output "filtered_logs" {
+    value = action.get_filtered_logs.logs
+}
+
+output "receipt_logs" {
+    value = action.get_receipt.logs
+}
+
+output "parsed_event" {
+    value = action.parse_transfer_event.event
+}

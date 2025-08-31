@@ -1,0 +1,76 @@
+# Gas estimation test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "recipient" {
+    value = input.recipient
+    description = "Recipient address"
+}
+
+variable "amount" {
+    value = input.amount
+    description = "Amount to send in wei"
+}
+
+variable "contract_bytecode" {
+    value = input.contract_bytecode
+    description = "Contract bytecode for deployment"
+}
+
+variable "custom_gas_limit" {
+    value = input.custom_gas_limit
+    description = "Custom gas limit to test"
+}
+
+# Estimate gas for simple transfer
+action "estimate_transfer" "evm::estimate_gas" {
+    from = signer.test_signer.address
+    to = variable.recipient
+    value = variable.amount
+}
+
+# Estimate gas for contract deployment
+action "estimate_deployment" "evm::estimate_gas" {
+    from = signer.test_signer.address
+    data = variable.contract_bytecode
+}
+
+# Send transaction with estimated gas
+action "send_with_estimated" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.amount
+    gas_limit = action.estimate_transfer.gas_limit
+}
+
+# Send transaction with custom gas limit
+action "send_with_custom" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = "1000000000000000"
+    gas_limit = variable.custom_gas_limit
+}
+
+# Outputs
+output "estimated_transfer_gas" {
+    value = action.estimate_transfer.gas_limit
+}
+
+output "estimated_deployment_gas" {
+    value = action.estimate_deployment.gas_limit
+}
+
+output "actual_gas_used" {
+    value = action.send_with_estimated.gas_used
+}
+
+output "tx_hash" {
+    value = action.send_with_estimated.tx_hash
+}

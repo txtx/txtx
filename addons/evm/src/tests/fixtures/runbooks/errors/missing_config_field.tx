@@ -1,0 +1,11 @@
+# Test: Missing required configuration field
+# Expected: Should fail with ConfigError::MissingField
+
+addon "evm" {
+  # Missing rpc_api_url field
+  chain_id = 1
+}
+
+action "test" "evm::get_balance" {
+  address = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8"
+}

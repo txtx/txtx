@@ -1,0 +1,138 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+}
+
+# Deploy SimpleStorage contract
+action "deploy_storage" "evm::deploy_contract" {
+    contract_name = "SimpleStorage"
+    artifact_source = "foundry"
+    constructor_args = [42]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test storing Unicode characters - Emoji
+action "store_emoji" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "addPerson(string,uint256)"
+    function_args = ["Alice 🚀 Rocket", 100]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test storing Chinese characters
+action "store_chinese" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "addPerson(string,uint256)"
+    function_args = ["张三", 200]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test storing Japanese characters
+action "store_japanese" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "addPerson(string,uint256)"
+    function_args = ["田中さん", 300]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test storing Arabic characters
+action "store_arabic" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "addPerson(string,uint256)"
+    function_args = ["مرحبا", 400]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test storing mixed Unicode (emoji + text + symbols)
+action "store_mixed" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "addPerson(string,uint256)"
+    function_args = ["Test ✓ 测试 🎉 ¡Hola!", 500]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Retrieve person data to verify storage
+action "get_person_0" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "people(uint256)"
+    function_args = [0]
+}
+
+action "get_person_1" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "people(uint256)"
+    function_args = [1]
+}
+
+action "get_person_2" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "people(uint256)"
+    function_args = [2]
+}
+
+action "get_person_3" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "people(uint256)"
+    function_args = [3]
+}
+
+action "get_person_4" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "people(uint256)"
+    function_args = [4]
+}
+
+# Query by Unicode name
+action "query_emoji_name" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "nameToFavoriteNumber(string)"
+    function_args = ["Alice 🚀 Rocket"]
+}
+
+action "query_chinese_name" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "nameToFavoriteNumber(string)"
+    function_args = ["张三"]
+}
+
+output "contract_address" {
+    value = action.deploy_storage.contract_address
+}
+
+output "person_0_data" {
+    value = action.get_person_0.result
+}
+
+output "person_1_data" {
+    value = action.get_person_1.result
+}
+
+output "person_2_data" {
+    value = action.get_person_2.result
+}
+
+output "person_3_data" {
+    value = action.get_person_3.result
+}
+
+output "person_4_data" {
+    value = action.get_person_4.result
+}
+
+output "emoji_name_favorite" {
+    value = action.query_emoji_name.result
+}
+
+output "chinese_name_favorite" {
+    value = action.query_chinese_name.result
+}

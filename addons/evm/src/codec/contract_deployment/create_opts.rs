@@ -5,11 +5,12 @@ use alloy::primitives::Address;
 use txtx_addon_kit::types::stores::{ValueMap, ValueStore};
 use txtx_addon_kit::types::types::Value;
 
-use crate::codec::{build_unsigned_transaction, CommonTransactionFields, TransactionType};
+use crate::codec::{build_unsigned_transaction_v2, CommonTransactionFields, TransactionType};
 use crate::commands::actions::call_contract::{
     encode_contract_call_inputs_from_abi_str, encode_contract_call_inputs_from_selector,
 };
 use crate::commands::actions::get_expected_address;
+use error_stack::ResultExt;
 use crate::constants::{
     DEFAULT_CREATE2_FACTORY_ADDRESS, DEFAULT_CREATE2_SALT, FACTORY_ABI, FACTORY_ADDRESS,
     FACTORY_FUNCTION_NAME, PROXY_FACTORY_ADDRESS, SALT,
@@ -164,8 +165,20 @@ impl CreateDeploymentOpts {
             deploy_code: Some(self.init_code.clone()),
         };
 
-        let (tx, tx_cost, _) = build_unsigned_transaction(rpc.clone(), values, common).await?;
-        let sender_address = get_expected_address(sender_address)?;
+        let (tx, tx_cost, _) = build_unsigned_transaction_v2(rpc.clone(), values, common)
+            .await
+            .attach_printable("building CREATE deployment transaction")
+            .map_err(|e| {
+                // Preserve the original error message
+                let error_str = e.to_string();
+                if error_str.contains("Insufficient funds") || error_str.contains("insufficient funds") {
+                    error_str
+                } else {
+                    format!("failed to build deployment transaction: {}", error_str)
+                }
+            })?;
+        let sender_address = get_expected_address(sender_address)
+            .map_err(|e| e.to_string())?;
         let expected_address = self.calculate_deployed_contract_address(&sender_address, nonce)?;
 
         Ok(ContractDeploymentTransaction::Create(
@@ -263,7 +276,8 @@ impl Create2DeploymentOpts {
             values.get_value(FACTORY_ADDRESS).and_then(|v| Some(v.clone()))
         {
             let custom_create2_factory_address =
-                get_expected_address(&custom_create2_factory_address)?;
+                get_expected_address(&custom_create2_factory_address)
+                    .map_err(|e| e.to_string())?;
             let create2_factory_abi = values.get_string(FACTORY_ABI).map(|v| v.to_string());
             let create2_factory_function_name = values
                 .get_expected_string(FACTORY_FUNCTION_NAME)
@@ -329,7 +343,21 @@ impl Create2DeploymentOpts {
             deploy_code: None,
         };
 
-        let (tx, tx_cost, _) = build_unsigned_transaction(rpc.clone(), values, common).await?;
+        let factory_address = self.get_factory_address();
+        let (tx, tx_cost, _) = build_unsigned_transaction_v2(rpc.clone(), values, common)
+            .await
+            .attach_printable(format!("building CREATE2 deployment transaction to factory at {}", factory_address))
+            .attach_printable("Note: CREATE2 requires a factory contract. The default factory (0x4e59b44847b379578588920cA78FbF26c0B4956C) may not exist on local networks.")
+            .attach_printable("Consider using 'create_opcode = \"create\"' in your contract deployment configuration for local deployments.")
+            .map_err(|e| {
+                // Preserve the original error message if it's about insufficient funds
+                let error_str = e.to_string();
+                if error_str.contains("Insufficient funds") || error_str.contains("insufficient funds") {
+                    error_str
+                } else {
+                    format!("failed to build CREATE2 deployment transaction. Factory address: {}. Error: {}", factory_address, error_str)
+                }
+            })?;
         let expected_address = self.calculate_deployed_contract_address()?;
 
         Ok(ContractDeploymentTransaction::Create2(

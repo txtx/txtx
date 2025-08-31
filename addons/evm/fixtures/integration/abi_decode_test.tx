@@ -1,0 +1,37 @@
+# ABI decoding test fixture
+addon "evm" {
+    chain_id = 31337
+}
+
+# Input parameters
+variable "encoded_data" {
+    value = input.encoded_data
+    description = "Encoded ABI data to decode"
+}
+
+variable "decode_types" {
+    value = input.decode_types
+    description = "Types to decode as"
+}
+
+# Decode the data
+action "decode_data" "evm::decode_abi" {
+    data = variable.encoded_data
+    types = variable.decode_types
+}
+
+# Test decoding with wrong types (for error cases)
+action "decode_wrong_types" "evm::decode_abi" {
+    data = variable.encoded_data
+    types = input.wrong_types
+    description = "Attempt to decode with incorrect types"
+}
+
+# Outputs
+output "decoded_values" {
+    value = action.decode_data.result
+}
+
+output "decode_error" {
+    value = action.decode_wrong_types.error
+}

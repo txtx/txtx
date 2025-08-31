@@ -1,0 +1,51 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+}
+
+# Deploy storage contract with initial value
+action "deploy_storage" "evm::deploy_contract" {
+    contract_name = "StorageContract"
+    # Simple storage contract with constructor(uint256 initialValue)
+    artifact_source = "inline:0x608060405234801561001057600080fd5b5060405161013e38038061013e8339818101604052602081101561003457600080fd5b8101908080519060200190929190505050806000819055505060e5806100596000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c80636057361d1460375780638381f58a14606c575b600080fd5b606a60048036036020811015604b57600080fd5b8101908080359060200190929190505050608556fea264697066735822122062bb1f43d9db8c7e892b3cb09940d728a30487f00dc1edb5a0a3e956e2e3f4d164"
+    constructor_args = [42]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Read the stored value
+action "get_value" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "getValue()"
+}
+
+# Store a new value
+action "set_value" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "setValue(uint256)"
+    function_args = [123]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Read the updated value
+action "get_new_value" "evm::call_contract_function" {
+    contract_address = action.deploy_storage.contract_address
+    function_signature = "getValue()"
+}
+
+output "contract_address" {
+    value = action.deploy_storage.contract_address
+}
+
+output "initial_value" {
+    value = action.get_value.result
+}
+
+output "updated_value" {
+    value = action.get_new_value.result
+}

@@ -1,0 +1,128 @@
+# Proxy/Upgradeable contract deployment fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+signer "admin" "evm::private_key" {
+    private_key = input.admin_key
+}
+
+# Deploy implementation contract V1
+action "deploy_implementation_v1" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.implementation_v1_bytecode
+    description = "Deploy first implementation"
+}
+
+# Deploy proxy contract
+action "deploy_proxy" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.proxy_bytecode
+    constructor_args = [
+        action.deploy_implementation_v1.contract_address,
+        signer.admin.address,
+        input.initialization_data
+    ]
+    description = "Deploy upgradeable proxy"
+}
+
+# Initialize proxy
+action "initialize_proxy" "evm::call" {
+    from = signer.admin
+    to = action.deploy_proxy.contract_address
+    function = "initialize(uint256)"
+    args = [input.initial_value]
+}
+
+# Call function through proxy
+action "call_through_proxy_v1" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_proxy.contract_address
+    function = "getValue()"
+    args = []
+}
+
+# Deploy implementation V2
+action "deploy_implementation_v2" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.implementation_v2_bytecode
+    description = "Deploy upgraded implementation"
+}
+
+# Upgrade proxy to V2
+action "upgrade_to_v2" "evm::call" {
+    from = signer.admin
+    to = action.deploy_proxy.contract_address
+    function = "upgradeTo(address)"
+    args = [action.deploy_implementation_v2.contract_address]
+}
+
+# Call new function in V2
+action "call_new_function_v2" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_proxy.contract_address
+    function = "getValueDoubled()"
+    args = []
+}
+
+# Verify storage preserved
+action "verify_storage_preserved" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_proxy.contract_address
+    function = "getValue()"
+    args = []
+}
+
+# Get implementation address
+action "get_implementation" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_proxy.contract_address
+    function = "implementation()"
+    args = []
+}
+
+# Transfer admin
+action "transfer_admin" "evm::call" {
+    from = signer.admin
+    to = action.deploy_proxy.contract_address
+    function = "changeAdmin(address)"
+    args = [input.new_admin_address]
+}
+
+# Outputs
+output "proxy_address" {
+    value = action.deploy_proxy.contract_address
+}
+
+output "implementation_v1" {
+    value = action.deploy_implementation_v1.contract_address
+}
+
+output "implementation_v2" {
+    value = action.deploy_implementation_v2.contract_address
+}
+
+output "value_before_upgrade" {
+    value = action.call_through_proxy_v1.result
+}
+
+output "value_after_upgrade" {
+    value = action.verify_storage_preserved.result
+}
+
+output "doubled_value" {
+    value = action.call_new_function_v2.result
+}
+
+output "current_implementation" {
+    value = action.get_implementation.result
+}
+
+output "admin_transferred" {
+    value = action.transfer_admin.tx_hash
+}

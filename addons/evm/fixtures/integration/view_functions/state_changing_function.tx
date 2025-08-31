@@ -1,0 +1,62 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "caller" "evm::secret_key" {
+    secret_key = input.caller_private_key
+}
+
+# Deploy a contract with state-changing function
+variable "counter_bytecode" {
+    value = "0x608060405234801561001057600080fd5b5060f78061001f6000396000f3fe6080604052348015600f57600080fd5b5060043610603c5760003560e01c80636d4ce63c146041578063d09de08a1460595780638381f58a14605f575b600080fd5b6047607b565b60405190815260200160405180910390f35b60476084565b6047609a565b60008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b60008054905090565b600080549081900390508090565b6000805490819055905090565b600080549050905600a165627a7a72305820"
+}
+
+variable "counter_abi" {
+    value = evm::json_encode([
+        {
+            "name": "get",
+            "type": "function",
+            "inputs": [],
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view"
+        },
+        {
+            "name": "increment",
+            "type": "function",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+        },
+        {
+            "name": "number",
+            "type": "function",
+            "inputs": [],
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view"
+        }
+    ])
+}
+
+action "deploy" "evm::deploy_contract" {
+    contract = {
+        bytecode = variable.counter_bytecode,
+        abi = variable.counter_abi
+    }
+    signer = signer.caller
+    confirmations = 0
+}
+
+# This should require gas since increment() is state-changing
+action "increment" "evm::call_contract" {
+    contract_address = action.deploy.contract_address
+    contract_abi = variable.counter_abi
+    function_name = "increment"
+    function_args = []
+    signer = signer.caller
+    confirmations = 0
+}
+
+output "tx_hash" {
+    value = action.increment.tx_hash
+}

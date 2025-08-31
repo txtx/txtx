@@ -1,0 +1,94 @@
+# ABI encoding test fixture for complex types (arrays, tuples)
+addon "evm" {
+    chain_id = 31337
+}
+
+# Input parameters
+variable "addresses_array" {
+    value = input.addresses_array
+    description = "Array of addresses"
+}
+
+variable "uint_array" {
+    value = input.uint_array
+    description = "Array of uint256 values"
+}
+
+variable "tuple_maker" {
+    value = input.tuple_maker
+    description = "Maker address for tuple"
+}
+
+variable "tuple_amount" {
+    value = input.tuple_amount
+    description = "Amount for tuple"
+}
+
+variable "nested_data" {
+    value = input.nested_data
+    description = "Nested array data"
+}
+
+# Encode arrays
+action "encode_address_array" "evm::encode_abi" {
+    types = ["address[]"]
+    values = [variable.addresses_array]
+}
+
+action "encode_uint_array" "evm::encode_abi" {
+    types = ["uint256[]"]
+    values = [variable.uint_array]
+}
+
+# Encode fixed-size arrays
+action "encode_fixed_array" "evm::encode_abi" {
+    types = ["uint256[3]"]
+    values = [[1, 2, 3]]
+}
+
+# Encode tuple/struct
+action "encode_tuple" "evm::encode_abi" {
+    types = ["(address,uint256)"]
+    values = [[variable.tuple_maker, variable.tuple_amount]]
+}
+
+# Encode nested arrays
+action "encode_nested_array" "evm::encode_abi" {
+    types = ["uint256[][]"]
+    values = [variable.nested_data]
+}
+
+# Complex multi-parameter encoding
+action "encode_complex_params" "evm::encode_abi" {
+    types = ["address", "uint256[]", "(address,uint256)"]
+    values = [
+        variable.tuple_maker,
+        variable.uint_array,
+        [variable.tuple_maker, variable.tuple_amount]
+    ]
+}
+
+# Outputs
+output "encoded_address_array" {
+    value = action.encode_address_array.result
+}
+
+output "encoded_uint_array" {
+    value = action.encode_uint_array.result
+}
+
+output "encoded_fixed_array" {
+    value = action.encode_fixed_array.result
+}
+
+output "encoded_tuple" {
+    value = action.encode_tuple.result
+}
+
+output "encoded_nested" {
+    value = action.encode_nested_array.result
+}
+
+output "encoded_complex" {
+    value = action.encode_complex_params.result
+}

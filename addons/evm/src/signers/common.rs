@@ -31,7 +31,7 @@ pub async fn get_additional_actions_for_address(
 ) -> Result<Vec<ActionItemRequest>, String> {
     let mut action_items: Vec<ActionItemRequest> = vec![];
 
-    let rpc = EvmRpc::new(&rpc_api_url)?;
+    let rpc = EvmRpc::new_compat(&rpc_api_url)?;
 
     let actual_chain_id = rpc.get_chain_id().await.map_err(|e| {
         format!("unable to retrieve chain id from RPC {}: {}", rpc_api_url, e.to_string())

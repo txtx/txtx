@@ -1,0 +1,32 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+# Send with custom gas settings
+action "transfer_custom_gas" "evm::send_eth" {
+    from = signer.sender.address
+    to = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+    amount = "500000000000000000"  # 0.5 ETH
+    gas_limit = 30000
+    max_fee_per_gas = "20000000000"  # 20 gwei
+    max_priority_fee_per_gas = "2000000000"  # 2 gwei
+    signer = signer.sender
+    confirmations = 1
+}
+
+output "tx_hash" {
+    value = action.transfer_custom_gas.tx_hash
+}
+
+output "gas_used" {
+    value = action.transfer_custom_gas.gas_used
+}
+
+output "effective_gas_price" {
+    value = action.transfer_custom_gas.effective_gas_price
+}

@@ -1,0 +1,47 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+}
+
+# Deploy implementation contract
+action "deploy_implementation" "evm::deploy_contract" {
+    contract_name = "ImplementationV1"
+    artifact_source = "foundry"
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Deploy proxy contract pointing to implementation
+action "deploy_proxy" "evm::deploy_contract" {
+    contract_name = "TransparentUpgradeableProxy"
+    artifact_source = "foundry"
+    constructor_args = [
+        action.deploy_implementation.contract_address,
+        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",  # Admin address
+        "0x"  # Empty initialization data
+    ]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Verify proxy points to implementation
+action "get_implementation" "evm::call_contract_function" {
+    contract_address = action.deploy_proxy.contract_address
+    function_signature = "implementation()"
+}
+
+output "proxy_address" {
+    value = action.deploy_proxy.contract_address
+}
+
+output "implementation_address" {
+    value = action.deploy_implementation.contract_address
+}
+
+output "verified_implementation" {
+    value = action.get_implementation.result
+}

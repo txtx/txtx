@@ -1,0 +1,23 @@
+# Test: Insufficient funds error when sending ETH from empty account
+# Expected: Transaction should fail with InsufficientFunds error
+
+addon "evm" {
+  chain_id = 31337
+  rpc_api_url = "http://127.0.0.1:8545"
+}
+
+variable "empty_account" {
+  value = "0x0000000000000000000000000000000000000001"
+  description = "Account with no ETH balance"
+}
+
+variable "recipient" {
+  value = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+}
+
+action "transfer" "evm::send_eth" {
+  from = variable.empty_account
+  to = variable.recipient
+  amount = "1000000000000000000"  # 1 ETH
+  description = "Attempt to send 1 ETH from empty account"
+}

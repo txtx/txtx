@@ -3,7 +3,7 @@ use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     PreCommandSpecification,
 };
-use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent, StatusUpdater};
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{commands::CommandSpecification, diagnostics::Diagnostic, types::Type};
 use txtx_addon_kit::types::{types::RunbookSupervisionContext, ConstructDid};
@@ -90,16 +90,19 @@ impl CommandImplementation for PackageRollup {
     }
 
     fn build_background_task(
-        _construct_did: &ConstructDid,
+        construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
-        _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        _background_tasks_uuid: &Uuid,
+        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
+        let construct_did = construct_did.clone();
         let inputs = inputs.clone();
+        let progress_tx = progress_tx.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
 
         let future = async move {
             let working_dir = inputs.get_expected_string(WORKING_DIR)?;
@@ -108,23 +111,23 @@ impl CommandImplementation for PackageRollup {
             let rollup_packager = RollupPackager::new(working_dir, rollup_container_ids)
                 .map_err(|e| diagnosed_error!("Failed to package rollup: {e}"))?;
 
-            // let mut status_updater =
-            //     StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
+            let mut status_updater =
+                StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
 
-            // status_updater.propagate_pending_status(
-            //     "Pausing, packaging, and removing rollup from Docker network",
-            // );
+            status_updater.propagate_pending_status(
+                "Pausing, packaging, and removing rollup from Docker network",
+            );
 
             rollup_packager.package_rollup().await.map_err(|e| {
                 let diag = diagnosed_error!("Failed to package rollup: {e}");
-                // status_updater.propagate_failed_status("Failed to initialize rollup", &diag);
+                status_updater.propagate_failed_status("Failed to initialize rollup", &diag);
                 diag
             })?;
 
-            // status_updater.propagate_success_status(
-            //     "Complete",
-            //     &format!("Rollup packaged successfully - files are available at {}", working_dir),
-            // );
+            status_updater.propagate_success_status(
+                "Complete",
+                &format!("Rollup packaged successfully - files are available at {}", working_dir),
+            );
             let result = CommandExecutionResult::new();
 
             Ok(result)

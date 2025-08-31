@@ -1,6 +1,6 @@
 use crate::{
     types::{
-        block::{GqlActionBlock, GqlErrorBlock, GqlLogEvent, GqlModalBlock},
+        block::{GqlActionBlock, GqlErrorBlock, GqlModalBlock, GqlProgressBlock},
         runbook::RunbookMetadata,
     },
     Context,
@@ -48,9 +48,14 @@ impl Query {
             .collect()
     }
 
-    async fn logs(context: &Context) -> Vec<GqlLogEvent> {
-        let log_store = context.log_store.read().await;
-        log_store.iter().cloned().map(GqlLogEvent).collect()
+    async fn progress_blocks(context: &Context) -> Vec<GqlProgressBlock> {
+        let block_store = context.block_store.read().await;
+        block_store
+            .values()
+            .cloned()
+            .filter(|b| if let Panel::ProgressBar(_) = b.panel { true } else { false })
+            .map(GqlProgressBlock::new)
+            .collect()
     }
 
     fn runbook(context: &Context) -> RunbookMetadata {

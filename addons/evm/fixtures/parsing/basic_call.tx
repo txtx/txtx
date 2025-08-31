@@ -1,0 +1,19 @@
+# Minimal call_contract fixture for parsing tests
+# This fixture is designed to test that the EVM addon correctly parses
+# call_contract actions without requiring actual execution
+
+addon "evm" {
+    chain_id = 1
+    rpc_api_url = "http://localhost:8545"
+}
+
+action "call" "evm::call_contract" {
+    contract_address = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    contract_abi = []
+    function_name = "retrieve"
+    function_args = []
+}
+
+output "result" {
+    value = action.call.result
+}

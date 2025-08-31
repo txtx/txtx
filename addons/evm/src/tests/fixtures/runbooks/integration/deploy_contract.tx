@@ -1,0 +1,43 @@
+# Deploy SimpleStorage contract through txtx
+addon "evm" {
+    chain_id = 31337
+    rpc_api_url = input.rpc_url
+}
+
+variable "deployer" {
+    value = input.deployer_address
+    description = "Account deploying the contract"
+}
+
+variable "deployer_key" {
+    value = input.deployer_private_key
+    description = "Deployer's private key"
+}
+
+signer "deployer_signer" "evm::local_wallet" {
+    private_key = variable.deployer_key
+}
+
+action "deploy_storage" "evm::deploy_contract" {
+    from = variable.deployer
+    contract = "SimpleStorage"
+    source_path = "./out/SimpleStorage.sol/SimpleStorage.json"
+    signer = signer.deployer_signer
+    description = "Deploy SimpleStorage contract"
+}
+
+output "contract_address" {
+    value = action.deploy_storage.contract_address
+}
+
+output "deployment_tx" {
+    value = action.deploy_storage.tx_hash
+}
+
+output "deployment_receipt" {
+    value = action.deploy_storage.receipt
+}
+
+output "deployment_status" {
+    value = action.deploy_storage.receipt.status
+}

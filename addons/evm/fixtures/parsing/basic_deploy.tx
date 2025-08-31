@@ -1,0 +1,24 @@
+# Minimal deploy_contract fixture for parsing tests
+# This fixture is designed to test that the EVM addon correctly parses
+# deploy_contract actions without requiring actual execution
+
+addon "evm" {
+    chain_id = 1
+    rpc_api_url = "http://localhost:8545"
+}
+
+variable "bytecode" {
+    value = "0x608060405234801561001057600080fd5b51"
+}
+
+action "deploy" "evm::deploy_contract" {
+    contract = {
+        bin = variable.bytecode
+        abi = []
+    }
+    confirmations = 1
+}
+
+output "address" {
+    value = action.deploy.contract_address
+}

@@ -1,0 +1,34 @@
+# Test check_confirmations with ETH transfer
+# Inputs: confirmations (number of blocks to wait)
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+# Send ETH transaction
+action "send_transaction" "evm::send_eth" {
+    recipient_address = input.recipient_address
+    amount = input.amount
+    signer = signer.sender
+}
+
+# Wait for confirmations
+action "check_confirmations" "evm::check_confirmations" {
+    tx_hash = action.send_transaction.tx_hash
+    confirmations = input.confirmations
+    rpc_api_url = addon.evm.rpc_api_url
+    chain_id = addon.evm.chain_id
+}
+
+output "tx_hash" {
+    value = action.send_transaction.tx_hash
+}
+
+output "confirmations_complete" {
+    value = "true"
+}

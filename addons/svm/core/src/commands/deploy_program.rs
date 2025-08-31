@@ -19,7 +19,7 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::{
-    Actions, BlockEvent, LogDispatcher, ProvideSignedTransactionRequest,
+    Actions, BlockEvent, ProvideSignedTransactionRequest, StatusUpdater,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous, PrepareSignedNestedExecutionResult, SignerActionsFutureResult,
@@ -559,7 +559,6 @@ impl CommandImplementation for DeployProgram {
         let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
         let authority_signer_state =
             signers.get_signer_state(&authority_signer_did).unwrap().clone();
-
         let program_id_value = authority_signer_state
             .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
             .unwrap()
@@ -671,7 +670,7 @@ impl CommandImplementation for DeployProgram {
         inputs: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
-        _background_tasks_uuid: &Uuid,
+        background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
         cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
@@ -680,6 +679,7 @@ impl CommandImplementation for DeployProgram {
         let mut inputs = inputs.clone();
         let outputs = outputs.clone();
         let progress_tx = progress_tx.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
         let cloud_service_context = cloud_service_context.clone();
 
@@ -704,12 +704,16 @@ impl CommandImplementation for DeployProgram {
 
             let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
 
-            let logger =
-                LogDispatcher::new(construct_did.as_uuid(), "svm::deploy_program", &progress_tx);
+            let mut status_updater = StatusUpdater::new_with_default_progress_index(
+                &background_tasks_uuid,
+                &construct_did,
+                &progress_tx,
+                transaction_index as usize,
+            );
 
             deployment_transaction
                 .pre_send_status_updates(
-                    &logger,
+                    &mut status_updater,
                     transaction_index as usize,
                     transaction_count as usize,
                 )
@@ -759,6 +763,7 @@ impl CommandImplementation for DeployProgram {
                         &inputs,
                         &outputs,
                         &progress_tx,
+                        &background_tasks_uuid,
                         &supervision_context,
                     ) {
                         Ok(res) => match res.await {
@@ -777,8 +782,7 @@ impl CommandImplementation for DeployProgram {
                 }
             };
 
-            deployment_transaction.post_send_status_updates(&logger, program_id);
-            deployment_transaction.post_send_actions(&rpc_api_url);
+            deployment_transaction.post_send_status_updates(&mut status_updater, program_id);
 
             if transaction_index == transaction_count - 1 {
                 let rpc_client = RpcClient::new(rpc_api_url);

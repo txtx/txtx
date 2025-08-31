@@ -1,0 +1,107 @@
+# Factory pattern deployment test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Deploy factory contract
+action "deploy_factory" "evm::deploy_contract" {
+    from = signer.deployer
+    bytecode = input.factory_bytecode
+    description = "Deploy factory contract for creating child contracts"
+}
+
+# Deploy child contract through factory
+action "deploy_child_1" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_factory.contract_address
+    function = "createChild(string,uint256)"
+    args = [input.child_1_name, input.child_1_value]
+    description = "Deploy first child through factory"
+}
+
+# Deploy another child with different params
+action "deploy_child_2" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_factory.contract_address
+    function = "createChild(string,uint256)"
+    args = [input.child_2_name, input.child_2_value]
+    description = "Deploy second child through factory"
+}
+
+# Get deployed child addresses from events
+action "get_child_1_address" "evm::parse_log" {
+    tx_hash = action.deploy_child_1.tx_hash
+    event_signature = "ChildCreated(address,string,uint256)"
+    event_index = 0
+}
+
+action "get_child_2_address" "evm::parse_log" {
+    tx_hash = action.deploy_child_2.tx_hash
+    event_signature = "ChildCreated(address,string,uint256)"
+    event_index = 0
+}
+
+# Verify children work
+action "call_child_1" "evm::call" {
+    from = signer.deployer
+    to = action.get_child_1_address.args[0]
+    function = "getValue()"
+    args = []
+}
+
+action "call_child_2" "evm::call" {
+    from = signer.deployer
+    to = action.get_child_2_address.args[0]
+    function = "getValue()"
+    args = []
+}
+
+# Get total children count
+action "get_children_count" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_factory.contract_address
+    function = "getChildrenCount()"
+    args = []
+}
+
+# Get all children addresses
+action "get_all_children" "evm::call" {
+    from = signer.deployer
+    to = action.deploy_factory.contract_address
+    function = "getAllChildren()"
+    args = []
+}
+
+# Outputs
+output "factory_address" {
+    value = action.deploy_factory.contract_address
+}
+
+output "child_1_address" {
+    value = action.get_child_1_address.args[0]
+}
+
+output "child_2_address" {
+    value = action.get_child_2_address.args[0]
+}
+
+output "child_1_value" {
+    value = action.call_child_1.result
+}
+
+output "child_2_value" {
+    value = action.call_child_2.result
+}
+
+output "total_children" {
+    value = action.get_children_count.result
+}
+
+output "all_children" {
+    value = action.get_all_children.result
+}

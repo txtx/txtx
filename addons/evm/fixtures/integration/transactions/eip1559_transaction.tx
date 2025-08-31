@@ -1,0 +1,40 @@
+# Test EIP-1559 transaction with dynamic fees
+# Inputs: max_fee_per_gas, max_priority_fee_per_gas
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+# Send transaction with EIP-1559 parameters
+action "send_eip1559" "evm::send_eth" {
+    recipient_address = input.recipient
+    amount = input.amount
+    max_fee_per_gas = input.max_fee_per_gas
+    max_priority_fee_per_gas = input.max_priority_fee_per_gas
+    signer = signer.sender
+}
+
+# Verify transaction was mined
+action "check_confirmation" "evm::check_confirmations" {
+    tx_hash = action.send_eip1559.tx_hash
+    confirmations = 1
+    rpc_api_url = addon.evm.rpc_api_url
+    chain_id = addon.evm.chain_id
+}
+
+output "tx_hash" {
+    value = action.send_eip1559.tx_hash
+}
+
+output "gas_used" {
+    value = action.send_eip1559.gas_used
+}
+
+output "effective_gas_price" {
+    value = action.send_eip1559.effective_gas_price
+}

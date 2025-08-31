@@ -1,0 +1,81 @@
+# Test CREATE2 deployment - calculate address then deploy and verify
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+# Signer for deployment
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# Simple contract that stores a value
+variable "bytecode" {
+    value = "0x6080604052348015600f57600080fd5b5060005560b3806100216000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c806360fe47b11460375780636d4ce63c14604f575b600080fd5b604d60048036038101906049919060795b600081905550565b005b60556067565b60405160609190608f565b60405180910390f35b60008054905090565b600081359050607381609d565b92915050565b600060208284031215608a5760896098565b5b60006096848285016070565b91505092915050565b60a48160a7565b82525050565b60006020820190506099565b92915050565b6000819050919050565b60a78160a4565b811460ad57600080fd5b5056fea26469706673582212201234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef64736f6c63430008130033"
+    description = "Minimal storage contract bytecode"
+}
+
+# Salt for deterministic deployment
+variable "salt" {
+    value = "0x0000000000000000000000000000000000000000000000000000000000000042"
+    description = "Salt for CREATE2 deployment"
+}
+
+# Calculate expected address before deployment
+variable "expected_address" {
+    value = evm::create2(
+        variable.bytecode,
+        variable.salt
+    )
+    description = "Pre-calculated CREATE2 address"
+}
+
+# Deploy contract using CREATE2
+action "deploy_with_create2" "evm::deploy_contract" {
+    contract = variable.bytecode
+    create2 = {
+        salt = variable.salt
+    }
+    signer = signer.deployer
+    confirmations = 0
+    description = "Deploy contract using CREATE2"
+}
+
+# Verify the contract was deployed at the expected address
+action "check_code" "evm::get_code" {
+    address = variable.expected_address
+    description = "Get code at expected address"
+}
+
+# Also check the actual deployed address matches
+action "verify_match" "std::assert" {
+    condition = std::is_equal(
+        action.deploy_with_create2.contract_address,
+        variable.expected_address
+    )
+    message = "Deployed address should match expected CREATE2 address"
+}
+
+# Output results
+output "expected_address" {
+    value = variable.expected_address
+}
+
+output "deployed_address" {
+    value = action.deploy_with_create2.contract_address
+}
+
+output "addresses_match" {
+    value = std::is_equal(
+        action.deploy_with_create2.contract_address,
+        variable.expected_address
+    )
+}
+
+output "code_exists" {
+    value = std::is_not_empty(action.check_code.code)
+}
+
+output "tx_hash" {
+    value = action.deploy_with_create2.tx_hash
+}

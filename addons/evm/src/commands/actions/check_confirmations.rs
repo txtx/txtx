@@ -11,8 +11,10 @@ use txtx_addon_kit::types::{
     types::Type,
 };
 use txtx_addon_kit::uuid::Uuid;
+use error_stack::{Report, ResultExt};
 
 use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
+use crate::errors::{EvmError, VerificationError};
 
 lazy_static! {
     pub static ref CHECK_CONFIRMATIONS: PreCommandSpecification = define_command! {
@@ -118,11 +120,37 @@ impl CommandImplementation for CheckEvmConfirmations {
     #[cfg(not(feature = "wasm"))]
     fn build_background_task(
         construct_did: &ConstructDid,
+        spec: &CommandSpecification,
+        inputs: &ValueStore,
+        outputs: &ValueStore,
+        progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        background_tasks_uuid: &Uuid,
+        supervision_context: &RunbookSupervisionContext,
+        cloud_service_context: &Option<CloudServiceContext>,
+    ) -> CommandExecutionFutureResult {
+        Self::build_background_task_v2(
+            construct_did,
+            spec,
+            inputs,
+            outputs,
+            progress_tx,
+            background_tasks_uuid,
+            supervision_context,
+            cloud_service_context,
+        )
+        .map_err(|e| diagnosed_error!("{}", e))
+    }
+}
+
+impl CheckEvmConfirmations {
+    #[cfg(not(feature = "wasm"))]
+    fn build_background_task_v2(
+        _construct_did: &ConstructDid,
         _spec: &CommandSpecification,
         inputs: &ValueStore,
         _outputs: &ValueStore,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
-        _background_tasks_uuid: &Uuid,
+        background_tasks_uuid: &Uuid,
         _supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
@@ -135,14 +163,15 @@ impl CommandImplementation for CheckEvmConfirmations {
         use crate::{
             codec::abi_decode_logs,
             constants::{
-                ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, LOGS, RAW_LOGS,
-                TX_HASH,
+                ADDRESS_ABI_MAP, ALREADY_DEPLOYED, CHAIN_ID, CONTRACT_ADDRESS, LOGS, NAMESPACE,
+                RAW_LOGS, TX_HASH,
             },
             rpc::EvmRpc,
             typing::{EvmValue, RawLog},
         };
 
         let inputs = inputs.clone();
+        let background_tasks_uuid = background_tasks_uuid.clone();
         let confirmations_required = inputs
             .get_expected_uint("confirmations")
             .unwrap_or(DEFAULT_CONFIRMATIONS_NUMBER) as usize;
@@ -153,8 +182,7 @@ impl CommandImplementation for CheckEvmConfirmations {
         };
         let address_abi_map = inputs.get_value(ADDRESS_ABI_MAP).cloned();
         let progress_tx = progress_tx.clone();
-        let logger =
-            LogDispatcher::new(construct_did.as_uuid(), "evm::check_confirmations", &progress_tx);
+        let logger = LogDispatcher::new(background_tasks_uuid, NAMESPACE, &progress_tx);
 
         let skip_confirmations = inputs.get_bool(ALREADY_DEPLOYED).unwrap_or(false);
         let contract_address = inputs.get_value(CONTRACT_ADDRESS).cloned();
@@ -193,19 +221,40 @@ impl CommandImplementation for CheckEvmConfirmations {
 
             let backoff_ms = 500;
 
-            let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{e}"))?;
+            let rpc = EvmRpc::new_compat(&rpc_api_url)
+                .map_err(|e| diagnosed_error!("Failed to initialize RPC: {}", e))?;
 
             let mut tx_inclusion_block = u64::MAX - confirmations_required as u64;
             let mut current_block = 0;
-            let mut previous_block = 0;
             let _receipt = loop {
                 progress = (progress + 1) % progress_symbol.len();
 
-                let Some(receipt) = rpc.get_receipt(&tx_hash_bytes).await.map_err(|e| {
-                    diagnosed_error!("failed to verify transaction {}: {}", tx_hash, e)
-                })?
-                else {
-                    sleep_ms(backoff_ms * 10);
+                let receipt = match rpc.get_receipt(&format!("0x{}", tx_hash)).await {
+                    Ok(r) => Some(r),
+                    Err(e) if e.to_string().contains("No receipt found") => None,
+                    Err(e) => {
+                        let err = Report::new(EvmError::Verification(
+                            VerificationError::TransactionNotFound {
+                                tx_hash: format!("0x{}", tx_hash),
+                            }
+                        ))
+                        .attach_printable(format!("Failed to verify transaction 0x{}", tx_hash))
+                        .attach(e);
+                        
+                        return Err(diagnosed_error!("{}", err));
+                    }
+                };
+                
+                let Some(receipt) = receipt else {
+                    // loop to update our progress symbol every 500ms, but still waiting 5000ms before refetching for receipt
+                    let mut count = 0;
+                    loop {
+                        count += 1;
+                        sleep_ms(backoff_ms);
+                        if count == 10 {
+                            break;
+                        }
+                    }
                     continue;
                 };
                 let Some(block_number) = receipt.block_number else {
@@ -223,27 +272,36 @@ impl CommandImplementation for CheckEvmConfirmations {
                 if current_block == 0 {
                     tx_inclusion_block = block_number;
                     current_block = block_number;
-                    previous_block = block_number;
                 }
 
                 if !receipt.status() {
-                    let diag = match rpc.get_transaction_return_value(&tx_hash_bytes).await {
-                        Ok(return_value) => {
-                            diagnosed_error!(
-                                "transaction reverted with return value: {}",
-                                return_value
-                            )
-                        }
-                        Err(_) => diagnosed_error!("transaction reverted"),
+                    let return_value = rpc.get_transaction_return_value(&tx_hash_bytes).await.ok();
+                    
+                    let err = if let Some(return_value) = return_value {
+                        Report::new(EvmError::Verification(
+                            VerificationError::TransactionReverted {
+                                tx_hash: format!("0x{}", tx_hash),
+                                reason: Some(return_value.clone()),
+                            }
+                        ))
+                        .attach_printable(format!("Transaction reverted with return value: {}", return_value))
+                    } else {
+                        Report::new(EvmError::Verification(
+                            VerificationError::TransactionReverted {
+                                tx_hash: format!("0x{}", tx_hash),
+                                reason: None,
+                            }
+                        ))
+                        .attach_printable("Transaction reverted without return data")
                     };
 
                     logger.failure_info(
                         "Failed",
                         format!("Transaction Failed for Chain {}", chain_name),
                     );
-                    logger.error("Error", diag.to_string());
+                    logger.error("Error", err.to_string());
 
-                    return Err(diag);
+                    return Err(diagnosed_error!("{}", err));
                 }
                 if let Some(contract_address) = receipt.contract_address {
                     result
@@ -257,7 +315,17 @@ impl CommandImplementation for CheckEvmConfirmations {
 
                 let logs = receipt.inner.logs();
                 if let Some(abi) = &address_abi_map {
-                    let logs = abi_decode_logs(&abi, logs).map_err(|e| diagnosed_error!(" {e}"))?;
+                    let logs = abi_decode_logs(&abi, logs)
+                        .map_err(|e| {
+                            let err = Report::new(EvmError::Verification(
+                                VerificationError::LogDecodingFailed {
+                                    tx_hash: format!("0x{}", tx_hash),
+                                    error: e.to_string(),
+                                }
+                            ))
+                            .attach_printable("Failed to decode transaction logs");
+                            diagnosed_error!("{}", err)
+                        })?;
                     result.outputs.insert(LOGS.to_string(), Value::array(logs));
                 }
                 result.outputs.insert(
@@ -270,23 +338,25 @@ impl CommandImplementation for CheckEvmConfirmations {
                 if current_block >= tx_inclusion_block + confirmations_required as u64 {
                     break receipt;
                 } else {
-                    let block = rpc.get_block_number().await.unwrap_or(current_block);
-                    // only send updates when the mined block is actually updated, so we're not spamming with updates every 500ms
-                    if previous_block != block {
-                        let _ = logger.pending_info(
-                            "Pending",
-                            format!(
-                                "{}/{} blocks confirmed for Tx 0x{} on chain {}",
-                                current_block - tx_inclusion_block,
-                                confirmations_required,
-                                tx_hash,
-                                chain_name
-                            ),
-                        );
-                        previous_block = block.clone();
-                    }
-                    current_block = block;
+                    let _ = logger.pending_info(
+                        "Pending",
+                        format!(
+                            "{}/{} blocks confirmed for Tx 0x{} on chain {}",
+                            current_block - tx_inclusion_block,
+                            confirmations_required,
+                            tx_hash,
+                            chain_name
+                        ),
+                    );
 
+                    current_block = match rpc.get_block_number().await {
+                        Ok(block) => block,
+                        Err(e) => {
+                            // Log warning but continue with last known block
+                            logger.info("Warning", format!("Failed to get current block number: {}", e));
+                            current_block
+                        }
+                    };
                     sleep_ms(backoff_ms);
                     continue;
                 }

@@ -1,0 +1,34 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+# Signer with a private key that has no funds
+signer "poor_sender" "evm::secret_key" {
+    # Random private key not from Anvil's mnemonic
+    secret_key = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+}
+
+variable "recipient" {
+    value = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+    description = "Recipient address"
+}
+
+variable "amount" {
+    value = 1000000000000000000  # 1 ETH (more than account has)
+    description = "Amount to send"
+}
+
+# This should fail with insufficient funds
+action "transfer" "evm::send_eth" {
+    recipient_address = variable.recipient
+    amount = variable.amount
+    signer = signer.poor_sender
+    type = "Legacy"
+    confirmations = 0
+    description = "Attempt transfer from unfunded account"
+}
+
+output "transfer_result" {
+    value = action.transfer.tx_hash
+}

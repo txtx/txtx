@@ -1,0 +1,35 @@
+# Function selector encoding test fixture
+addon "evm" {
+    chain_id = 31337
+}
+
+# Input parameters
+variable "function_signature" {
+    value = input.function_signature
+    description = "Function signature to encode (e.g., 'transfer(address,uint256)')"
+}
+
+variable "function_params" {
+    value = input.function_params
+    description = "Parameters to encode with the function"
+}
+
+# Encode function selector
+action "encode_selector" "evm::encode_function_selector" {
+    signature = variable.function_signature
+}
+
+# Encode full function call data
+action "encode_function_call" "evm::encode_function_call" {
+    signature = variable.function_signature
+    params = variable.function_params
+}
+
+# Outputs
+output "selector" {
+    value = action.encode_selector.selector
+}
+
+output "call_data" {
+    value = action.encode_function_call.data
+}

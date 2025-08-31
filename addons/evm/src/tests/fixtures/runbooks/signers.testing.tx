@@ -1,0 +1,10 @@
+# Signer definitions for testing environment
+# These signers are available when using --env testing
+
+signer "sender_signer" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}

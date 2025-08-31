@@ -1,0 +1,52 @@
+# Test transaction receipt data extraction
+# Verifies receipt contains expected fields
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+# Execute a transaction
+action "send_tx" "evm::send_eth" {
+    recipient_address = input.recipient
+    amount = input.amount
+    signer = signer.sender
+}
+
+# Get receipt data via check_confirmations
+action "get_receipt" "evm::check_confirmations" {
+    tx_hash = action.send_tx.tx_hash
+    confirmations = 1
+    rpc_api_url = addon.evm.rpc_api_url
+    chain_id = addon.evm.chain_id
+}
+
+# Get transaction details
+action "get_tx_details" "evm::get_transaction" {
+    tx_hash = action.send_tx.tx_hash
+    rpc_api_url = addon.evm.rpc_api_url
+}
+
+output "tx_hash" {
+    value = action.send_tx.tx_hash
+}
+
+output "gas_used" {
+    value = action.send_tx.gas_used
+}
+
+output "block_number" {
+    value = action.get_tx_details.block_number
+}
+
+output "from_address" {
+    value = action.get_tx_details.from
+}
+
+output "to_address" {
+    value = action.get_tx_details.to
+}

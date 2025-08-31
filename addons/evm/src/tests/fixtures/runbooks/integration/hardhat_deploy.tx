@@ -1,0 +1,39 @@
+# Deploy using Hardhat artifacts
+addon "evm" {
+    chain_id = 31337
+    rpc_api_url = input.rpc_url
+}
+
+variable "deployer" {
+    value = input.deployer_address
+    description = "Account deploying the contract"
+}
+
+variable "deployer_key" {
+    value = input.deployer_private_key
+    description = "Private key for deployment"
+}
+
+signer "deployer_signer" "evm::local_wallet" {
+    private_key = variable.deployer_key
+}
+
+action "deploy" "evm::deploy_contract" {
+    from = variable.deployer
+    contract = "SimpleStorage"
+    source_path = "./artifacts/contracts/SimpleStorage.sol/SimpleStorage.json"
+    signer = signer.deployer_signer
+    description = "Deploy from Hardhat artifacts"
+}
+
+output "contract_address" {
+    value = action.deploy.contract_address
+}
+
+output "tx_hash" {
+    value = action.deploy.tx_hash
+}
+
+output "deployment_status" {
+    value = action.deploy.receipt.status
+}

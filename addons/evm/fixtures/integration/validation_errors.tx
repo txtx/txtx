@@ -1,0 +1,122 @@
+# Input validation error test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test invalid address format
+action "send_invalid_address" "evm::send_transaction" {
+    from = signer.test_signer
+    to = "0xINVALID_ADDRESS"
+    value = "1000000000000000"
+    catch_error = true
+}
+
+# Test invalid hex data
+action "send_invalid_hex" "evm::send_transaction" {
+    from = signer.test_signer
+    to = input.recipient
+    value = "0"
+    data = "0xZZZZ"  # Invalid hex
+    catch_error = true
+}
+
+# Test negative value
+action "send_negative_value" "evm::send_transaction" {
+    from = signer.test_signer
+    to = input.recipient
+    value = "-1000000000000000"
+    catch_error = true
+}
+
+# Test invalid private key
+action "invalid_signer" "evm::sign_transaction" {
+    private_key = "0xinvalid_private_key"
+    to = input.recipient
+    value = "1000000000000000"
+    catch_error = true
+}
+
+# Test address checksum mismatch
+action "send_bad_checksum" "evm::send_transaction" {
+    from = signer.test_signer
+    to = "0x742d35cc6634c0532925a3b844bc9e7595f0beb8"  # Wrong checksum
+    value = "1000000000000000"
+    catch_error = true
+}
+
+# Test overflow value
+action "send_overflow_value" "evm::send_transaction" {
+    from = signer.test_signer
+    to = input.recipient
+    value = "999999999999999999999999999999999999999999999999999999999999999999"
+    catch_error = true
+}
+
+# Test invalid chain ID
+action "send_wrong_chain" "evm::send_transaction" {
+    from = signer.test_signer
+    to = input.recipient
+    value = "1000000000000000"
+    chain_id = 999999  # Wrong chain
+    catch_error = true
+}
+
+# Test invalid function signature
+action "call_invalid_function" "evm::call" {
+    from = signer.test_signer
+    to = input.contract_address
+    function = "nonExistentFunction(uint256,bool,string)"
+    args = [123, true, "test"]
+    catch_error = true
+}
+
+# Test ABI encoding error
+action "call_wrong_args" "evm::call" {
+    from = signer.test_signer
+    to = input.contract_address
+    function = "transfer(address,uint256)"
+    args = ["not_an_address", "not_a_number"]
+    catch_error = true
+}
+
+# Outputs
+output "invalid_address_error" {
+    value = action.send_invalid_address.error
+}
+
+output "invalid_hex_error" {
+    value = action.send_invalid_hex.error
+}
+
+output "negative_value_error" {
+    value = action.send_negative_value.error
+}
+
+output "invalid_key_error" {
+    value = action.invalid_signer.error
+}
+
+output "bad_checksum_handled" {
+    value = action.send_bad_checksum.error
+}
+
+output "overflow_error" {
+    value = action.send_overflow_value.error
+}
+
+output "wrong_chain_error" {
+    value = action.send_wrong_chain.error
+}
+
+output "invalid_function_error" {
+    value = action.call_invalid_function.error
+}
+
+output "wrong_args_error" {
+    value = action.call_wrong_args.error
+}

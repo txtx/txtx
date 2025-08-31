@@ -1,0 +1,23 @@
+# Test invalid nonce errors
+# Attempts to send transaction with incorrect nonce
+
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::secret_key" {
+    secret_key = input.sender_private_key
+}
+
+# Send transaction with explicitly wrong nonce
+action "send_with_wrong_nonce" "evm::send_eth" {
+    recipient_address = input.recipient
+    amount = 1000000000000000  # 0.001 ETH
+    nonce = input.wrong_nonce  # This should be too high or too low
+    signer = signer.sender
+}
+
+output "should_fail" {
+    value = "Transaction should fail due to invalid nonce"
+}

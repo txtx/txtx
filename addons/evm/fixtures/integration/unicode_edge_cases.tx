@@ -1,0 +1,94 @@
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::secret_key" {
+    secret_key = input.deployer_private_key
+}
+
+# Deploy SimpleStorage contract
+action "deploy" "evm::deploy_contract" {
+    contract_name = "SimpleStorage"
+    artifact_source = "foundry"
+    constructor_args = [0]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test empty string
+action "store_empty" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "addPerson(string,uint256)"
+    function_args = ["", 1]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test very long Unicode string
+action "store_long" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "addPerson(string,uint256)"
+    function_args = ["这是一个很长的中文字符串用于测试Unicode存储能力🎉🎊🎈🎆🎇✨", 2]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test special Unicode characters (Zero-width joiner, RTL marks, etc.)
+action "store_special" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "addPerson(string,uint256)"
+    function_args = ["Test‍👨‍👩‍👧‍👦ZWJ", 3]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Test mathematical symbols
+action "store_math" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "addPerson(string,uint256)"
+    function_args = ["∀x∈ℝ: x²≥0 ∑∏∫√∞", 4]
+    signer = signer.deployer
+    confirmations = 0
+}
+
+# Retrieve stored data
+action "get_empty" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "people(uint256)"
+    function_args = [0]
+}
+
+action "get_long" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "people(uint256)"
+    function_args = [1]
+}
+
+action "get_special" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "people(uint256)"
+    function_args = [2]
+}
+
+action "get_math" "evm::call_contract_function" {
+    contract_address = action.deploy.contract_address
+    function_signature = "people(uint256)"
+    function_args = [3]
+}
+
+output "empty_string_data" {
+    value = action.get_empty.result
+}
+
+output "long_unicode_data" {
+    value = action.get_long.result
+}
+
+output "special_unicode_data" {
+    value = action.get_special.result
+}
+
+output "math_symbols_data" {
+    value = action.get_math.result
+}

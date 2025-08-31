@@ -1,8 +1,9 @@
 use crate::codec::{
-    contract_deployment::compiled_artifacts::CompiledContractArtifacts, value_to_sol_value,
+    contract_deployment::compiled_artifacts::CompiledContractArtifacts, value_to_sol_value_compat as value_to_sol_value,
 };
 use crate::constants::{
     CHAIN_ID, CONTRACT, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, CONTRACT_VERIFICATION_OPTS,
+    NAMESPACE,
 };
 use crate::typing::EvmValue;
 use alloy::dyn_abi::JsonAbiExt;
@@ -20,6 +21,7 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use super::value_to_abi_constructor_args;
+use crate::errors::report_to_diagnostic;
 
 pub mod providers;
 
@@ -29,7 +31,7 @@ const ERROR: &str = "error";
 const PROVIDER: &str = "provider";
 
 pub async fn verify_contracts(
-    construct_did: &ConstructDid,
+    _construct_did: &ConstructDid,
     inputs: &ValueStore,
     progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
     _background_tasks_uuid: &Uuid,
@@ -40,8 +42,7 @@ pub async fn verify_contracts(
     let contract_address_str = contract_address.to_string();
 
     let Some(contract_verification_opts) = inputs.get_map(CONTRACT_VERIFICATION_OPTS) else {
-        let logger =
-            LogDispatcher::new(construct_did.as_uuid(), "evm::verify_contract", &progress_tx);
+        let logger = LogDispatcher::new(Uuid::new_v4(), NAMESPACE, &progress_tx);
         logger.success_info(
             "Verification Skipped",
             format!(
@@ -62,7 +63,8 @@ pub async fn verify_contracts(
     {
         let sol_args = if let Some(abi) = &artifacts.abi {
             if let Some(constructor) = &abi.constructor {
-                let sol_args = value_to_abi_constructor_args(&function_args, &constructor)?;
+                let sol_args = value_to_abi_constructor_args(&function_args, &constructor)
+                    .map_err(report_to_diagnostic)?;
                 constructor
                     .abi_encode_input(&sol_args)
                     .map_err(|e| diagnosed_error!("failed to encode constructor args: {}", e))?
@@ -95,8 +97,7 @@ pub async fn verify_contracts(
     // track failures for each provider, so we can run each to completion and log or return errors afterwards
     let mut failures = vec![];
     for (i, opts) in contract_verification_opts.iter().enumerate() {
-        let logger =
-            LogDispatcher::new(construct_did.as_uuid(), "evm::verify_contract", &progress_tx);
+        let logger = LogDispatcher::new(Uuid::new_v4(), NAMESPACE, &progress_tx);
         let ContractVerificationOpts { provider, .. } = opts;
         let err_ctx = format!(
             "contract verification failed for contract '{}' with provider '{}'",

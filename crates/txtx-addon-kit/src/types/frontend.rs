@@ -18,6 +18,9 @@ pub enum BlockEvent {
     UpdateActionItems(Vec<NormalizedActionItemRequestUpdate>),
     RunbookCompleted,
     Exit,
+    ProgressBar(Block),
+    UpdateProgressBarStatus(ProgressBarStatusUpdate),
+    UpdateProgressBarVisibility(ProgressBarVisibilityUpdate),
     LogEvent(LogEvent),
     Modal(Block),
     Error(Block),
@@ -31,17 +34,7 @@ pub enum LogLevel {
     Warn,
     Error,
 }
-impl ToString for LogLevel {
-    fn to_string(&self) -> String {
-        match self {
-            LogLevel::Trace => "trace".to_string(),
-            LogLevel::Debug => "debug".to_string(),
-            LogLevel::Info => "info".to_string(),
-            LogLevel::Warn => "warn".to_string(),
-            LogLevel::Error => "error".to_string(),
-        }
-    }
-}
+
 impl From<&str> for LogLevel {
     fn from(s: &str) -> Self {
         match s.to_lowercase().as_str() {
@@ -55,12 +48,6 @@ impl From<&str> for LogLevel {
     }
 }
 
-impl From<String> for LogLevel {
-    fn from(s: String) -> Self {
-        LogLevel::from(s.as_str())
-    }
-}
-
 impl LogLevel {
     pub fn should_log(&self, level: &LogLevel) -> bool {
         level >= self
@@ -68,61 +55,17 @@ impl LogLevel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", content = "log")]
+pub struct SpinnerState {
+    pub is_spinning: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LogEvent {
     Static(StaticLogEvent),
     Transient(TransientLogEvent),
 }
 
-impl LogEvent {
-    pub fn typing(&self) -> String {
-        match self {
-            LogEvent::Static(_) => "Static".into(),
-            LogEvent::Transient(_) => "Transient".into(),
-        }
-    }
-    pub fn uuid(&self) -> Uuid {
-        match self {
-            LogEvent::Static(event) => event.uuid,
-            LogEvent::Transient(event) => event.uuid,
-        }
-    }
-    pub fn status(&self) -> Option<String> {
-        match self {
-            LogEvent::Static(_) => None,
-            LogEvent::Transient(event) => Some(event.status()),
-        }
-    }
-    pub fn summary(&self) -> String {
-        match self {
-            LogEvent::Static(event) => event.details.summary.clone(),
-            LogEvent::Transient(event) => event.summary(),
-        }
-    }
-    pub fn message(&self) -> String {
-        match self {
-            LogEvent::Static(event) => event.details.message.clone(),
-            LogEvent::Transient(event) => event.message(),
-        }
-    }
-
-    pub fn level(&self) -> LogLevel {
-        match self {
-            LogEvent::Static(event) => event.level.clone(),
-            LogEvent::Transient(event) => event.level.clone(),
-        }
-    }
-
-    pub fn namespace(&self) -> &str {
-        match self {
-            LogEvent::Static(event) => &event.namespace,
-            LogEvent::Transient(event) => &event.namespace,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StaticLogEvent {
     pub level: LogLevel,
     pub uuid: Uuid,
@@ -131,14 +74,12 @@ pub struct StaticLogEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LogDetails {
     pub message: String,
     pub summary: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "status", content = "details")]
 pub enum TransientLogEventStatus {
     Pending(LogDetails),
     Success(LogDetails),
@@ -146,36 +87,11 @@ pub enum TransientLogEventStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TransientLogEvent {
     pub level: LogLevel,
     pub uuid: Uuid,
     pub status: TransientLogEventStatus,
     pub namespace: String,
-}
-
-impl TransientLogEvent {
-    pub fn summary(&self) -> String {
-        match &self.status {
-            TransientLogEventStatus::Pending(log_details) => log_details.summary.clone(),
-            TransientLogEventStatus::Success(log_details) => log_details.summary.clone(),
-            TransientLogEventStatus::Failure(log_details) => log_details.summary.clone(),
-        }
-    }
-    pub fn message(&self) -> String {
-        match &self.status {
-            TransientLogEventStatus::Pending(log_details) => log_details.message.clone(),
-            TransientLogEventStatus::Success(log_details) => log_details.message.clone(),
-            TransientLogEventStatus::Failure(log_details) => log_details.message.clone(),
-        }
-    }
-    pub fn status(&self) -> String {
-        match &self.status {
-            TransientLogEventStatus::Pending(_) => "Pending".into(),
-            TransientLogEventStatus::Success(_) => "Success".into(),
-            TransientLogEventStatus::Failure(_) => "Failure".into(),
-        }
-    }
 }
 
 impl TransientLogEvent {
@@ -288,16 +204,6 @@ impl LogDispatcher {
             TransientLogEvent::failure_info(self.uuid, summary, message, &self.namespace),
         )));
     }
-    pub fn failure_with_diag(
-        &self,
-        summary: impl ToString,
-        message: impl ToString,
-        diag: &Diagnostic,
-    ) {
-        let summary = summary.to_string();
-        self.failure_info(&summary, message);
-        self.error(summary, diag.to_string());
-    }
 }
 
 impl BlockEvent {
@@ -354,17 +260,17 @@ impl BlockEvent {
         }
     }
 
-    pub fn expect_runbook_completed(&self) {
+    pub fn expect_progress_bar_visibility_update(&self) -> &ProgressBarVisibilityUpdate {
         match &self {
-            BlockEvent::RunbookCompleted => {}
+            BlockEvent::UpdateProgressBarVisibility(ref update) => update,
             _ => unreachable!("block expected"),
         }
     }
 
-    pub fn expect_log_event(&self) -> &LogEvent {
+    pub fn expect_runbook_completed(&self) {
         match &self {
-            BlockEvent::LogEvent(ref log_event) => log_event,
-            _ => unreachable!("log event expected"),
+            BlockEvent::RunbookCompleted => {}
+            _ => unreachable!("block expected"),
         }
     }
 
@@ -418,6 +324,31 @@ impl Block {
             _ => {}
         };
         did_update
+    }
+
+    pub fn update_progress_bar_status(
+        &mut self,
+        construct_did: &ConstructDid,
+        new_status: &ProgressBarStatus,
+    ) {
+        match self.panel.borrow_mut() {
+            Panel::ProgressBar(progress_bar) => {
+                let mut construct_status_found = false;
+                for construct_statuses in progress_bar.iter_mut() {
+                    if &construct_statuses.construct_did == construct_did {
+                        construct_statuses.push_status(new_status);
+                        construct_status_found = true;
+                    }
+                }
+                if !construct_status_found {
+                    progress_bar.push(ConstructProgressBarStatuses {
+                        construct_did: construct_did.clone(),
+                        statuses: vec![new_status.clone()],
+                    })
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -591,6 +522,7 @@ impl Display for Block {
 pub enum Panel {
     ActionPanel(ActionPanelData),
     ModalPanel(ModalPanelData),
+    ProgressBar(Vec<ConstructProgressBarStatuses>),
     ErrorPanel(ErrorPanelData),
 }
 
@@ -683,6 +615,251 @@ impl ActionPanelData {
             self.groups.remove(*i);
         });
         self
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConstructProgressBarStatuses {
+    pub construct_did: ConstructDid,
+    pub statuses: Vec<ProgressBarStatus>,
+}
+
+impl ConstructProgressBarStatuses {
+    pub fn new(construct_did: &ConstructDid) -> Self {
+        ConstructProgressBarStatuses { construct_did: construct_did.clone(), statuses: vec![] }
+    }
+    pub fn push_status(&mut self, new_status: &ProgressBarStatus) {
+        self.statuses.push(new_status.clone());
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressBarStatus {
+    pub status: String,
+    pub status_color: ProgressBarStatusColor,
+    pub message: String,
+    pub diagnostic: Option<Diagnostic>,
+    /// Indicates if the TUI displaying this update should include a newline at the end of the update
+    pub newline: bool,
+}
+
+impl ProgressBarStatus {
+    pub fn new_msg(status_color: ProgressBarStatusColor, status: &str, message: &str) -> Self {
+        let newline = match status_color {
+            ProgressBarStatusColor::Yellow => false,
+            _ => true,
+        };
+        ProgressBarStatus {
+            status: status.to_string(),
+            status_color,
+            message: message.to_string(),
+            diagnostic: None,
+            newline,
+        }
+    }
+    pub fn new_msg_newline(
+        status_color: ProgressBarStatusColor,
+        status: &str,
+        message: &str,
+        newline: bool,
+    ) -> Self {
+        ProgressBarStatus {
+            status: status.to_string(),
+            status_color,
+            message: message.to_string(),
+            diagnostic: None,
+            newline,
+        }
+    }
+
+    pub fn new_err(status: &str, message: &str, diag: &Diagnostic) -> Self {
+        ProgressBarStatus {
+            status: status.to_string(),
+            status_color: ProgressBarStatusColor::Red,
+            message: message.to_string(),
+            diagnostic: Some(diag.clone()),
+            newline: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ProgressBarStatusColor {
+    Green,
+    Yellow,
+    Red,
+    Purple,
+}
+impl ProgressBarStatusColor {
+    pub fn to_string(&self) -> String {
+        match &self {
+            ProgressBarStatusColor::Green => "Green".into(),
+            ProgressBarStatusColor::Yellow => "Yellow".into(),
+            ProgressBarStatusColor::Red => "Red".into(),
+            ProgressBarStatusColor::Purple => "Purple".into(),
+        }
+    }
+}
+
+const PROGRESS_SYMBOLS: [&str; 8] = ["|", "/", "-", "\\", "|", "/", "-", "\\"];
+#[derive(Clone, Debug)]
+pub struct ProgressSymbol {
+    current: usize,
+}
+impl ProgressSymbol {
+    pub fn new() -> Self {
+        ProgressSymbol { current: 0 }
+    }
+    pub fn new_with_default_index(default_index: usize) -> Self {
+        ProgressSymbol { current: default_index }
+    }
+    pub fn next(&mut self) -> &str {
+        self.current = (self.current + 1) % PROGRESS_SYMBOLS.len();
+        PROGRESS_SYMBOLS[self.current]
+    }
+    pub fn pending(&mut self) -> String {
+        format!("Pending {}", self.next())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StatusUpdater {
+    status_update: ProgressBarStatusUpdate,
+    tx: channel::Sender<BlockEvent>,
+    progress: ProgressSymbol,
+}
+impl StatusUpdater {
+    fn _new(
+        background_tasks_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        tx: &channel::Sender<BlockEvent>,
+        mut progress: ProgressSymbol,
+    ) -> Self {
+        let initial_status = ProgressBarStatusUpdate::new(
+            &background_tasks_uuid,
+            &construct_did,
+            &&ProgressBarStatus::new_msg_newline(
+                ProgressBarStatusColor::Yellow,
+                &progress.pending(),
+                "",
+                false,
+            ),
+        );
+        StatusUpdater { status_update: initial_status, tx: tx.clone(), progress }
+    }
+    pub fn new(
+        background_tasks_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        tx: &channel::Sender<BlockEvent>,
+    ) -> Self {
+        let progress = ProgressSymbol::new();
+        Self::_new(background_tasks_uuid, construct_did, tx, progress)
+    }
+
+    /// Creates a new StatusUpdater with a default progress index.
+    /// This is useful for creating a StatusUpdater for a transaction that is part of a larger set of transactions,
+    /// since each transaction's execution is independent, but we want to show progress for the entire set of transactions.
+    pub fn new_with_default_progress_index(
+        background_tasks_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        tx: &channel::Sender<BlockEvent>,
+        default_progress_index: usize,
+    ) -> Self {
+        let progress = ProgressSymbol::new_with_default_index(default_progress_index);
+        Self::_new(background_tasks_uuid, construct_did, tx, progress)
+    }
+
+    pub fn propagate_info(&mut self, info: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg_newline(
+            ProgressBarStatusColor::Purple,
+            "Info",
+            info,
+            true,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_pending_status(&mut self, new_status_msg: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg_newline(
+            ProgressBarStatusColor::Yellow,
+            &self.progress.pending(),
+            new_status_msg,
+            false, // pending status will print repeatedly to the same line, so no newline
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_warning_status(&mut self, new_status_msg: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg_newline(
+            ProgressBarStatusColor::Yellow,
+            "Warning",
+            new_status_msg,
+            true, // warning status will print on a new line
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_failed_status(&mut self, new_status_msg: &str, diag: &Diagnostic) {
+        self.status_update.update_status(&ProgressBarStatus::new_err(
+            "Failed",
+            new_status_msg,
+            diag,
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_success_status(&mut self, status: &str, msg: &str) {
+        self.status_update.update_status(&ProgressBarStatus::new_msg_newline(
+            ProgressBarStatusColor::Green,
+            status,
+            msg,
+            true, // success status will print on a new line
+        ));
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+
+    pub fn propagate_status(&mut self, new_status: ProgressBarStatus) {
+        self.status_update.update_status(&new_status);
+        let _ = self.tx.send(BlockEvent::UpdateProgressBarStatus(self.status_update.clone()));
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressBarStatusUpdate {
+    pub progress_bar_uuid: Uuid,
+    pub construct_did: ConstructDid,
+    pub new_status: ProgressBarStatus,
+}
+
+impl ProgressBarStatusUpdate {
+    pub fn new(
+        progress_bar_uuid: &Uuid,
+        construct_did: &ConstructDid,
+        new_status: &ProgressBarStatus,
+    ) -> Self {
+        ProgressBarStatusUpdate {
+            progress_bar_uuid: progress_bar_uuid.clone(),
+            construct_did: construct_did.clone(),
+            new_status: new_status.clone(),
+        }
+    }
+    pub fn update_status(&mut self, new_status: &ProgressBarStatus) {
+        self.new_status = new_status.clone();
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressBarVisibilityUpdate {
+    pub progress_bar_uuid: Uuid,
+    pub visible: bool,
+}
+impl ProgressBarVisibilityUpdate {
+    pub fn new(progress_bar_uuid: &Uuid, visible: bool) -> Self {
+        ProgressBarVisibilityUpdate { progress_bar_uuid: progress_bar_uuid.clone(), visible }
     }
 }
 

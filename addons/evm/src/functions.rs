@@ -27,8 +27,10 @@ use crate::{
         contract_deployment::{create_init_code, create_opts::generate_create2_address},
         foundry::FoundryToml,
         hardhat::HardhatBuildArtifacts,
-        string_to_address, value_to_abi_function_args, value_to_sol_value,
+        string_to_address, value_to_abi_function_args, 
+        value_to_sol_value_compat as value_to_sol_value,
     },
+    errors::report_to_diagnostic,
     commands::actions::call_contract::{
         encode_contract_call_inputs_from_abi_str, encode_contract_call_inputs_from_selector,
     },
@@ -857,16 +859,16 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
             )
         })?;
         let bytecode = EvmValue::foundry_bytecode_data(&compiled_output.bytecode)
-            .map_err(|e| to_diag(fn_spec, e.message))?;
+            .map_err(|e| to_diag(fn_spec, format!("{}", e)))?;
         let abi = Value::string(abi_string);
         let source = Value::string(source);
         let contract_name = Value::string(contract_name.to_string());
         let contract_target_path = Value::string(target_path.to_string());
         let deployed_bytecode = EvmValue::foundry_bytecode_data(&compiled_output.deployed_bytecode)
-            .map_err(|e| to_diag(fn_spec, e.message))?;
+            .map_err(|e| to_diag(fn_spec, format!("{}", e)))?;
 
         let metadata = EvmValue::foundry_compiled_metadata(&compiled_output.metadata)
-            .map_err(|e| to_diag(fn_spec, e.message))?;
+            .map_err(|e| to_diag(fn_spec, format!("{}", e)))?;
 
         let foundry_config =
             Value::buffer(serde_json::to_vec(&foundry_config).map_err(|e| {
@@ -1076,7 +1078,7 @@ impl FunctionImplementation for EncodeFunctionCall {
                 .map_err(|e| to_diag(fn_spec, format!("invalid contract abi: {}", e)))?;
 
             let function_args = value_to_abi_function_args(&function_name, &function_args, &abi)
-                .map_err(|e| to_diag(fn_spec, e.message))?;
+                .map_err(|e| report_to_diagnostic(e))?;
 
             encode_contract_call_inputs_from_abi_str(abi_str, &function_name, &function_args)
                 .map_err(|e| to_diag(fn_spec, e))?

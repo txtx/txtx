@@ -1,0 +1,83 @@
+# Transaction signing test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "recipient" {
+    value = input.recipient
+    description = "Recipient address"
+}
+
+variable "amount" {
+    value = input.amount
+    description = "Amount to send"
+}
+
+variable "gas_price" {
+    value = input.gas_price
+    description = "Gas price"
+}
+
+variable "nonce" {
+    value = input.nonce
+    description = "Transaction nonce"
+}
+
+variable "data" {
+    value = input.data
+    description = "Transaction data"
+}
+
+# Sign transaction offline
+action "sign_transaction" "evm::sign_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.amount
+    gas_price = variable.gas_price
+    gas_limit = "21000"
+    nonce = variable.nonce
+    data = variable.data
+}
+
+# Verify signature
+action "verify_signature" "evm::verify_signature" {
+    signed_tx = action.sign_transaction.signed_tx
+    expected_signer = signer.test_signer.address
+}
+
+# Send pre-signed transaction
+action "send_signed" "evm::send_raw_transaction" {
+    signed_tx = action.sign_transaction.signed_tx
+}
+
+# Get receipt
+action "get_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.send_signed.tx_hash
+}
+
+# Outputs
+output "signed_tx" {
+    value = action.sign_transaction.signed_tx
+}
+
+output "signature_valid" {
+    value = action.verify_signature.is_valid
+}
+
+output "recovered_signer" {
+    value = action.verify_signature.signer
+}
+
+output "tx_hash" {
+    value = action.send_signed.tx_hash
+}
+
+output "tx_from" {
+    value = action.get_receipt.from
+}

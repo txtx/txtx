@@ -1,0 +1,113 @@
+# Transaction simulation test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "test_signer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Test parameters
+variable "recipient" {
+    value = input.recipient
+    description = "Recipient address"
+}
+
+variable "amount" {
+    value = input.amount
+    description = "Amount to send"
+}
+
+variable "contract_address" {
+    value = input.contract_address
+    description = "Contract to call"
+}
+
+variable "function_data" {
+    value = input.function_data
+    description = "Function call data"
+}
+
+variable "invalid_data" {
+    value = input.invalid_data
+    description = "Invalid data that should revert"
+}
+
+# Simulate simple transfer
+action "simulate_transfer" "evm::simulate_transaction" {
+    from = signer.test_signer.address
+    to = variable.recipient
+    value = variable.amount
+    description = "Simulate ETH transfer"
+}
+
+# Simulate contract call
+action "simulate_contract_call" "evm::simulate_transaction" {
+    from = signer.test_signer.address
+    to = variable.contract_address
+    data = variable.function_data
+    value = "0"
+    description = "Simulate contract function call"
+}
+
+# Simulate failing transaction
+action "simulate_revert" "evm::simulate_transaction" {
+    from = signer.test_signer.address
+    to = variable.contract_address
+    data = variable.invalid_data
+    value = "0"
+    description = "Simulate transaction that should revert"
+}
+
+# Dry run transaction (no state change)
+action "dry_run_transfer" "evm::dry_run" {
+    from = signer.test_signer.address
+    to = variable.recipient
+    value = variable.amount
+    gas_price = "20000000000"
+}
+
+# Call static (read-only simulation)
+action "static_call" "evm::static_call" {
+    from = signer.test_signer.address
+    to = variable.contract_address
+    data = variable.function_data
+}
+
+# Execute actual transaction after successful simulation
+action "execute_after_sim" "evm::send_transaction" {
+    from = signer.test_signer
+    to = variable.recipient
+    value = variable.amount
+    gas_limit = action.simulate_transfer.estimated_gas
+}
+
+# Outputs
+output "transfer_simulation_success" {
+    value = action.simulate_transfer.success
+}
+
+output "transfer_estimated_gas" {
+    value = action.simulate_transfer.estimated_gas
+}
+
+output "contract_simulation_result" {
+    value = action.simulate_contract_call.return_data
+}
+
+output "revert_reason" {
+    value = action.simulate_revert.revert_reason
+}
+
+output "dry_run_result" {
+    value = action.dry_run_transfer.success
+}
+
+output "static_call_result" {
+    value = action.static_call.result
+}
+
+output "executed_tx_hash" {
+    value = action.execute_after_sim.tx_hash
+}

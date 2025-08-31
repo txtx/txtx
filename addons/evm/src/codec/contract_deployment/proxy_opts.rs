@@ -4,7 +4,8 @@ use alloy::primitives::Address;
 use txtx_addon_kit::types::stores::{ValueMap, ValueStore};
 use txtx_addon_kit::types::types::Value;
 
-use crate::codec::{build_unsigned_transaction, CommonTransactionFields, TransactionType};
+use crate::codec::{build_unsigned_transaction_v2, CommonTransactionFields, TransactionType};
+use error_stack::ResultExt;
 use crate::commands::actions::deploy_contract::ProxiedContractInitializer;
 
 use super::create_opts::{generate_create2_address, Create2DeploymentOpts, Create2Factory};
@@ -146,7 +147,18 @@ impl ProxiedCreationOpts {
             deploy_code: None,
         };
 
-        let (tx, tx_cost, _) = build_unsigned_transaction(rpc.clone(), values, common).await?;
+        let (tx, tx_cost, _) = build_unsigned_transaction_v2(rpc.clone(), values, common)
+            .await
+            .attach_printable("building proxy deployment transaction")
+            .map_err(|e| {
+                // Preserve the original error message
+                let error_str = e.to_string();
+                if error_str.contains("Insufficient funds") || error_str.contains("insufficient funds") {
+                    error_str
+                } else {
+                    format!("failed to build proxy deployment transaction: {}", error_str)
+                }
+            })?;
         let expected_proxy_address = self.calculate_deployed_proxy_contract_address()?;
         let expected_impl_address = self.calculate_deployed_impl_contract_address()?;
 
