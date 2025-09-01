@@ -769,28 +769,26 @@ impl UpgradeableProgramDeployer {
                     ));
                 }
 
-                fn parse_buffer_account(data: &[u8]) -> Result<(Option<Pubkey>, &[u8]), String> {
-                    let mut cursor = std::io::Cursor::new(data);
+                let mut cursor = std::io::Cursor::new(&buffer_account.data);
+                // Deserialize only the prefix into UpgradeableLoaderState
+                let state: UpgradeableLoaderState =
+                    bincode::deserialize_from(&mut cursor).map_err(|e| e.to_string())?;
+                // Figure out how many bytes we consumed
+                let state_len = cursor.position() as usize;
+                // The rest is the ELF program data
+                let program_bytes = &buffer_account.data[state_len..];
 
-                    // Deserialize only the prefix into UpgradeableLoaderState
-                    let state: UpgradeableLoaderState =
-                        bincode::deserialize_from(&mut cursor).map_err(|e| e.to_string())?;
-
-                    // Figure out how many bytes we consumed
-                    let state_len = cursor.position() as usize;
-
-                    // The rest is the ELF program data
-                    let program_bytes = &data[state_len..];
-
-                    match state {
-                        UpgradeableLoaderState::Buffer { authority_address } => {
-                            Ok((authority_address, program_bytes))
-                        }
-                        _ => Err("not a buffer account".into()),
+                let (authority_address, program_bytes) = match state {
+                    UpgradeableLoaderState::Buffer { authority_address } => {
+                        (authority_address, program_bytes)
                     }
-                }
-                let (authority_address, program_bytes) =
-                    parse_buffer_account(&buffer_account.data)?;
+                    _ => {
+                        return Err(diagnosed_error!(
+                            "provided buffer pubkey {} is not a buffer account",
+                            buffer_pubkey
+                        ))
+                    }
+                };
 
                 let Some(authority_address) = authority_address else {
                     return Err(diagnosed_error!(
