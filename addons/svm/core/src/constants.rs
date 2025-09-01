@@ -62,6 +62,10 @@ pub const CLONE_PROGRAM_ACCOUNT: &str = "clone_program_account";
 pub const SET_PROGRAM_AUTHORITY: &str = "set_program_authority";
 pub const INSTANT_SURFNET_DEPLOYMENT: &str = "instant_surfnet_deployment";
 pub const IS_SURFNET: &str = "is_surfnet";
+pub const DEPLOYMENT_TRANSACTION_TYPE: &str = "deployment_transaction_type";
+pub const EPHEMERAL_AUTHORITY_KEYPAIR: &str = "ephemeral_authority_keypair";
+pub const BUFFER_ACCOUNT_PUBKEY: &str = "buffer_account_pubkey";
+pub const DEPLOYMENT_TRANSACTIONS: &str = "deployment_transactions";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
