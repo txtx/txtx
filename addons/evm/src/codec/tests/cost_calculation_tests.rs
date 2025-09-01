@@ -4,7 +4,7 @@ use crate::rpc::EvmRpc;
 use alloy::consensus::{TxLegacy, TxEip1559};
 use alloy::primitives::{address, U256, TxKind};
 use alloy::rpc::types::AccessList;
-use alloy::consensus::{TxEnvelope, TypedTransaction};
+use alloy::consensus::TypedTransaction;
 
 #[tokio::test]
 async fn test_get_transaction_cost_legacy() {

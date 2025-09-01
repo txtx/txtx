@@ -2,7 +2,7 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::collections::HashMap;
-use super::anvil_singleton::{AnvilManager as SingletonManager, AnvilGuard};
+use super::anvil_singleton::AnvilGuard;
 use super::accounts::NamedAccounts;
 
 /// Wrapper around the singleton that provides snapshot/revert functionality

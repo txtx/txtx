@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod error_handling_tests {
     use crate::errors::*;
-    use crate::rpc::EvmRpc;
+    
     use error_stack::{Report, ResultExt};
 
     #[test]
@@ -229,7 +229,7 @@ mod error_handling_tests {
 
 #[cfg(test)]
 mod rpc_error_tests {
-    use super::*;
+    
     use crate::errors::*;
 
     #[test]

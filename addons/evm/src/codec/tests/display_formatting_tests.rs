@@ -1,5 +1,5 @@
 use crate::codec::display::{format_transaction_for_display, format_access_list_for_display};
-use alloy::consensus::{TxLegacy, TxEip1559, TxEip2930, TxEnvelope, TypedTransaction};
+use alloy::consensus::{TxLegacy, TxEip1559, TxEip2930, TypedTransaction};
 use alloy::primitives::{address, B256, U256, TxKind};
 use alloy::rpc::types::{AccessListItem, AccessList};
 use txtx_addon_kit::types::types::Value;

@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
-    use txtx_addon_kit::types::types::Value;
+    
     
     #[tokio::test]
     async fn test_complete_fixture_example() {

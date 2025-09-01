@@ -115,7 +115,7 @@ mod transaction_integration_tests {
     
     #[tokio::test]  
     async fn test_insufficient_funds_for_transfer() {
-        use crate::rpc::{EvmWalletRpc, EvmRpc};
+        use crate::rpc::EvmWalletRpc;
         use alloy::network::TransactionBuilder as NetworkTransactionBuilder;
         
         // Skip if Anvil not available
@@ -200,7 +200,7 @@ mod transaction_integration_tests {
     
     #[tokio::test]
     async fn test_insufficient_funds_for_gas() {
-        use crate::rpc::{EvmWalletRpc, EvmRpc};
+        use crate::rpc::EvmWalletRpc;
         use alloy::network::TransactionBuilder as NetworkTransactionBuilder;
         
         // Skip if Anvil not available

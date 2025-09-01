@@ -9,7 +9,7 @@
 mod conversions {
     use crate::typing::EvmValue;
     use txtx_addon_kit::types::types::Value;
-    use alloy::primitives::U256;
+    
 
     #[test]
     fn test_address_conversions_valid() {

@@ -8,7 +8,7 @@ mod demo_tests {
     use crate::errors::*;
     use error_stack::{Report, ResultExt};
     use alloy::primitives::Address;
-    use txtx_addon_kit::types::diagnostics::{Diagnostic, DiagnosticLevel};
+    use txtx_addon_kit::types::diagnostics::Diagnostic;
     use txtx_addon_kit::diagnosed_error;
 
     #[test]

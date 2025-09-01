@@ -5,7 +5,6 @@ use alloy::dyn_abi::DynSolValue;
 use txtx_addon_kit::types::types::Value;
 use crate::typing::EvmValue;
 use std::collections::VecDeque;
-use std::num::NonZeroUsize;
 
 fn create_simple_abi() -> JsonAbi {
     // Create a simple ABI with a transfer function

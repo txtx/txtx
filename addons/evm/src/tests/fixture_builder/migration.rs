@@ -1,6 +1,6 @@
 // Migration helpers for converting integration tests to FixtureBuilder
 
-use super::{FixtureBuilder, TestFixture};
+use super::FixtureBuilder;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::fs;

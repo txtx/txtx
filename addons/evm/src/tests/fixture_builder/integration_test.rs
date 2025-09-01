@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
-    use std::collections::HashMap;
+    
     
     #[tokio::test]
     async fn test_simple_eth_transfer() {
@@ -206,7 +206,7 @@ action "transfer" "evm::send_eth" {
     #[tokio::test]
     async fn test_template_usage() {
         // Create a fixture with a template
-        let mut fixture = FixtureBuilder::new("test_template")
+        let fixture = FixtureBuilder::new("test_template")
             .with_template("erc20_transfer")
             .with_parameter("token_address", "0x123...")
             .with_parameter("recipient", "0x456...")

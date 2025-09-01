@@ -1,10 +1,10 @@
 use crate::codec::transaction::types::{TransactionType, CommonTransactionFields};
-use crate::codec::{get_typed_transaction_bytes, typed_transaction_bytes, string_to_address, format_transaction_cost};
+use crate::codec::{get_typed_transaction_bytes, string_to_address, format_transaction_cost};
 use crate::rpc::EvmRpc;
 use crate::typing::EvmValue;
 use alloy::primitives::{address, Address, U256, TxKind};
 use alloy::rpc::types::{TransactionRequest, AccessList};
-use alloy::consensus::{TxEnvelope, SignableTransaction};
+use alloy::consensus::SignableTransaction;
 use txtx_addon_kit::types::Did;
 use txtx_addon_kit::types::stores::ValueStore;
 

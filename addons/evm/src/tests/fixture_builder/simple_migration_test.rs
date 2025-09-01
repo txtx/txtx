@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::fixture_builder::{FixtureBuilder, get_anvil_manager};
+    use crate::tests::fixture_builder::FixtureBuilder;
     
     #[tokio::test]
     async fn test_simple_fixture() {

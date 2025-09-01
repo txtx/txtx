@@ -46,8 +46,6 @@ pub mod transaction_tests;  // This one doesn't use ProjectTestHarness
 // pub mod unicode_storage_tests;
 // pub mod view_function_tests;
 
-#[cfg(test)]
-pub use anvil_harness::AnvilInstance;
 
 /// Conditionally run integration tests based on Anvil availability
 /// 

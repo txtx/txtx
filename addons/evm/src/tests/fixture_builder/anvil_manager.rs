@@ -8,7 +8,7 @@ use serde_json::json;
 use reqwest::Client;
 use std::time::Duration;
 
-use super::accounts::{NamedAccounts, TestAccount};
+use super::accounts::NamedAccounts;
 
 /// Manages a single shared Anvil instance with snapshot/revert capabilities
 pub struct AnvilManager {

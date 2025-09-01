@@ -5,7 +5,7 @@
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 use alloy::primitives::{Address, U256};
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::providers::ProviderBuilder;
 use alloy_signer_local::PrivateKeySigner;
 use std::str::FromStr;
 
@@ -107,7 +107,7 @@ impl AnvilInstance {
             cmd.arg("--block-time").arg(block_time.to_string());
         }
         
-        let mut child = cmd
+        let child = cmd
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()

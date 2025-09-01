@@ -8,8 +8,6 @@ use crate::codec::abi::types::value_to_sol_value;
 use crate::codec::abi::decoding::sol_value_to_value;
 use crate::typing::EvmValue;
 use alloy::dyn_abi::DynSolValue;
-use alloy::primitives::{Address, U256};
-use txtx_addon_kit::types::types::Value;
 
 #[test]
 fn test_transaction_type_parsing() {
