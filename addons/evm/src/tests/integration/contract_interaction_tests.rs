@@ -5,7 +5,6 @@
 #[cfg(test)]
 mod contract_interaction_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use std::path::PathBuf;
     use tokio;
     
@@ -23,7 +22,7 @@ mod contract_interaction_tests {
         let deploy_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/deployments/storage_contract.tx");
         
-        let deploy_result = MigrationHelper::from_fixture(&deploy_fixture)
+        // REMOVED:         let deploy_result = MigrationHelper::from_fixture(&deploy_fixture)
             .execute().await
             .expect("Failed to deploy storage contract");
         
@@ -37,7 +36,7 @@ mod contract_interaction_tests {
         let multi_call_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/contracts/multi_call.tx");
         
-        let call_result = MigrationHelper::from_fixture(&multi_call_fixture)
+        // REMOVED:         let call_result = MigrationHelper::from_fixture(&multi_call_fixture)
             .with_input("contract_address", contract_address)
             .with_input("value_to_set", "100")
             .execute()
@@ -77,7 +76,7 @@ mod contract_interaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/transaction_receipt.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture_path)
             
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000")
@@ -119,7 +118,7 @@ mod contract_interaction_tests {
         let deploy_fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/deployments/storage_contract.tx");
         
-        let harness = MigrationHelper::from_fixture(&deploy_fixture)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&deploy_fixture)
             ;
         
         
@@ -160,7 +159,7 @@ mod contract_interaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/deployments/constructor_args.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture_path)
             ;
         
         

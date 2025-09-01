@@ -2,7 +2,6 @@
 
 #[cfg(test)]
 mod view_function_tests {
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
 
     #[tokio::test]
@@ -57,7 +56,7 @@ mod view_function_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/view_functions/state_changing_function.tx");
 
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("caller_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
             .execute()

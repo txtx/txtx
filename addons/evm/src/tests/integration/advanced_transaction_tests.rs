@@ -9,7 +9,6 @@
 #[cfg(test)]
 mod advanced_transaction_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
     use tokio;
@@ -26,7 +25,7 @@ mod advanced_transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_replacement.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -70,7 +69,7 @@ mod advanced_transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cancellation.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -116,7 +115,7 @@ mod advanced_transaction_tests {
         let recipients = r#"["0x70997970c51812dc3a010c7d01b50e0d17dc79c8", "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc", "0x90f8bf6a479f320ead074411a4b0e7944ea8c9c1"]"#;
         let amounts = r#"["1000000000000000", "2000000000000000", "3000000000000000"]"#;
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -162,7 +161,7 @@ mod advanced_transaction_tests {
         let gas_prices = r#"["10000000000", "15000000000", "20000000000"]"#;
         let data = r#"["0x", "0x", "0x"]"#;
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -218,7 +217,7 @@ mod advanced_transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_replacement.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -254,7 +253,7 @@ mod advanced_transaction_tests {
         let recipients = r#"["0x70997970c51812dc3a010c7d01b50e0d17dc79c8", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"]"#;
         let amounts = r#"["100000000000000", "200000000000000", "300000000000000"]"#;
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")

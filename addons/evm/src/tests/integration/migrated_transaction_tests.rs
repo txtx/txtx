@@ -2,7 +2,6 @@
 
 #[cfg(test)]
 mod transaction_tests {
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
     use std::path::PathBuf;
     use tokio;
@@ -20,7 +19,7 @@ mod transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/simple_eth_transfer.tx");
 
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("sender_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
             .execute()
@@ -59,7 +58,7 @@ mod transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/custom_gas_transfer.tx");
 
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("sender_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
             .execute()
@@ -91,7 +90,7 @@ mod transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/legacy_transaction.tx");
 
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("sender_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
             .execute()
@@ -122,7 +121,7 @@ mod transaction_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/batch_transactions.tx");
 
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("sender_private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
             .execute()

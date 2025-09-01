@@ -8,7 +8,6 @@
 
 #[cfg(test)]
 mod abi_encoding_tests {
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use std::path::PathBuf;
     use tokio;
     
@@ -19,7 +18,7 @@ mod abi_encoding_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/abi_encode_basic.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("address_value", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("uint_value", "123456789")
             .with_input("bool_value", "true")
@@ -51,7 +50,7 @@ mod abi_encoding_tests {
         let addresses = r#"["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8", "0x0000000000000000000000000000000000000000"]"#;
         let uints = r#"[100, 200, 300]"#;
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("addresses_array", addresses)
             .with_input("uint_array", uints)
             .with_input("tuple_maker", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
@@ -75,7 +74,7 @@ mod abi_encoding_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/abi_encode_complex.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("addresses_array", r#"[]"#)
             .with_input("uint_array", r#"[]"#)
             .with_input("tuple_maker", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
@@ -98,7 +97,7 @@ mod abi_encoding_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/abi_encode_basic.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("address_value", "0x0000000000000000000000000000000000000000")
             .with_input("uint_value", "0")
             .with_input("bool_value", "false")
@@ -125,7 +124,7 @@ mod abi_encoding_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/abi_encode_function.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("target_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("transfer_amount", "1000000000000000000")
             .with_input("spender_address", "0x123456789012345678901234567890123456789a")
@@ -150,7 +149,7 @@ mod abi_encoding_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/abi_encode_packed.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("address1", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("uint256_value", "123456789")
             .with_input("bytes32_value", "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")

@@ -1,7 +1,6 @@
 
 #[cfg(test)]
 mod debug_tests {
-    use crate::tests::fixture_builder::MigrationHelper;
     use super::*;
     use crate::tests::integration::anvil_harness::AnvilInstance;
 

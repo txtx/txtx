@@ -10,7 +10,6 @@
 #[cfg(test)]
 mod check_confirmations_integration_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
     use tokio;
@@ -28,7 +27,7 @@ mod check_confirmations_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/check_confirmations_transfer.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("recipient_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000") // 0.001 ETH
             .with_input("confirmations", "3")
@@ -65,7 +64,7 @@ mod check_confirmations_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/check_confirmations_deployment.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             
             .with_input("bytecode", "0x602a60005260206000f3") // Returns 42
             .with_input("confirmations", "2")
@@ -116,7 +115,7 @@ mod check_confirmations_integration_tests {
         
         // Test 1: Quick confirmation (1 block)
         println!("   Testing with 1 confirmation...");
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             
             .with_input("recipient_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000")
@@ -131,7 +130,7 @@ mod check_confirmations_integration_tests {
         
         // Test 2: More secure confirmation (5 blocks)
         println!("   Testing with 5 confirmations...");
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             
             .with_input("recipient_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000")

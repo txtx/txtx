@@ -8,7 +8,6 @@
 
 #[cfg(test)]
 mod function_selector_tests {
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
     use tokio;
@@ -20,7 +19,7 @@ mod function_selector_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/function_selector_test.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", "transfer(address,uint256)")
             .with_input("function_params", r#"["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8", "1000000"]"#)
             .execute()
@@ -52,7 +51,7 @@ mod function_selector_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/function_selector_test.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", "approve(address,uint256)")
             .with_input("function_params", r#"["0x0000000000000000000000000000000000000000", "0"]"#)
             .execute()
@@ -84,7 +83,7 @@ mod function_selector_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/function_selector_test.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", "balanceOf(address)")
             .with_input("function_params", r#"["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8"]"#)
             .execute()
@@ -119,7 +118,7 @@ mod function_selector_tests {
         // Complex function with multiple parameter types
         let signature = "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", signature)
             .with_input("function_params", r#"[
                 "1000000",
@@ -156,7 +155,7 @@ mod function_selector_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/function_selector_test.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("function_signature", "totalSupply()")
             .with_input("function_params", r#"[]"#)
             .execute()

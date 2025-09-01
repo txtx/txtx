@@ -9,7 +9,6 @@
 #[cfg(test)]
 mod transaction_signing_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
     use tokio;
@@ -26,7 +25,7 @@ mod transaction_signing_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_signing.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -82,7 +81,7 @@ mod transaction_signing_tests {
         
         let expected_signer = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -128,7 +127,7 @@ mod transaction_signing_tests {
         // Function call data (transfer(address,uint256))
         let data = "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c80000000000000000000000000000000000000000000000000de0b6b3a7640000";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -177,7 +176,7 @@ mod transaction_signing_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_signing.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("chain_id", "1") // Mainnet chain ID
             .with_input("rpc_url", "http://127.0.0.1:8545") // Not used for signing
             .with_input("private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")

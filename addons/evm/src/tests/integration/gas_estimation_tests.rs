@@ -9,7 +9,6 @@
 #[cfg(test)]
 mod gas_estimation_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
     use tokio;
@@ -26,7 +25,7 @@ mod gas_estimation_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/gas_estimation.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -74,7 +73,7 @@ mod gas_estimation_tests {
         // Simple storage contract bytecode
         let bytecode = "0x608060405234801561001057600080fd5b5060b88061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c80632e64cec11460375780636057361d14604c575b600080fd5b60005460405190815260200160405180910390f35b6059605736600460536565565b50565b005b600055565b600060608284031215607657600080fd5b5035919050565b56fea264697066735822122035f";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -118,7 +117,7 @@ mod gas_estimation_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/gas_estimation.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -172,7 +171,7 @@ mod gas_estimation_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/gas_estimation.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")

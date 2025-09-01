@@ -2,9 +2,8 @@
 // Provides template-based test fixtures with automatic output generation
 
 pub mod accounts;
-pub mod anvil_manager;
 pub mod anvil_singleton;
-pub mod anvil_manager_v2;
+pub mod anvil_manager;
 pub mod runbook_parser;
 pub mod executor;
 
@@ -21,15 +20,13 @@ mod simple_test;
 mod execution_test;
 mod contract_test;
 mod showcase_test;
-mod simple_migration_test;
 mod test_cleanup;
 pub mod helpers;
-pub mod migration;
 pub mod cleanup;
 
 pub use accounts::NamedAccounts;
-// Use v2 manager that's backed by singleton
-pub use anvil_manager_v2::{AnvilManager, AnvilHandle, get_anvil_manager};
+// Use manager that's backed by singleton
+pub use anvil_manager::{AnvilManager, AnvilHandle, get_anvil_manager};
 pub use anvil_singleton::cleanup_singleton;
 pub use runbook_parser::RunbookParser;
 pub use cleanup::{cleanup_test_infrastructure, force_cleanup_test_anvil};

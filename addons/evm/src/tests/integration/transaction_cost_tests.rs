@@ -9,7 +9,6 @@
 #[cfg(test)]
 mod transaction_cost_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
     use tokio;
@@ -26,7 +25,7 @@ mod transaction_cost_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cost.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -73,7 +72,7 @@ mod transaction_cost_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cost.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -119,7 +118,7 @@ mod transaction_cost_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cost.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")
@@ -164,7 +163,7 @@ mod transaction_cost_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transaction_cost.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("chain_id", "31337")
             .with_input("rpc_url", "http://127.0.0.1:8545")

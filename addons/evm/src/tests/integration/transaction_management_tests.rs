@@ -5,7 +5,6 @@
 #[cfg(test)]
 mod transaction_management_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use std::path::PathBuf;
     use tokio;
     
@@ -22,7 +21,7 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/nonce_management.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .execute()
@@ -65,7 +64,7 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/gas_estimation.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("test_transfer", "true")
             .with_input("test_deploy", "false")
@@ -108,7 +107,7 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/gas_estimation.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("test_transfer", "false")
             .with_input("test_deploy", "true")
@@ -149,7 +148,7 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/eip1559_transaction.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000") // 0.001 ETH
@@ -194,7 +193,7 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/legacy_transaction.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil()
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000")
@@ -231,7 +230,7 @@ mod transaction_management_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/transactions/batch_transactions.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil();
         
         

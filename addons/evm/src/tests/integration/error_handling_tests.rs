@@ -5,7 +5,6 @@
 #[cfg(test)]
 mod error_handling_integration_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::errors::{EvmError, TransactionError, CodecError, SignerError};
     use std::path::PathBuf;
     use tokio;
@@ -23,7 +22,7 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/insufficient_funds_transfer.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("amount", "1000000000000000000000")
@@ -68,7 +67,7 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/invalid_hex_address.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             ;
         
         let result = result.execute().await;
@@ -108,7 +107,7 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/missing_signer.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             ;
         
         let result = result.execute().await;
@@ -147,7 +146,7 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/invalid_function_call.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             ;
         
         let result = result.execute().await;
@@ -174,7 +173,7 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/out_of_gas.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             
             .with_input("contract_bytecode", "0x608060405234801561001057600080fd5b50610150806100206000396000f3fe")
             .execute()
@@ -217,7 +216,7 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/invalid_nonce.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             
             .with_input("recipient", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
             .with_input("wrong_nonce", "999")
@@ -261,7 +260,7 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/invalid_contract_address.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             
             // Use a regular EOA address (no contract code)
             .with_input("non_contract_address", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8")
@@ -293,7 +292,7 @@ mod error_handling_integration_tests {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures/integration/errors/insufficient_gas.tx");
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             ;
         
         let result = result.execute().await;

@@ -2,7 +2,6 @@
 
 #[cfg(test)]
 mod insufficient_funds_tests {
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
     use crate::errors::{EvmError, TransactionError};
     use std::path::PathBuf;
@@ -23,7 +22,7 @@ mod insufficient_funds_tests {
             .join("fixtures/integration/errors/insufficient_funds_transfer.tx");
         
         // Create harness with Anvil
-        let harness = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil();
         
         // Setup project
@@ -69,7 +68,7 @@ mod insufficient_funds_tests {
             .join("fixtures/integration/errors/insufficient_funds_transfer.tx");
         
         // Create harness with Anvil
-        let harness = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil();
         
         // Setup project
@@ -115,7 +114,7 @@ mod insufficient_funds_tests {
             .join("fixtures/integration/errors/insufficient_gas.tx");
         
         // Create harness with Anvil
-        let harness = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture_path)
             .with_anvil();
         
         // Setup project

@@ -2,7 +2,6 @@
 
 #[cfg(test)]
 mod migrated_deployment_tests {
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
@@ -13,7 +12,7 @@ mod migrated_deployment_tests {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/minimal_contract.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture)
             .with_input("chain_id", &anvil.chain_id().to_string())
             .with_input("rpc_url", &anvil.endpoint());
 
@@ -47,7 +46,7 @@ mod migrated_deployment_tests {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/constructor_args.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture)
             .with_input("chain_id", &anvil.chain_id().to_string())
             .with_input("rpc_url", &anvil.endpoint());
 
@@ -78,7 +77,7 @@ mod migrated_deployment_tests {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/complex_constructor.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture)
             .with_input("chain_id", &anvil.chain_id().to_string())
             .with_input("rpc_url", &anvil.endpoint());
 
@@ -101,7 +100,7 @@ mod migrated_deployment_tests {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/storage_contract.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture)
             .with_input("chain_id", &anvil.chain_id().to_string())
             .with_input("rpc_url", &anvil.endpoint());
 
@@ -123,7 +122,7 @@ mod migrated_deployment_tests {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/factory_pattern.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture)
             .with_input("chain_id", &anvil.chain_id().to_string())
             .with_input("rpc_url", &anvil.endpoint());
 
@@ -150,7 +149,7 @@ mod migrated_deployment_tests {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/upgradeable_proxy.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture)
             .with_input("chain_id", &anvil.chain_id().to_string())
             .with_input("rpc_url", &anvil.endpoint());
 
@@ -177,7 +176,7 @@ mod migrated_deployment_tests {
         let anvil = AnvilInstance::start();
         let fixture = PathBuf::from("fixtures/integration/deployments/deploy_and_interact.tx");
         
-        let harness = MigrationHelper::from_fixture(&fixture)
+        // REMOVED:         let harness = MigrationHelper::from_fixture(&fixture)
             .with_input("chain_id", &anvil.chain_id().to_string())
             .with_input("rpc_url", &anvil.endpoint());
 

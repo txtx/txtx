@@ -8,7 +8,6 @@
 
 #[cfg(test)]
 mod abi_decoding_tests {
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::errors::{EvmError, CodecError};
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
@@ -24,7 +23,7 @@ mod abi_decoding_tests {
         // Pre-encoded address (0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb8)
         let encoded_address = "0x000000000000000000000000742d35cc6634c0532925a3b844bc9e7595f0beb8";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("encoded_data", encoded_address)
             .with_input("decode_types", r#"["address"]"#)
             .with_input("wrong_types", r#"["uint256"]"#)
@@ -53,7 +52,7 @@ mod abi_decoding_tests {
         // Pre-encoded uint256 (value: 12345)
         let encoded_uint = "0x0000000000000000000000000000000000000000000000000000000000003039";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("encoded_data", encoded_uint)
             .with_input("decode_types", r#"["uint256"]"#)
             .with_input("wrong_types", r#"["address"]"#)
@@ -81,7 +80,7 @@ mod abi_decoding_tests {
         // bool: true
         let encoded_multiple = "0x000000000000000000000000742d35cc6634c0532925a3b844bc9e7595f0beb800000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000001";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("encoded_data", encoded_multiple)
             .with_input("decode_types", r#"["address", "uint256", "bool"]"#)
             .with_input("wrong_types", r#"["uint256", "uint256", "uint256"]"#)
@@ -106,7 +105,7 @@ mod abi_decoding_tests {
         // Pre-encoded string "Hello"
         let encoded_string = "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000005486c6c6f00000000000000000000000000000000000000000000000000000000";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("encoded_data", encoded_string)
             .with_input("decode_types", r#"["string"]"#)
             .with_input("wrong_types", r#"["bytes"]"#)
@@ -131,7 +130,7 @@ mod abi_decoding_tests {
         // Pre-encoded uint256[] with values [1, 2, 3]
         let encoded_array = "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("encoded_data", encoded_array)
             .with_input("decode_types", r#"["uint256[]"]"#)
             .with_input("wrong_types", r#"["address[]"]"#)
@@ -164,7 +163,7 @@ mod abi_decoding_tests {
         // Invalid hex data (too short for address - needs 32 bytes)
         let invalid_data = "0x1234";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("encoded_data", invalid_data)
             .with_input("decode_types", r#"["address"]"#)
             .with_input("wrong_types", r#"["uint256"]"#)
@@ -216,7 +215,7 @@ mod abi_decoding_tests {
         // Pre-encoded bytes32
         let encoded_bytes32 = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
         
-        let result = MigrationHelper::from_fixture(&fixture_path)
+        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
             .with_input("encoded_data", encoded_bytes32)
             .with_input("decode_types", r#"["bytes32"]"#)
             .with_input("wrong_types", r#"["bytes"]"#)

@@ -2,7 +2,6 @@
 
 #[cfg(test)]
 mod abi_tests {
-    use crate::tests::fixture_builder::{MigrationHelper, TestResult};
     use crate::tests::integration::anvil_harness::AnvilInstance;
     use std::path::PathBuf;
     use tokio;

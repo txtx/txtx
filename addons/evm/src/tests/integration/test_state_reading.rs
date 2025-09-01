@@ -1,7 +1,6 @@
 
 #[cfg(test)]
 mod state_tests {
-    use crate::tests::fixture_builder::MigrationHelper;
     use super::*;
     use crate::tests::integration::anvil_harness::AnvilInstance;
     use std::fs;
