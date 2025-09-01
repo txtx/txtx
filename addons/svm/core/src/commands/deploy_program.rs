@@ -39,7 +39,7 @@ use crate::codec::{DeploymentTransaction, ProgramArtifacts, UpgradeableProgramDe
 use crate::constants::{
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, BUFFER_ACCOUNT_PUBKEY,
     CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DEPLOYMENT_TRANSACTIONS, DEPLOYMENT_TRANSACTION_TYPE,
-    DO_AWAIT_CONFIRMATION, EPHEMERAL_AUTHORITY_KEYPAIR, FORMATTED_TRANSACTION,
+    DO_AWAIT_CONFIRMATION, EPHEMERAL_AUTHORITY_SECRET_KEY, FORMATTED_TRANSACTION,
     INSTANT_SURFNET_DEPLOYMENT, IS_DEPLOYMENT, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM,
     PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES,
     SIGNERS, SLOT, TRANSACTION_BYTES,
@@ -118,7 +118,7 @@ lazy_static! {
                         internal: false,
                         sensitive: false
                     },
-                    ephemeral_authority_keypair: {
+                    ephemeral_authority_secret_key: {
                         documentation: "An optional base-58 encoded keypair string to use as the temporary upgrade authority during deployment. If not provided, a new ephemeral keypair will be generated.",
                         typing: Type::string(),
                         optional: true,
@@ -284,7 +284,7 @@ impl CommandImplementation for DeployProgram {
             }
             None => {
                 let temp_authority_keypair = match authority_signer_state
-                    .get_scoped_value(&construct_did.to_string(), EPHEMERAL_AUTHORITY_KEYPAIR)
+                    .get_scoped_value(&construct_did.to_string(), EPHEMERAL_AUTHORITY_SECRET_KEY)
                 {
                     Some(kp) => SvmValue::to_keypair(kp).map_err(|e| {
                         (
@@ -295,7 +295,7 @@ impl CommandImplementation for DeployProgram {
                     })?,
                     None => {
                         let temp_authority_keypair = match values
-                            .get_value(EPHEMERAL_AUTHORITY_KEYPAIR)
+                            .get_value(EPHEMERAL_AUTHORITY_SECRET_KEY)
                         {
                             Some(kp) => match kp.as_string() {
                                 Some(s) => {
@@ -333,7 +333,7 @@ impl CommandImplementation for DeployProgram {
 
                         authority_signer_state.insert_scoped_value(
                             &construct_did.to_string(),
-                            EPHEMERAL_AUTHORITY_KEYPAIR,
+                            EPHEMERAL_AUTHORITY_SECRET_KEY,
                             SvmValue::keypair(temp_authority_keypair.to_bytes().to_vec()),
                         );
                         temp_authority_keypair

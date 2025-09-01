@@ -63,7 +63,7 @@ pub const SET_PROGRAM_AUTHORITY: &str = "set_program_authority";
 pub const INSTANT_SURFNET_DEPLOYMENT: &str = "instant_surfnet_deployment";
 pub const IS_SURFNET: &str = "is_surfnet";
 pub const DEPLOYMENT_TRANSACTION_TYPE: &str = "deployment_transaction_type";
-pub const EPHEMERAL_AUTHORITY_KEYPAIR: &str = "ephemeral_authority_keypair";
+pub const EPHEMERAL_AUTHORITY_SECRET_KEY: &str = "ephemeral_authority_secret_key";
 pub const BUFFER_ACCOUNT_PUBKEY: &str = "buffer_account_pubkey";
 pub const DEPLOYMENT_TRANSACTIONS: &str = "deployment_transactions";
 
