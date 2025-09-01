@@ -8,6 +8,7 @@ pub mod fixture_validation_tests;
 pub mod integration;
 // pub mod test_harness;  // DEPRECATED: Use fixture_builder instead
 pub mod fixture_builder;
+pub mod test_utils;  // Test infrastructure and utilities
 pub mod txtx_runbook_tests;
 // pub mod validate_setup_tests;  // DEPRECATED: Uses old test_harness
 pub mod verification_error_tests;

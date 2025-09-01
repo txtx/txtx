@@ -16,7 +16,6 @@ mod test_anvil;
 #[cfg(test)]
 mod example_test;
 mod integration_test;
-mod simple_test;
 mod execution_test;
 mod contract_test;
 mod showcase_test;

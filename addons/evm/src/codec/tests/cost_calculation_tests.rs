@@ -33,6 +33,7 @@ async fn test_get_transaction_cost_legacy() {
 
 #[tokio::test] 
 async fn test_get_transaction_cost_eip1559() {
+    // ARRANGE: Create an EIP-1559 transaction
     let eip1559_tx = TxEip1559 {
         chain_id: 1,
         nonce: 0,
@@ -47,9 +48,21 @@ async fn test_get_transaction_cost_eip1559() {
     
     let typed_tx = TypedTransaction::Eip1559(eip1559_tx);
     
-    // Note: For EIP-1559, the actual cost calculation requires base_fee from RPC
-    // This test verifies the function structure works
-    // In a real test environment, you'd need a mock RPC that returns base_fee
+    // Create RPC client (for EIP-1559, this would need to fetch base_fee)
+    let rpc = EvmRpc::new("http://127.0.0.1:8545").expect("Failed to create test RPC");
+    
+    // ACT: Calculate the transaction cost
+    // Note: This will use max_fee_per_gas as the upper bound since we can't fetch base_fee in test
+    let result = get_transaction_cost(&typed_tx, &rpc).await;
+    
+    // ASSERT: Verify the calculation succeeds and uses correct formula
+    assert!(result.is_ok(), "EIP-1559 cost calculation should succeed");
+    
+    let cost = result.unwrap();
+    // For EIP-1559 without base_fee, we use max_fee_per_gas as worst case
+    // Cost = gas_limit * max_fee_per_gas = 21000 * 30_000_000_000
+    let expected_max_cost: i128 = 21000i128 * 30_000_000_000i128;
+    assert_eq!(cost, expected_max_cost, "EIP-1559 should calculate max possible cost");
 }
 
 #[test]

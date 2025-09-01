@@ -9,8 +9,7 @@
 #[cfg(test)]
 mod gas_estimation_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
-    use txtx_addon_kit::types::types::Value;
-    use std::path::PathBuf;
+    use crate::tests::fixture_builder::{FixtureBuilder, get_anvil_manager};
     use tokio;
     
     #[tokio::test]
@@ -22,38 +21,84 @@ mod gas_estimation_tests {
         
         println!("🔍 Testing gas estimation for simple ETH transfer");
         
-        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("fixtures/integration/gas_estimation.tx");
+        // ARRANGE: Create inline runbook for gas estimation
+        let gas_runbook = r#"
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Estimate gas for a simple transfer
+action "estimate_transfer" "evm::estimate_gas" {
+    from = signer.sender.address
+    to = input.recipient
+    value = input.amount  # 1 ETH
+}
+
+# Actually send the transaction to verify estimate works
+action "send_transfer" "evm::send_transaction" {
+    from = signer.sender
+    to = input.recipient
+    value = input.amount
+    gas_limit = action.estimate_transfer.gas_estimate
+}
+
+# Get receipt to check actual gas used
+action "get_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.send_transfer.tx_hash
+}
+
+output "estimated_transfer_gas" {
+    value = action.estimate_transfer.gas_estimate
+}
+
+output "tx_hash" {
+    value = action.send_transfer.tx_hash
+}
+
+output "actual_gas_used" {
+    value = action.get_receipt.gas_used
+}"#;
         
-        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
-            .with_anvil()
-            .with_input("chain_id", "31337")
-            .with_input("rpc_url", "http://127.0.0.1:8545")
-            .with_input("private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-            .with_input("recipient", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
-            .with_input("amount", "1000000000000000000") // 1 ETH
-            .with_input("contract_bytecode", "0x6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea265627a7a7231582053f")
-            .with_input("custom_gas_limit", "100000")
-            .execute()
+        let mut fixture = FixtureBuilder::new("test_estimate_transfer")
+            .with_anvil_manager(get_anvil_manager().await.unwrap())
+            .with_runbook("gas", gas_runbook)
+            .build()
             .await
-            .expect("Failed to execute test");
+            .expect("Failed to build fixture");
         
+        // Set up parameters
+        let accounts = fixture.anvil_handle.accounts();
+        fixture.config.parameters.insert("chain_id".to_string(), "31337".to_string());
+        fixture.config.parameters.insert("rpc_url".to_string(), fixture.rpc_url.clone());
+        fixture.config.parameters.insert("private_key".to_string(), accounts.alice.secret_string());
+        fixture.config.parameters.insert("recipient".to_string(), accounts.bob.address_string());
+        fixture.config.parameters.insert("amount".to_string(), "1000000000000000000".to_string()); // 1 ETH
         
+        // ACT: Execute gas estimation and transaction
+        fixture.execute_runbook("gas").await
+            .expect("Failed to execute gas estimation");
         
-        assert!(result.success, "Gas estimation should succeed");
+        // ASSERT: Verify gas estimation
+        let outputs = fixture.get_outputs("gas")
+            .expect("Should have outputs");
         
-        // Check that we got an estimation
-        let estimated_gas = result.outputs.get("estimated_transfer_gas")
-            .and_then(|v| match v {
-                Value::String(s) => s.parse::<u64>().ok(),
-                Value::Integer(i) => Some(*i as u64),
-                _ => None
-            })
-            .expect("Should have gas estimation");
+        let estimated_gas = outputs.get("estimated_transfer_gas")
+            .and_then(|v| v.as_integer().or_else(|| v.as_string()?.parse().ok()))
+            .expect("Should have gas estimation") as u64;
         
-        // ETH transfer should be around 21000 gas
-        assert!(estimated_gas >= 21000, "Gas estimate should be at least 21000");
-        assert!(estimated_gas <= 30000, "Gas estimate should be reasonable");
+        // ETH transfer should be exactly 21000 gas
+        assert_eq!(estimated_gas, 21000, "Gas estimate should be 21000 for simple transfer");
+        
+        let actual_gas = outputs.get("actual_gas_used")
+            .and_then(|v| v.as_integer().or_else(|| v.as_string()?.parse().ok()))
+            .expect("Should have actual gas used") as u64;
+        
+        assert_eq!(actual_gas, 21000, "Actual gas used should be 21000");
         
         println!("✅ Simple transfer gas estimation: {} gas", estimated_gas);
     }
@@ -67,40 +112,76 @@ mod gas_estimation_tests {
         
         println!("🔍 Testing gas estimation for contract deployment");
         
-        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("fixtures/integration/gas_estimation.tx");
+        // ARRANGE: Create inline runbook for deployment gas estimation
+        let deploy_runbook = r#"
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "deployer" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Simple storage contract bytecode
+variable "bytecode" {
+    value = "0x608060405234801561001057600080fd5b5060b88061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c80632e64cec11460375780636057361d14604c575b600080fd5b60005460405190815260200160405180910390f35b6059605736600460506565565b50565b005b600055565b60006"
+}
+
+# Estimate gas for deployment
+action "estimate_deployment" "evm::estimate_gas" {
+    from = signer.deployer.address
+    data = variable.bytecode
+}
+
+# Deploy with estimated gas
+action "deploy_contract" "evm::deploy_contract" {
+    artifact_source = concat("inline:", variable.bytecode)
+    signer = signer.deployer
+    gas_limit = action.estimate_deployment.gas_estimate
+}
+
+output "estimated_deployment_gas" {
+    value = action.estimate_deployment.gas_estimate
+}
+
+output "contract_address" {
+    value = action.deploy_contract.contract_address
+}"#;
         
-        // Simple storage contract bytecode
-        let bytecode = "0x608060405234801561001057600080fd5b5060b88061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c80632e64cec11460375780636057361d14604c575b600080fd5b60005460405190815260200160405180910390f35b6059605736600460536565565b50565b005b600055565b600060608284031215607657600080fd5b5035919050565b56fea264697066735822122035f";
-        
-        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
-            .with_anvil()
-            .with_input("chain_id", "31337")
-            .with_input("rpc_url", "http://127.0.0.1:8545")
-            .with_input("private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-            .with_input("recipient", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
-            .with_input("amount", "0")
-            .with_input("contract_bytecode", bytecode)
-            .with_input("custom_gas_limit", "500000")
-            .execute()
+        let mut fixture = FixtureBuilder::new("test_estimate_deployment")
+            .with_anvil_manager(get_anvil_manager().await.unwrap())
+            .with_runbook("deploy", deploy_runbook)
+            .build()
             .await
-            .expect("Failed to execute test");
+            .expect("Failed to build fixture");
         
+        // Set up parameters
+        let accounts = fixture.anvil_handle.accounts();
+        fixture.config.parameters.insert("chain_id".to_string(), "31337".to_string());
+        fixture.config.parameters.insert("rpc_url".to_string(), fixture.rpc_url.clone());
+        fixture.config.parameters.insert("private_key".to_string(), accounts.alice.secret_string());
         
+        // ACT: Execute deployment gas estimation
+        fixture.execute_runbook("deploy").await
+            .expect("Failed to execute deployment gas estimation");
         
-        assert!(result.success, "Deployment gas estimation should succeed");
+        // ASSERT: Verify deployment gas estimation
+        let outputs = fixture.get_outputs("deploy")
+            .expect("Should have outputs");
         
-        let deployment_gas = result.outputs.get("estimated_deployment_gas")
-            .and_then(|v| match v {
-                Value::String(s) => s.parse::<u64>().ok(),
-                Value::Integer(i) => Some(*i as u64),
-                _ => None
-            })
-            .expect("Should have deployment gas estimation");
+        let deployment_gas = outputs.get("estimated_deployment_gas")
+            .and_then(|v| v.as_integer().or_else(|| v.as_string()?.parse().ok()))
+            .expect("Should have deployment gas estimation") as u64;
         
         // Contract deployment needs more gas than simple transfer
         assert!(deployment_gas > 50000, "Deployment should need significant gas");
         assert!(deployment_gas < 1000000, "Deployment gas should be reasonable");
+        
+        let contract_address = outputs.get("contract_address")
+            .and_then(|v| v.as_string())
+            .expect("Should have deployed contract");
+        assert!(contract_address.starts_with("0x"), "Should have valid contract address");
         
         println!("✅ Contract deployment gas estimation: {} gas", deployment_gas);
     }
@@ -114,49 +195,90 @@ mod gas_estimation_tests {
         
         println!("🔍 Testing that estimated gas is sufficient for transaction");
         
-        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("fixtures/integration/gas_estimation.tx");
+        // ARRANGE: Create inline runbook
+        let sufficient_runbook = r#"
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Estimate gas first
+action "estimate" "evm::estimate_gas" {
+    from = signer.sender.address
+    to = input.recipient
+    value = 5000000000000000  # 0.005 ETH
+}
+
+# Send with estimated gas (should succeed)
+action "send_tx" "evm::send_transaction" {
+    from = signer.sender
+    to = input.recipient
+    value = 5000000000000000
+    gas_limit = action.estimate.gas_estimate
+}
+
+# Verify transaction succeeded
+action "get_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.send_tx.tx_hash
+}
+
+output "estimated_gas" {
+    value = action.estimate.gas_estimate
+}
+
+output "tx_hash" {
+    value = action.send_tx.tx_hash
+}
+
+output "actual_gas_used" {
+    value = action.get_receipt.gas_used
+}
+
+output "status" {
+    value = action.get_receipt.status
+}"#;
         
-        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
-            .with_anvil()
-            .with_input("chain_id", "31337")
-            .with_input("rpc_url", "http://127.0.0.1:8545")
-            .with_input("private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-            .with_input("recipient", "0x90f8bf6a479f320ead074411a4b0e7944ea8c9c1")
-            .with_input("amount", "5000000000000000") // 0.005 ETH
-            .with_input("contract_bytecode", "0x00")
-            .with_input("custom_gas_limit", "21000")
-            .execute()
+        let mut fixture = FixtureBuilder::new("test_sufficient_gas")
+            .with_anvil_manager(get_anvil_manager().await.unwrap())
+            .with_runbook("sufficient", sufficient_runbook)
+            .build()
             .await
-            .expect("Failed to execute test");
+            .expect("Failed to build fixture");
         
+        // Set up parameters
+        let accounts = fixture.anvil_handle.accounts();
+        fixture.config.parameters.insert("chain_id".to_string(), "31337".to_string());
+        fixture.config.parameters.insert("rpc_url".to_string(), fixture.rpc_url.clone());
+        fixture.config.parameters.insert("private_key".to_string(), accounts.alice.secret_string());
+        fixture.config.parameters.insert("recipient".to_string(), accounts.charlie.address_string());
         
+        // ACT: Execute transaction with estimated gas
+        fixture.execute_runbook("sufficient").await
+            .expect("Failed to execute transaction");
         
-        assert!(result.success, "Transaction with estimated gas should succeed");
+        // ASSERT: Verify transaction succeeded
+        let outputs = fixture.get_outputs("sufficient")
+            .expect("Should have outputs");
         
-        // Verify the transaction succeeded
-        let tx_hash = result.outputs.get("tx_hash")
-            .and_then(|v| match v {
-                Value::String(s) => Some(s.clone()),
-                _ => None
-            })
+        let tx_hash = outputs.get("tx_hash")
+            .and_then(|v| v.as_string())
             .expect("Should have transaction hash");
-        
         assert!(tx_hash.starts_with("0x"), "Should have valid transaction hash");
         
-        // Check actual gas used vs estimated
-        let actual_gas = result.outputs.get("actual_gas_used")
-            .and_then(|v| match v {
-                Value::String(s) => s.parse::<u64>().ok(),
-                Value::Integer(i) => Some(*i as u64),
-                _ => None
-            });
+        let status = outputs.get("status")
+            .and_then(|v| v.as_bool().or_else(|| v.as_integer().map(|i| i == 1)))
+            .expect("Should have transaction status");
+        assert!(status, "Transaction should succeed with estimated gas");
         
-        if let Some(gas) = actual_gas {
-            println!("✅ Transaction succeeded with {} gas used", gas);
-        } else {
-            println!("✅ Transaction succeeded");
-        }
+        let actual_gas = outputs.get("actual_gas_used")
+            .and_then(|v| v.as_integer().or_else(|| v.as_string()?.parse().ok()))
+            .expect("Should have actual gas used") as u64;
+        
+        println!("✅ Transaction succeeded with {} gas used", actual_gas);
     }
     
     #[tokio::test]
@@ -168,26 +290,80 @@ mod gas_estimation_tests {
         
         println!("🔍 Testing transaction with custom gas limit");
         
-        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("fixtures/integration/gas_estimation.tx");
+        // ARRANGE: Create inline runbook with custom gas limit
+        let custom_runbook = r#"
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "sender" "evm::private_key" {
+    private_key = input.private_key
+}
+
+# Send transaction with explicit custom gas limit
+action "send_custom" "evm::send_transaction" {
+    from = signer.sender
+    to = input.recipient
+    value = 1000000000000000  # 0.001 ETH
+    gas_limit = 50000  # More than needed for simple transfer
+}
+
+# Get receipt to verify
+action "get_receipt" "evm::get_transaction_receipt" {
+    tx_hash = action.send_custom.tx_hash
+}
+
+output "tx_hash" {
+    value = action.send_custom.tx_hash
+}
+
+output "gas_provided" {
+    value = 50000
+}
+
+output "gas_used" {
+    value = action.get_receipt.gas_used
+}
+
+output "status" {
+    value = action.get_receipt.status
+}"#;
         
-        // REMOVED:         let result = MigrationHelper::from_fixture(&fixture_path)
-            .with_anvil()
-            .with_input("chain_id", "31337")
-            .with_input("rpc_url", "http://127.0.0.1:8545")
-            .with_input("private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-            .with_input("recipient", "0xffcf8fdee72ac11b5c542428b35eef5769c409f0")
-            .with_input("amount", "1000000000000000")
-            .with_input("contract_bytecode", "0x00")
-            .with_input("custom_gas_limit", "50000")
-            .execute()
+        let mut fixture = FixtureBuilder::new("test_custom_gas")
+            .with_anvil_manager(get_anvil_manager().await.unwrap())
+            .with_runbook("custom", custom_runbook)
+            .build()
             .await
-            .expect("Failed to execute test"); // More than needed
+            .expect("Failed to build fixture");
         
+        // Set up parameters
+        let accounts = fixture.anvil_handle.accounts();
+        fixture.config.parameters.insert("chain_id".to_string(), "31337".to_string());
+        fixture.config.parameters.insert("rpc_url".to_string(), fixture.rpc_url.clone());
+        fixture.config.parameters.insert("private_key".to_string(), accounts.alice.secret_string());
+        fixture.config.parameters.insert("recipient".to_string(), accounts.dave.address_string());
         
+        // ACT: Execute transaction with custom gas limit
+        fixture.execute_runbook("custom").await
+            .expect("Failed to execute transaction with custom gas");
         
-        assert!(result.success, "Transaction with custom gas limit should succeed");
+        // ASSERT: Verify transaction succeeded with custom gas limit
+        let outputs = fixture.get_outputs("custom")
+            .expect("Should have outputs");
         
-        println!("✅ Custom gas limit test passed");
+        let status = outputs.get("status")
+            .and_then(|v| v.as_bool().or_else(|| v.as_integer().map(|i| i == 1)))
+            .expect("Should have transaction status");
+        assert!(status, "Transaction should succeed with custom gas limit");
+        
+        let gas_used = outputs.get("gas_used")
+            .and_then(|v| v.as_integer().or_else(|| v.as_string()?.parse().ok()))
+            .expect("Should have gas used") as u64;
+        
+        // Should use standard 21000 gas even though we provided 50000
+        assert_eq!(gas_used, 21000, "Should use only needed gas");
+        
+        println!("✅ Custom gas limit test passed (used {} of 50000 gas)", gas_used);
     }
 }
