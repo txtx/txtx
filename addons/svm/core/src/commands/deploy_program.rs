@@ -3,8 +3,10 @@ use std::str::FromStr;
 use std::vec;
 
 use solana_client::rpc_client::RpcClient;
+use solana_sdk::bs58;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
+use solana_sdk::signature::Keypair;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
     DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID,
@@ -35,10 +37,12 @@ use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::utils::cheatcode_deploy_program;
 use crate::codec::{DeploymentTransaction, ProgramArtifacts, UpgradeableProgramDeployer};
 use crate::constants::{
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY,
-    COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, FORMATTED_TRANSACTION, INSTANT_SURFNET_DEPLOYMENT,
-    IS_DEPLOYMENT, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR,
-    PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, SLOT, TRANSACTION_BYTES,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, BUFFER_ACCOUNT_PUBKEY,
+    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DEPLOYMENT_TRANSACTIONS, DEPLOYMENT_TRANSACTION_TYPE,
+    DO_AWAIT_CONFIRMATION, EPHEMERAL_AUTHORITY_SECRET_KEY, FORMATTED_TRANSACTION,
+    INSTANT_SURFNET_DEPLOYMENT, IS_DEPLOYMENT, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM,
+    PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES,
+    SIGNERS, SLOT, TRANSACTION_BYTES,
 };
 use crate::typing::{
     DeploymentTransactionType, SvmValue, ANCHOR_PROGRAM_ARTIFACTS,
@@ -109,6 +113,22 @@ lazy_static! {
                     instant_surfnet_deployment: {
                         documentation: "If set to `true`, deployments to a Surfnet will be instantaneous, deploying via a cheatcode to directly write to the program account, rather than sending transactions. Defaults to `false`.",
                         typing: Type::bool(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
+                    },
+                    ephemeral_authority_secret_key: {
+                        documentation: "An optional base-58 encoded keypair string to use as the temporary upgrade authority during deployment. If not provided, a new ephemeral keypair will be generated.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: true,
+                        sensitive: true
+                    },
+                    buffer_account_pubkey: {
+                        documentation: "The public key of the buffer account to use to continue a failed deployment.",
+                        typing: Type::string(),
                         optional: true,
                         tainting: false,
                         internal: false,
@@ -254,7 +274,7 @@ impl CommandImplementation for DeployProgram {
         };
 
         let (program_id, transactions) = match authority_signer_state
-            .get_scoped_value(&construct_did.to_string(), "deployment_transactions")
+            .get_scoped_value(&construct_did.to_string(), DEPLOYMENT_TRANSACTIONS)
         {
             Some(transactions) => {
                 let program_id = authority_signer_state
@@ -264,7 +284,7 @@ impl CommandImplementation for DeployProgram {
             }
             None => {
                 let temp_authority_keypair = match authority_signer_state
-                    .get_scoped_value(&construct_did.to_string(), "temp_authority_keypair")
+                    .get_scoped_value(&construct_did.to_string(), EPHEMERAL_AUTHORITY_SECRET_KEY)
                 {
                     Some(kp) => SvmValue::to_keypair(kp).map_err(|e| {
                         (
@@ -274,11 +294,46 @@ impl CommandImplementation for DeployProgram {
                         )
                     })?,
                     None => {
-                        let temp_authority_keypair =
-                            UpgradeableProgramDeployer::create_temp_authority();
+                        let temp_authority_keypair = match values
+                            .get_value(EPHEMERAL_AUTHORITY_SECRET_KEY)
+                        {
+                            Some(kp) => match kp.as_string() {
+                                Some(s) => {
+                                    let bytes = bs58::decode(s).into_vec().map_err(|e| {
+                                        (
+                                            signers.clone(),
+                                            authority_signer_state.clone(),
+                                            diagnosed_error!(
+                                                "ephemeral authority keypair must be a base-58 encoded string: {}",
+                                                e
+                                            ),
+                                        )
+                                    })?;
+                                    Keypair::from_bytes(&bytes).map_err(|e| {
+                                        (
+                                            signers.clone(),
+                                            authority_signer_state.clone(),
+                                            diagnosed_error!(
+                                                "invalid ephemeral authority keypair bytes: {}",
+                                                e
+                                            ),
+                                        )
+                                    })?
+                                }
+                                None => {
+                                    return Err((
+                                        signers.clone(),
+                                        authority_signer_state.clone(),
+                                        diagnosed_error!("provided ephemeral authority keypair must be a base-58 encoded string"),
+                                    ));
+                                }
+                            },
+                            None => UpgradeableProgramDeployer::create_temp_authority(),
+                        };
+
                         authority_signer_state.insert_scoped_value(
                             &construct_did.to_string(),
-                            "temp_authority_keypair",
+                            EPHEMERAL_AUTHORITY_SECRET_KEY,
                             SvmValue::keypair(temp_authority_keypair.to_bytes().to_vec()),
                         );
                         temp_authority_keypair
@@ -291,6 +346,19 @@ impl CommandImplementation for DeployProgram {
                     _ => None,
                 };
 
+                let buffer_pubkey = values
+                    .get_value(BUFFER_ACCOUNT_PUBKEY)
+                    .map(|v| {
+                        SvmValue::to_pubkey(&v).map_err(|e| {
+                            (
+                                signers.clone(),
+                                authority_signer_state.clone(),
+                                diagnosed_error!("invalid buffer account pubkey: {}", e),
+                            )
+                        })
+                    })
+                    .transpose()?;
+
                 let mut deployer = UpgradeableProgramDeployer::new(
                     program_pubkey,
                     program_keypair,
@@ -299,7 +367,7 @@ impl CommandImplementation for DeployProgram {
                     &program_artifacts.bin(),
                     &payer_pubkey,
                     rpc_client,
-                    None,
+                    buffer_pubkey,
                     auto_extend,
                     is_surfnet,
                     do_cheatcode_deployment,
@@ -329,7 +397,7 @@ impl CommandImplementation for DeployProgram {
 
                 authority_signer_state.insert_scoped_value(
                     &construct_did.to_string(),
-                    "deployment_transactions",
+                    DEPLOYMENT_TRANSACTIONS,
                     Value::array(transactions.clone()),
                 );
                 (program_id, Value::array(transactions))
@@ -371,7 +439,7 @@ impl CommandImplementation for DeployProgram {
 
             value_store.insert_scoped_value(
                 &new_did.to_string(),
-                "deployment_transaction_type",
+                DEPLOYMENT_TRANSACTION_TYPE,
                 Value::string(deployment_transaction_type.to_string()),
             );
 
@@ -854,11 +922,10 @@ impl CommandImplementation for DeployProgram {
 
         for (res, (nested_construct_did, values)) in nested_results.iter().zip(nested_values) {
             let tx_type = values
-                .get_scoped_value(&nested_construct_did.to_string(), "deployment_transaction_type")
+                .get_scoped_value(&nested_construct_did.to_string(), DEPLOYMENT_TRANSACTION_TYPE)
                 .unwrap()
                 .as_string()
                 .unwrap();
-            let tx_type = DeploymentTransactionType::from_string(&tx_type);
 
             if let Some(signature) =
                 res.outputs.get(&format!("{}:{}", &nested_construct_did.to_string(), SIGNATURE))

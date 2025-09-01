@@ -795,8 +795,11 @@ lazy_static! {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DeploymentTransactionType {
-    CreateTempAuthority(Vec<u8>),
-    CreateBuffer,
+    PrepareTempAuthority { keypair_bytes: Vec<u8>, already_exists: bool },
+    CreateBuffer { buffer_pubkey: Pubkey },
+    CreateBufferAndExtendProgram { buffer_pubkey: Pubkey },
+    ExtendProgram,
+    ResizeBuffer,
     WriteToBuffer,
     TransferBufferAuthority,
     TransferProgramAuthority,
@@ -811,8 +814,13 @@ pub enum DeploymentTransactionType {
 impl DeploymentTransactionType {
     pub fn to_string(&self) -> String {
         match self {
-            DeploymentTransactionType::CreateTempAuthority(_) => "create_temp_authority",
-            DeploymentTransactionType::CreateBuffer => "create_buffer",
+            DeploymentTransactionType::PrepareTempAuthority { .. } => "create_temp_authority",
+            DeploymentTransactionType::CreateBuffer { .. } => "create_buffer",
+            DeploymentTransactionType::CreateBufferAndExtendProgram { .. } => {
+                "create_buffer_and_extend_program"
+            }
+            DeploymentTransactionType::ResizeBuffer => "resize_buffer",
+            DeploymentTransactionType::ExtendProgram => "extend_program",
             DeploymentTransactionType::WriteToBuffer => "write_to_buffer",
             DeploymentTransactionType::TransferBufferAuthority => "transfer_buffer_authority",
             DeploymentTransactionType::TransferProgramAuthority => "transfer_program_authority",
@@ -824,21 +832,5 @@ impl DeploymentTransactionType {
             DeploymentTransactionType::CheatcodeUpgrade => "cheatcode_upgrade",
         }
         .into()
-    }
-    pub fn from_string(s: &str) -> Self {
-        match s {
-            "create_temp_authority" => DeploymentTransactionType::CreateTempAuthority(vec![]),
-            "create_buffer" => DeploymentTransactionType::CreateBuffer,
-            "write_to_buffer" => DeploymentTransactionType::WriteToBuffer,
-            "transfer_buffer_authority" => DeploymentTransactionType::TransferBufferAuthority,
-            "deploy_program" => DeploymentTransactionType::DeployProgram,
-            "upgrade_program" => DeploymentTransactionType::UpgradeProgram,
-            "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
-            "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
-            "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
-            "cheatcode_deployment" => DeploymentTransactionType::CheatcodeDeployment,
-            "cheatcode_upgrade" => DeploymentTransactionType::CheatcodeUpgrade,
-            _ => unreachable!(),
-        }
     }
 }
