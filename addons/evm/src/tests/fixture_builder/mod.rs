@@ -6,6 +6,9 @@ pub mod anvil_singleton;
 pub mod anvil_manager;
 pub mod runbook_parser;
 pub mod executor;
+pub mod action_schemas;
+pub mod runbook_validator;
+// pub mod panic_handler;  // Has compilation issues - using simple approach in tests instead
 
 #[cfg(test)]
 mod tests;
@@ -29,6 +32,7 @@ pub use anvil_manager::{AnvilManager, AnvilHandle, get_anvil_manager};
 pub use anvil_singleton::cleanup_singleton;
 pub use runbook_parser::RunbookParser;
 pub use cleanup::{cleanup_test_infrastructure, force_cleanup_test_anvil};
+// pub use panic_handler::{PanicAwareFixture, with_panic_handler, run_preserving_test};
 
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
