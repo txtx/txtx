@@ -1,4 +1,14 @@
 // Singleton Anvil manager using OnceLock for guaranteed single instance
+//
+// IMPORTANT: Tests using this singleton MUST be marked with #[serial(anvil)]
+// from the serial_test crate to ensure they run sequentially. Parallel execution
+// will cause snapshot/revert conflicts and test failures.
+//
+// Example:
+//   #[tokio::test]
+//   #[serial(anvil)]
+//   async fn my_test() { ... }
+
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;

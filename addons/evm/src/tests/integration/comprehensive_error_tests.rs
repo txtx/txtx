@@ -15,9 +15,11 @@ mod comprehensive_error_tests {
     use txtx_addon_kit::types::types::Value;
     use std::path::PathBuf;
     use std::fs;
+    use serial_test::serial;
     use tokio;
     
     #[tokio::test]
+    #[serial(anvil)]
     async fn test_revert_reason_extraction() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_revert_reason_extraction - Anvil not installed");
@@ -76,6 +78,7 @@ mod comprehensive_error_tests {
     /// - Gas limit validation
     /// - Out of gas error handling
     #[tokio::test]
+    #[serial(anvil)]
     async fn test_gas_exhaustion_errors() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_gas_exhaustion_errors - Anvil not installed");
@@ -131,6 +134,7 @@ mod comprehensive_error_tests {
     }
     
     #[tokio::test]
+    #[serial(anvil)]
     async fn test_nonce_management_errors() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_nonce_management_errors - Anvil not installed");
@@ -193,6 +197,7 @@ mod comprehensive_error_tests {
     /// Validates:
     /// - Input validation before transaction submission
     #[tokio::test]
+    #[serial(anvil)]
     async fn test_validation_errors() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_validation_errors - Anvil not installed");
@@ -259,6 +264,7 @@ mod comprehensive_error_tests {
     /// Validates:
     /// - Balance validation before transaction submission
     #[tokio::test]
+    #[serial(anvil)]
     async fn test_insufficient_balance_error() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_insufficient_balance_error - Anvil not installed");
@@ -322,6 +328,7 @@ mod comprehensive_error_tests {
     /// Validates:
     /// - Contract existence validation
     #[tokio::test]
+    #[serial(anvil)]
     async fn test_contract_not_found_error() {
         if !AnvilInstance::is_available() {
             eprintln!("⚠️  Skipping test_contract_not_found_error - Anvil not installed");
@@ -369,6 +376,7 @@ mod comprehensive_error_tests {
     }
     
     #[tokio::test]
+    #[serial(anvil)]
     async fn test_network_error_handling() {
         // Test without Anvil running (network error)
         println!("🔍 Testing network error handling");

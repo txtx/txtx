@@ -14969,6 +14969,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "serial_test",
  "sha2 0.10.8",
  "tempfile",
  "thiserror 1.0.69",

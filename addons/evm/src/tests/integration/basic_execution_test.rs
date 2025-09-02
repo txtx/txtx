@@ -3,9 +3,11 @@
 mod basic_tests {
     use crate::tests::integration::anvil_harness::AnvilInstance;
     use crate::tests::fixture_builder::{FixtureBuilder, get_anvil_manager};
+    use serial_test::serial;
     use tokio;
     
     #[tokio::test]
+    #[serial(anvil)]
     async fn test_minimal_runbook_execution() {
         eprintln!("🔍 TEST STARTING - test_minimal_runbook_execution");
         

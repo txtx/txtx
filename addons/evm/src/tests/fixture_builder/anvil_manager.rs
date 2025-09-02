@@ -1,4 +1,9 @@
 // Anvil manager - uses singleton pattern
+//
+// This manager wraps the singleton Anvil instance and provides snapshot/revert
+// functionality for test isolation. Tests MUST run sequentially (using #[serial(anvil)])
+// to avoid conflicts between snapshots.
+
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::collections::HashMap;
@@ -6,6 +11,9 @@ use super::anvil_singleton::AnvilGuard;
 use super::accounts::NamedAccounts;
 
 /// Wrapper around the singleton that provides snapshot/revert functionality
+/// 
+/// IMPORTANT: This assumes sequential test execution. Parallel tests will
+/// corrupt the snapshot state and cause failures.
 pub struct AnvilManager {
     guard: AnvilGuard,
     snapshots: HashMap<String, String>,
