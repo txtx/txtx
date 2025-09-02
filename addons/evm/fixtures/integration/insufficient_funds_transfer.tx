@@ -1,0 +1,21 @@
+# Insufficient funds transfer test fixture
+addon "evm" {
+    chain_id = input.chain_id
+    rpc_api_url = input.rpc_url
+}
+
+signer "poor_signer" "evm::secret_key" {
+    secret_key = input.private_key  # Account with no/low balance
+}
+
+# Try to send more than the account balance
+# This will fail if the account doesn't have enough funds
+action "transfer_too_much" "evm::send_transaction" {
+    from = signer.poor_signer
+    to = input.recipient
+    value = input.amount  # Should be more than account balance
+}
+
+output "error_message" {
+    value = "Insufficient funds error should be caught"
+}

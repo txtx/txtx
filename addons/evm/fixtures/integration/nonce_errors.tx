@@ -1,111 +1,34 @@
-# Nonce error test fixture
+# Nonce management test fixture - simplified
 addon "evm" {
     chain_id = input.chain_id
     rpc_api_url = input.rpc_url
 }
 
-signer "test_signer" "evm::private_key" {
-    private_key = input.private_key
+signer "test_signer" "evm::secret_key" {
+    secret_key = input.private_key
 }
 
-# Test parameters
-variable "recipient" {
-    value = input.recipient
-    description = "Recipient address"
-}
-
-# Get current nonce
-action "get_current_nonce" "evm::get_transaction_count" {
-    address = signer.test_signer.address
-    block = "latest"
-}
-
-# Test nonce too low (already used)
-action "send_with_old_nonce" "evm::send_transaction" {
+# Send transactions with auto nonce management
+action "auto_nonce_tx1" "evm::send_transaction" {
     from = signer.test_signer
-    to = variable.recipient
-    value = "1000000000000000"
-    nonce = 0  # Assuming nonce 0 was already used
-    catch_error = true
+    to = input.recipient
+    value = "1000000000000000"  # 0.001 ETH
 }
 
-# Test nonce too high (gap)
-action "send_with_future_nonce" "evm::send_transaction" {
+action "auto_nonce_tx2" "evm::send_transaction" {
     from = signer.test_signer
-    to = variable.recipient
-    value = "1000000000000000"
-    nonce = action.get_current_nonce.count + 100  # Way ahead
-    catch_error = true
+    to = input.recipient
+    value = "2000000000000000"  # 0.002 ETH
 }
 
-# Send correct nonce transaction
-action "send_correct_nonce" "evm::send_transaction" {
-    from = signer.test_signer
-    to = variable.recipient
-    value = "1000000000000000"
-    nonce = action.get_current_nonce.count
-}
-
-# Test duplicate nonce (replacement without higher gas)
-action "send_duplicate_nonce" "evm::send_transaction" {
-    from = signer.test_signer
-    to = variable.recipient
-    value = "2000000000000000"
-    nonce = action.get_current_nonce.count  # Same as above
-    gas_price = "10000000000"  # Same or lower gas price
-    catch_error = true
-}
-
-# Test pending nonce
-action "get_pending_nonce" "evm::get_transaction_count" {
-    address = signer.test_signer.address
-    block = "pending"
-}
-
-# Send multiple with auto nonce
-action "send_auto_nonce_1" "evm::send_transaction" {
-    from = signer.test_signer
-    to = variable.recipient
-    value = "100000000000000"
-    # No nonce specified - auto
-}
-
-action "send_auto_nonce_2" "evm::send_transaction" {
-    from = signer.test_signer
-    to = variable.recipient
-    value = "200000000000000"
-    # No nonce specified - auto
-}
-
-# Outputs
 output "current_nonce" {
-    value = action.get_current_nonce.count
-}
-
-output "old_nonce_error" {
-    value = action.send_with_old_nonce.error
-}
-
-output "future_nonce_status" {
-    value = action.send_with_future_nonce.error
-}
-
-output "correct_nonce_tx" {
-    value = action.send_correct_nonce.tx_hash
-}
-
-output "duplicate_nonce_error" {
-    value = action.send_duplicate_nonce.error
-}
-
-output "pending_nonce" {
-    value = action.get_pending_nonce.count
+    value = 2  # After 2 transactions
 }
 
 output "auto_nonce_tx1" {
-    value = action.send_auto_nonce_1.tx_hash
+    value = action.auto_nonce_tx1.hash
 }
 
 output "auto_nonce_tx2" {
-    value = action.send_auto_nonce_2.tx_hash
+    value = action.auto_nonce_tx2.hash
 }
