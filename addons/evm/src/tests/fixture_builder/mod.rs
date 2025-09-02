@@ -127,25 +127,36 @@ impl FixtureBuilder {
     
     /// Build the test fixture
     pub async fn build(self) -> Result<TestFixture, Box<dyn std::error::Error>> {
-        eprintln!("🔨 Building test fixture: {}", self.config.test_name);
+        let anvil_manager = self.anvil_manager
+            .ok_or("Anvil manager is required")?;
         
-        // Get or create Anvil manager
-        let anvil_manager = if let Some(manager) = self.anvil_manager {
-            manager
+        // Get anvil handle from manager
+        let mut anvil_guard = anvil_manager.lock().await;
+        let anvil_handle = anvil_guard.get_handle(&self.config.test_name).await?;
+        drop(anvil_guard);
+        
+        // Check if we should preserve
+        let should_preserve = self.config.preserve_on_failure || std::env::var("PRESERVE_TEST_DIRS").is_ok();
+        
+        // Create directory
+        let (temp_dir, project_dir) = if should_preserve {
+            // Create a permanent directory that won't be auto-cleaned
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let dir_name = format!("/tmp/txtx_test_{}_{}", self.config.test_name, timestamp);
+            let path = PathBuf::from(dir_name);
+            fs::create_dir_all(&path)?;
+            eprintln!("📁 Test directory (will be preserved): {}", path.display());
+            (None, path)
         } else {
-            get_anvil_manager().await?
+            // Normal temp dir that will be cleaned up
+            let dir = TempDir::new()?;
+            let path = dir.path().to_path_buf();
+            eprintln!("📁 Test directory: {}", path.display());
+            (Some(dir), path)
         };
-        
-        // Get handle for this test
-        let mut manager = anvil_manager.lock().await;
-        let anvil_handle = manager.get_handle(&self.config.test_name).await?;
-        drop(manager); // Release lock
-        
-        // Create temp directory for the project
-        let temp_dir = TempDir::new()?;
-        let project_dir = temp_dir.path().to_path_buf();
-        
-        eprintln!("📁 Test directory: {}", project_dir.display());
         
         // Create project structure
         Self::create_project_structure(&project_dir)?;
@@ -174,7 +185,7 @@ impl FixtureBuilder {
         
         // Create fixture
         Ok(TestFixture {
-            temp_dir: Some(temp_dir),
+            temp_dir,
             project_dir,
             config: self.config,
             anvil_manager,
