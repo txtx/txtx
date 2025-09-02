@@ -10,10 +10,10 @@ signer "test_signer" "evm::secret_key" {
 
 # Try to send a transaction with very low gas
 # This should succeed but we can examine gas usage
-action "normal_transfer" "evm::send_transaction" {
-    from = signer.test_signer
-    to = input.recipient
-    value = input.amount
+action "normal_transfer" "evm::send_eth" {
+    signer = signer.test_signer
+    recipient_address = input.recipient
+    amount = input.amount
     gas_limit = 21000  # Minimum for transfer
 }
 

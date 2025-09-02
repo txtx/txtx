@@ -10,10 +10,10 @@ signer "poor_signer" "evm::secret_key" {
 
 # Try to send more than the account balance
 # This will fail if the account doesn't have enough funds
-action "transfer_too_much" "evm::send_transaction" {
-    from = signer.poor_signer
-    to = input.recipient
-    value = input.amount  # Should be more than account balance
+action "transfer_too_much" "evm::send_eth" {
+    signer = signer.poor_signer
+    recipient_address = input.recipient
+    amount = input.amount  # Should be more than account balance
 }
 
 output "error_message" {

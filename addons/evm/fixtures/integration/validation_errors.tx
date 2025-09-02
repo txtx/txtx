@@ -9,10 +9,10 @@ signer "test_signer" "evm::secret_key" {
 }
 
 # Test with valid transaction first
-action "valid_transfer" "evm::send_transaction" {
-    from = signer.test_signer
-    to = input.recipient
-    value = "1000000000000000"  # 0.001 ETH
+action "valid_transfer" "evm::send_eth" {
+    signer = signer.test_signer
+    recipient_address = input.recipient
+    amount = "1000000000000000"  # 0.001 ETH
 }
 
 # Test calling a non-existent contract

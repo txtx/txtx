@@ -9,16 +9,16 @@ signer "test_signer" "evm::secret_key" {
 }
 
 # Send transactions with auto nonce management
-action "auto_nonce_tx1" "evm::send_transaction" {
-    from = signer.test_signer
-    to = input.recipient
-    value = "1000000000000000"  # 0.001 ETH
+action "auto_nonce_tx1" "evm::send_eth" {
+    signer = signer.test_signer
+    recipient_address = input.recipient
+    amount = "1000000000000000"  # 0.001 ETH
 }
 
-action "auto_nonce_tx2" "evm::send_transaction" {
-    from = signer.test_signer
-    to = input.recipient
-    value = "2000000000000000"  # 0.002 ETH
+action "auto_nonce_tx2" "evm::send_eth" {
+    signer = signer.test_signer
+    recipient_address = input.recipient
+    amount = "2000000000000000"  # 0.002 ETH
 }
 
 output "current_nonce" {
