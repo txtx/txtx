@@ -1,0 +1,7 @@
+[env]
+CARGO_PROFILE_TEST_DEBUG = "0"
+CARGO_PROFILE_DEV_DEBUG = "0"
+
+# Pre-compile foundry/alloy dependencies
+[target.'cfg(all())']
+rustflags = ["-C", "split-debuginfo=off"]

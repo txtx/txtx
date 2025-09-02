@@ -46,3 +46,22 @@ txtx-addon-network-svm = { path = "addons/svm/core" }
 txtx-addon-telegram = { path = "addons/telegram" }
 txtx-addon-sp1 = { path = "addons/sp1" }
 uuid = { version = "1.15.1", features = ["v4", "serde", "js"] }
+
+
+[profile.dev]
+incremental = true
+debug = 1  # Reduced debug info
+
+[profile.test]
+incremental = true
+debug = 0  # No debug info for tests - HUGE speedup
+codegen-units = 256
+opt-level = 0
+
+# Optimize dependencies even in dev/test
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.test.package."*"]
+opt-level = 2
+

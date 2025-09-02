@@ -165,8 +165,11 @@ impl FixtureBuilder {
             Self::add_runbook(&project_dir, name, content)?;
         }
         
-        // Generate txtx.yml
-        let txtx_yml = Self::generate_txtx_yml(&self.config, &anvil_handle);
+        // Generate txtx.yml with all runbook names
+        let runbook_names: Vec<String> = self.additional_runbooks.iter()
+            .map(|(name, _)| name.clone())
+            .collect();
+        let txtx_yml = Self::generate_txtx_yml(&self.config, &anvil_handle, &runbook_names);
         fs::write(project_dir.join("txtx.yml"), txtx_yml)?;
         
         // Create fixture
@@ -184,9 +187,11 @@ impl FixtureBuilder {
     
     /// Create basic project structure
     fn create_project_structure(project_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        eprintln!("📁 Creating project structure in: {}", project_dir.display());
         fs::create_dir_all(project_dir.join("src"))?;
         fs::create_dir_all(project_dir.join("runbooks"))?;
         fs::create_dir_all(project_dir.join("runs/testing"))?;
+        eprintln!("  ✅ Created directories: src/, runbooks/, runs/testing/");
         Ok(())
     }
     
@@ -214,6 +219,7 @@ impl FixtureBuilder {
     }
     
     /// Add a runbook to the project
+    /// Creates a directory for the runbook with main.tx inside
     fn add_runbook(
         project_dir: &Path,
         name: &str,
@@ -223,22 +229,45 @@ impl FixtureBuilder {
         let parser = RunbookParser::new(content.to_string());
         let content_with_outputs = parser.inject_outputs();
         
-        let runbook_path = project_dir.join("runbooks").join(format!("{}.tx", name));
-        fs::write(runbook_path, content_with_outputs)?;
-        eprintln!("📝 Added runbook: {} (with auto-generated outputs)", name);
+        // Create runbook directory
+        let runbook_dir = project_dir.join("runbooks").join(name);
+        fs::create_dir_all(&runbook_dir)?;
+        eprintln!("📁 Created runbook directory: {}", runbook_dir.display());
+        
+        // Write main.tx in the runbook directory
+        let main_path = runbook_dir.join("main.tx");
+        fs::write(&main_path, content_with_outputs)?;
+        eprintln!("📝 Added runbook: {} at {}", name, main_path.display());
+        eprintln!("  ✅ Auto-generated outputs injected");
+        
         Ok(())
     }
     
     /// Generate txtx.yml configuration
-    fn generate_txtx_yml(config: &FixtureConfig, anvil: &AnvilHandle) -> String {
+    fn generate_txtx_yml(config: &FixtureConfig, anvil: &AnvilHandle, runbooks: &[String]) -> String {
         let accounts = anvil.accounts();
         
-        format!(r#"---
+        // Build runbook entries - each points to a directory
+        let runbook_entries = if runbooks.is_empty() {
+            // Default main runbook
+            eprintln!("⚠️  No runbooks specified, adding default 'main' runbook");
+            format!("  - name: main\n    location: runbooks/main")
+        } else {
+            eprintln!("📝 Registering {} runbook(s) in txtx.yml", runbooks.len());
+            runbooks.iter()
+                .map(|name| {
+                    eprintln!("  - Runbook: {} -> runbooks/{}/", name, name);
+                    format!("  - name: {}\n    location: runbooks/{}", name, name)
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        
+        let yml_content = format!(r#"---
 name: {}
 id: {}
 runbooks:
-  - name: main
-    location: runbooks/main.tx
+{}
 environments:
   {}:
     confirmations: {}
@@ -253,6 +282,7 @@ environments:
 "#,
             config.test_name,
             config.test_name,
+            runbook_entries,
             config.environment,
             config.confirmations,
             anvil.url(),
@@ -260,7 +290,10 @@ environments:
             accounts.alice.secret_string(),
             accounts.bob.address_string(),
             accounts.bob.secret_string(),
-        )
+        );
+        
+        eprintln!("📄 Generated txtx.yml with {} environment", config.environment);
+        yml_content
     }
 }
 
@@ -279,6 +312,24 @@ pub struct TestFixture {
 impl TestFixture {
     /// Execute a runbook
     pub async fn execute_runbook(&mut self, runbook_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+        eprintln!("\n🎯 TestFixture::execute_runbook({})", runbook_name);
+        eprintln!("  Project: {}", self.project_dir.display());
+        
+        // Verify runbook exists
+        let runbook_dir = self.project_dir.join("runbooks").join(runbook_name);
+        if !runbook_dir.exists() {
+            eprintln!("  ❌ ERROR: Runbook directory doesn't exist: {}", runbook_dir.display());
+            eprintln!("  📁 Available runbook directories:");
+            if let Ok(entries) = fs::read_dir(self.project_dir.join("runbooks")) {
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        eprintln!("    - {}", entry.file_name().to_string_lossy());
+                    }
+                }
+            }
+            return Err(format!("Runbook directory not found: {}", runbook_dir.display()).into());
+        }
+        
         // Prepare inputs including account information
         let mut inputs = HashMap::new();
         
@@ -297,6 +348,8 @@ impl TestFixture {
             inputs.insert(key.clone(), value.clone());
         }
         
+        eprintln!("  📊 Total inputs: {} parameters", inputs.len());
+        
         // Execute via CLI
         let result = executor::execute_runbook(
             &self.project_dir,
@@ -306,8 +359,16 @@ impl TestFixture {
         )?;
         
         if !result.success {
+            eprintln!("  ❌ Runbook execution failed!");
+            eprintln!("    Stderr: {}", result.stderr);
+            if !result.stdout.is_empty() {
+                eprintln!("    Stdout: {}", result.stdout);
+            }
             return Err(format!("Runbook execution failed: {}", result.stderr).into());
         }
+        
+        eprintln!("  ✅ Runbook executed successfully");
+        eprintln!("  📊 Outputs captured: {} values", result.outputs.len());
         
         // Cache the outputs
         self.output_cache.insert(runbook_name.to_string(), result.outputs);

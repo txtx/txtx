@@ -14,7 +14,7 @@
 // pub mod advanced_transaction_tests;
 pub mod anvil_harness;
 // pub mod comprehensive_deployment_tests;
-// pub mod comprehensive_error_tests;
+pub mod comprehensive_error_tests;
 // pub mod event_log_tests;
 // pub mod function_selector_tests;
 // pub mod gas_estimation_tests;
@@ -40,7 +40,7 @@ pub mod transaction_tests;  // This one doesn't use ProjectTestHarness
 // pub mod txtx_execution_integration_tests;
 // pub mod debug_unsupervised_test;
 // pub mod test_confirmations_issue;
-// pub mod basic_execution_test;
+pub mod basic_execution_test;
 // pub mod test_state_reading;
 // pub mod test_structured_logs;
 // pub mod unicode_storage_tests;

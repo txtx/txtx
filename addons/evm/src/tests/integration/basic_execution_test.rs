@@ -1,8 +1,9 @@
 
 #[cfg(test)]
 mod basic_tests {
-    use super::*;
     use crate::tests::integration::anvil_harness::AnvilInstance;
+    use crate::tests::fixture_builder::{FixtureBuilder, get_anvil_manager};
+    use tokio;
     
     #[tokio::test]
     async fn test_minimal_runbook_execution() {
@@ -32,21 +33,33 @@ output "chain_id_output" {
 "#;
         
         eprintln!("📋 Creating test harness with minimal runbook");
-        let harness = ProjectTestHarness::new_with_content(
-            "minimal.tx",
-            minimal_runbook
-        );
+        let mut fixture = FixtureBuilder::new("test_minimal")
+            .with_anvil_manager(get_anvil_manager().await.unwrap())
+            .with_runbook("minimal", minimal_runbook)
+            .build()
+            .await
+            .expect("Failed to build fixture");
         
         // Setup the project
         eprintln!("📋 Setting up project in: {}", fixture.project_dir.display());
-        // Project already set up by FixtureBuilder
+        
+        // Add parameters
+        fixture.config.parameters.insert("chain_id".to_string(), "31337".to_string());
+        fixture.config.parameters.insert("rpc_url".to_string(), fixture.rpc_url.clone());
+        
+        // Execute the runbook
+        fixture.execute_runbook("minimal").await
+            .expect("Failed to execute minimal runbook");
         
         // For now, just verify setup works
         eprintln!("✅ Project setup completed successfully");
         
-        // List files created
-        let runbook_path = fixture.project_dir.join("runbooks").join("minimal.tx");
-        assert!(runbook_path.exists(), "Runbook file should exist");
+        // List files created - runbooks are now in directories with main.tx
+        let runbook_dir = fixture.project_dir.join("runbooks").join("minimal");
+        assert!(runbook_dir.exists(), "Runbook directory should exist");
+        
+        let main_file = runbook_dir.join("main.tx");
+        assert!(main_file.exists(), "main.tx file should exist in runbook directory");
         
         let config_path = fixture.project_dir.join("txtx.yml");
         assert!(config_path.exists(), "Config file should exist");

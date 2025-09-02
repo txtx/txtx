@@ -1,0 +1,14 @@
+[build]
+target-dir = "target"  # Shared target directory for all workspace members
+
+# Pick your linker based on OS
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# Enable parallel frontend compilation
+[unstable]
+jobserver-per-rustc = true

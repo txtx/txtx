@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::collections::HashMap;
+use std::fs;
 use serde_json::Value as JsonValue;
 use txtx_addon_kit::types::types::Value;
 
@@ -24,6 +25,30 @@ pub fn execute_runbook(
     inputs: &HashMap<String, String>,
 ) -> Result<ExecutionResult, Box<dyn std::error::Error>> {
     eprintln!("🚀 Executing runbook: {}", runbook_name);
+    eprintln!("  📁 Project dir: {}", project_dir.display());
+    eprintln!("  🌍 Environment: {}", environment);
+    eprintln!("  🔑 Inputs: {} parameters", inputs.len());
+    
+    // Verify runbook directory exists
+    let runbook_dir = project_dir.join("runbooks").join(runbook_name);
+    if !runbook_dir.exists() {
+        eprintln!("  ❌ ERROR: Runbook directory not found: {}", runbook_dir.display());
+        eprintln!("  📁 Available runbooks:");
+        if let Ok(entries) = fs::read_dir(project_dir.join("runbooks")) {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    eprintln!("    - {}", entry.file_name().to_string_lossy());
+                }
+            }
+        }
+        return Err(format!("Runbook directory not found: {}", runbook_dir.display()).into());
+    }
+    
+    let main_tx = runbook_dir.join("main.tx");
+    if !main_tx.exists() {
+        eprintln!("  ❌ ERROR: main.tx not found in runbook directory: {}", main_tx.display());
+        return Err(format!("main.tx not found in runbook directory: {}", runbook_dir.display()).into());
+    }
     
     // Build txtx binary path
     let txtx_binary = find_txtx_binary()?;
@@ -45,7 +70,7 @@ pub fn execute_runbook(
            .arg(format!("{}={}", key, value));
     }
     
-    eprintln!("  📝 Command: {:?}", cmd);
+    eprintln!("  📝 Command: cd {:?} && {:?}", project_dir, cmd);
     
     // Execute
     let output = cmd.output()?;
@@ -56,7 +81,19 @@ pub fn execute_runbook(
     if !output.status.success() {
         eprintln!("  ❌ Execution failed:");
         eprintln!("    Exit code: {:?}", output.status.code());
-        eprintln!("    Stderr: {}", stderr);
+        if !stderr.is_empty() {
+            eprintln!("    Stderr: {}", stderr);
+        }
+        if !stdout.is_empty() {
+            eprintln!("    Stdout: {}", stdout);
+        }
+        
+        // Try to provide more context about the failure
+        eprintln!("  📁 Checking project structure:");
+        eprintln!("    - txtx.yml exists: {}", project_dir.join("txtx.yml").exists());
+        eprintln!("    - runbook dir exists: {}", project_dir.join("runbooks").join(runbook_name).exists());
+        eprintln!("    - main.tx exists: {}", project_dir.join("runbooks").join(runbook_name).join("main.tx").exists());
+        
         return Ok(ExecutionResult {
             success: false,
             outputs: HashMap::new(),
@@ -137,21 +174,37 @@ fn find_latest_output_file(
     
     let output_dir = project_dir.join("runs").join(environment);
     
+    eprintln!("  🔍 Looking for output files in: {}", output_dir.display());
+    
     if !output_dir.exists() {
+        eprintln!("    ❌ Output directory doesn't exist!");
         return Err(format!("Output directory not found: {}", output_dir.display()).into());
     }
     
     // Find files matching pattern
+    eprintln!("    Looking for files starting with '{}' and ending with '.output.json'", runbook_name);
+    
     let mut matching_files: Vec<_> = fs::read_dir(&output_dir)?
         .filter_map(|entry| entry.ok())
         .filter(|entry| {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            name_str.starts_with(runbook_name) && name_str.ends_with(".output.json")
+            let matches = name_str.starts_with(runbook_name) && name_str.ends_with(".output.json");
+            if matches {
+                eprintln!("      ✅ Found matching file: {}", name_str);
+            }
+            matches
         })
         .collect();
     
     if matching_files.is_empty() {
+        eprintln!("    ❌ No matching output files found!");
+        eprintln!("    📁 All files in output directory:");
+        for entry in fs::read_dir(&output_dir)? {
+            if let Ok(entry) = entry {
+                eprintln!("      - {}", entry.file_name().to_string_lossy());
+            }
+        }
         return Err(format!("No output file found for runbook: {}", runbook_name).into());
     }
     
