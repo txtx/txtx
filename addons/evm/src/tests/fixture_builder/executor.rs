@@ -78,6 +78,10 @@ pub fn execute_runbook(
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     
+    eprintln!("  📊 Exit code: {:?}", output.status.code());
+    eprintln!("  📊 Stdout length: {} bytes", stdout.len());
+    eprintln!("  📊 Stderr length: {} bytes", stderr.len());
+    
     if !output.status.success() {
         eprintln!("  ❌ Execution failed:");
         eprintln!("    Exit code: {:?}", output.status.code());
@@ -85,7 +89,7 @@ pub fn execute_runbook(
             eprintln!("    Stderr: {}", stderr);
         }
         if !stdout.is_empty() {
-            eprintln!("    Stdout: {}", stdout);
+            eprintln!("    Stdout (first 500 chars): {}", &stdout[..stdout.len().min(500)]);
         }
         
         // Try to provide more context about the failure
@@ -102,6 +106,12 @@ pub fn execute_runbook(
             stderr,
         });
     }
+    
+    eprintln!("  ✅ Command executed successfully");
+    if !stdout.is_empty() {
+        eprintln!("  📊 Stdout content: {}", stdout);
+    }
+    eprintln!("  📊 Checking for output files...");
     
     // Find the output file
     let output_file = find_latest_output_file(project_dir, environment, runbook_name)?;

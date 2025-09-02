@@ -87,10 +87,10 @@ signer "alice" "evm::private_key" {
 }
 
 action "transfer" "evm::send_eth" {
-    from = input.alice_address
-    to = input.bob_address
-    value = "1000000000000000000"  // 1 ETH
+    recipient_address = input.bob_address
+    amount = 1000000000000000000  // 1 ETH in wei - must be integer, not string!
     signer = signer.alice
+    confirmations = 0
 }
 "#;
     
