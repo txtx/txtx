@@ -12,13 +12,13 @@ signer "test_signer" "evm::secret_key" {
 action "auto_nonce_tx1" "evm::send_eth" {
     signer = signer.test_signer
     recipient_address = input.recipient
-    amount = "1000000000000000"  # 0.001 ETH
+    amount = 1000000000000000  # 0.001 ETH - INTEGER
 }
 
 action "auto_nonce_tx2" "evm::send_eth" {
     signer = signer.test_signer
     recipient_address = input.recipient
-    amount = "2000000000000000"  # 0.002 ETH
+    amount = 2000000000000000  # 0.002 ETH - INTEGER
 }
 
 output "current_nonce" {

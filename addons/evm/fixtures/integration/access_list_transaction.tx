@@ -42,7 +42,7 @@ action "send_without_access_list" "evm::send_transaction" {
     to = variable.contract_address
     value = variable.amount
     data = variable.function_data
-    gas_price = "20000000000"
+    gas_price = 20000000000  # INTEGER
 }
 
 # Send transaction with manual access list
@@ -51,7 +51,7 @@ action "send_with_manual_access_list" "evm::send_transaction" {
     to = variable.contract_address
     value = variable.amount
     data = variable.function_data
-    gas_price = "20000000000"
+    gas_price = 20000000000  # INTEGER
     access_list = [
         {
             address = variable.contract_address
@@ -66,7 +66,7 @@ action "send_with_auto_access_list" "evm::send_transaction" {
     to = variable.contract_address
     value = variable.amount
     data = variable.function_data
-    gas_price = "20000000000"
+    gas_price = 20000000000  # INTEGER
     access_list = action.create_access_list.access_list
 }
 

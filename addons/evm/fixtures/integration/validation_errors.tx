@@ -12,7 +12,7 @@ signer "test_signer" "evm::secret_key" {
 action "valid_transfer" "evm::send_eth" {
     signer = signer.test_signer
     recipient_address = input.recipient
-    amount = "1000000000000000"  # 0.001 ETH
+    amount = 1000000000000000  # 0.001 ETH - INTEGER
 }
 
 # Test calling a non-existent contract
