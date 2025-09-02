@@ -19,6 +19,7 @@ action "valid_transfer" "evm::send_eth" {
 # This will try to call a function on an address that's not a contract
 action "call_non_contract" "evm::call_contract" {
     contract_address = input.contract_address  # Should be a non-contract address
+    contract_abi = '[{"inputs":[],"name":"getValue","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]'
     function_name = "getValue"
     function_args = []
     signer = signer.test_signer
