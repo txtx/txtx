@@ -26,9 +26,9 @@ output "current_nonce" {
 }
 
 output "auto_nonce_tx1" {
-    value = action.auto_nonce_tx1.hash
+    value = action.auto_nonce_tx1.tx_hash
 }
 
 output "auto_nonce_tx2" {
-    value = action.auto_nonce_tx2.hash
+    value = action.auto_nonce_tx2.tx_hash
 }
