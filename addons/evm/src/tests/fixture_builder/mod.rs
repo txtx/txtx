@@ -360,10 +360,20 @@ impl TestFixture {
         
         if !result.success {
             eprintln!("  ❌ Runbook execution failed!");
+            eprintln!("    Project dir: {}", self.project_dir.display());
             eprintln!("    Stderr: {}", result.stderr);
             if !result.stdout.is_empty() {
                 eprintln!("    Stdout: {}", result.stdout);
             }
+            
+            // Preserve directory on failure
+            self.preserve_directory();
+            eprintln!("    💡 To inspect the failed test:");
+            eprintln!("       cd {}", self.project_dir.display());
+            eprintln!("       cat txtx.yml");
+            eprintln!("       cat runbooks/{}/main.tx", runbook_name);
+            eprintln!("       ls -la runs/{}/ ", self.config.environment);
+            
             return Err(format!("Runbook execution failed: {}", result.stderr).into());
         }
         
@@ -434,12 +444,34 @@ impl TestFixture {
         manager.revert(snapshot_id).await?;
         Ok(())
     }
+    
+    /// Explicitly preserve the test directory (won't be cleaned up)
+    pub fn preserve_directory(&mut self) {
+        eprintln!("📁 Directory will be preserved: {}", self.project_dir.display());
+        self.config.preserve_on_failure = true;
+    }
+    
+    /// Get the project directory path
+    pub fn get_project_dir(&self) -> &Path {
+        &self.project_dir
+    }
 }
 
 impl Drop for TestFixture {
     fn drop(&mut self) {
-        if self.config.preserve_on_failure {
+        // Check if we should preserve the directory
+        let should_preserve = self.config.preserve_on_failure 
+            || std::env::var("PRESERVE_TEST_DIRS").is_ok()
+            || std::thread::panicking();
+        
+        if should_preserve {
             eprintln!("📁 Preserving test directory: {}", self.project_dir.display());
+            if std::thread::panicking() {
+                eprintln!("   ⚠️  Test panicked - directory preserved for debugging");
+            }
+            if std::env::var("PRESERVE_TEST_DIRS").is_ok() {
+                eprintln!("   ℹ️  PRESERVE_TEST_DIRS env var set - directory preserved");
+            }
             // Prevent temp_dir from cleaning up
             self.temp_dir.take();
         }

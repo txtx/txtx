@@ -151,6 +151,36 @@ The test infrastructure provides comprehensive instrumentation:
 
 Enable verbose output with `-- --nocapture` flag when running tests.
 
+### Preserving Test Directories
+
+Test directories are automatically preserved when:
+1. A test panics or fails
+2. The `PRESERVE_TEST_DIRS` environment variable is set
+3. You explicitly call `fixture.preserve_directory()` in your test
+
+To always preserve test directories for inspection:
+
+```bash
+# Preserve all test directories
+PRESERVE_TEST_DIRS=1 cargo test --package txtx-addon-network-evm
+
+# Preserve and show output
+PRESERVE_TEST_DIRS=1 cargo test --package txtx-addon-network-evm -- --nocapture
+```
+
+When preserved, you'll see:
+```
+📁 Preserving test directory: /tmp/.tmpXXXXXX
+   ⚠️  Test panicked - directory preserved for debugging
+```
+
+You can then inspect the directory contents:
+```bash
+ls -la /tmp/.tmpXXXXXX/
+cat /tmp/.tmpXXXXXX/txtx.yml
+cat /tmp/.tmpXXXXXX/runbooks/*/main.tx
+```
+
 ## Best Practices
 
 1. **Always use `#[serial(anvil)]`** for tests using Anvil
