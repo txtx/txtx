@@ -17,10 +17,10 @@ action "valid_transfer" "evm::send_transaction" {
 
 # Test calling a non-existent contract
 # This will try to call a function on an address that's not a contract
-action "call_non_contract" "evm::call_contract_function" {
+action "call_non_contract" "evm::call_contract" {
     contract_address = input.contract_address  # Should be a non-contract address
     function_name = "getValue"
-    function_params = []
+    function_args = []
     signer = signer.test_signer
 }
 
