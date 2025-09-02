@@ -15,6 +15,6 @@ action "call_missing_function" "evm::call_contract" {
   contract_address = variable.contract_address
   function_name = "nonExistentFunction"
   function_args = []
-  abi = '[{"name":"transfer","type":"function","inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"outputs":[{"type":"bool"}]}]'
+  contract_abi = '[{"name":"transfer","type":"function","inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"outputs":[{"type":"bool"}]}]'
   description = "Call a function that doesn't exist in the ABI"
 }

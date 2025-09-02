@@ -4,7 +4,7 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "test_signer" "evm::private_key" {
+signer "test_signer" "evm::secret_key" {
     private_key = input.private_key
 }
 
@@ -47,7 +47,7 @@ action "simulate_contract_call" "evm::simulate_transaction" {
     from = signer.test_signer.address
     to = variable.contract_address
     data = variable.function_data
-    value = "0"
+    value = 0
     description = "Simulate contract function call"
 }
 
@@ -56,7 +56,7 @@ action "simulate_revert" "evm::simulate_transaction" {
     from = signer.test_signer.address
     to = variable.contract_address
     data = variable.invalid_data
-    value = "0"
+    value = 0
     description = "Simulate transaction that should revert"
 }
 
@@ -65,7 +65,7 @@ action "dry_run_transfer" "evm::dry_run" {
     from = signer.test_signer.address
     to = variable.recipient
     value = variable.amount
-    gas_price = "20000000000"
+    gas_price = 20000000000
 }
 
 # Call static (read-only simulation)

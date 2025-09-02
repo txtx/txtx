@@ -14,13 +14,14 @@ variable "recipient" {
 }
 
 variable "amount" {
-    value = "1000000000000000000"  # 1 ETH in wei
+    value = 1000000000000000000  # 1 ETH in wei
 }
 
 # For now, try without signer to see if basic execution works
 # action "transfer" "evm::send_eth" {
-#     from = variable.sender
-#     to = variable.recipient
+#     # from field removed - using signer
+    # from = variable.sender
+#     recipient_address = variable.recipient
 #     amount = variable.amount
 # }
 

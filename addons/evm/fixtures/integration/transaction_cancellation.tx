@@ -4,7 +4,7 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "test_signer" "evm::private_key" {
+signer "test_signer" "evm::secret_key" {
     private_key = input.private_key
 }
 
@@ -48,7 +48,7 @@ action "send_transaction" "evm::send_transaction" {
 action "cancel_transaction" "evm::send_transaction" {
     from = signer.test_signer
     to = signer.test_signer.address
-    value = "0"
+    value = 0
     gas_price = variable.cancel_gas_price
     nonce = variable.nonce
     description = "Cancel transaction by sending 0 to self"

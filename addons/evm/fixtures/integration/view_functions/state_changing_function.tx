@@ -40,8 +40,8 @@ variable "counter_abi" {
 
 action "deploy" "evm::deploy_contract" {
     contract = {
-        bytecode = variable.counter_bytecode,
-        abi = variable.counter_abi
+        contract_bytecode = variable.counter_bytecode,
+        contract_abi = variable.counter_abi
     }
     signer = signer.caller
     confirmations = 0

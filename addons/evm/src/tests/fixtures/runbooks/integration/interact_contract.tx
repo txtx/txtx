@@ -33,7 +33,7 @@ action "set_value" "evm::call_contract" {
     contract_address = action.deploy.contract_address
     function_name = "set"
     function_args = [42]
-    abi = action.deploy.abi
+    contract_abi = action.deploy.abi
     signer = signer.deployer_signer
     description = "Set value to 42"
     depends_on = [action.deploy]
@@ -45,7 +45,7 @@ action "get_value" "evm::call_contract" {
     contract_address = action.deploy.contract_address
     function_name = "get"
     function_args = []
-    abi = action.deploy.abi
+    contract_abi = action.deploy.abi
     description = "Get stored value"
     depends_on = [action.set_value]
 }

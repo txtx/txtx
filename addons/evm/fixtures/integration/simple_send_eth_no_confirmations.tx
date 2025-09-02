@@ -11,7 +11,7 @@ signer "test_signer" "evm::secret_key" {
 # Send ETH to recipient - no confirmations wait
 action "send_eth" "evm::send_eth" {
     signer = signer.test_signer
-    to = input.recipient
+    recipient_address = input.recipient
     amount = input.amount
     confirmations = 0  # Don't wait for confirmations in tests
 }

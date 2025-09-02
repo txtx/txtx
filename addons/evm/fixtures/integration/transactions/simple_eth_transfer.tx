@@ -18,9 +18,10 @@ action "get_initial_balance" "evm::get_balance" {
 
 # Send 1 ETH
 action "transfer" "evm::send_eth" {
-    from = signer.sender.address
-    to = variable.recipient
-    amount = "1000000000000000000"  # 1 ETH in wei
+    # from field removed - using signer
+    # from = signer.sender.address
+    recipient_address = variable.recipient
+    amount = 1000000000000000000  # 1 ETH in wei
     signer = signer.sender
     confirmations = 1
 }

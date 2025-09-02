@@ -4,7 +4,7 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "test_signer" "evm::private_key" {
+signer "test_signer" "evm::secret_key" {
     private_key = input.private_key
 }
 

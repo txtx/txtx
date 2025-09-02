@@ -12,7 +12,7 @@ action "legacy_transfer" "evm::send_eth" {
     recipient_address = input.recipient
     amount = input.amount
     transaction_type = "legacy"
-    gas_price = "10000000000"  # 10 gwei
+    gas_price = 10000000000  # 10 gwei
     gas_limit = 21000
     signer = signer.sender
     confirmations = 1

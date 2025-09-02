@@ -11,7 +11,7 @@ signer "test_signer" "evm::secret_key" {
 # Send ETH to recipient
 action "send_eth" "evm::send_eth" {
     signer = signer.test_signer
-    to = input.recipient
+    recipient_address = input.recipient
     amount = input.amount
 }
 

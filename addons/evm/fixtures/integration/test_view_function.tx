@@ -35,8 +35,8 @@ variable "simple_contract_abi" {
 
 action "deploy" "evm::deploy_contract" {
     contract = {
-        bytecode = variable.simple_contract_bytecode,
-        abi = variable.simple_contract_abi
+        contract_bytecode = variable.simple_contract_bytecode,
+        contract_abi = variable.simple_contract_abi
     }
     signer = signer.caller
     confirmations = 0

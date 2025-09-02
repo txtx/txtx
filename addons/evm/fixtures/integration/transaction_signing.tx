@@ -4,7 +4,7 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "test_signer" "evm::private_key" {
+signer "test_signer" "evm::secret_key" {
     private_key = input.private_key
 }
 
@@ -40,7 +40,7 @@ action "sign_transaction" "evm::sign_transaction" {
     to = variable.recipient
     value = variable.amount
     gas_price = variable.gas_price
-    gas_limit = "21000"
+    gas_limit = 21000
     nonce = variable.nonce
     data = variable.data
 }

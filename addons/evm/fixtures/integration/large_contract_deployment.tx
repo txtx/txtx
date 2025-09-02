@@ -4,7 +4,7 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "deployer" "evm::private_key" {
+signer "deployer" "evm::secret_key" {
     private_key = input.private_key
 }
 
@@ -22,7 +22,7 @@ action "estimate_large_deployment" "evm::estimate_gas" {
 # Deploy large contract with high gas limit
 action "deploy_large_contract" "evm::deploy_contract" {
     from = signer.deployer
-    bytecode = input.large_contract_bytecode
+    contract_bytecode = input.large_contract_bytecode
     gas_limit = action.estimate_large_deployment.gas_limit * 1.2
     gas_price = input.gas_price
     description = "Deploy large contract near block gas limit"
@@ -31,20 +31,20 @@ action "deploy_large_contract" "evm::deploy_contract" {
 # Split large contract into libraries
 action "deploy_library_1" "evm::deploy_contract" {
     from = signer.deployer
-    bytecode = input.library_1_bytecode
+    contract_bytecode = input.library_1_bytecode
     description = "Deploy first library"
 }
 
 action "deploy_library_2" "evm::deploy_contract" {
     from = signer.deployer
-    bytecode = input.library_2_bytecode
+    contract_bytecode = input.library_2_bytecode
     description = "Deploy second library"
 }
 
 # Deploy main contract linking libraries
 action "deploy_with_libraries" "evm::deploy_contract" {
     from = signer.deployer
-    bytecode = input.main_contract_bytecode
+    contract_bytecode = input.main_contract_bytecode
     libraries = {
         "Library1": action.deploy_library_1.contract_address,
         "Library2": action.deploy_library_2.contract_address

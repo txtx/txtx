@@ -21,8 +21,8 @@ action "transfer" "evm::send_eth" {
 # Contract deployment - should use more gas
 action "deploy" "evm::deploy_contract" {
     contract = {
-        bytecode = "0x608060405234801561001057600080fd5b50610150806100206000396000f3fe"
-        abi = []
+        contract_bytecode = "0x608060405234801561001057600080fd5b50610150806100206000396000f3fe"
+        contract_abi = []
     }
     signer = signer.sender
     enabled = input.test_deploy

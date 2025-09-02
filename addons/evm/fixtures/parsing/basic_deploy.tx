@@ -14,7 +14,7 @@ variable "bytecode" {
 action "deploy" "evm::deploy_contract" {
     contract = {
         bin = variable.bytecode
-        abi = []
+        contract_abi = []
     }
     confirmations = 1
 }

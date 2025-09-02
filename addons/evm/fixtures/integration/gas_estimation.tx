@@ -4,7 +4,7 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "test_signer" "evm::private_key" {
+signer "test_signer" "evm::secret_key" {
     private_key = input.private_key
 }
 
@@ -54,7 +54,7 @@ action "send_with_estimated" "evm::send_transaction" {
 action "send_with_custom" "evm::send_transaction" {
     from = signer.test_signer
     to = variable.recipient
-    value = "1000000000000000"
+    value = 1000000000000000
     gas_limit = variable.custom_gas_limit
 }
 

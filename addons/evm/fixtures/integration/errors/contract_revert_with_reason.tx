@@ -18,8 +18,8 @@ variable "revert_contract_bytecode" {
 
 action "deploy_revert_contract" "evm::deploy_contract" {
     contract = {
-        bytecode = variable.revert_contract_bytecode
-        abi = input.revert_contract_abi
+        contract_bytecode = variable.revert_contract_bytecode
+        contract_abi = input.revert_contract_abi
     }
     signer = signer.deployer
 }

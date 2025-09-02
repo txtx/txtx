@@ -4,7 +4,7 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "test_signer" "evm::private_key" {
+signer "test_signer" "evm::secret_key" {
     private_key = input.private_key
 }
 
@@ -45,7 +45,7 @@ action "send_legacy" "evm::send_transaction" {
     to = variable.recipient
     value = variable.amount
     gas_price = variable.gas_price
-    type = "0"
+    type = 0
     description = "Legacy transaction (Type 0)"
 }
 
@@ -56,7 +56,7 @@ action "send_eip2930" "evm::send_transaction" {
     value = variable.amount
     gas_price = variable.gas_price
     access_list = variable.access_list
-    type = "1"
+    type = 1
     description = "EIP-2930 transaction with access list (Type 1)"
 }
 
@@ -67,7 +67,7 @@ action "send_eip1559" "evm::send_transaction" {
     value = variable.amount
     max_fee_per_gas = variable.max_fee_per_gas
     max_priority_fee_per_gas = variable.max_priority_fee
-    type = "2"
+    type = 2
     description = "EIP-1559 transaction (Type 2)"
 }
 

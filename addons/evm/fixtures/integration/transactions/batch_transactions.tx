@@ -19,7 +19,7 @@ variable "recipients" {
 # Send to first recipient
 action "transfer_1" "evm::send_eth" {
     recipient_address = variable.recipients[0]
-    amount = "100000000000000000"  # 0.1 ETH
+    amount = 100000000000000000  # 0.1 ETH
     signer = signer.sender
     confirmations = 1
 }
@@ -27,7 +27,7 @@ action "transfer_1" "evm::send_eth" {
 # Send to second recipient
 action "transfer_2" "evm::send_eth" {
     recipient_address = variable.recipients[1]
-    amount = "200000000000000000"  # 0.2 ETH
+    amount = 200000000000000000  # 0.2 ETH
     signer = signer.sender
     confirmations = 1
 }
@@ -35,7 +35,7 @@ action "transfer_2" "evm::send_eth" {
 # Send to third recipient
 action "transfer_3" "evm::send_eth" {
     recipient_address = variable.recipients[2]
-    amount = "300000000000000000"  # 0.3 ETH
+    amount = 300000000000000000  # 0.3 ETH
     signer = signer.sender
     confirmations = 1
 }

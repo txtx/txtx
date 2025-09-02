@@ -12,9 +12,10 @@ variable "recipient" {
 }
 
 action "transfer" "evm::send_eth" {
-    from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-    to = variable.recipient
-    amount = "1000000000000000000"
+    # from field removed - using signer
+    # from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    recipient_address = variable.recipient
+    amount = 1000000000000000000
 }
 
 output "tx_hash" {

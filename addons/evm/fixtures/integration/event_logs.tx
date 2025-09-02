@@ -4,7 +4,7 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "test_signer" "evm::private_key" {
+signer "test_signer" "evm::secret_key" {
     private_key = input.private_key
 }
 
@@ -37,7 +37,7 @@ variable "topic_filter" {
 # Deploy a contract that emits events
 action "deploy_event_emitter" "evm::deploy_contract" {
     from = signer.test_signer
-    bytecode = input.event_emitter_bytecode
+    contract_bytecode = input.event_emitter_bytecode
 }
 
 # Call function that emits event

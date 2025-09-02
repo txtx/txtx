@@ -4,14 +4,14 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "deployer" "evm::private_key" {
+signer "deployer" "evm::secret_key" {
     private_key = input.private_key
 }
 
 # Deploy factory contract
 action "deploy_factory" "evm::deploy_contract" {
     from = signer.deployer
-    bytecode = input.factory_bytecode
+    contract_bytecode = input.factory_bytecode
     description = "Deploy factory contract for creating child contracts"
 }
 

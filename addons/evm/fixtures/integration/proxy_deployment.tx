@@ -4,25 +4,25 @@ addon "evm" {
     rpc_api_url = input.rpc_url
 }
 
-signer "deployer" "evm::private_key" {
+signer "deployer" "evm::secret_key" {
     private_key = input.private_key
 }
 
-signer "admin" "evm::private_key" {
+signer "admin" "evm::secret_key" {
     private_key = input.admin_key
 }
 
 # Deploy implementation contract V1
 action "deploy_implementation_v1" "evm::deploy_contract" {
     from = signer.deployer
-    bytecode = input.implementation_v1_bytecode
+    contract_bytecode = input.implementation_v1_bytecode
     description = "Deploy first implementation"
 }
 
 # Deploy proxy contract
 action "deploy_proxy" "evm::deploy_contract" {
     from = signer.deployer
-    bytecode = input.proxy_bytecode
+    contract_bytecode = input.proxy_bytecode
     constructor_args = [
         action.deploy_implementation_v1.contract_address,
         signer.admin.address,
@@ -50,7 +50,7 @@ action "call_through_proxy_v1" "evm::call" {
 # Deploy implementation V2
 action "deploy_implementation_v2" "evm::deploy_contract" {
     from = signer.deployer
-    bytecode = input.implementation_v2_bytecode
+    contract_bytecode = input.implementation_v2_bytecode
     description = "Deploy upgraded implementation"
 }
 

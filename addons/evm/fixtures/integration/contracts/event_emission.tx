@@ -22,8 +22,8 @@ variable "event_contract_abi" {
 
 action "deploy_event_contract" "evm::deploy_contract" {
     contract = {
-        bytecode = variable.event_contract_bytecode
-        abi = variable.event_contract_abi
+        contract_bytecode = variable.event_contract_bytecode
+        contract_abi = variable.event_contract_abi
     }
     signer = signer.deployer
 }

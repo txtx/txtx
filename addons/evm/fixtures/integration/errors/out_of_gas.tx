@@ -13,8 +13,8 @@ signer "sender" "evm::secret_key" {
 # Deploy a contract with very low gas limit (will fail)
 action "deploy_with_low_gas" "evm::deploy_contract" {
     contract = {
-        bytecode = input.contract_bytecode
-        abi = []
+        contract_bytecode = input.contract_bytecode
+        contract_abi = []
     }
     gas_limit = 1000  # Way too low for deployment
     signer = signer.sender

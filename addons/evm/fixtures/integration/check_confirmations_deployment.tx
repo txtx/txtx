@@ -13,8 +13,8 @@ signer "deployer" "evm::secret_key" {
 # Deploy contract
 action "deploy" "evm::deploy_contract" {
     contract = {
-        bytecode = input.bytecode
-        abi = []
+        contract_bytecode = input.bytecode
+        contract_abi = []
     }
     signer = signer.deployer
 }

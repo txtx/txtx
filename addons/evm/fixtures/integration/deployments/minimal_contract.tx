@@ -15,8 +15,8 @@ variable "minimal_bytecode" {
 
 action "deploy_minimal" "evm::deploy_contract" {
     contract = {
-        bytecode = variable.minimal_bytecode
-        abi = []
+        contract_bytecode = variable.minimal_bytecode
+        contract_abi = []
     }
     signer = signer.deployer
     confirmations = 0
