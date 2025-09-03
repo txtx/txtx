@@ -11,17 +11,17 @@ categories = { workspace = true }
 [dependencies]
 borsh = "1.5.1"
 convert_case = "0.6.0"
-solana-pubkey = { version = "2.2.1", features = ["serde", "borsh"]}
-solana-transaction-context = { version = "2.2.1", features = ["serde"]}
+solana-pubkey = { version = "2.3.0", features = ["serde", "borsh"]}
+solana-transaction-context = { version = "2.3.7", features = ["serde"]}
 solana-clock = { version = "2.2.1", features = ["serde"]}
 solana-blake3-hasher = { version = "2.2.1", features = ["serde"]}
 solana-epoch-info = { version = "2.2.1", features = ["serde"]}
-solana-message = { version = "2.2.1", features = ["serde"]}
+solana-message = { version = "2.3.0", features = ["serde"]}
 solana-keypair = { version = "2.2.1" }
-solana-signature = { version = "2.2.1", features = ["serde"]}
+solana-signature = { version = "2.3.0", features = ["serde"]}
 solana-transaction = { version = "2.2.1", features = ["serde", "bincode"]}
 solana-transaction-error = { version = "2.2.1", features = ["serde"]}
-solana-transaction-status-client-types = { version = "2.2.1" }
+solana-transaction-status-client-types = { version = "2.3.7" }
 anchor-lang-idl = { version = "0.1.2", features = ["convert"] }
 txtx-addon-kit = { workspace = true, default-features = false }
 # txtx-addon-kit = { version = "0.2.6" }
