@@ -14870,7 +14870,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "async-recursion",
  "bincode",
@@ -14898,7 +14898,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "anchor-lang-idl",
  "borsh 1.5.6",
