@@ -14870,7 +14870,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "async-recursion",
  "bincode",
