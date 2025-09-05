@@ -199,12 +199,13 @@ impl DeploymentTransaction {
         keypairs: Vec<&Keypair>,
         commitment_level: CommitmentLevel,
         do_await_confirmation: bool,
+        is_upgrade: bool,
     ) -> Self {
         Self::new(
             transaction,
             keypairs,
             None,
-            DeploymentTransactionType::WriteToBuffer,
+            DeploymentTransactionType::WriteToBuffer { is_upgrade },
             commitment_level,
             do_await_confirmation,
         )
@@ -265,17 +266,6 @@ impl DeploymentTransaction {
         Self::new_cheatcode_deployment(
             DeploymentTransactionType::CheatcodeUpgrade,
             (authority_pubkey, binary),
-        )
-    }
-
-    pub fn payer_close_temp_authority(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
-        Self::new(
-            transaction,
-            keypairs,
-            Some(vec![TxtxDeploymentSigner::Payer]),
-            DeploymentTransactionType::CloseTempAuthority,
-            CommitmentLevel::Confirmed,
-            true,
         )
     }
 
@@ -402,7 +392,7 @@ impl DeploymentTransaction {
             DeploymentTransactionType::CreateBuffer { .. } => return Ok(None),
             DeploymentTransactionType::CreateBufferAndExtendProgram { .. } => return Ok(None),
             DeploymentTransactionType::ExtendProgram => return Ok(None),
-            DeploymentTransactionType::WriteToBuffer => return Ok(None),
+            DeploymentTransactionType::WriteToBuffer { .. } => return Ok(None),
             DeploymentTransactionType::TransferBufferAuthority => return Ok(None),
             DeploymentTransactionType::TransferProgramAuthority => return Ok(None),
             DeploymentTransactionType::DeployProgram => "This transaction will deploy the program.",
@@ -542,7 +532,7 @@ impl DeploymentTransaction {
         match self.transaction_type {
             DeploymentTransactionType::PrepareTempAuthority { already_exists, .. } => {
                 logger.info(
-                    "Account Created",
+                    format!("Account {}", if already_exists { "Funded" } else { "Created" }),
                     format!(
                         "Ephemeral authority account{} funded to write to buffer",
                         if already_exists { "" } else { " created and" }
@@ -553,16 +543,11 @@ impl DeploymentTransaction {
                 logger.info("Account Created", "Program buffer account created");
             }
             DeploymentTransactionType::DeployProgram => {
-                logger.success_info(
-                    "Program Created",
-                    format!("Program {} has been deployed", program_id),
-                );
+                logger.info("Program Created", format!("Program {} has been deployed", program_id));
             }
             DeploymentTransactionType::UpgradeProgram => {
-                logger.success_info(
-                    "Program Upgraded",
-                    format!("Program {} has been upgraded", program_id),
-                );
+                logger
+                    .info("Program Upgraded", format!("Program {} has been upgraded", program_id));
             }
             DeploymentTransactionType::CloseTempAuthority => {
                 logger.success_info(
@@ -577,15 +562,22 @@ impl DeploymentTransaction {
                 logger
                     .info("Program Upgraded", format!("Program {} has been upgraded", program_id));
             }
-            DeploymentTransactionType::WriteToBuffer =>
+            DeploymentTransactionType::WriteToBuffer { is_upgrade } =>
             // if it's a buffer write and do_await_confirmation=true, this is our last buffer write tx
             {
                 if self.do_await_confirmation {
-                    logger.success_info("Buffer Ready", "Writing to buffer account is complete")
+                    if is_upgrade {
+                        // if this is an upgrade, we have another transaction to sign next, so we'll end the
+                        // "pending" message spinner
+                        logger.success_info("Buffer Ready", "Writing to buffer account is complete")
+                    } else {
+                        // if not upgrade, we can keep the "pending" spinner running - the next transaction isn't signed by the user
+                        logger.info("Buffer Ready", "Writing to buffer account is complete")
+                    }
                 }
             }
             DeploymentTransactionType::TransferBufferAuthority => {
-                logger.success_info(
+                logger.info(
                     "Buffer Authority Transferred",
                     "Buffer authority has been transferred to authority signer",
                 );
@@ -1317,6 +1309,7 @@ impl UpgradeableProgramDeployer {
                         vec![&self.temp_upgrade_authority],
                         commitment_level,
                         do_await_confirmation,
+                        self.is_program_upgrade,
                     )
                     .to_value()?,
                 );
