@@ -561,7 +561,7 @@ lazy_static! {
             tainting: true
         },
         intrinsic_fields: {
-            documentation: indoc!{r#"A map of intrinsic fields to index. For PDA subgraphs, intrinsics are:
+            documentation: indoc!{r#"A map of intrinsic fields to index. For Event subgraphs, intrinsics are:
                 - `slot`(indexed): The slot in which the event was emitted.
                 - `transactionSignature`(indexed): The transaction signature in which the event was emitted."#},
             typing: Type::array(SUBGRAPH_INTRINSIC_FIELD.clone()),
@@ -592,11 +592,35 @@ lazy_static! {
         intrinsic_fields: {
             documentation: indoc!{r#"A map of intrinsic fields to index. For PDA subgraphs, intrinsics are:
                 - `slot`(indexed): The slot in which the event was emitted.
-                - `transactionSignature`(indexed): The transaction signature in which the event was emitted.
                 - `pubkey`(indexed): The public key of the account.
                 - `owner`(not indexed): The owner of the account.
-                - `lamports`(not indexed): The lamports of the account.
-                - `writeVersion`(indexed): A monotonically increasing index of the account update."#},
+                - `lamports`(not indexed): The lamports of the account."#},
+            typing: Type::array(SUBGRAPH_INTRINSIC_FIELD.clone()),
+            optional: true,
+            tainting: true
+        }
+    };
+
+    pub static ref TOKEN_ACCOUNT_SUBGRAPH: Type = define_strict_map_type! {
+        instruction: {
+            documentation: "An instruction that contains the account to index in the subgraph.",
+            typing: TOKEN_ACCOUNT_INSTRUCTION_SUBGRAPH.clone(),
+            optional: false,
+            tainting: true
+        },
+        intrinsic_fields: {
+            documentation: indoc!{r#"A map of fields to index that are intrinsic to token accounts. Token Account intrinsics are:
+                - `slot`(indexed): The slot in which the instruction referencing the token account was invoked.
+                - `transactionSignature`(indexed): The transaction signature in which the instruction referencing the token account was invoked.
+                - `pubkey`(indexed): The public key of the token account (also known as the Associated Token Address).
+                - `owner`(not indexed): The owner of the token account.
+                - `mint`(not indexed): The mint of the token account.
+                - `tokenProgram`(not indexed): The token program id.
+                - `amount`(not indexed): A string representation of the amount of tokens in the account.
+                - `decimals`(not indexed): The number of decimals for the token.
+                - `uiAmount`(not indexed): The amount of tokens in the account, formatted as a number with the correct number of decimals.
+                - `uiAmountString`(not indexed): The amount of tokens in the account, formatted as a string with the correct number of decimals.
+                - `lamports`(not indexed): The lamports of the account."#},
             typing: Type::array(SUBGRAPH_INTRINSIC_FIELD.clone()),
             optional: true,
             tainting: true
@@ -639,6 +663,21 @@ lazy_static! {
         },
         account_name: {
             documentation: "The name of the account in the instruction that contains the account to index in the subgraph.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        }
+    };
+
+    pub static ref TOKEN_ACCOUNT_INSTRUCTION_SUBGRAPH: Type = define_strict_map_type! {
+        name: {
+            documentation: "The name of the instruction that contains the token account to index in the subgraph.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        account_name: {
+            documentation: "The name of the token account in the instruction.",
             typing: Type::string(),
             optional: false,
             tainting: true
