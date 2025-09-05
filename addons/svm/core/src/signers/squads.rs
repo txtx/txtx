@@ -486,6 +486,13 @@ impl SignerImplementation for SvmSecretKey {
             .get_scoped_value(&construct_did.to_string(), THIRD_PARTY_SIGNATURE_STATUS)
             .and_then(|v| v.as_third_party_signature_status());
 
+        let rpc_api_url = values
+            .get_expected_string(RPC_API_URL)
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?
+            .to_string();
+
+        let rpc_client = RpcClient::new(rpc_api_url);
+
         // The squads signer will have multiple passes through `check_signability` and `sign`. The enum variants are
         // ordered in accordance with the pass we're making through this function
         match third_party_signature_status {
@@ -494,14 +501,7 @@ impl SignerImplementation for SvmSecretKey {
             // Creating the squads proposal requires us to build the transaction and pass the details onto the
             // initiator and payer signers so that they can return the associated action items
             None => {
-                let rpc_api_url = values
-                    .get_expected_string(RPC_API_URL)
-                    .map_err(|e| (signers.clone(), signer_state.clone(), e))?
-                    .to_string();
-
-                let rpc_client = RpcClient::new(rpc_api_url);
-
-                let multisig = signer_state
+                let mut multisig = signer_state
                     .get_value(SQUADS_MULTISIG)
                     .map(SquadsMultisig::from_value)
                     .unwrap();
@@ -548,11 +548,15 @@ impl SignerImplementation for SvmSecretKey {
                 let (create_proposal_transaction, formatted_transaction) = multisig
                     .get_transaction(
                         rpc_client,
+                        construct_did,
                         &initiator_pubkey,
                         &rent_payer_pubkey,
                         inner_transaction.message,
                     )
                     .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+
+                // getting the transaction mutated multisig state, so updated it in our signer state
+                signer_state.insert(SQUADS_MULTISIG, multisig.to_value());
 
                 // update the initiator signer state with the transaction to sign
                 {
@@ -652,7 +656,7 @@ impl SignerImplementation for SvmSecretKey {
 
                 let request = VerifyThirdPartySignatureRequest::new(
                     &signer_state.uuid,
-                    &multisig.vault_transaction_url(),
+                    &multisig.vault_transaction_url(&construct_did),
                     &instance_name,
                     "Squads",
                     payload,
@@ -705,7 +709,7 @@ impl SignerImplementation for SvmSecretKey {
                         .to_string();
                     let rpc_client = RpcClient::new(rpc_api_url);
 
-                    multisig.get_proposal_status(&rpc_client).map_err(|e| {
+                    multisig.get_proposal_status(&rpc_client, construct_did).map_err(|e| {
                         (
                             signers.clone(),
                             signer_state.clone(),
