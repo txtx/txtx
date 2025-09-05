@@ -3,10 +3,8 @@ use juniper_codegen::graphql_object;
 use txtx_addon_kit::{
     serde_json,
     types::frontend::{
-        ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block,
-        ConstructProgressBarStatuses, ErrorPanelData, ModalPanelData,
-        NormalizedActionItemRequestUpdate, Panel, ProgressBarStatus, ProgressBarStatusUpdate,
-        ProgressBarVisibilityUpdate,
+        ActionGroup, ActionItemRequest, ActionPanelData, ActionSubGroup, Block, ErrorPanelData,
+        LogEvent, ModalPanelData, NormalizedActionItemRequestUpdate, Panel,
     },
 };
 
@@ -157,44 +155,6 @@ impl GqlErrorBlock {
     }
 }
 
-#[derive(Clone)]
-pub struct GqlProgressBlock {
-    block: Block,
-}
-impl GqlProgressBlock {
-    pub fn new(block: Block) -> Self {
-        GqlProgressBlock { block }
-    }
-}
-
-#[graphql_object(context = Context)]
-impl GqlProgressBlock {
-    #[graphql(name = "type")]
-    pub fn typing(&self) -> String {
-        match &self.block.panel {
-            Panel::ProgressBar(_) => "ProgressBar".into(),
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn uuid(&self) -> String {
-        self.block.uuid.to_string()
-    }
-
-    pub fn visible(&self) -> bool {
-        self.block.visible
-    }
-
-    pub fn panel(&self) -> Vec<GqlConstructProgressBarStatuses> {
-        match self.block.panel.clone() {
-            Panel::ProgressBar(panel_data) => {
-                panel_data.into_iter().map(GqlConstructProgressBarStatuses::new).collect()
-            }
-            _ => unreachable!(),
-        }
-    }
-}
-
 pub struct GqlActionPanelData {
     data: ActionPanelData,
 }
@@ -263,92 +223,6 @@ impl GqlErrorPanelData {
         self.data.groups.clone().into_iter().map(GqlActionGroup::new).collect()
     }
 }
-pub struct GqlConstructProgressBarStatuses {
-    data: ConstructProgressBarStatuses,
-}
-impl GqlConstructProgressBarStatuses {
-    pub fn new(data: ConstructProgressBarStatuses) -> Self {
-        GqlConstructProgressBarStatuses { data }
-    }
-}
-#[graphql_object(context = Context)]
-impl GqlConstructProgressBarStatuses {
-    pub fn construct_did(&self) -> String {
-        self.data.construct_did.to_string()
-    }
-    pub fn statuses(&self) -> Vec<GqlProgressBarStatus> {
-        self.data.statuses.clone().into_iter().map(GqlProgressBarStatus::new).collect()
-    }
-}
-
-pub struct GqlProgressBarStatus {
-    data: ProgressBarStatus,
-}
-impl GqlProgressBarStatus {
-    pub fn new(data: ProgressBarStatus) -> Self {
-        GqlProgressBarStatus { data }
-    }
-}
-#[graphql_object(context = Context)]
-impl GqlProgressBarStatus {
-    pub fn status(&self) -> String {
-        self.data.status.clone()
-    }
-
-    pub fn status_color(&self) -> String {
-        self.data.status_color.to_string()
-    }
-
-    pub fn message(&self) -> String {
-        self.data.message.clone()
-    }
-
-    pub fn diagnostic(&self) -> Option<String> {
-        match &self.data.diagnostic {
-            Some(diag) => Some(serde_json::to_string(&diag).unwrap()),
-            None => None,
-        }
-    }
-}
-
-pub struct GqlProgressBarStatusUpdate {
-    data: ProgressBarStatusUpdate,
-}
-impl GqlProgressBarStatusUpdate {
-    pub fn new(data: ProgressBarStatusUpdate) -> Self {
-        GqlProgressBarStatusUpdate { data }
-    }
-}
-#[graphql_object(context = Context)]
-impl GqlProgressBarStatusUpdate {
-    pub fn progress_bar_uuid(&self) -> String {
-        self.data.progress_bar_uuid.to_string()
-    }
-    pub fn construct_did(&self) -> String {
-        self.data.construct_did.to_string()
-    }
-    pub fn new_status(&self) -> GqlProgressBarStatus {
-        GqlProgressBarStatus::new(self.data.new_status.clone())
-    }
-}
-
-pub struct GqlProgressBarVisibilityUpdate {
-    data: ProgressBarVisibilityUpdate,
-}
-impl GqlProgressBarVisibilityUpdate {
-    pub fn new(data: ProgressBarVisibilityUpdate) -> Self {
-        GqlProgressBarVisibilityUpdate { data }
-    }
-}
-#[graphql_object(context = Context)]
-impl GqlProgressBarVisibilityUpdate {
-    pub fn progress_bar_uuid(&self) -> String {
-        self.data.progress_bar_uuid.to_string()
-    }
-    pub fn visible(&self) -> bool {
-        self.data.visible
-    }
-}
 
 pub struct GqlActionGroup {
     group: ActionGroup,
@@ -381,6 +255,10 @@ impl GqlActionSubGroup {
 
 #[graphql_object(context = Context)]
 impl GqlActionSubGroup {
+    pub fn title(&self) -> Option<String> {
+        self.sub_group.title.clone()
+    }
+
     pub fn allow_batch_completion(&self) -> bool {
         self.sub_group.allow_batch_completion.clone()
     }
@@ -434,5 +312,35 @@ impl GqlActionItemRequest {
 
     pub fn action_type(&self) -> String {
         serde_json::to_string(&self.action_item.action_type).unwrap()
+    }
+}
+
+pub struct GqlLogEvent(pub LogEvent);
+
+#[graphql_object(context = Context)]
+impl GqlLogEvent {
+    #[graphql(name = "type")]
+    pub fn typing(&self) -> String {
+        self.0.typing()
+    }
+
+    pub fn uuid(&self) -> String {
+        self.0.uuid().to_string()
+    }
+
+    pub fn summary(&self) -> String {
+        self.0.summary()
+    }
+
+    pub fn message(&self) -> String {
+        self.0.message()
+    }
+
+    pub fn level(&self) -> String {
+        self.0.level().to_string()
+    }
+
+    pub fn status(&self) -> Option<String> {
+        self.0.status()
     }
 }

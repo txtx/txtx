@@ -1,4 +1,4 @@
-use borsh_0_10::de::BorshDeserialize;
+use borsh::de::BorshDeserialize;
 use kaigan::types::U8PrefixString;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 

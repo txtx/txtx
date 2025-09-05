@@ -186,6 +186,7 @@ pub type SignerCheckSignabilityClosure = fn(
     SignersState,
     &HashMap<ConstructDid, SignerInstance>,
     &RunbookSupervisionContext,
+    &AuthorizationContext,
 ) -> Result<CheckSignabilityOk, SignerActionErr>;
 
 pub type SignerOperationFutureResult = Result<
@@ -391,22 +392,27 @@ impl SignerInstance {
                                 .map(|requests| requests.iter().find(|r| r.id.eq(&action_item_id)));
 
                             if let Some(Some(request)) = request {
-                                if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
-                                    if response.value_checked {
-                                        let data = request
-                                            .action_type
-                                            .as_review_input()
-                                            .expect("review input action item");
-                                        values.insert(
-                                            CHECKED_ADDRESS,
-                                            Value::string(data.value.to_string()),
+                                if let Some(signer_did) = &request.construct_did {
+                                    let mut signer_state =
+                                        signers.pop_signer_state(signer_did).unwrap();
+                                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
+                                        if response.value_checked {
+                                            let data = request
+                                                .action_type
+                                                .as_review_input()
+                                                .expect("review input action item");
+                                            signer_state.insert(
+                                                CHECKED_ADDRESS,
+                                                Value::string(data.value.to_string()),
+                                            );
+                                        }
+                                    } else if request.internal_key == ACTION_ITEM_CHECK_BALANCE {
+                                        signer_state.insert(
+                                            IS_BALANCE_CHECKED,
+                                            Value::bool(response.value_checked),
                                         );
                                     }
-                                } else if request.internal_key == ACTION_ITEM_CHECK_BALANCE {
-                                    values.insert(
-                                        IS_BALANCE_CHECKED,
-                                        Value::bool(response.value_checked),
-                                    );
+                                    signers.push_signer_state(signer_state);
                                 }
                             }
                         }
@@ -524,6 +530,7 @@ pub trait SignerImplementation {
         _signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _supervision_context: &RunbookSupervisionContext,
+        _auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         unimplemented!()
     }

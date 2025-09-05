@@ -6,13 +6,14 @@ use solana_sdk::message::Message;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::Transaction;
 use txtx_addon_kit::channel;
+use txtx_addon_kit::futures::future;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandImplementation, CommandSpecification,
     PreCommandSpecification,
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::{BlockEvent, StatusUpdater};
+use txtx_addon_kit::types::frontend::{BlockEvent, LogDispatcher};
 use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
@@ -30,7 +31,7 @@ use crate::constants::{
 use crate::typing::{SvmValue, SVM_PUBKEY};
 
 use super::get_signers_did;
-use super::sign_transaction::SignTransaction;
+use super::sign_transaction::{check_signed_executability, run_signed_execution};
 
 lazy_static! {
     pub static ref SEND_TOKEN: PreCommandSpecification = define_command! {
@@ -166,7 +167,7 @@ impl CommandImplementation for SendToken {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -357,43 +358,34 @@ impl CommandImplementation for SendToken {
         );
 
         signers.push_signer_state(signer_state);
-        SignTransaction::check_signed_executability(
+        let res = check_signed_executability(
             construct_did,
             instance_name,
-            spec,
             &args,
             supervision_context,
             signers_instances,
             signers,
             auth_context,
-        )
+        );
+        Ok(Box::pin(future::ready(res)))
     }
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         args: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
+        _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
-        let progress_tx = progress_tx.clone();
         let args = args.clone();
         let signers_instances = signers_instances.clone();
         let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
 
         let args = args.clone();
         let future = async move {
-            let run_signing_future = SignTransaction::run_signed_execution(
-                &construct_did,
-                &spec,
-                &args,
-                &progress_tx,
-                &signers_instances,
-                signers,
-            );
+            let run_signing_future =
+                run_signed_execution(&construct_did, &args, &signers_instances, signers);
             let (signers, signer_state, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
@@ -441,12 +433,11 @@ impl CommandImplementation for SendToken {
         values: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
-        let mut status_updater =
-            StatusUpdater::new(&background_tasks_uuid, &construct_did, &progress_tx);
+        let logger = LogDispatcher::new(construct_did.as_uuid(), "svm::send_token", &progress_tx);
         let recipient_token_address =
             SvmValue::to_pubkey(outputs.get_expected_value(RECIPIENT_TOKEN_ADDRESS).unwrap())
                 .unwrap();
@@ -460,20 +451,29 @@ impl CommandImplementation for SendToken {
             SvmValue::to_pubkey(outputs.get_expected_value(TOKEN_MINT_ADDRESS).unwrap()).unwrap();
         let is_funding_recipient = outputs.get_bool(IS_FUNDING_RECIPIENT).unwrap_or(false);
 
-        status_updater.propagate_info(&format!("Transferring token {}", token_mint_address));
-        status_updater.propagate_info(&format!(
-            "Authority {} generated source token account {}",
-            authority_address, source_token_address
-        ));
-        status_updater.propagate_info(&format!(
-            "Recipient {} generated recipient token account {}",
-            recipient_address, recipient_token_address
-        ));
+        logger.info("Token Transfer", format!("Transferring token {}", token_mint_address));
+        logger.info(
+            "Token Transfer",
+            format!(
+                "Authority {} generated source token account {}",
+                authority_address, source_token_address
+            ),
+        );
+        logger.info(
+            "Token Transfer",
+            format!(
+                "Recipient {} generated recipient token account {}",
+                recipient_address, recipient_token_address
+            ),
+        );
         if is_funding_recipient {
-            status_updater.propagate_info(&format!(
-                "Authority {} will fund recipient token account {}",
-                authority_address, recipient_token_address
-            ));
+            logger.info(
+                "Token Transfer",
+                format!(
+                    "Authority {} will fund recipient token account {}",
+                    authority_address, recipient_token_address
+                ),
+            );
         }
 
         send_transaction_background_task(
@@ -482,7 +482,6 @@ impl CommandImplementation for SendToken {
             &values,
             &outputs,
             &progress_tx,
-            &background_tasks_uuid,
             &supervision_context,
         )
     }

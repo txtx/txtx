@@ -149,6 +149,8 @@ impl CommandImplementation for SignEvmTransaction {
                     actions.push_sub_group(description.clone(), vec![]);
                 }
             } else {
+                use txtx_addon_kit::constants::SIGNATURE_APPROVED;
+
                 let transaction_request_bytes = values
                     .get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
@@ -199,12 +201,20 @@ impl CommandImplementation for SignEvmTransaction {
                     display_payload,
                 );
 
-                let mut action_items =
-                    vec![ReviewInputRequest::new("", &Value::integer(transaction.nonce().into()))
-                        .to_action_type()
-                        .to_request(&instance_name, ACTION_ITEM_CHECK_NONCE)
-                        .with_construct_did(&construct_did)
-                        .with_meta_description("Check transaction nonce")];
+                let mut action_items = vec![];
+                let already_signed = signer_state
+                    .get_scoped_bool(&construct_did.to_string(), SIGNATURE_APPROVED)
+                    .unwrap_or(false);
+
+                if !already_signed {
+                    action_items.push(
+                        ReviewInputRequest::new("", &Value::integer(transaction.nonce().into()))
+                            .to_action_type()
+                            .to_request(&instance_name, ACTION_ITEM_CHECK_NONCE)
+                            .with_construct_did(&construct_did)
+                            .with_meta_description("Check transaction nonce"),
+                    );
+                }
 
                 if let Some(tx_cost) =
                     signer_state.get_scoped_integer(&construct_did.to_string(), TRANSACTION_COST)
@@ -216,13 +226,15 @@ impl CommandImplementation for SignEvmTransaction {
                             diagnosed_error!("failed to format transaction cost: {e}"),
                         )
                     })?;
-                    action_items.push(
-                        ReviewInputRequest::new("", &Value::string(formatted_cost))
-                            .to_action_type()
-                            .to_request(&instance_name, ACTION_ITEM_CHECK_FEE)
-                            .with_meta_description("Check transaction cost (Wei)")
-                            .with_construct_did(&construct_did),
-                    );
+                    if !already_signed {
+                        action_items.push(
+                            ReviewInputRequest::new("", &Value::string(formatted_cost))
+                                .to_action_type()
+                                .to_request(&instance_name, ACTION_ITEM_CHECK_FEE)
+                                .with_meta_description("Check transaction cost (Wei)")
+                                .with_construct_did(&construct_did),
+                        );
+                    }
                 }
                 if supervision_context.review_input_values {
                     actions.push_panel("Transaction Execution", "");
@@ -244,6 +256,7 @@ impl CommandImplementation for SignEvmTransaction {
                     signers,
                     &signers_instances,
                     &supervision_context,
+                    &auth_ctx,
                 )?;
             actions.append(&mut signer_actions);
             Ok((signers, signer_state, actions))

@@ -4,7 +4,7 @@ use kit::indexmap::IndexMap;
 use kit::types::cloud_interface::CloudServiceContext;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::types::AddonJsonConverter;
-use kit::types::ConstructDid;
+use kit::types::{ConstructDid, RunbookInstanceContext};
 use serde_json::{json, Value as JsonValue};
 use std::collections::{HashMap, HashSet, VecDeque};
 use txtx_addon_kit::hcl::structure::BlockLabel;
@@ -76,6 +76,18 @@ impl Runbook {
 
     pub fn runbook_id(&self) -> RunbookId {
         self.runbook_id.clone()
+    }
+
+    pub fn to_instance_context(&self) -> RunbookInstanceContext {
+        RunbookInstanceContext {
+            runbook_id: self.runbook_id.clone(),
+            workspace_location: self
+                .runtime_context
+                .authorization_context
+                .workspace_location
+                .clone(),
+            environment_selector: self.top_level_inputs_map.current_environment.clone(),
+        }
     }
 
     pub fn enable_full_execution_mode(&mut self) {

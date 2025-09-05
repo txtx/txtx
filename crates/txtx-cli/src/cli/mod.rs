@@ -199,6 +199,9 @@ pub struct ExecuteRunbook {
     /// Execute the Runbook even if the cached state suggests this Runbook has already been executed
     #[arg(long = "force", short = 'f')]
     pub force_execution: bool,
+    /// The log level to use for the runbook execution. Options are "trace", "debug", "info", "warn", "error".
+    #[arg(long = "log-level", short = 'l', default_value = "info")]
+    pub log_level: String,
 }
 
 impl ExecuteRunbook {

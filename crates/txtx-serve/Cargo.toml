@@ -1,7 +1,7 @@
 [package]
 name = "txtx-serve"
 description = "Crate for serving a txtx runbook"
-version = "0.1.0"
+version = "0.1.2"
 edition = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }

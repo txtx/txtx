@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tokio::sync::RwLock;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
+use txtx_addon_kit::types::frontend::SupervisorAddonData;
 use txtx_addon_kit::Addon;
 use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
 use txtx_addon_network_evm::EvmNetworkAddon;
@@ -318,19 +319,30 @@ pub async fn execute_runbook(
     runbook.enable_full_execution_mode();
     // info!(ctx.expect_logger(), "2");
     let runbook_description = runbook.description.clone();
-    let registered_addons = runbook
-        .runtime_context
-        .addons_context
-        .registered_addons
-        .keys()
-        .map(|k| k.clone())
-        .collect::<Vec<_>>();
+    let supervisor_addon_data = {
+        let flow = runbook.flow_contexts.first().unwrap();
+        let mut addons = vec![];
+        for addon in flow.execution_context.addon_instances.values() {
+            if let Some(addon_defaults) = flow
+                .workspace_context
+                .addons_defaults
+                .get(&(addon.package_id.did(), addon.addon_id.clone()))
+            {
+                if !addons.iter().any(|a: &SupervisorAddonData| a.addon_name.eq(&addon.addon_id)) {
+                    addons.push(SupervisorAddonData::new(&addon.addon_id, addon_defaults));
+                }
+            }
+        }
+        addons
+    };
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let (log_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let (_action_item_updates_tx, _action_item_updates_rx) =
         channel::unbounded::<ActionItemRequest>();
     let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let log_store = Arc::new(RwLock::new(Vec::new()));
     let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
     let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
 
@@ -364,10 +376,12 @@ pub async fn execute_runbook(
         *gql_context = Some(GqlContext {
             protocol_name: runbook_name.clone(),
             runbook_name: runbook_name.clone(),
-            registered_addons,
+            supervisor_addon_data,
             runbook_description,
+            log_store: log_store.clone(),
             block_store: block_store.clone(),
             block_broadcaster: block_broadcaster.clone(),
+            log_broadcaster: log_broadcaster.clone(),
             action_item_events_tx: action_item_events_tx.clone(),
         });
     }
@@ -425,20 +439,6 @@ pub async fn execute_runbook(
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
-                    BlockEvent::ProgressBar(new_block) => {
-                        let len = block_store.len();
-                        block_store.insert(len, new_block.clone());
-                    }
-                    BlockEvent::UpdateProgressBarStatus(update) => block_store
-                        .iter_mut()
-                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
-                        .for_each(|(_, b)| {
-                            b.update_progress_bar_status(&update.construct_did, &update.new_status)
-                        }),
-                    BlockEvent::UpdateProgressBarVisibility(update) => block_store
-                        .iter_mut()
-                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
-                        .for_each(|(_, b)| b.visible = update.visible),
                     BlockEvent::RunbookCompleted => {
                         println!("\n{}", green!("Runbook complete!"));
                         break;
@@ -448,6 +448,10 @@ pub async fn execute_runbook(
                         block_store.insert(len, new_block.clone());
                     }
                     BlockEvent::Exit => break,
+                    BlockEvent::LogEvent(log) => {
+                        let mut log_store = log_store.write().await;
+                        log_store.push(log);
+                    }
                 }
 
                 if do_propagate_event {
@@ -532,10 +536,12 @@ async fn subscriptions(
     let ctx = GraphContext {
         protocol_name: context.protocol_name.clone(),
         runbook_name: context.runbook_name.clone(),
-        registered_addons: context.registered_addons.clone(),
+        supervisor_addon_data: context.supervisor_addon_data.clone(),
         runbook_description: context.runbook_description.clone(),
         block_store: context.block_store.clone(),
+        log_store: context.log_store.clone(),
         block_broadcaster: context.block_broadcaster.clone(),
+        log_broadcaster: context.log_broadcaster.clone(),
         action_item_events_tx: context.action_item_events_tx.clone(),
     };
     let config = ConnectionConfig::new(ctx);

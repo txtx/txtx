@@ -55,7 +55,6 @@ use txtx_addon_kit::types::frontend::InputOption;
 use txtx_addon_kit::types::frontend::NormalizedActionItemRequestUpdate;
 use txtx_addon_kit::types::frontend::Panel;
 use txtx_addon_kit::types::frontend::PickInputOptionRequest;
-use txtx_addon_kit::types::frontend::ProgressBarVisibilityUpdate;
 use txtx_addon_kit::types::frontend::ReviewedInputResponse;
 use txtx_addon_kit::types::frontend::ValidateBlockData;
 use txtx_addon_kit::types::types::RunbookSupervisionContext;
@@ -308,11 +307,7 @@ pub async fn start_supervised_runbook_runloop(
                         let supervised_bg_context = if bg_uuid_initialized {
                             None
                         } else {
-                            Some(SupervisedBackgroundTaskContext::new(
-                                &block_tx,
-                                &background_tasks_handle_uuid,
-                                &action_item_id,
-                            ))
+                            Some(SupervisedBackgroundTaskContext::new(&block_tx, &action_item_id))
                         };
                         process_background_tasks(
                             supervised_bg_context,
@@ -349,11 +344,6 @@ pub async fn start_supervised_runbook_runloop(
                     // if there were errors, return them to complete execution
                     if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                         let _ = block_tx.send(BlockEvent::Error(error_event));
-                        set_progress_bar_visibility(
-                            &block_tx,
-                            &background_tasks_handle_uuid,
-                            false,
-                        );
                         return Err(pass_results.with_spans_filled(&runbook.sources));
                     }
 
@@ -416,11 +406,6 @@ pub async fn start_supervised_runbook_runloop(
                         }
                     }
                     if flow_execution_completed && !start_of_loop_had_bg_tasks {
-                        set_progress_bar_visibility(
-                            &block_tx,
-                            &background_tasks_handle_uuid,
-                            false,
-                        );
                         if current_flow_index == total_flows_count - 1 {
                             let _ = block_tx.send(BlockEvent::RunbookCompleted);
                             return Ok(());
@@ -432,11 +417,6 @@ pub async fn start_supervised_runbook_runloop(
                         && !start_of_loop_had_bg_tasks
                         && !pass_has_nodes_to_re_execute
                     {
-                        set_progress_bar_visibility(
-                            &block_tx,
-                            &background_tasks_handle_uuid,
-                            false,
-                        );
                         background_tasks_handle_uuid = Uuid::new_v4();
                         break;
                     }
@@ -453,12 +433,12 @@ pub async fn start_supervised_runbook_runloop(
                     true => ActionItemStatus::Success(None),
                     false => ActionItemStatus::Todo,
                 };
-                let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![
-                    ActionItemRequestUpdate::from_id(&action_item_id)
-                        .set_status(new_status)
-                        .normalize(&action_item_requests)
-                        .unwrap(),
-                ]));
+                if let Some(update) = ActionItemRequestUpdate::from_id(&action_item_id)
+                    .set_status(new_status)
+                    .normalize(&action_item_requests)
+                {
+                    let _ = block_tx.send(BlockEvent::UpdateActionItems(vec![update]));
+                }
                 // Some signers do not actually need the user to provide the address/pubkey,
                 // but they need to confirm it in the supervisor. when it is confirmed, we need to
                 // reprocess the signers
@@ -514,6 +494,7 @@ pub async fn start_supervised_runbook_runloop(
                     }
                     if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                         let _ = block_tx.send(BlockEvent::Error(error_event));
+                        return Err(pass_results.with_spans_filled(&runbook.sources));
                     }
                 }
             }
@@ -528,7 +509,8 @@ pub async fn start_supervised_runbook_runloop(
                 )
                 .await;
             }
-            ActionItemResponseType::ProvideSignedTransaction(_)
+            ActionItemResponseType::VerifyThirdPartySignature(_)
+            | ActionItemResponseType::ProvideSignedTransaction(_)
             | ActionItemResponseType::SendTransaction(_)
             | ActionItemResponseType::ProvideSignedMessage(_) => {
                 // Retrieve the previous requests sent and update their statuses.
@@ -578,6 +560,7 @@ pub async fn start_supervised_runbook_runloop(
                 }
                 if let Some(error_event) = pass_results.compile_diagnostics_to_block() {
                     let _ = block_tx.send(BlockEvent::Error(error_event));
+                    return Err(pass_results.with_spans_filled(&runbook.sources));
                 }
             }
         };
@@ -754,18 +737,12 @@ pub async fn build_genesis_panel(
 #[derive(Debug, Clone)]
 pub struct SupervisedBackgroundTaskContext {
     block_tx: Sender<BlockEvent>,
-    background_tasks_handle_uuid: Uuid,
     action_item_id: BlockId,
 }
 impl SupervisedBackgroundTaskContext {
-    pub fn new(
-        block_tx: &Sender<BlockEvent>,
-        background_tasks_handle_uuid: &Uuid,
-        action_item_id: &BlockId,
-    ) -> Self {
+    pub fn new(block_tx: &Sender<BlockEvent>, action_item_id: &BlockId) -> Self {
         SupervisedBackgroundTaskContext {
             block_tx: block_tx.clone(),
-            background_tasks_handle_uuid: background_tasks_handle_uuid.clone(),
             action_item_id: action_item_id.clone(),
         }
     }
@@ -779,11 +756,8 @@ pub async fn process_background_tasks(
     >,
     flow_context: &mut FlowContext,
 ) -> Result<(), Diagnostic> {
-    if let Some(SupervisedBackgroundTaskContext {
-        block_tx,
-        background_tasks_handle_uuid,
-        action_item_id,
-    }) = supervised_context.as_ref()
+    if let Some(SupervisedBackgroundTaskContext { block_tx, action_item_id, .. }) =
+        supervised_context.as_ref()
     {
         let _ =
             block_tx.send(BlockEvent::UpdateActionItems(vec![NormalizedActionItemRequestUpdate {
@@ -791,10 +765,6 @@ pub async fn process_background_tasks(
                 action_status: Some(ActionItemStatus::Success(None)),
                 action_type: None,
             }]));
-        let _ = block_tx.send(BlockEvent::ProgressBar(Block::new(
-            &background_tasks_handle_uuid,
-            Panel::ProgressBar(vec![]),
-        )));
     }
 
     let results: Vec<Result<CommandExecutionResult, Diagnostic>> =
@@ -817,11 +787,8 @@ pub async fn process_background_tasks(
                 {
                     diag = diag.set_span_range(command_instance.block.span());
                 };
-                if let Some(SupervisedBackgroundTaskContext {
-                    block_tx,
-                    background_tasks_handle_uuid,
-                    ..
-                }) = supervised_context.as_ref()
+                if let Some(SupervisedBackgroundTaskContext { block_tx, .. }) =
+                    supervised_context.as_ref()
                 {
                     let _ = block_tx.send(BlockEvent::Error(Block {
                         uuid: Uuid::new_v4(),
@@ -830,7 +797,6 @@ pub async fn process_background_tasks(
                             diag.clone()
                         ])),
                     }));
-                    set_progress_bar_visibility(block_tx, background_tasks_handle_uuid, false);
                 }
                 return Err(diag);
             }
@@ -838,16 +804,6 @@ pub async fn process_background_tasks(
     }
 
     Ok(())
-}
-
-pub fn set_progress_bar_visibility(
-    block_tx: &Sender<BlockEvent>,
-    background_tasks_handle_uuid: &Uuid,
-    visibility: bool,
-) {
-    let _ = block_tx.send(BlockEvent::UpdateProgressBarVisibility(
-        ProgressBarVisibilityUpdate::new(&background_tasks_handle_uuid, visibility),
-    ));
 }
 
 pub async fn process_signers_action_item_response(

@@ -10,7 +10,7 @@ use txtx_addon_kit::{
         diagnostics::Diagnostic,
         frontend::{
             ActionItemRequest, ActionItemResponse, ActionItemStatus, ActionPanelData, BlockEvent,
-            ModalPanelData, NormalizedActionItemRequestUpdate, ProgressBarVisibilityUpdate,
+            LogEvent, ModalPanelData, NormalizedActionItemRequestUpdate,
         },
         types::Value,
         AuthorizationContext, RunbookId,
@@ -44,13 +44,9 @@ impl TestHarness {
         event
     }
 
-    pub fn send_and_expect_progress_bar_visibility_update(
-        &self,
-        response: ActionItemResponse,
-        expected_visibility: bool,
-    ) -> ProgressBarVisibilityUpdate {
+    pub fn send_and_expect_log_event(&self, response: ActionItemResponse) -> LogEvent {
         self.send(&response);
-        self.expect_progress_bar_visibility_update(Some(response), expected_visibility)
+        self.expect_log_event(Some(response))
     }
 
     pub fn send_and_expect_action_item_update(
@@ -87,24 +83,15 @@ impl TestHarness {
         updates.clone()
     }
 
-    pub fn expect_progress_bar_visibility_update(
-        &self,
-        response: Option<ActionItemResponse>,
-        expected_visibility: bool,
-    ) -> ProgressBarVisibilityUpdate {
+    pub fn expect_log_event(&self, response: Option<ActionItemResponse>) -> LogEvent {
         let Ok(event) = self.block_rx.recv_timeout(Duration::from_secs(5)) else {
             panic!(
                 "unable to receive input block after sending action item response: {:?}",
                 response
             );
         };
-        let update = event.expect_progress_bar_visibility_update();
-        let ctx = format!(
-            "\n=> progress bar visibility update: {:?}\n=> expected visibility: {:?}\n=> actual update: {:?}",
-            response, expected_visibility, update
-        );
-        assert_eq!(update.visible, expected_visibility, "{}", ctx);
-        update.clone()
+        let event = event.expect_log_event();
+        event.clone()
     }
 
     pub fn send_and_expect_action_panel(

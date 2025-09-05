@@ -12,6 +12,7 @@ use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use types::{ObjectDefinition, ObjectProperty, Type};
+use uuid::Uuid;
 
 use crate::helpers::fs::FileLocation;
 
@@ -66,6 +67,10 @@ impl Did {
 
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_slice()
+    }
+
+    pub fn as_uuid(&self) -> Uuid {
+        Uuid::from_bytes(self.0[0..16].try_into().unwrap())
     }
 }
 
@@ -150,6 +155,21 @@ impl RunbookId {
     }
 }
 
+pub struct RunbookInstanceContext {
+    pub runbook_id: RunbookId,
+    pub workspace_location: FileLocation,
+    pub environment_selector: Option<String>,
+}
+
+impl RunbookInstanceContext {
+    pub fn get_workspace_root(&self) -> Result<FileLocation, String> {
+        self.workspace_location.get_parent_location()
+    }
+    pub fn environment_selector<'a>(&'a self, default: &'a str) -> &'a str {
+        self.environment_selector.as_deref().unwrap_or(default)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PackageDid(pub Did);
 
@@ -226,6 +246,10 @@ impl ConstructDid {
 
     pub fn from_hex_string(did_str: &str) -> Self {
         ConstructDid(Did::from_hex_string(did_str))
+    }
+
+    pub fn as_uuid(&self) -> Uuid {
+        self.0.as_uuid()
     }
 }
 

@@ -38,6 +38,7 @@ pub const SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS: &str =
 pub const SVM_PAYER_SIGNED_TRANSACTION: &str = "svm::payer_signed_transaction";
 pub const SVM_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::authority_signed_transaction";
 pub const SVM_TEMP_AUTHORITY_SIGNED_TRANSACTION: &str = "svm::temp_authority_signed_transaction";
+pub const SVM_SQUAD_MULTISIG: &str = "svm::squads_multisig";
 pub const SVM_U8: &str = "svm::u8";
 pub const SVM_U16: &str = "svm::u16";
 pub const SVM_U32: &str = "svm::u32";
@@ -390,6 +391,10 @@ impl SvmValue {
 
     pub fn close_temp_authority_transaction_parts(bytes: Vec<u8>) -> Value {
         Value::addon(bytes, SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS)
+    }
+
+    pub fn squads_multisig(bytes: Vec<u8>) -> Value {
+        Value::addon(bytes, SVM_SQUAD_MULTISIG)
     }
 }
 
@@ -827,10 +832,13 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DeploymentTransactionType {
-    CreateTempAuthority(Vec<u8>),
-    CreateBuffer,
+    PrepareTempAuthority { keypair_bytes: Vec<u8>, already_exists: bool },
+    CreateBuffer { buffer_pubkey: Pubkey },
+    CreateBufferAndExtendProgram { buffer_pubkey: Pubkey },
+    ExtendProgram,
+    ResizeBuffer,
     WriteToBuffer,
     TransferBufferAuthority,
     TransferProgramAuthority,
@@ -845,8 +853,13 @@ pub enum DeploymentTransactionType {
 impl DeploymentTransactionType {
     pub fn to_string(&self) -> String {
         match self {
-            DeploymentTransactionType::CreateTempAuthority(_) => "create_temp_authority",
-            DeploymentTransactionType::CreateBuffer => "create_buffer",
+            DeploymentTransactionType::PrepareTempAuthority { .. } => "create_temp_authority",
+            DeploymentTransactionType::CreateBuffer { .. } => "create_buffer",
+            DeploymentTransactionType::CreateBufferAndExtendProgram { .. } => {
+                "create_buffer_and_extend_program"
+            }
+            DeploymentTransactionType::ResizeBuffer => "resize_buffer",
+            DeploymentTransactionType::ExtendProgram => "extend_program",
             DeploymentTransactionType::WriteToBuffer => "write_to_buffer",
             DeploymentTransactionType::TransferBufferAuthority => "transfer_buffer_authority",
             DeploymentTransactionType::TransferProgramAuthority => "transfer_program_authority",
@@ -858,21 +871,5 @@ impl DeploymentTransactionType {
             DeploymentTransactionType::CheatcodeUpgrade => "cheatcode_upgrade",
         }
         .into()
-    }
-    pub fn from_string(s: &str) -> Self {
-        match s {
-            "create_temp_authority" => DeploymentTransactionType::CreateTempAuthority(vec![]),
-            "create_buffer" => DeploymentTransactionType::CreateBuffer,
-            "write_to_buffer" => DeploymentTransactionType::WriteToBuffer,
-            "transfer_buffer_authority" => DeploymentTransactionType::TransferBufferAuthority,
-            "deploy_program" => DeploymentTransactionType::DeployProgram,
-            "upgrade_program" => DeploymentTransactionType::UpgradeProgram,
-            "close_temp_authority" => DeploymentTransactionType::CloseTempAuthority,
-            "skip_close_temp_authority" => DeploymentTransactionType::SkipCloseTempAuthority,
-            "transfer_program_authority" => DeploymentTransactionType::TransferProgramAuthority,
-            "cheatcode_deployment" => DeploymentTransactionType::CheatcodeDeployment,
-            "cheatcode_upgrade" => DeploymentTransactionType::CheatcodeUpgrade,
-            _ => unreachable!(),
-        }
     }
 }

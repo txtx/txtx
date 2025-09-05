@@ -310,7 +310,6 @@ impl RawHclContent {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::commands::CommandInput;
 
     use super::*;
 

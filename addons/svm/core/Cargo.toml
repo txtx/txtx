@@ -1,7 +1,7 @@
 [package]
 name = "txtx-addon-network-svm"
 description = "Primitives for executing Solana runbooks"
-version = "0.2.7"
+version = "0.3.5"
 edition = { workspace = true }
 license = "Apache-2.0"
 repository = { workspace = true }
@@ -19,19 +19,20 @@ serde_derive = "1"
 async-recursion = "1"
 bincode = "1.3.3"
 solana-sdk = { version = "2.2.1", features = ["borsh"] }
+solana-message = { version = "2.2.1", features = ["serde"] }
 solana-client = "2.2.1"
 spl-associated-token-account = "6.0.0"
 spl-token = "7.0.0"
 spl-token-2022 = "7.0.0"
 solana_idl = "0.2.0"
-borsh = "1.5.1"
+borsh_1_5_1 = { version = "1.5.1", package = "borsh" }
 tiny-bip39 = "0.8.2"
 convert_case = "0.6.0"
 
-### Solana Record Service Dependencies ###
+# Solana Record Service Dependencies
 solana-record-service-client = "0.1.0"
 # srs is using an old version of borsh, so we need to use the same version
-borsh_0_10 = { version = "0.10.4", package = "borsh" }
+borsh = { version = "0.10", package = "borsh", features = ["std"] }
 kaigan = "0.2.6"
 
 [dev-dependencies]

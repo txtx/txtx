@@ -3,11 +3,13 @@ pub mod idl;
 pub mod instruction;
 pub mod native;
 pub mod send_transaction;
+pub mod squads;
 pub mod ui_encode;
 pub mod utils;
 
 use crate::codec::ui_encode::get_formatted_transaction_meta_description;
-use crate::codec::ui_encode::message_data_to_formatted_value;
+use crate::codec::ui_encode::message_to_formatted_tx;
+use crate::codec::utils::wait_n_slots;
 use crate::commands::RpcVersionInfo;
 use anchor::AnchorProgramArtifacts;
 use bip39::Language;
@@ -32,6 +34,7 @@ use solana_sdk::signature::Signature;
 use solana_sdk::signer::Signer;
 use solana_sdk::system_instruction;
 use solana_sdk::system_instruction::MAX_PERMITTED_DATA_LENGTH;
+use txtx_addon_kit::types::frontend::LogDispatcher;
 // use solana_sdk::loader_v4::finalize;
 use crate::typing::DeploymentTransactionType;
 use solana_sdk::{
@@ -40,13 +43,8 @@ use solana_sdk::{
 };
 use std::collections::HashMap;
 use std::str::FromStr;
-use txtx_addon_kit::hex;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
-use txtx_addon_kit::types::frontend::ProgressBarStatus;
-use txtx_addon_kit::types::frontend::ProgressBarStatusColor;
-use txtx_addon_kit::types::frontend::StatusUpdater;
 use txtx_addon_kit::types::signers::SignerInstance;
-use txtx_addon_kit::types::types::ObjectType;
 use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::ConstructDid;
 
@@ -62,7 +60,7 @@ pub fn public_key_from_str(str: &str) -> Result<Pubkey, Diagnostic> {
     Pubkey::from_str(str).map_err(|e| diagnosed_error!("invalid public key: {e}"))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TxtxDeploymentSigner {
     Payer,
     FinalAuthority,
@@ -78,7 +76,7 @@ impl TxtxDeploymentSigner {
 
 /// `transaction_with_keypairs` - The transaction to sign, with the keypairs we have on hand to sign them
 /// `signers` - The txtx signers (if any) that need to sign the transaction
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeploymentTransaction {
     pub signers: Option<Vec<TxtxDeploymentSigner>>,
     pub transaction: Option<Transaction>,
@@ -129,25 +127,68 @@ impl DeploymentTransaction {
         transaction: &Transaction,
         keypairs: Vec<&Keypair>,
         temp_authority_keypair: &Keypair,
+        already_exists: bool,
     ) -> Self {
         Self::new(
             transaction,
             keypairs,
             Some(vec![TxtxDeploymentSigner::Payer]),
-            DeploymentTransactionType::CreateTempAuthority(
-                temp_authority_keypair.to_bytes().to_vec(),
-            ),
+            DeploymentTransactionType::PrepareTempAuthority {
+                keypair_bytes: temp_authority_keypair.to_bytes().to_vec(),
+                already_exists,
+            },
             CommitmentLevel::Confirmed,
             true,
         )
     }
 
-    pub fn create_buffer(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
+    pub fn create_buffer(
+        transaction: &Transaction,
+        keypairs: Vec<&Keypair>,
+        buffer_pubkey: Pubkey,
+    ) -> Self {
         Self::new(
             transaction,
             keypairs,
             None,
-            DeploymentTransactionType::CreateBuffer,
+            DeploymentTransactionType::CreateBuffer { buffer_pubkey },
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn resize_buffer(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            None,
+            DeploymentTransactionType::ResizeBuffer,
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn create_buffer_and_extend_program(
+        transaction: &Transaction,
+        keypairs: Vec<&Keypair>,
+        buffer_pubkey: Pubkey,
+    ) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            None,
+            DeploymentTransactionType::CreateBufferAndExtendProgram { buffer_pubkey },
+            CommitmentLevel::Confirmed,
+            true,
+        )
+    }
+
+    pub fn extend_program(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
+        Self::new(
+            transaction,
+            keypairs,
+            None,
+            DeploymentTransactionType::ExtendProgram,
             CommitmentLevel::Confirmed,
             true,
         )
@@ -351,10 +392,16 @@ impl DeploymentTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> Result<Option<(Value, String)>, Diagnostic> {
         let meta_description = match &self.transaction_type {
-            DeploymentTransactionType::CreateTempAuthority(_) => {
-                "This transaction creates an ephemeral account that will execute the deployment."
+            DeploymentTransactionType::PrepareTempAuthority { already_exists, .. } => {
+                if *already_exists {
+                    "This transaction funds the provided ephemeral account."
+                } else {
+                    "This transaction creates an ephemeral account that will write to the program buffer. This reduces the number of manual signatures required."
+                }
             }
-            DeploymentTransactionType::CreateBuffer => return Ok(None),
+            DeploymentTransactionType::CreateBuffer { .. } => return Ok(None),
+            DeploymentTransactionType::CreateBufferAndExtendProgram { .. } => return Ok(None),
+            DeploymentTransactionType::ExtendProgram => return Ok(None),
             DeploymentTransactionType::WriteToBuffer => return Ok(None),
             DeploymentTransactionType::TransferBufferAuthority => return Ok(None),
             DeploymentTransactionType::TransferProgramAuthority => return Ok(None),
@@ -366,6 +413,7 @@ impl DeploymentTransaction {
             DeploymentTransactionType::SkipCloseTempAuthority => return Ok(None),
             DeploymentTransactionType::CheatcodeDeployment => return Ok(None),
             DeploymentTransactionType::CheatcodeUpgrade => return Ok(None),
+            DeploymentTransactionType::ResizeBuffer => return Ok(None),
         };
 
         let meta_description = get_formatted_transaction_meta_description(
@@ -374,45 +422,8 @@ impl DeploymentTransaction {
             signers_instances,
         );
 
-        let mut instructions = vec![];
-
-        let transaction = self.transaction.as_ref().unwrap();
-        let message_account_keys = transaction.message.account_keys.clone();
-        for instruction in transaction.message.instructions.iter() {
-            let Some(account) = message_account_keys.get(instruction.program_id_index as usize)
-            else {
-                continue;
-            };
-            let accounts = instruction
-                .accounts
-                .iter()
-                .filter_map(|a| {
-                    let Some(account) = message_account_keys.get(*a as usize) else {
-                        return None;
-                    };
-                    Some(Value::string(account.to_string()))
-                })
-                .collect::<Vec<Value>>();
-            let account_name = account.to_string();
-
-            instructions.push(
-                ObjectType::from(vec![
-                    ("program_id", Value::string(account_name)),
-                    (
-                        "instruction_data",
-                        Value::string(format!("0x{}", hex::encode(&instruction.data))),
-                    ),
-                    ("accounts", Value::array(accounts)),
-                ])
-                .to_value(),
-            );
-        }
-        let formatted_transaction = message_data_to_formatted_value(
-            &instructions,
-            transaction.message.header.num_required_signatures,
-            transaction.message.header.num_readonly_signed_accounts,
-            transaction.message.header.num_readonly_unsigned_accounts,
-        );
+        let formatted_transaction =
+            message_to_formatted_tx(&self.transaction.as_ref().unwrap().message);
 
         Ok(Some((formatted_transaction, meta_description)))
     }
@@ -453,34 +464,62 @@ impl DeploymentTransaction {
 
     pub fn pre_send_status_updates(
         &self,
-        status_updater: &mut StatusUpdater,
+        logger: &LogDispatcher,
         transaction_index: usize,
         transaction_count: usize,
     ) -> Result<(), Diagnostic> {
         match &self.transaction_type {
             DeploymentTransactionType::SkipCloseTempAuthority => {
-                status_updater.propagate_info(&format!(
+                logger.info(
+                    "Ephemeral Account Closed",
+                    format!(
                     "Ephemeral authority account has no leftover funds; skipping transaction to close the account",
                 ));
                 return Ok(());
             }
-            DeploymentTransactionType::CreateTempAuthority(temp_authority_keypair_bytes) => {
+            DeploymentTransactionType::PrepareTempAuthority {
+                keypair_bytes: temp_authority_keypair_bytes,
+                already_exists,
+            } => {
                 let temp_authority_keypair = Keypair::from_bytes(&temp_authority_keypair_bytes)
                     .map_err(|e| {
                         diagnosed_error!("failed to deserialize temp authority keypair: {}", e)
                     })?;
-                status_updater
-                    .propagate_info("An ephemeral authority account will be created and funded to write to the buffer account.");
-                status_updater
-                    .propagate_info("Please save the following information in case the deployment fails and the account needs to be recovered:");
-                status_updater.propagate_info(&format!(
-                    "Ephemeral authority public key: {}",
-                    temp_authority_keypair.pubkey()
-                ));
-                status_updater.propagate_info(&format!(
-                    "Ephemeral authority secret key: {}",
-                    temp_authority_keypair.to_base58_string()
-                ));
+                if *already_exists {
+                    logger.info(
+                        "Failure Recovery Info",
+                        format!(
+                            "Using the provided Ephemeral authority with pubkey: {}",
+                            temp_authority_keypair.pubkey()
+                        ),
+                    );
+                } else {
+                    logger
+                    .info("Failure Recovery Info","An ephemeral authority account will be created and funded to write to the buffer account.");
+                    logger
+                    .info("Failure Recovery Info","Please save the following information in case the deployment fails and the account needs to be recovered:");
+                    logger.info(
+                        "Failure Recovery Info",
+                        format!(
+                            "Ephemeral authority public key: {}",
+                            temp_authority_keypair.pubkey()
+                        ),
+                    );
+                    logger.info(
+                        "Failure Recovery Info",
+                        format!(
+                            "Ephemeral authority secret key: {}",
+                            temp_authority_keypair.to_base58_string()
+                        ),
+                    );
+                }
+            }
+            DeploymentTransactionType::CreateBuffer { buffer_pubkey }
+            | DeploymentTransactionType::CreateBufferAndExtendProgram { buffer_pubkey } => {
+                logger.info(
+                    "Failure Recovery Info",
+                    format!("Creating program buffer account at pubkey {}", buffer_pubkey),
+                );
             }
             _ => {}
         };
@@ -490,66 +529,79 @@ impl DeploymentTransaction {
             | DeploymentTransactionType::CheatcodeUpgrade => false,
             _ => true,
         } {
-            status_updater.propagate_pending_status(&format!(
-                "Sending transaction {}/{}",
-                transaction_index + 1,
-                transaction_count
-            ));
+            logger.pending_info(
+                "Pending",
+                &format!("Sending transaction {}/{}", transaction_index + 1, transaction_count),
+            );
         }
 
         Ok(())
     }
 
-    pub fn post_send_status_updates(&self, status_updater: &mut StatusUpdater, program_id: Pubkey) {
+    pub fn post_send_status_updates(&self, logger: &LogDispatcher, program_id: Pubkey) {
         match self.transaction_type {
-            DeploymentTransactionType::CreateTempAuthority(_) => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
+            DeploymentTransactionType::PrepareTempAuthority { already_exists, .. } => {
+                logger.info(
                     "Account Created",
-                    "Ephemeral authority account created to write to buffer",
-                ));
+                    format!(
+                        "Ephemeral authority account{} funded to write to buffer",
+                        if already_exists { "" } else { " created and" }
+                    ),
+                );
             }
-            DeploymentTransactionType::CreateBuffer => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
-                    "Account Created",
-                    "Program buffer creation complete",
-                ));
+            DeploymentTransactionType::CreateBuffer { .. } => {
+                logger.info("Account Created", "Program buffer account created");
             }
             DeploymentTransactionType::DeployProgram => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
+                logger.success_info(
                     "Program Created",
-                    &format!("Program {} has been deployed", program_id,),
-                ));
+                    format!("Program {} has been deployed", program_id),
+                );
             }
             DeploymentTransactionType::UpgradeProgram => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
+                logger.success_info(
                     "Program Upgraded",
-                    &format!("Program {} has been upgraded", program_id,),
-                ));
+                    format!("Program {} has been upgraded", program_id),
+                );
             }
             DeploymentTransactionType::CloseTempAuthority => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
+                logger.success_info(
                     "Complete",
                     "Ephemeral authority account closed and leftover funds returned to payer",
-                ));
+                );
             }
             DeploymentTransactionType::CheatcodeDeployment => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
-                    "Program Created",
-                    &format!("Program {} has been deployed", program_id,),
-                ));
+                logger.info("Program Created", format!("Program {} has been deployed", program_id));
             }
             DeploymentTransactionType::CheatcodeUpgrade => {
-                status_updater.propagate_status(ProgressBarStatus::new_msg(
-                    ProgressBarStatusColor::Green,
-                    "Program Upgraded",
-                    &format!("Program {} has been upgraded", program_id,),
-                ));
+                logger
+                    .info("Program Upgraded", format!("Program {} has been upgraded", program_id));
+            }
+            DeploymentTransactionType::WriteToBuffer =>
+            // if it's a buffer write and do_await_confirmation=true, this is our last buffer write tx
+            {
+                if self.do_await_confirmation {
+                    logger.success_info("Buffer Ready", "Writing to buffer account is complete")
+                }
+            }
+            DeploymentTransactionType::TransferBufferAuthority => {
+                logger.success_info(
+                    "Buffer Authority Transferred",
+                    "Buffer authority has been transferred to authority signer",
+                );
+            }
+            _ => {}
+        }
+    }
+
+    pub fn post_send_actions(&self, rpc_api_url: &str) {
+        match self.transaction_type {
+            // We want to avoid more than one transaction impacting the program account in a single slot
+            // (because the bpf program throws if so), so after the extend program tx we'll wait one slot before continuing
+            DeploymentTransactionType::ExtendProgram
+            | DeploymentTransactionType::CreateBufferAndExtendProgram { .. } => {
+                let rpc_client = RpcClient::new(rpc_api_url.to_string());
+                wait_n_slots(&rpc_client, 1);
             }
             _ => {}
         }
@@ -662,7 +714,7 @@ pub struct UpgradeableProgramDeployer {
     /// If there are failures in the deployment, the same buffer account can be provided to retry the deployment.
     pub buffer_pubkey: Pubkey,
     /// The keypair of the buffer account.
-    pub buffer_keypair: Keypair,
+    pub buffer_keypair: Option<Keypair>,
     /// The data of the buffer account from the previous deployment attempt.
     pub buffer_data: Vec<u8>,
     /// The binary of the program to deploy.
@@ -677,6 +729,8 @@ pub struct UpgradeableProgramDeployer {
     pub is_surfnet: bool,
     /// Whether to perform a hot swap of the program deployment (using surfnet cheatcodes).
     pub do_cheatcode_deploy: bool,
+    /// If continuing a deployment, the new size of the program data account.
+    pub new_size: Option<u64>,
 }
 
 pub enum KeypairOrTxSigner {
@@ -707,20 +761,87 @@ impl UpgradeableProgramDeployer {
         binary: &Vec<u8>,
         payer_pubkey: &Pubkey,
         rpc_client: RpcClient,
-        existing_program_buffer_opts: Option<(Pubkey, Keypair, Vec<u8>)>,
+        existing_program_buffer_opts: Option<Pubkey>,
         auto_extend: Option<bool>,
         is_surfnet: bool,
         hot_swap: bool,
     ) -> Result<Self, Diagnostic> {
-        let (buffer_pubkey, buffer_keypair, buffer_data) = match existing_program_buffer_opts {
-            Some((buffer_pubkey, buffer_keypair, buffer_data)) => {
-                (buffer_pubkey, buffer_keypair, buffer_data)
-            }
-            None => {
-                let (_buffer_words, _buffer_mnemonic, buffer_keypair) = create_ephemeral_keypair();
-                (buffer_keypair.pubkey(), buffer_keypair, vec![0; binary.len()])
-            }
-        };
+        let (buffer_pubkey, buffer_keypair, buffer_data, new_size) =
+            match existing_program_buffer_opts {
+                Some(buffer_pubkey) => {
+                    let buffer_account = rpc_client.get_account(&buffer_pubkey).map_err(|e| {
+                        diagnosed_error!(
+                            "failed to fetch existing buffer account {}: {}",
+                            buffer_pubkey,
+                            e
+                        )
+                    })?;
+
+                    if buffer_account.owner != bpf_loader_upgradeable::id() {
+                        return Err(diagnosed_error!(
+                            "buffer account {} is not owned by the bpf_loader_upgradeable program",
+                            buffer_pubkey
+                        ));
+                    }
+
+                    let mut cursor = std::io::Cursor::new(&buffer_account.data);
+                    // Deserialize only the prefix into UpgradeableLoaderState
+                    let state: UpgradeableLoaderState =
+                        bincode::deserialize_from(&mut cursor).map_err(|e| e.to_string())?;
+                    // Figure out how many bytes we consumed
+                    let state_len = cursor.position() as usize;
+
+                    // The rest is the ELF program data
+                    let program_bytes = &buffer_account.data[state_len..];
+
+                    let new_size = if program_bytes.len() < binary.len() {
+                        return Err(diagnosed_error!(
+                            "existing buffer account {} is sized for a smaller program ({} bytes) than the new program binary ({} bytes); please create a new buffer account",
+                            buffer_pubkey,
+                            program_bytes.len(),
+                            binary.len()
+                        ));
+                    } else if program_bytes.len() > binary.len() {
+                        // Todo: once we have a deterministic buffer account keypair, we can resize the buffer account
+                        // Some(binary.len() as u64)
+                        None
+                    } else {
+                        None
+                    };
+
+                    let (authority_address, program_bytes) = match state {
+                        UpgradeableLoaderState::Buffer { authority_address } => {
+                            (authority_address, program_bytes)
+                        }
+                        _ => {
+                            return Err(diagnosed_error!(
+                                "provided buffer pubkey {} is not a buffer account",
+                                buffer_pubkey
+                            ))
+                        }
+                    };
+
+                    let Some(authority_address) = authority_address else {
+                        return Err(diagnosed_error!(
+                            "buffer account {} has no authority set, so it can't be written to",
+                            buffer_pubkey
+                        ));
+                    };
+
+                    if authority_address != temp_authority_keypair.pubkey() {
+                        return Err(diagnosed_error!(
+                        "buffer account {} authority does not match the provided temp authority pubkey",
+                        buffer_pubkey
+                    ));
+                    }
+                    (buffer_pubkey, None, program_bytes.to_vec(), new_size)
+                }
+                None => {
+                    let (_buffer_words, _buffer_mnemonic, buffer_keypair) =
+                        create_ephemeral_keypair();
+                    (buffer_keypair.pubkey(), Some(buffer_keypair), vec![0; binary.len()], None)
+                }
+            };
 
         let is_program_upgrade = !UpgradeableProgramDeployer::should_do_initial_deploy(
             &rpc_client,
@@ -744,6 +865,7 @@ impl UpgradeableProgramDeployer {
             is_program_upgrade,
             is_surfnet,
             do_cheatcode_deploy: hot_swap && is_surfnet,
+            new_size,
         })
     }
 
@@ -773,7 +895,7 @@ impl UpgradeableProgramDeployer {
                     vec![DeploymentTransaction::cheatcode_deploy(self.final_upgrade_authority_pubkey.clone(), self.binary.clone()).to_value()?]
                 } else {
                     // create the buffer account
-                    let create_account_transaction =
+                    let create_buffer_account_transaction =
                         self.get_create_buffer_transaction(&recent_blockhash)?;
 
                     // write transaction data to the buffer account
@@ -787,7 +909,10 @@ impl UpgradeableProgramDeployer {
                     // transfer the program authority from the temp authority to the final authority
                     let transfer_authority = self.get_set_program_authority_to_final_authority_transaction(&recent_blockhash)?;
 
-                    let mut transactions = vec![create_account_transaction];
+                    let mut transactions = vec![];
+                    if let Some(create_buffer_transaction) = create_buffer_account_transaction {
+                        transactions.push(create_buffer_transaction);
+                    }
                     transactions.append(&mut write_transactions);
                     transactions.push(finalize_transaction);
                     transactions.push(transfer_authority);
@@ -813,7 +938,10 @@ impl UpgradeableProgramDeployer {
                     // upgrade the program, with the final authority as program authority
                     let upgrade_transaction = self.get_upgrade_transaction(&recent_blockhash)?;
 
-                    let mut transactions = vec![prepare_program_upgrade_transaction];
+                    let mut transactions = vec![];
+                    if let Some(prepare_program_upgrade_transaction) = prepare_program_upgrade_transaction {
+                        transactions.push(prepare_program_upgrade_transaction);
+                    }
                     transactions.append(&mut write_transactions);
                     transactions.push(transfer_authority);
                     transactions.push(upgrade_transaction);
@@ -912,13 +1040,29 @@ impl UpgradeableProgramDeployer {
         // add 20% buffer
         let lamports = ((lamports as f64) * 1.2).round() as u64;
 
-        let instruction = system_instruction::create_account(
-            &self.payer_pubkey,
-            &self.temp_upgrade_authority_pubkey,
-            lamports,
-            0,
-            &solana_sdk::system_program::id(),
-        );
+        let account_exists =
+            self.rpc_client.get_account(&self.temp_upgrade_authority_pubkey).is_ok();
+        let (instruction, keypairs) = if account_exists {
+            (
+                system_instruction::transfer(
+                    &self.payer_pubkey,
+                    &self.temp_upgrade_authority_pubkey,
+                    lamports,
+                ),
+                vec![],
+            )
+        } else {
+            (
+                system_instruction::create_account(
+                    &self.payer_pubkey,
+                    &self.temp_upgrade_authority_pubkey,
+                    lamports,
+                    0,
+                    &solana_sdk::system_program::id(),
+                ),
+                vec![&self.temp_upgrade_authority],
+            )
+        };
         let message =
             Message::new_with_blockhash(&[instruction], Some(&self.payer_pubkey), &blockhash);
 
@@ -926,8 +1070,9 @@ impl UpgradeableProgramDeployer {
 
         DeploymentTransaction::create_temp_account(
             &transaction,
-            vec![&self.temp_upgrade_authority],
+            keypairs,
             &self.temp_upgrade_authority,
+            account_exists,
         )
         .to_value()
     }
@@ -954,22 +1099,46 @@ impl UpgradeableProgramDeployer {
         .map_err(|e| diagnosed_error!("failed to create buffer: {e}"))
     }
 
-    fn get_create_buffer_transaction(&self, blockhash: &Hash) -> Result<Value, Diagnostic> {
-        let create_buffer_instruction = self.get_create_buffer_instruction()?;
+    fn get_create_buffer_transaction(&self, blockhash: &Hash) -> Result<Option<Value>, Diagnostic> {
+        if let Some(buffer_keypair) = self.buffer_keypair.as_ref() {
+            let create_buffer_instruction = self.get_create_buffer_instruction()?;
 
-        let message = Message::new_with_blockhash(
-            &create_buffer_instruction,
-            Some(&self.temp_upgrade_authority_pubkey), // todo: can this be none? isn't the payer already set in the instruction
-            &blockhash,
-        );
+            let message = Message::new_with_blockhash(
+                &create_buffer_instruction,
+                Some(&self.temp_upgrade_authority_pubkey), // todo: can this be none? isn't the payer already set in the instruction
+                &blockhash,
+            );
 
-        let transaction = Transaction::new_unsigned(message);
+            let transaction = Transaction::new_unsigned(message);
 
-        DeploymentTransaction::create_buffer(
-            &transaction,
-            vec![&self.temp_upgrade_authority, &self.buffer_keypair],
-        )
-        .to_value()
+            let tx = DeploymentTransaction::create_buffer(
+                &transaction,
+                vec![&self.temp_upgrade_authority, &buffer_keypair],
+                buffer_keypair.pubkey(),
+            )
+            .to_value()?;
+            Ok(Some(tx))
+        } else if let Some(new_size) = self.new_size {
+            // Todo: once we have a deterministic buffer account keypair, we can resize the buffer account
+            let buffer_pubkey = self.buffer_pubkey;
+            let allocate_instruction = system_instruction::allocate(&buffer_pubkey, new_size);
+
+            let message = Message::new_with_blockhash(
+                &vec![allocate_instruction],
+                Some(&self.temp_upgrade_authority_pubkey),
+                &blockhash,
+            );
+
+            let transaction = Transaction::new_unsigned(message);
+            let tx = DeploymentTransaction::resize_buffer(
+                &transaction,
+                vec![&self.temp_upgrade_authority],
+            )
+            .to_value()?;
+            Ok(Some(tx))
+        } else {
+            Ok(None)
+        }
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2807
@@ -1032,27 +1201,75 @@ impl UpgradeableProgramDeployer {
     fn get_prepare_program_upgrade_transaction(
         &self,
         blockhash: &Hash,
-    ) -> Result<Value, Diagnostic> {
-        let mut instructions = self.get_create_buffer_instruction()?;
-        if self.auto_extend {
+    ) -> Result<Option<Value>, Diagnostic> {
+        let create_buffer_instructions = if self.buffer_keypair.is_some() {
+            let create_buffer_instructions = self.get_create_buffer_instruction()?;
+            Some(create_buffer_instructions)
+        } else {
+            None
+        };
+
+        let extend_program_instruction = if self.auto_extend {
             if let Some(extend_program_instruction) = self.get_extend_program_instruction()? {
-                instructions.push(extend_program_instruction);
-            };
+                Some(extend_program_instruction)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        fn prep_tx(ixs: &[Instruction], blockhash: &Hash, payer: &Pubkey) -> Transaction {
+            let message = Message::new_with_blockhash(ixs, Some(payer), blockhash);
+            Transaction::new_unsigned(message)
         }
 
-        let message = Message::new_with_blockhash(
-            &instructions,
-            Some(&self.temp_upgrade_authority_pubkey), // todo: can this be none? isn't the payer already set in the instruction
-            &blockhash,
-        );
+        let tx = match (create_buffer_instructions, extend_program_instruction) {
+            (Some(mut create_buffer_instructions), Some(extend_program_instruction)) => {
+                create_buffer_instructions.push(extend_program_instruction);
+                let transaction = prep_tx(
+                    &create_buffer_instructions,
+                    &blockhash,
+                    &self.temp_upgrade_authority_pubkey,
+                );
+                DeploymentTransaction::create_buffer_and_extend_program(
+                    &transaction,
+                    vec![&self.temp_upgrade_authority, self.buffer_keypair.as_ref().unwrap()],
+                    self.buffer_keypair.as_ref().unwrap().pubkey(),
+                )
+                .to_value()?
+            }
+            (Some(create_buffer_instructions), None) => {
+                let transaction = prep_tx(
+                    &create_buffer_instructions,
+                    &blockhash,
+                    &self.temp_upgrade_authority_pubkey,
+                );
+                DeploymentTransaction::create_buffer(
+                    &transaction,
+                    vec![&self.temp_upgrade_authority, self.buffer_keypair.as_ref().unwrap()],
+                    self.buffer_keypair.as_ref().unwrap().pubkey(),
+                )
+                .to_value()?
+            }
+            (None, Some(extend_program_instruction)) => {
+                let transaction = prep_tx(
+                    &vec![extend_program_instruction],
+                    &blockhash,
+                    &self.temp_upgrade_authority_pubkey,
+                );
+                DeploymentTransaction::extend_program(
+                    &transaction,
+                    vec![&self.temp_upgrade_authority],
+                )
+                .to_value()?
+            }
+            (None, None) => {
+                return Ok(None);
+            }
+        };
 
-        let transaction = Transaction::new_unsigned(message);
-
-        DeploymentTransaction::create_buffer(
-            &transaction,
-            vec![&self.temp_upgrade_authority, &self.buffer_keypair],
-        )
-        .to_value()
+        Ok(Some(tx))
     }
 
     // Mostly copied from solana cli: https://github.com/txtx/solana/blob/8116c10021f09c806159852f65d37ffe6d5a118e/cli/src/program.rs#L2455
@@ -1080,8 +1297,11 @@ impl UpgradeableProgramDeployer {
 
         for (chunk, i) in chunks.iter().zip(0usize..) {
             let offset = i.saturating_mul(chunk_size);
+
+            let written_chunk = &self.buffer_data.get(offset..offset.saturating_add(chunk.len()));
             // Only write the chunk if it differs from our initial buffer data
-            if *chunk != &self.buffer_data[offset..offset.saturating_add(chunk.len())] {
+            let do_write = written_chunk.is_none() || written_chunk.unwrap() != *chunk;
+            if do_write {
                 let transaction =
                     Transaction::new_unsigned(create_msg(offset as u32, chunk.to_vec()));
 
@@ -1243,7 +1463,7 @@ impl UpgradeableProgramDeployer {
                 .map_err(|e| {
                     diagnosed_error!("failed to get minimum balance for rent exemption: {e}")
                 })?,
-            self.binary.len(),
+            self.binary.len().max(self.buffer_data.len()),
         )
         .map_err(|e| {
             diagnosed_error!("failed to create deploy with max program len instruction: {e}")

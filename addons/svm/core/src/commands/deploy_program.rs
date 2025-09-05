@@ -3,13 +3,16 @@ use std::str::FromStr;
 use std::vec;
 
 use solana_client::rpc_client::RpcClient;
+use solana_sdk::bs58;
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
+use solana_sdk::signature::Keypair;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
     DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID,
     NESTED_CONSTRUCT_INDEX, SIGNATURE_APPROVED, SIGNED_TRANSACTION_BYTES,
 };
+use txtx_addon_kit::futures::future;
 use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::cloud_interface::{CloudService, CloudServiceContext};
 use txtx_addon_kit::types::commands::{
@@ -18,7 +21,7 @@ use txtx_addon_kit::types::commands::{
 };
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::{
-    Actions, BlockEvent, ProvideSignedTransactionRequest, StatusUpdater,
+    Actions, BlockEvent, LogDispatcher, ProvideSignedTransactionRequest,
 };
 use txtx_addon_kit::types::signers::{
     return_synchronous, PrepareSignedNestedExecutionResult, SignerActionsFutureResult,
@@ -34,10 +37,12 @@ use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::utils::cheatcode_deploy_program;
 use crate::codec::{DeploymentTransaction, ProgramArtifacts, UpgradeableProgramDeployer};
 use crate::constants::{
-    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, CHECKED_PUBLIC_KEY,
-    COMMITMENT_LEVEL, DO_AWAIT_CONFIRMATION, FORMATTED_TRANSACTION, INSTANT_SURFNET_DEPLOYMENT,
-    IS_DEPLOYMENT, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR,
-    PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES, SIGNERS, SLOT, TRANSACTION_BYTES,
+    ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, BUFFER_ACCOUNT_PUBKEY,
+    CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DEPLOYMENT_TRANSACTIONS, DEPLOYMENT_TRANSACTION_TYPE,
+    DO_AWAIT_CONFIRMATION, EPHEMERAL_AUTHORITY_SECRET_KEY, FORMATTED_TRANSACTION,
+    INSTANT_SURFNET_DEPLOYMENT, IS_DEPLOYMENT, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM,
+    PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES,
+    SIGNERS, SLOT, TRANSACTION_BYTES,
 };
 use crate::typing::{
     DeploymentTransactionType, SvmValue, ANCHOR_PROGRAM_ARTIFACTS,
@@ -45,7 +50,7 @@ use crate::typing::{
 };
 
 use super::get_custom_signer_did;
-use super::sign_transaction::SignTransaction;
+use super::sign_transaction::{check_signed_executability, run_signed_execution};
 
 lazy_static! {
     pub static ref DEPLOY_PROGRAM: PreCommandSpecification = {
@@ -108,6 +113,22 @@ lazy_static! {
                     instant_surfnet_deployment: {
                         documentation: "If set to `true`, deployments to a Surfnet will be instantaneous, deploying via a cheatcode to directly write to the program account, rather than sending transactions. Defaults to `false`.",
                         typing: Type::bool(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
+                    },
+                    ephemeral_authority_secret_key: {
+                        documentation: "An optional base-58 encoded keypair string to use as the temporary upgrade authority during deployment. If not provided, a new ephemeral keypair will be generated.",
+                        typing: Type::string(),
+                        optional: true,
+                        tainting: false,
+                        internal: true,
+                        sensitive: true
+                    },
+                    buffer_account_pubkey: {
+                        documentation: "The public key of the buffer account to use to continue a failed deployment.",
+                        typing: Type::string(),
                         optional: true,
                         tainting: false,
                         internal: false,
@@ -253,7 +274,7 @@ impl CommandImplementation for DeployProgram {
         };
 
         let (program_id, transactions) = match authority_signer_state
-            .get_scoped_value(&construct_did.to_string(), "deployment_transactions")
+            .get_scoped_value(&construct_did.to_string(), DEPLOYMENT_TRANSACTIONS)
         {
             Some(transactions) => {
                 let program_id = authority_signer_state
@@ -263,7 +284,7 @@ impl CommandImplementation for DeployProgram {
             }
             None => {
                 let temp_authority_keypair = match authority_signer_state
-                    .get_scoped_value(&construct_did.to_string(), "temp_authority_keypair")
+                    .get_scoped_value(&construct_did.to_string(), EPHEMERAL_AUTHORITY_SECRET_KEY)
                 {
                     Some(kp) => SvmValue::to_keypair(kp).map_err(|e| {
                         (
@@ -273,11 +294,46 @@ impl CommandImplementation for DeployProgram {
                         )
                     })?,
                     None => {
-                        let temp_authority_keypair =
-                            UpgradeableProgramDeployer::create_temp_authority();
+                        let temp_authority_keypair = match values
+                            .get_value(EPHEMERAL_AUTHORITY_SECRET_KEY)
+                        {
+                            Some(kp) => match kp.as_string() {
+                                Some(s) => {
+                                    let bytes = bs58::decode(s).into_vec().map_err(|e| {
+                                        (
+                                            signers.clone(),
+                                            authority_signer_state.clone(),
+                                            diagnosed_error!(
+                                                "ephemeral authority keypair must be a base-58 encoded string: {}",
+                                                e
+                                            ),
+                                        )
+                                    })?;
+                                    Keypair::from_bytes(&bytes).map_err(|e| {
+                                        (
+                                            signers.clone(),
+                                            authority_signer_state.clone(),
+                                            diagnosed_error!(
+                                                "invalid ephemeral authority keypair bytes: {}",
+                                                e
+                                            ),
+                                        )
+                                    })?
+                                }
+                                None => {
+                                    return Err((
+                                        signers.clone(),
+                                        authority_signer_state.clone(),
+                                        diagnosed_error!("provided ephemeral authority keypair must be a base-58 encoded string"),
+                                    ));
+                                }
+                            },
+                            None => UpgradeableProgramDeployer::create_temp_authority(),
+                        };
+
                         authority_signer_state.insert_scoped_value(
                             &construct_did.to_string(),
-                            "temp_authority_keypair",
+                            EPHEMERAL_AUTHORITY_SECRET_KEY,
                             SvmValue::keypair(temp_authority_keypair.to_bytes().to_vec()),
                         );
                         temp_authority_keypair
@@ -290,6 +346,19 @@ impl CommandImplementation for DeployProgram {
                     _ => None,
                 };
 
+                let buffer_pubkey = values
+                    .get_value(BUFFER_ACCOUNT_PUBKEY)
+                    .map(|v| {
+                        SvmValue::to_pubkey(&v).map_err(|e| {
+                            (
+                                signers.clone(),
+                                authority_signer_state.clone(),
+                                diagnosed_error!("invalid buffer account pubkey: {}", e),
+                            )
+                        })
+                    })
+                    .transpose()?;
+
                 let mut deployer = UpgradeableProgramDeployer::new(
                     program_pubkey,
                     program_keypair,
@@ -298,7 +367,7 @@ impl CommandImplementation for DeployProgram {
                     &program_artifacts.bin(),
                     &payer_pubkey,
                     rpc_client,
-                    None,
+                    buffer_pubkey,
                     auto_extend,
                     is_surfnet,
                     do_cheatcode_deployment,
@@ -328,7 +397,7 @@ impl CommandImplementation for DeployProgram {
 
                 authority_signer_state.insert_scoped_value(
                     &construct_did.to_string(),
-                    "deployment_transactions",
+                    DEPLOYMENT_TRANSACTIONS,
                     Value::array(transactions.clone()),
                 );
                 (program_id, Value::array(transactions))
@@ -370,7 +439,7 @@ impl CommandImplementation for DeployProgram {
 
             value_store.insert_scoped_value(
                 &new_did.to_string(),
-                "deployment_transaction_type",
+                DEPLOYMENT_TRANSACTION_TYPE,
                 Value::string(deployment_transaction_type.to_string()),
             );
 
@@ -415,7 +484,7 @@ impl CommandImplementation for DeployProgram {
     fn check_signed_executability(
         construct_did: &ConstructDid,
         instance_name: &str,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         values: &ValueStore,
         supervision_context: &RunbookSupervisionContext,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
@@ -454,7 +523,7 @@ impl CommandImplementation for DeployProgram {
             _ => false,
         } {
             if authority_signer_state
-                .get_scoped_value(&&construct_did.to_string(), SIGNATURE_APPROVED)
+                .get_scoped_value(&&nested_construct_did.to_string(), SIGNATURE_APPROVED)
                 .is_some()
                 || !supervision_context.review_input_values
             {
@@ -532,16 +601,16 @@ impl CommandImplementation for DeployProgram {
                 values.insert(FORMATTED_TRANSACTION, formatted_transaction);
                 values.insert(META_DESCRIPTION, Value::string(meta_description));
             }
-            return SignTransaction::check_signed_executability(
-                construct_did,
+            let res = check_signed_executability(
+                &nested_construct_did,
                 instance_name,
-                spec,
                 &values,
                 supervision_context,
                 signers_instances,
                 signers,
                 auth_context,
             );
+            return Ok(Box::pin(future::ready(res)));
         } else {
             return return_synchronous((signers, authority_signer_state, Actions::none()));
         }
@@ -549,15 +618,16 @@ impl CommandImplementation for DeployProgram {
 
     fn run_signed_execution(
         construct_did: &ConstructDid,
-        spec: &CommandSpecification,
+        _spec: &CommandSpecification,
         values: &ValueStore,
-        progress_tx: &channel::Sender<BlockEvent>,
+        _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
     ) -> SignerSignFutureResult {
         let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
         let authority_signer_state =
             signers.get_signer_state(&authority_signer_did).unwrap().clone();
+
         let program_id_value = authority_signer_state
             .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
             .unwrap()
@@ -566,11 +636,7 @@ impl CommandImplementation for DeployProgram {
             .get_scoped_value(&construct_did.to_string(), PROGRAM_IDL)
             .cloned();
 
-        let progress_tx = progress_tx.clone();
         let signers_instances = signers_instances.clone();
-        let construct_did = construct_did.clone();
-        let spec = spec.clone();
-        let progress_tx = progress_tx.clone();
         let mut values = values.clone();
 
         let future = async move {
@@ -642,14 +708,8 @@ impl CommandImplementation for DeployProgram {
             values.insert(IS_DEPLOYMENT, Value::bool(true));
             values.insert(TRANSACTION_BYTES, transaction_value.clone());
 
-            let run_signing_future = SignTransaction::run_signed_execution(
-                &construct_did,
-                &spec,
-                &values,
-                &progress_tx,
-                &signers_instances,
-                signers,
-            );
+            let run_signing_future =
+                run_signed_execution(&nested_construct_did, &values, &signers_instances, signers);
             let (signers, signer_state, mut signin_res) = match run_signing_future {
                 Ok(future) => match future.await {
                     Ok(res) => res,
@@ -658,14 +718,15 @@ impl CommandImplementation for DeployProgram {
                 Err(err) => return Err(err),
             };
 
-            let signed_transaction_value =
-                signin_res.outputs.remove(SIGNED_TRANSACTION_BYTES).unwrap();
+            let some_signed_transaction_value = signin_res.outputs.remove(SIGNED_TRANSACTION_BYTES);
             result.append(&mut signin_res);
 
-            result.outputs.insert(
-                format!("{}:{}", &nested_construct_did.to_string(), SIGNED_TRANSACTION_BYTES),
-                signed_transaction_value,
-            );
+            if let Some(signed_transaction_value) = some_signed_transaction_value {
+                result.outputs.insert(
+                    format!("{}:{}", &nested_construct_did.to_string(), SIGNED_TRANSACTION_BYTES),
+                    signed_transaction_value,
+                );
+            }
 
             return Ok((signers, signer_state, result));
         };
@@ -678,7 +739,7 @@ impl CommandImplementation for DeployProgram {
         inputs: &ValueStore,
         outputs: &ValueStore,
         progress_tx: &channel::Sender<BlockEvent>,
-        background_tasks_uuid: &Uuid,
+        _background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
         cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
@@ -687,7 +748,6 @@ impl CommandImplementation for DeployProgram {
         let mut inputs = inputs.clone();
         let outputs = outputs.clone();
         let progress_tx = progress_tx.clone();
-        let background_tasks_uuid = background_tasks_uuid.clone();
         let supervision_context = supervision_context.clone();
         let cloud_service_context = cloud_service_context.clone();
 
@@ -712,16 +772,12 @@ impl CommandImplementation for DeployProgram {
 
             let rpc_api_url = inputs.get_expected_string(RPC_API_URL).unwrap().to_string();
 
-            let mut status_updater = StatusUpdater::new_with_default_progress_index(
-                &background_tasks_uuid,
-                &construct_did,
-                &progress_tx,
-                transaction_index as usize,
-            );
+            let logger =
+                LogDispatcher::new(construct_did.as_uuid(), "svm::deploy_program", &progress_tx);
 
             deployment_transaction
                 .pre_send_status_updates(
-                    &mut status_updater,
+                    &logger,
                     transaction_index as usize,
                     transaction_count as usize,
                 )
@@ -744,13 +800,15 @@ impl CommandImplementation for DeployProgram {
                     CommandExecutionResult::new()
                 }
                 _ => {
-                    let signed_transaction_value = inputs
+                    let Some(signed_transaction_value) = inputs
                         .get_scoped_value(
                             &nested_construct_did.to_string(),
                             SIGNED_TRANSACTION_BYTES,
                         )
-                        .unwrap()
-                        .clone();
+                        .cloned()
+                    else {
+                        return Ok(CommandExecutionResult::from_value_store(&outputs));
+                    };
 
                     inputs.insert(IS_DEPLOYMENT, Value::bool(true));
                     inputs.insert(SIGNED_TRANSACTION_BYTES, signed_transaction_value.clone());
@@ -769,7 +827,6 @@ impl CommandImplementation for DeployProgram {
                         &inputs,
                         &outputs,
                         &progress_tx,
-                        &background_tasks_uuid,
                         &supervision_context,
                     ) {
                         Ok(res) => match res.await {
@@ -788,7 +845,8 @@ impl CommandImplementation for DeployProgram {
                 }
             };
 
-            deployment_transaction.post_send_status_updates(&mut status_updater, program_id);
+            deployment_transaction.post_send_status_updates(&logger, program_id);
+            deployment_transaction.post_send_actions(&rpc_api_url);
 
             if transaction_index == transaction_count - 1 {
                 let rpc_client = RpcClient::new(rpc_api_url);
@@ -864,11 +922,10 @@ impl CommandImplementation for DeployProgram {
 
         for (res, (nested_construct_did, values)) in nested_results.iter().zip(nested_values) {
             let tx_type = values
-                .get_scoped_value(&nested_construct_did.to_string(), "deployment_transaction_type")
+                .get_scoped_value(&nested_construct_did.to_string(), DEPLOYMENT_TRANSACTION_TYPE)
                 .unwrap()
                 .as_string()
                 .unwrap();
-            let tx_type = DeploymentTransactionType::from_string(&tx_type);
 
             if let Some(signature) =
                 res.outputs.get(&format!("{}:{}", &nested_construct_did.to_string(), SIGNATURE))

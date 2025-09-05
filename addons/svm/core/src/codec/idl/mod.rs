@@ -1,4 +1,4 @@
-mod convert_idl;
+pub mod convert_idl;
 
 use std::str::FromStr;
 

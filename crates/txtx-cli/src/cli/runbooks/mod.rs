@@ -3,18 +3,19 @@ use crate::{get_addon_by_namespace, get_available_addons};
 use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::Itertools;
+use log::{debug, error, info, trace, warn};
 use std::{
     collections::{BTreeMap, HashSet},
     env,
     fs::{self, File},
-    io::Write,
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 use tokio::sync::RwLock;
 use txtx_cloud::router::TxtxAuthenticatedCloudServiceRouter;
-use txtx_core::templates::{build_manifest_data, build_runbook_data};
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     mustache,
@@ -30,7 +31,7 @@ use txtx_core::{
         types::{
             commands::{CommandId, CommandInputsEvaluationResult},
             diagnostics::Diagnostic,
-            frontend::{BlockEvent, ProgressBarStatusColor},
+            frontend::BlockEvent,
             stores::AddonDefaults,
             types::Value,
             AuthorizationContext, Did, PackageId,
@@ -47,16 +48,40 @@ use txtx_core::{
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
     types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
 };
-use txtx_gql::kit::types::{cloud_interface::CloudServiceContext, types::AddonJsonConverter};
+use txtx_core::{
+    runbook::DEFAULT_TOP_LEVEL_INPUTS_NAME,
+    templates::{build_manifest_data, build_runbook_data},
+};
+use txtx_gql::kit::{
+    types::{
+        cloud_interface::CloudServiceContext,
+        frontend::{LogDetails, LogEvent, LogLevel, TransientLogEventStatus},
+        types::AddonJsonConverter,
+        RunbookInstanceContext,
+    },
+    uuid::Uuid,
+};
 
 #[cfg(feature = "supervisor_ui")]
 use actix_web::dev::ServerHandle;
+#[cfg(feature = "supervisor_ui")]
+use txtx_gql::kit::types::frontend::SupervisorAddonData;
+
 #[cfg(feature = "ovm")]
 use txtx_addon_network_ovm::OvmNetworkAddon;
 #[cfg(feature = "sp1")]
 use txtx_addon_sp1::Sp1Addon;
 #[cfg(feature = "supervisor_ui")]
 use txtx_supervisor_ui::{self, cloud_relayer::RelayerChannelEvent};
+
+lazy_static::lazy_static! {
+    static ref CLI_SPINNER_STYLE: ProgressStyle = {
+        let style = ProgressStyle::with_template("{spinner} {msg}")
+            .unwrap()
+            .tick_strings(&["⠋", "⠙", "⠸", "⠴", "⠦", "⠇"]);
+        style
+    };
+}
 
 pub fn display_snapshot_diffing(
     consolidated_changes: ConsolidatedChanges,
@@ -393,20 +418,15 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
     }
     println!("{:<35}\t{}", "Name", yellow!("Description"));
     for runbook in manifest.runbooks {
-        println!(
-            "{:<35}\t{}",
-            runbook.name,
-            yellow!(format!(
-                "{}",
-                runbook
-                    .description
-                    .unwrap_or("".into())
-                    .split("\n")
-                    .collect::<Vec<_>>()
-                    .first()
-                    .unwrap()
-            ))
-        );
+        let heading = runbook
+            .description
+            .as_deref()
+            .unwrap_or("")
+            .lines()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("");
+
+        println!("{:<35}\t{}", runbook.name, yellow!(heading));
     }
     Ok(())
 }
@@ -635,52 +655,23 @@ pub async fn handle_run_command(
         // return Ok(());
     }
 
+    setup_logger(runbook.to_instance_context(), &cmd.log_level).unwrap();
+    let log_filter: LogLevel = cmd.log_level.as_str().into();
+
     // should not be generating actions
     if is_execution_unsupervised {
         let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
+            let mut active_spinners: IndexMap<Uuid, ProgressBar> = IndexMap::new();
+            let mut multi_progress = MultiProgress::new();
+
             while let Ok(msg) = progress_rx.recv() {
                 match msg {
-                    BlockEvent::UpdateProgressBarStatus(update) => {
-                        match update.new_status.status_color {
-                            ProgressBarStatusColor::Yellow => {
-                                print!(
-                                    "\r{} {} {:<150}{}",
-                                    yellow!("→"),
-                                    yellow!(format!("{}", update.new_status.status)),
-                                    update.new_status.message,
-                                    if update.new_status.newline { "\n" } else { "" }
-                                );
-                            }
-                            ProgressBarStatusColor::Green => {
-                                print!(
-                                    "\r{} {} {:<150}{}",
-                                    green!("✓"),
-                                    green!(format!("{}", update.new_status.status)),
-                                    update.new_status.message,
-                                    if update.new_status.newline { "\n" } else { "" }
-                                );
-                            }
-                            ProgressBarStatusColor::Red => {
-                                print!(
-                                    "\r{} {} {:<150}{}",
-                                    red!("x"),
-                                    red!(format!("{}", update.new_status.status)),
-                                    update.new_status.message,
-                                    if update.new_status.newline { "\n" } else { "" }
-                                );
-                            }
-                            ProgressBarStatusColor::Purple => {
-                                print!(
-                                    "\r{} {} {:<150}{}",
-                                    purple!("→"),
-                                    purple!(format!("{}", update.new_status.status)),
-                                    update.new_status.message,
-                                    if update.new_status.newline { "\n" } else { "" }
-                                );
-                            }
-                        };
-                        std::io::stdout().flush().unwrap();
-                    }
+                    BlockEvent::LogEvent(log) => handle_log_event(
+                        &mut multi_progress,
+                        log,
+                        &log_filter,
+                        &mut active_spinners,
+                    ),
                     _ => {}
                 }
             }
@@ -706,20 +697,31 @@ pub async fn handle_run_command(
 
     let (block_tx, block_rx) = channel::unbounded::<BlockEvent>();
     let (block_broadcaster, _) = tokio::sync::broadcast::channel(5);
+    let (log_broadcaster, _) = tokio::sync::broadcast::channel(5);
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
+    let log_store = Arc::new(RwLock::new(Vec::new()));
     let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
     let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
 
     #[cfg(feature = "supervisor_ui")]
     let runbook_description = runbook.description.clone();
     #[cfg(feature = "supervisor_ui")]
-    let registered_addons = runbook
-        .runtime_context
-        .addons_context
-        .registered_addons
-        .keys()
-        .map(|k| k.clone())
-        .collect::<Vec<_>>();
+    let supervisor_addon_data = {
+        let flow = runbook.flow_contexts.first().unwrap();
+        let mut addons = vec![];
+        for addon in flow.execution_context.addon_instances.values() {
+            if let Some(addon_defaults) = flow
+                .workspace_context
+                .addons_defaults
+                .get(&(addon.package_id.did(), addon.addon_id.clone()))
+            {
+                if !addons.iter().any(|a: &SupervisorAddonData| a.addon_name.eq(&addon.addon_id)) {
+                    addons.push(SupervisorAddonData::new(&addon.addon_id, addon_defaults));
+                }
+            }
+        }
+        addons
+    };
 
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
@@ -756,9 +758,11 @@ pub async fn handle_run_command(
         let web_ui_handle = start_supervisor_ui(
             runbook_name,
             runbook_description,
-            registered_addons,
+            supervisor_addon_data,
             block_store.clone(),
+            log_store.clone(),
             block_broadcaster.clone(),
+            log_broadcaster.clone(),
             action_item_events_tx,
             moved_relayer_channel_tx,
             relayer_channel_rx,
@@ -791,6 +795,8 @@ pub async fn handle_run_command(
     #[cfg(feature = "supervisor_ui")]
     let moved_relayer_channel_tx = relayer_channel_tx.clone();
     let block_store_handle = tokio::spawn(async move {
+        let mut active_spinners: IndexMap<Uuid, ProgressBar> = IndexMap::new();
+        let mut multi_progress = MultiProgress::new();
         loop {
             if let Ok(mut block_event) = block_rx.try_recv() {
                 let mut block_store = block_store.write().await;
@@ -822,26 +828,23 @@ pub async fn handle_run_command(
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
-                    BlockEvent::ProgressBar(new_block) => {
-                        let len = block_store.len();
-                        block_store.insert(len, new_block.clone());
-                    }
-                    BlockEvent::UpdateProgressBarStatus(update) => block_store
-                        .iter_mut()
-                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
-                        .for_each(|(_, b)| {
-                            b.update_progress_bar_status(&update.construct_did, &update.new_status)
-                        }),
-                    BlockEvent::UpdateProgressBarVisibility(update) => block_store
-                        .iter_mut()
-                        .filter(|(_, b)| b.uuid == update.progress_bar_uuid)
-                        .for_each(|(_, b)| b.visible = update.visible),
                     BlockEvent::RunbookCompleted => {
                         println!("\n{}", green!("Runbook complete!"));
                     }
                     BlockEvent::Error(new_block) => {
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
+                    }
+                    BlockEvent::LogEvent(log_event) => {
+                        handle_log_event(
+                            &mut multi_progress,
+                            log_event.clone(),
+                            &log_filter,
+                            &mut active_spinners,
+                        );
+                        let mut log_store = log_store.write().await;
+                        log_store.push(log_event.clone());
+                        let _ = log_broadcaster.send(log_event);
                     }
                     BlockEvent::Exit => break,
                 }
@@ -1082,5 +1085,155 @@ fn process_runbook_execution_output(
                 println!("{} Failed to write runbook state: {}", red!("x"), e);
             }
         };
+    }
+}
+
+fn setup_logger(
+    runbook_instance_context: RunbookInstanceContext,
+    log_filter: &str,
+) -> Result<(), String> {
+    let log_location = {
+        let mut log_location = runbook_instance_context.get_workspace_root()?;
+        log_location.append_path(".runbook-logs")?;
+        log_location.append_path(
+            runbook_instance_context.environment_selector(DEFAULT_TOP_LEVEL_INPUTS_NAME),
+        )?;
+        let timestamp = chrono::Local::now().format("%Y-%m-%d--%H-%M-%S").to_string();
+        let filename = format!("{}_{}.log", runbook_instance_context.runbook_id.name, timestamp);
+        log_location.append_path(&filename)?;
+        if !log_location.exists() {
+            log_location.create_dir_and_file().map_err(|e| {
+                format!("Failed to create log file {}: {}", log_location.to_string(), e)
+            })?;
+        }
+        log_location
+    };
+
+    let log_filter = match log_filter.into() {
+        LogLevel::Info => log::LevelFilter::Info,
+        LogLevel::Warn => log::LevelFilter::Warn,
+        LogLevel::Error => log::LevelFilter::Error,
+        LogLevel::Debug => log::LevelFilter::Debug,
+        LogLevel::Trace => log::LevelFilter::Trace,
+    };
+
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{} {} {}] {}",
+                chrono::Local::now().format("%Y-%m-%d--%H-%M-%S").to_string(),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(log_filter)
+        // .chain(std::io::stdout())
+        .chain(
+            fern::log_file(log_location.to_string())
+                .map_err(|e| format!("Failed to create log file: {}", e))?,
+        )
+        .apply()
+        .map_err(|e| format!("Failed to initialize logger: {}", e))?;
+    Ok(())
+}
+
+fn persist_log(
+    message: &str,
+    summary: &str,
+    namespace: &str,
+    log_level: &LogLevel,
+    log_filter: &LogLevel,
+    do_log_to_cli: bool,
+) {
+    let msg = format!("{} - {}", summary, message);
+    match log_level {
+        LogLevel::Trace => {
+            trace!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("→ {}", msg);
+            }
+        }
+        LogLevel::Debug => {
+            debug!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("→ {}", msg);
+            }
+        }
+
+        LogLevel::Info => {
+            info!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("{} {} - {}", purple!("→"), purple!(summary), message);
+            }
+        }
+        LogLevel::Warn => {
+            warn!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("{} {} - {}", yellow!("!"), yellow!(summary), message);
+            }
+        }
+        LogLevel::Error => {
+            error!(target: &namespace, "{}", msg);
+            if do_log_to_cli && log_filter.should_log(&log_level) {
+                println!("{} {} - {}", red!("x"), red!(summary), message);
+            }
+        }
+    }
+}
+
+fn handle_log_event(
+    multi_progress: &mut MultiProgress,
+    log: LogEvent,
+    log_filter: &LogLevel,
+    active_spinners: &mut IndexMap<Uuid, ProgressBar>,
+) {
+    match log {
+        LogEvent::Static(static_log_event) => {
+            let LogDetails { message, summary } = static_log_event.details;
+            persist_log(
+                &message,
+                &summary,
+                &static_log_event.namespace,
+                &static_log_event.level,
+                &log_filter,
+                true,
+            );
+        }
+        LogEvent::Transient(log) => match log.status {
+            TransientLogEventStatus::Pending(LogDetails { message, summary }) => {
+                if let Some(pb) = active_spinners.get(&log.uuid) {
+                    // update existing spinner
+                    pb.set_message(format!("{} {}", yellow!(&summary), &message));
+                } else {
+                    // create new spinner
+                    let pb = multi_progress.add(ProgressBar::new_spinner());
+                    pb.set_style(CLI_SPINNER_STYLE.clone());
+                    pb.enable_steady_tick(Duration::from_millis(80));
+                    pb.set_message(format!("{} {}", yellow!(&summary), message));
+                    active_spinners.insert(log.uuid, pb);
+                    persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
+                }
+            }
+            TransientLogEventStatus::Success(LogDetails { summary, message }) => {
+                let msg = format!("{} {} {}", green!("✓"), green!(&summary), message);
+                if let Some(pb) = active_spinners.swap_remove(&log.uuid) {
+                    pb.finish_with_message(msg);
+                } else {
+                    println!("{}", msg);
+                }
+
+                persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
+            }
+            TransientLogEventStatus::Failure(LogDetails { summary, message }) => {
+                let msg = format!("{} {}: {}", red!("x"), red!(&summary), message);
+                if let Some(pb) = active_spinners.swap_remove(&log.uuid) {
+                    pb.finish_with_message(msg);
+                } else {
+                    println!("{}", msg);
+                }
+                persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
+            }
+        },
     }
 }

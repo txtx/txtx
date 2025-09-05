@@ -2,8 +2,7 @@ use std::pin::Pin;
 
 use crate::{
     types::block::{
-        GqlActionBlock, GqlActionItemRequestUpdate, GqlErrorBlock, GqlModalBlock,
-        GqlProgressBarStatusUpdate, GqlProgressBarVisibilityUpdate, GqlProgressBlock,
+        GqlActionBlock, GqlActionItemRequestUpdate, GqlErrorBlock, GqlLogEvent, GqlModalBlock,
     },
     Context,
 };
@@ -16,18 +15,13 @@ pub struct Subscription;
 type GqlActionBlockStream = Pin<Box<dyn Stream<Item = Result<GqlActionBlock, FieldError>> + Send>>;
 type GqlModalBlockStream = Pin<Box<dyn Stream<Item = Result<GqlModalBlock, FieldError>> + Send>>;
 type GqlErrorBlockStream = Pin<Box<dyn Stream<Item = Result<GqlErrorBlock, FieldError>> + Send>>;
-type GqlProgressBlockStream =
-    Pin<Box<dyn Stream<Item = Result<GqlProgressBlock, FieldError>> + Send>>;
-type GqlProgressBarStatusUpdateStream =
-    Pin<Box<dyn Stream<Item = Result<GqlProgressBarStatusUpdate, FieldError>> + Send>>;
-type GqlProgressBarVisibilityUpdateStream =
-    Pin<Box<dyn Stream<Item = Result<GqlProgressBarVisibilityUpdate, FieldError>> + Send>>;
 
 type GqlActionItemRequestUpdateStream =
     Pin<Box<dyn Stream<Item = Result<Vec<GqlActionItemRequestUpdate>, FieldError>> + Send>>;
 
 type ClearBlockEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
 type RunbookCompletedEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
+type LogEventStream = Pin<Box<dyn Stream<Item = Result<GqlLogEvent, FieldError>> + Send>>;
 
 #[graphql_subscription(
   context = Context,
@@ -84,60 +78,6 @@ impl Subscription {
         Box::pin(stream)
     }
 
-    async fn progress_block_event(context: &Context) -> GqlProgressBlockStream {
-        let block_tx = context.block_broadcaster.clone();
-        let mut block_rx = block_tx.subscribe();
-        let stream = async_stream::stream! {
-            loop {
-              if let Ok(block_event) = block_rx.recv().await {
-                match block_event {
-                    BlockEvent::ProgressBar(block) => yield Ok(GqlProgressBlock::new(block)),
-                    _ => {}
-                }
-              }
-            }
-
-        };
-        Box::pin(stream)
-    }
-
-    async fn update_progress_bar_status_event(
-        context: &Context,
-    ) -> GqlProgressBarStatusUpdateStream {
-        let block_tx = context.block_broadcaster.clone();
-        let mut block_rx = block_tx.subscribe();
-        let stream = async_stream::stream! {
-            loop {
-              if let Ok(block_event) = block_rx.recv().await {
-                match block_event {
-                    BlockEvent::UpdateProgressBarStatus(update) => yield Ok(GqlProgressBarStatusUpdate::new(update)),
-                    _ => {}
-                }
-              }
-            }
-
-        };
-        Box::pin(stream)
-    }
-    async fn update_progress_bar_visibility_event(
-        context: &Context,
-    ) -> GqlProgressBarVisibilityUpdateStream {
-        let block_tx = context.block_broadcaster.clone();
-        let mut block_rx = block_tx.subscribe();
-        let stream = async_stream::stream! {
-            loop {
-              if let Ok(block_event) = block_rx.recv().await {
-                match block_event {
-                  BlockEvent::UpdateProgressBarVisibility(update) => yield Ok(GqlProgressBarVisibilityUpdate::new(update)),
-                    _ => {}
-                }
-              }
-            }
-
-        };
-        Box::pin(stream)
-    }
-
     async fn update_action_items_event(context: &Context) -> GqlActionItemRequestUpdateStream {
         let block_tx = context.block_broadcaster.clone();
         let mut block_rx = block_tx.subscribe();
@@ -180,6 +120,19 @@ impl Subscription {
                   BlockEvent::RunbookCompleted => yield Ok(true),
                     _ => {}
                 }
+              }
+            }
+        };
+        Box::pin(stream)
+    }
+
+    async fn log_event(context: &Context) -> LogEventStream {
+        let log_tx = context.log_broadcaster.clone();
+        let mut log_rx = log_tx.subscribe();
+        let stream = async_stream::stream! {
+            loop {
+              if let Ok(log_event) = log_rx.recv().await {
+                yield Ok(GqlLogEvent(log_event));
               }
             }
         };

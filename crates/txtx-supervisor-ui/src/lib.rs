@@ -9,7 +9,9 @@ use include_dir::{include_dir, Dir};
 use tokio::sync::{broadcast::Sender as TokioBroadcastSender, RwLock};
 use txtx_addon_kit::{
     channel::{Receiver, Sender},
-    types::frontend::{ActionItemResponse, Block as ActionBlock, BlockEvent},
+    types::frontend::{
+        ActionItemResponse, Block as ActionBlock, BlockEvent, LogEvent, SupervisorAddonData,
+    },
 };
 use txtx_gql::Context as GqlContext;
 
@@ -34,9 +36,11 @@ pub enum SupervisorEvents {
 pub async fn start_supervisor_ui(
     runbook_name: String,
     runbook_description: Option<String>,
-    registered_addons: Vec<String>,
+    supervisor_addon_data: Vec<SupervisorAddonData>,
     block_store: Arc<RwLock<BTreeMap<usize, ActionBlock>>>,
+    log_store: Arc<RwLock<Vec<LogEvent>>>,
     block_broadcaster: TokioBroadcastSender<BlockEvent>,
+    log_broadcaster: TokioBroadcastSender<LogEvent>,
     action_item_events_tx: TokioBroadcastSender<ActionItemResponse>,
     relayer_channel_tx: Sender<RelayerChannelEvent>,
     relayer_channel_rx: Receiver<RelayerChannelEvent>,
@@ -47,11 +51,13 @@ pub async fn start_supervisor_ui(
 ) -> Result<ServerHandle, String> {
     let gql_context = GqlContext {
         protocol_name: runbook_name.clone(),
-        runbook_name: runbook_name.clone(),
-        registered_addons,
+        runbook_name,
+        supervisor_addon_data,
         runbook_description,
-        block_store: block_store.clone(),
+        block_store,
+        log_store,
         block_broadcaster: block_broadcaster.clone(),
+        log_broadcaster: log_broadcaster.clone(),
         action_item_events_tx: action_item_events_tx.clone(),
     };
 
