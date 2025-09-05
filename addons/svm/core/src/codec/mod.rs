@@ -721,8 +721,6 @@ pub struct UpgradeableProgramDeployer {
     pub is_surfnet: bool,
     /// Whether to perform a hot swap of the program deployment (using surfnet cheatcodes).
     pub do_cheatcode_deploy: bool,
-    /// If continuing a deployment, the new size of the program data account.
-    pub new_size: Option<u64>,
 }
 
 pub enum KeypairOrTxSigner {
@@ -758,82 +756,75 @@ impl UpgradeableProgramDeployer {
         is_surfnet: bool,
         hot_swap: bool,
     ) -> Result<Self, Diagnostic> {
-        let (buffer_pubkey, buffer_keypair, buffer_data, new_size) =
-            match existing_program_buffer_opts {
-                Some(buffer_pubkey) => {
-                    let buffer_account = rpc_client.get_account(&buffer_pubkey).map_err(|e| {
-                        diagnosed_error!(
-                            "failed to fetch existing buffer account {}: {}",
-                            buffer_pubkey,
-                            e
-                        )
-                    })?;
+        let (buffer_pubkey, buffer_keypair, buffer_data) = match existing_program_buffer_opts {
+            Some(buffer_pubkey) => {
+                let buffer_account = rpc_client.get_account(&buffer_pubkey).map_err(|e| {
+                    diagnosed_error!(
+                        "failed to fetch existing buffer account {}: {}",
+                        buffer_pubkey,
+                        e
+                    )
+                })?;
 
-                    if buffer_account.owner != bpf_loader_upgradeable::id() {
-                        return Err(diagnosed_error!(
-                            "buffer account {} is not owned by the bpf_loader_upgradeable program",
-                            buffer_pubkey
+                if buffer_account.owner != bpf_loader_upgradeable::id() {
+                    return Err(diagnosed_error!(
+                        "buffer account {} is not owned by the bpf_loader_upgradeable program",
+                        buffer_pubkey
+                    ));
+                }
+
+                let min_buffer_data_len = UpgradeableLoaderState::size_of_buffer(binary.len());
+                if buffer_account.data.len() < min_buffer_data_len {
+                    return Err(diagnosed_error!(
+                            "existing buffer account {} data size ({} bytes) is too small for the program binary ({} bytes)",
+                            buffer_pubkey,
+                            buffer_account.data.len(),
+                            min_buffer_data_len
                         ));
+                }
+
+                let mut cursor = std::io::Cursor::new(&buffer_account.data);
+                // Deserialize only the prefix into UpgradeableLoaderState
+                let state: UpgradeableLoaderState =
+                    bincode::deserialize_from(&mut cursor).map_err(|e| e.to_string())?;
+                // Figure out how many bytes we consumed
+                let state_len = cursor.position() as usize;
+
+                // The rest is the ELF program data
+                let program_bytes = &buffer_account.data[state_len..];
+
+                let (authority_address, program_bytes) = match state {
+                    UpgradeableLoaderState::Buffer { authority_address } => {
+                        (authority_address, program_bytes)
                     }
-
-                    let mut cursor = std::io::Cursor::new(&buffer_account.data);
-                    // Deserialize only the prefix into UpgradeableLoaderState
-                    let state: UpgradeableLoaderState =
-                        bincode::deserialize_from(&mut cursor).map_err(|e| e.to_string())?;
-                    // Figure out how many bytes we consumed
-                    let state_len = cursor.position() as usize;
-
-                    // The rest is the ELF program data
-                    let program_bytes = &buffer_account.data[state_len..];
-
-                    let new_size = if program_bytes.len() < binary.len() {
+                    _ => {
                         return Err(diagnosed_error!(
-                            "existing buffer account {} is sized for a smaller program ({} bytes) than the new program binary ({} bytes); please create a new buffer account",
-                            buffer_pubkey,
-                            program_bytes.len(),
-                            binary.len()
-                        ));
-                    } else if program_bytes.len() > binary.len() {
-                        // Todo: once we have a deterministic buffer account keypair, we can resize the buffer account
-                        // Some(binary.len() as u64)
-                        None
-                    } else {
-                        None
-                    };
-
-                    let (authority_address, program_bytes) = match state {
-                        UpgradeableLoaderState::Buffer { authority_address } => {
-                            (authority_address, program_bytes)
-                        }
-                        _ => {
-                            return Err(diagnosed_error!(
-                                "provided buffer pubkey {} is not a buffer account",
-                                buffer_pubkey
-                            ))
-                        }
-                    };
-
-                    let Some(authority_address) = authority_address else {
-                        return Err(diagnosed_error!(
-                            "buffer account {} has no authority set, so it can't be written to",
+                            "provided buffer pubkey {} is not a buffer account",
                             buffer_pubkey
-                        ));
-                    };
+                        ))
+                    }
+                };
 
-                    if authority_address != temp_authority_keypair.pubkey() {
-                        return Err(diagnosed_error!(
+                let Some(authority_address) = authority_address else {
+                    return Err(diagnosed_error!(
+                        "buffer account {} has no authority set, so it can't be written to",
+                        buffer_pubkey
+                    ));
+                };
+
+                if authority_address != temp_authority_keypair.pubkey() {
+                    return Err(diagnosed_error!(
                         "buffer account {} authority does not match the provided temp authority pubkey",
                         buffer_pubkey
                     ));
-                    }
-                    (buffer_pubkey, None, program_bytes.to_vec(), new_size)
                 }
-                None => {
-                    let (_buffer_words, _buffer_mnemonic, buffer_keypair) =
-                        create_ephemeral_keypair();
-                    (buffer_keypair.pubkey(), Some(buffer_keypair), vec![0; binary.len()], None)
-                }
-            };
+                (buffer_pubkey, None, program_bytes.to_vec())
+            }
+            None => {
+                let (_buffer_words, _buffer_mnemonic, buffer_keypair) = create_ephemeral_keypair();
+                (buffer_keypair.pubkey(), Some(buffer_keypair), vec![0; binary.len()])
+            }
+        };
 
         let is_program_upgrade = !UpgradeableProgramDeployer::should_do_initial_deploy(
             &rpc_client,
@@ -857,7 +848,6 @@ impl UpgradeableProgramDeployer {
             is_program_upgrade,
             is_surfnet,
             do_cheatcode_deploy: hot_swap && is_surfnet,
-            new_size,
         })
     }
 
@@ -1107,24 +1097,6 @@ impl UpgradeableProgramDeployer {
                 &transaction,
                 vec![&self.temp_upgrade_authority, &buffer_keypair],
                 buffer_keypair.pubkey(),
-            )
-            .to_value()?;
-            Ok(Some(tx))
-        } else if let Some(new_size) = self.new_size {
-            // Todo: once we have a deterministic buffer account keypair, we can resize the buffer account
-            let buffer_pubkey = self.buffer_pubkey;
-            let allocate_instruction = system_instruction::allocate(&buffer_pubkey, new_size);
-
-            let message = Message::new_with_blockhash(
-                &vec![allocate_instruction],
-                Some(&self.temp_upgrade_authority_pubkey),
-                &blockhash,
-            );
-
-            let transaction = Transaction::new_unsigned(message);
-            let tx = DeploymentTransaction::resize_buffer(
-                &transaction,
-                vec![&self.temp_upgrade_authority],
             )
             .to_value()?;
             Ok(Some(tx))
