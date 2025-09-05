@@ -257,41 +257,43 @@ macro_rules! define_signer {
         documentation: $doc:expr,
         inputs: [$($input_name:ident: { documentation: $input_doc:expr, typing: $input_ts:expr, optional: $optional:expr, tainting: $tainting:expr, sensitive: $sensitive:expr }),*],
         outputs: [$($output_name:ident: { documentation: $output_doc:expr, typing: $output_ts:expr }),*],
-        example: $example:expr,
+        example: $example:expr
+        $(, force_sequential_signing: $force_sequential_signing:expr)?
     }) => {
         {
           use txtx_addon_kit::types::signers::{SignerSpecification, SignerSignClosure};
           use txtx_addon_kit::types::commands::{CommandInput, CommandOutput};
-          SignerSpecification {
-            name: String::from($fn_name),
-            matcher: String::from($matcher),
-            documentation: String::from($doc),
-            requires_interaction: false,
-            inputs: vec![$(CommandInput {
-                name: String::from(stringify!($input_name)),
-                documentation: String::from($input_doc),
-                typing: $input_ts,
-                optional: $optional,
-                tainting: $tainting,
-                sensitive: $sensitive,
-                check_required: false,
-                check_performed: false,
-                internal: false,
-                self_referencing: false,
-            }),*],
-            default_inputs: CommandSpecification::default_inputs(),
-            outputs: vec![$(CommandOutput {
-                name: String::from(stringify!($output_name)),
-                documentation: String::from($output_doc),
-                typing: $output_ts,
-            }),*],
-            check_instantiability: $func_key::check_instantiability,
-            check_activability: $func_key::check_activability,
-            activate: Box::new($func_key::activate),
-            check_signability: $func_key::check_signability,
-            sign: Box::new($func_key::sign),
-            example: String::from($example),
+            SignerSpecification {
+                name: String::from($fn_name),
+                matcher: String::from($matcher),
+                documentation: String::from($doc),
+                requires_interaction: false,
+                inputs: vec![$(CommandInput {
+                    name: String::from(stringify!($input_name)),
+                    documentation: String::from($input_doc),
+                    typing: $input_ts,
+                    optional: $optional,
+                    tainting: $tainting,
+                    sensitive: $sensitive,
+                    check_required: false,
+                    check_performed: false,
+                    internal: false,
+                    self_referencing: false,
+                }),*],
+                default_inputs: CommandSpecification::default_inputs(),
+                outputs: vec![$(CommandOutput {
+                    name: String::from(stringify!($output_name)),
+                    documentation: String::from($output_doc),
+                    typing: $output_ts,
+                }),*],
+                check_instantiability: $func_key::check_instantiability,
+                check_activability: $func_key::check_activability,
+                activate: Box::new($func_key::activate),
+                check_signability: $func_key::check_signability,
+                sign: Box::new($func_key::sign),
+                example: String::from($example),
+                force_sequential_signing: false $(|| $force_sequential_signing)?
+            }
         }
-    }
     };
 }

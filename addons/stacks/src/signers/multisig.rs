@@ -93,7 +93,7 @@ lazy_static! {
                 signer "alice_and_bob" "stacks::multisig" {
                     signers = [signer.alice, signer.bob]
                 }
-            "#},
+            "#}
         }
     };
 }

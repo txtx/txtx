@@ -199,12 +199,13 @@ impl DeploymentTransaction {
         keypairs: Vec<&Keypair>,
         commitment_level: CommitmentLevel,
         do_await_confirmation: bool,
+        is_upgrade: bool,
     ) -> Self {
         Self::new(
             transaction,
             keypairs,
             None,
-            DeploymentTransactionType::WriteToBuffer,
+            DeploymentTransactionType::WriteToBuffer { is_upgrade },
             commitment_level,
             do_await_confirmation,
         )
@@ -265,17 +266,6 @@ impl DeploymentTransaction {
         Self::new_cheatcode_deployment(
             DeploymentTransactionType::CheatcodeUpgrade,
             (authority_pubkey, binary),
-        )
-    }
-
-    pub fn payer_close_temp_authority(transaction: &Transaction, keypairs: Vec<&Keypair>) -> Self {
-        Self::new(
-            transaction,
-            keypairs,
-            Some(vec![TxtxDeploymentSigner::Payer]),
-            DeploymentTransactionType::CloseTempAuthority,
-            CommitmentLevel::Confirmed,
-            true,
         )
     }
 
@@ -402,7 +392,7 @@ impl DeploymentTransaction {
             DeploymentTransactionType::CreateBuffer { .. } => return Ok(None),
             DeploymentTransactionType::CreateBufferAndExtendProgram { .. } => return Ok(None),
             DeploymentTransactionType::ExtendProgram => return Ok(None),
-            DeploymentTransactionType::WriteToBuffer => return Ok(None),
+            DeploymentTransactionType::WriteToBuffer { .. } => return Ok(None),
             DeploymentTransactionType::TransferBufferAuthority => return Ok(None),
             DeploymentTransactionType::TransferProgramAuthority => return Ok(None),
             DeploymentTransactionType::DeployProgram => "This transaction will deploy the program.",
@@ -542,7 +532,7 @@ impl DeploymentTransaction {
         match self.transaction_type {
             DeploymentTransactionType::PrepareTempAuthority { already_exists, .. } => {
                 logger.info(
-                    "Account Created",
+                    format!("Account {}", if already_exists { "Funded" } else { "Created" }),
                     format!(
                         "Ephemeral authority account{} funded to write to buffer",
                         if already_exists { "" } else { " created and" }
@@ -553,16 +543,11 @@ impl DeploymentTransaction {
                 logger.info("Account Created", "Program buffer account created");
             }
             DeploymentTransactionType::DeployProgram => {
-                logger.success_info(
-                    "Program Created",
-                    format!("Program {} has been deployed", program_id),
-                );
+                logger.info("Program Created", format!("Program {} has been deployed", program_id));
             }
             DeploymentTransactionType::UpgradeProgram => {
-                logger.success_info(
-                    "Program Upgraded",
-                    format!("Program {} has been upgraded", program_id),
-                );
+                logger
+                    .info("Program Upgraded", format!("Program {} has been upgraded", program_id));
             }
             DeploymentTransactionType::CloseTempAuthority => {
                 logger.success_info(
@@ -577,15 +562,22 @@ impl DeploymentTransaction {
                 logger
                     .info("Program Upgraded", format!("Program {} has been upgraded", program_id));
             }
-            DeploymentTransactionType::WriteToBuffer =>
+            DeploymentTransactionType::WriteToBuffer { is_upgrade } =>
             // if it's a buffer write and do_await_confirmation=true, this is our last buffer write tx
             {
                 if self.do_await_confirmation {
-                    logger.success_info("Buffer Ready", "Writing to buffer account is complete")
+                    if is_upgrade {
+                        // if this is an upgrade, we have another transaction to sign next, so we'll end the
+                        // "pending" message spinner
+                        logger.success_info("Buffer Ready", "Writing to buffer account is complete")
+                    } else {
+                        // if not upgrade, we can keep the "pending" spinner running - the next transaction isn't signed by the user
+                        logger.info("Buffer Ready", "Writing to buffer account is complete")
+                    }
                 }
             }
             DeploymentTransactionType::TransferBufferAuthority => {
-                logger.success_info(
+                logger.info(
                     "Buffer Authority Transferred",
                     "Buffer authority has been transferred to authority signer",
                 );
@@ -729,8 +721,6 @@ pub struct UpgradeableProgramDeployer {
     pub is_surfnet: bool,
     /// Whether to perform a hot swap of the program deployment (using surfnet cheatcodes).
     pub do_cheatcode_deploy: bool,
-    /// If continuing a deployment, the new size of the program data account.
-    pub new_size: Option<u64>,
 }
 
 pub enum KeypairOrTxSigner {
@@ -766,82 +756,75 @@ impl UpgradeableProgramDeployer {
         is_surfnet: bool,
         hot_swap: bool,
     ) -> Result<Self, Diagnostic> {
-        let (buffer_pubkey, buffer_keypair, buffer_data, new_size) =
-            match existing_program_buffer_opts {
-                Some(buffer_pubkey) => {
-                    let buffer_account = rpc_client.get_account(&buffer_pubkey).map_err(|e| {
-                        diagnosed_error!(
-                            "failed to fetch existing buffer account {}: {}",
-                            buffer_pubkey,
-                            e
-                        )
-                    })?;
+        let (buffer_pubkey, buffer_keypair, buffer_data) = match existing_program_buffer_opts {
+            Some(buffer_pubkey) => {
+                let buffer_account = rpc_client.get_account(&buffer_pubkey).map_err(|e| {
+                    diagnosed_error!(
+                        "failed to fetch existing buffer account {}: {}",
+                        buffer_pubkey,
+                        e
+                    )
+                })?;
 
-                    if buffer_account.owner != bpf_loader_upgradeable::id() {
-                        return Err(diagnosed_error!(
-                            "buffer account {} is not owned by the bpf_loader_upgradeable program",
-                            buffer_pubkey
+                if buffer_account.owner != bpf_loader_upgradeable::id() {
+                    return Err(diagnosed_error!(
+                        "buffer account {} is not owned by the bpf_loader_upgradeable program",
+                        buffer_pubkey
+                    ));
+                }
+
+                let min_buffer_data_len = UpgradeableLoaderState::size_of_buffer(binary.len());
+                if buffer_account.data.len() < min_buffer_data_len {
+                    return Err(diagnosed_error!(
+                            "existing buffer account {} data size ({} bytes) is too small for the program binary ({} bytes)",
+                            buffer_pubkey,
+                            buffer_account.data.len(),
+                            min_buffer_data_len
                         ));
+                }
+
+                let mut cursor = std::io::Cursor::new(&buffer_account.data);
+                // Deserialize only the prefix into UpgradeableLoaderState
+                let state: UpgradeableLoaderState =
+                    bincode::deserialize_from(&mut cursor).map_err(|e| e.to_string())?;
+                // Figure out how many bytes we consumed
+                let state_len = cursor.position() as usize;
+
+                // The rest is the ELF program data
+                let program_bytes = &buffer_account.data[state_len..];
+
+                let (authority_address, program_bytes) = match state {
+                    UpgradeableLoaderState::Buffer { authority_address } => {
+                        (authority_address, program_bytes)
                     }
-
-                    let mut cursor = std::io::Cursor::new(&buffer_account.data);
-                    // Deserialize only the prefix into UpgradeableLoaderState
-                    let state: UpgradeableLoaderState =
-                        bincode::deserialize_from(&mut cursor).map_err(|e| e.to_string())?;
-                    // Figure out how many bytes we consumed
-                    let state_len = cursor.position() as usize;
-
-                    // The rest is the ELF program data
-                    let program_bytes = &buffer_account.data[state_len..];
-
-                    let new_size = if program_bytes.len() < binary.len() {
+                    _ => {
                         return Err(diagnosed_error!(
-                            "existing buffer account {} is sized for a smaller program ({} bytes) than the new program binary ({} bytes); please create a new buffer account",
-                            buffer_pubkey,
-                            program_bytes.len(),
-                            binary.len()
-                        ));
-                    } else if program_bytes.len() > binary.len() {
-                        // Todo: once we have a deterministic buffer account keypair, we can resize the buffer account
-                        // Some(binary.len() as u64)
-                        None
-                    } else {
-                        None
-                    };
-
-                    let (authority_address, program_bytes) = match state {
-                        UpgradeableLoaderState::Buffer { authority_address } => {
-                            (authority_address, program_bytes)
-                        }
-                        _ => {
-                            return Err(diagnosed_error!(
-                                "provided buffer pubkey {} is not a buffer account",
-                                buffer_pubkey
-                            ))
-                        }
-                    };
-
-                    let Some(authority_address) = authority_address else {
-                        return Err(diagnosed_error!(
-                            "buffer account {} has no authority set, so it can't be written to",
+                            "provided buffer pubkey {} is not a buffer account",
                             buffer_pubkey
-                        ));
-                    };
+                        ))
+                    }
+                };
 
-                    if authority_address != temp_authority_keypair.pubkey() {
-                        return Err(diagnosed_error!(
+                let Some(authority_address) = authority_address else {
+                    return Err(diagnosed_error!(
+                        "buffer account {} has no authority set, so it can't be written to",
+                        buffer_pubkey
+                    ));
+                };
+
+                if authority_address != temp_authority_keypair.pubkey() {
+                    return Err(diagnosed_error!(
                         "buffer account {} authority does not match the provided temp authority pubkey",
                         buffer_pubkey
                     ));
-                    }
-                    (buffer_pubkey, None, program_bytes.to_vec(), new_size)
                 }
-                None => {
-                    let (_buffer_words, _buffer_mnemonic, buffer_keypair) =
-                        create_ephemeral_keypair();
-                    (buffer_keypair.pubkey(), Some(buffer_keypair), vec![0; binary.len()], None)
-                }
-            };
+                (buffer_pubkey, None, program_bytes.to_vec())
+            }
+            None => {
+                let (_buffer_words, _buffer_mnemonic, buffer_keypair) = create_ephemeral_keypair();
+                (buffer_keypair.pubkey(), Some(buffer_keypair), vec![0; binary.len()])
+            }
+        };
 
         let is_program_upgrade = !UpgradeableProgramDeployer::should_do_initial_deploy(
             &rpc_client,
@@ -865,7 +848,6 @@ impl UpgradeableProgramDeployer {
             is_program_upgrade,
             is_surfnet,
             do_cheatcode_deploy: hot_swap && is_surfnet,
-            new_size,
         })
     }
 
@@ -949,21 +931,21 @@ impl UpgradeableProgramDeployer {
                 }
             };
 
-        let transactions =
-            if self.do_cheatcode_deploy {
-                core_transactions
-            } else {
-                let mut transactions = vec![];
-                // the first transaction needs to create the temp account
-                transactions.push(self.get_create_temp_account_transaction(
-                    &recent_blockhash,
-                    core_transactions.len(),
-                )?);
-                transactions.append(&mut core_transactions);
-                // close out our temp authority account and transfer any leftover funds back to the payer
-                transactions.push(self.get_close_temp_authority_transaction_parts()?);
-                transactions
-            };
+        let transactions = if self.do_cheatcode_deploy {
+            core_transactions
+        } else {
+            let mut transactions = vec![];
+            // the first transaction needs to create the temp account
+            if let Some(create_temp_account_transaction) = self
+                .get_create_temp_account_transaction(&recent_blockhash, core_transactions.len())?
+            {
+                transactions.push(create_temp_account_transaction);
+            }
+            transactions.append(&mut core_transactions);
+            // close out our temp authority account and transfer any leftover funds back to the payer
+            transactions.push(self.get_close_temp_authority_transaction_parts()?);
+            transactions
+        };
 
         Ok(transactions)
     }
@@ -972,7 +954,7 @@ impl UpgradeableProgramDeployer {
         &self,
         blockhash: &Hash,
         transaction_count: usize,
-    ) -> Result<Value, Diagnostic> {
+    ) -> Result<Option<Value>, Diagnostic> {
         let mut lamports = 0;
 
         // calculate transaction fees for all deployment transactions
@@ -1016,13 +998,18 @@ impl UpgradeableProgramDeployer {
         // calculate rent for all program data written
         {
             let program_data_length = self.binary.len();
-            // size for the program data
-            lamports += self
+            let program_data_rent_lamports = self
                 .rpc_client
                 .get_minimum_balance_for_rent_exemption(
                     UpgradeableLoaderState::size_of_programdata(program_data_length),
                 )
                 .unwrap();
+
+            let buffer_account_lamports =
+                self.rpc_client.get_account(&self.buffer_pubkey).map(|a| a.lamports).unwrap_or(0);
+            // size for the program data. this data will be written to the buffer account first, so
+            // only pay lamports for the needed lamports for rent - buffer_account_lamports
+            lamports += program_data_rent_lamports.saturating_sub(buffer_account_lamports);
 
             // if this is a program upgrade, we also need to add in rent lamports for extending the program data account
             if self.is_program_upgrade {
@@ -1040,41 +1027,53 @@ impl UpgradeableProgramDeployer {
         // add 20% buffer
         let lamports = ((lamports as f64) * 1.2).round() as u64;
 
-        let account_exists =
-            self.rpc_client.get_account(&self.temp_upgrade_authority_pubkey).is_ok();
-        let (instruction, keypairs) = if account_exists {
-            (
-                system_instruction::transfer(
-                    &self.payer_pubkey,
-                    &self.temp_upgrade_authority_pubkey,
-                    lamports,
-                ),
-                vec![],
-            )
-        } else {
-            (
-                system_instruction::create_account(
-                    &self.payer_pubkey,
-                    &self.temp_upgrade_authority_pubkey,
-                    lamports,
-                    0,
-                    &solana_sdk::system_program::id(),
-                ),
-                vec![&self.temp_upgrade_authority],
-            )
-        };
+        let existing_account_lamports = self
+            .rpc_client
+            .get_account(&self.temp_upgrade_authority_pubkey)
+            .map(|a| a.lamports)
+            .ok();
+
+        let (instruction, keypairs) =
+            if let Some(existing_account_lamports) = existing_account_lamports {
+                if existing_account_lamports >= lamports {
+                    return Ok(None);
+                } else {
+                    (
+                        system_instruction::transfer(
+                            &self.payer_pubkey,
+                            &self.temp_upgrade_authority_pubkey,
+                            lamports - existing_account_lamports,
+                        ),
+                        vec![],
+                    )
+                }
+            } else {
+                (
+                    system_instruction::create_account(
+                        &self.payer_pubkey,
+                        &self.temp_upgrade_authority_pubkey,
+                        lamports,
+                        0,
+                        &solana_sdk::system_program::id(),
+                    ),
+                    vec![&self.temp_upgrade_authority],
+                )
+            };
+
         let message =
             Message::new_with_blockhash(&[instruction], Some(&self.payer_pubkey), &blockhash);
 
         let transaction = Transaction::new_unsigned(message);
 
-        DeploymentTransaction::create_temp_account(
-            &transaction,
-            keypairs,
-            &self.temp_upgrade_authority,
-            account_exists,
-        )
-        .to_value()
+        Ok(Some(
+            DeploymentTransaction::create_temp_account(
+                &transaction,
+                keypairs,
+                &self.temp_upgrade_authority,
+                existing_account_lamports.is_some(),
+            )
+            .to_value()?,
+        ))
     }
 
     fn get_create_buffer_instruction(&self) -> Result<Vec<Instruction>, Diagnostic> {
@@ -1115,24 +1114,6 @@ impl UpgradeableProgramDeployer {
                 &transaction,
                 vec![&self.temp_upgrade_authority, &buffer_keypair],
                 buffer_keypair.pubkey(),
-            )
-            .to_value()?;
-            Ok(Some(tx))
-        } else if let Some(new_size) = self.new_size {
-            // Todo: once we have a deterministic buffer account keypair, we can resize the buffer account
-            let buffer_pubkey = self.buffer_pubkey;
-            let allocate_instruction = system_instruction::allocate(&buffer_pubkey, new_size);
-
-            let message = Message::new_with_blockhash(
-                &vec![allocate_instruction],
-                Some(&self.temp_upgrade_authority_pubkey),
-                &blockhash,
-            );
-
-            let transaction = Transaction::new_unsigned(message);
-            let tx = DeploymentTransaction::resize_buffer(
-                &transaction,
-                vec![&self.temp_upgrade_authority],
             )
             .to_value()?;
             Ok(Some(tx))
@@ -1317,6 +1298,7 @@ impl UpgradeableProgramDeployer {
                         vec![&self.temp_upgrade_authority],
                         commitment_level,
                         do_await_confirmation,
+                        self.is_program_upgrade,
                     )
                     .to_value()?,
                 );

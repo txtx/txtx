@@ -839,7 +839,7 @@ pub enum DeploymentTransactionType {
     CreateBufferAndExtendProgram { buffer_pubkey: Pubkey },
     ExtendProgram,
     ResizeBuffer,
-    WriteToBuffer,
+    WriteToBuffer { is_upgrade: bool },
     TransferBufferAuthority,
     TransferProgramAuthority,
     DeployProgram,
@@ -860,7 +860,7 @@ impl DeploymentTransactionType {
             }
             DeploymentTransactionType::ResizeBuffer => "resize_buffer",
             DeploymentTransactionType::ExtendProgram => "extend_program",
-            DeploymentTransactionType::WriteToBuffer => "write_to_buffer",
+            DeploymentTransactionType::WriteToBuffer { .. } => "write_to_buffer",
             DeploymentTransactionType::TransferBufferAuthority => "transfer_buffer_authority",
             DeploymentTransactionType::TransferProgramAuthority => "transfer_program_authority",
             DeploymentTransactionType::DeployProgram => "deploy_program",
