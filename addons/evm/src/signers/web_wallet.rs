@@ -70,7 +70,7 @@ lazy_static! {
                 signer "alice" "evm::web_wallet" {
                     expected_address = "0xCe246168E59dd8e28e367BB49b38Dc621768F425"
                 }
-                "#},
+                "#}
             }
         };
         signer.requires_interaction = true;

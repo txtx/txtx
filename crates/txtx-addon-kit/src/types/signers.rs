@@ -305,6 +305,7 @@ pub struct SignerSpecification {
     pub activate: SignerActivateClosure,
     pub check_signability: SignerCheckSignabilityClosure,
     pub sign: SignerSignClosure,
+    pub force_sequential_signing: bool,
 }
 
 #[derive(Debug, Clone)]

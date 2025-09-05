@@ -98,10 +98,10 @@ lazy_static! {
                 }
             ],
             example: txtx_addon_kit::indoc! {r#"
-            signer "deployer" "svm::secret_key" {
-                secret_key = input.secret_key
-            }
-        "#},
+                signer "deployer" "svm::secret_key" {
+                    secret_key = input.secret_key
+                }
+            "#}
         }
     };
 }
