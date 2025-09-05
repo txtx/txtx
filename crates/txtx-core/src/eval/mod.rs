@@ -647,6 +647,23 @@ pub async fn evaluate_command_instance(
                 }
             }
         };
+        let signed_by = runbook_execution_context
+            .signers_downstream_dependencies
+            .iter()
+            .filter_map(
+                |(signer, deps)| if deps.contains(construct_did) { Some(signer) } else { None },
+            )
+            .filter_map(|signer_did| {
+                runbook_execution_context
+                    .signers_instances
+                    .get(signer_did)
+                    .map(|si| (signer_did.clone(), si.clone()))
+            })
+            .collect::<Vec<_>>();
+
+        let force_sequential_signing = signed_by
+            .iter()
+            .any(|(_, signer_instance)| signer_instance.specification.force_sequential_signing);
 
         for (nested_construct_did, nested_evaluation_values) in executions_for_action.iter() {
             if let Some(execution_results) =
@@ -691,7 +708,11 @@ pub async fn evaluate_command_instance(
                                     unexecutable_nodes.insert(dep.clone());
                                 }
                             }
-                            return LoopEvaluationResult::Continue;
+                            if force_sequential_signing {
+                                return LoopEvaluationResult::Bail;
+                            } else {
+                                return LoopEvaluationResult::Continue;
+                            }
                         }
                         pass_result.actions.append(&mut new_actions);
                         updated_signers
@@ -872,7 +893,11 @@ pub async fn evaluate_command_instance(
                 // we need to be sure that each background task is completed before continuing the execution.
                 // so we will return a Continue result to ensure that the next nested evaluation is not executed.
                 // once the background task is completed, it will mark _this_ nested construct as completed and move to the next one.
-                return LoopEvaluationResult::Continue;
+                if force_sequential_signing {
+                    return LoopEvaluationResult::Bail;
+                } else {
+                    return LoopEvaluationResult::Continue;
+                }
             } else {
                 runbook_execution_context
                     .commands_execution_results

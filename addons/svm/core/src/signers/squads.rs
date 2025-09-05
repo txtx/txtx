@@ -138,6 +138,7 @@ lazy_static! {
                     initiator = signer.initiator
                 }
             "#},
+            force_sequential_signing: true
         }
     };
 }

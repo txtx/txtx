@@ -60,7 +60,7 @@ lazy_static! {
                 signer "alice" "stacks::web_wallet" {
                     expected_address = "ST12886CEM87N4TP9CGV91VWJ8FXVX57R6AG1AXS4"
                 }
-                "#},
+                "#}
             }
         };
         signer.requires_interaction = true;

@@ -64,10 +64,10 @@ lazy_static! {
                     }
                 ],
                 example: txtx_addon_kit::indoc! {r#"
-                signer "alice" "svm::web_wallet" {
-                    expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
-                }
-                "#},
+                    signer "alice" "svm::web_wallet" {
+                        expected_address = "zbBjhHwuqyKMmz8ber5oUtJJ3ZV4B6ePmANfGyKzVGV"
+                    }
+                "#}
             }
         };
         signer.requires_interaction = true;
