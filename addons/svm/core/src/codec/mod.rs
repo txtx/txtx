@@ -931,21 +931,21 @@ impl UpgradeableProgramDeployer {
                 }
             };
 
-        let transactions =
-            if self.do_cheatcode_deploy {
-                core_transactions
-            } else {
-                let mut transactions = vec![];
-                // the first transaction needs to create the temp account
-                transactions.push(self.get_create_temp_account_transaction(
-                    &recent_blockhash,
-                    core_transactions.len(),
-                )?);
-                transactions.append(&mut core_transactions);
-                // close out our temp authority account and transfer any leftover funds back to the payer
-                transactions.push(self.get_close_temp_authority_transaction_parts()?);
-                transactions
-            };
+        let transactions = if self.do_cheatcode_deploy {
+            core_transactions
+        } else {
+            let mut transactions = vec![];
+            // the first transaction needs to create the temp account
+            if let Some(create_temp_account_transaction) = self
+                .get_create_temp_account_transaction(&recent_blockhash, core_transactions.len())?
+            {
+                transactions.push(create_temp_account_transaction);
+            }
+            transactions.append(&mut core_transactions);
+            // close out our temp authority account and transfer any leftover funds back to the payer
+            transactions.push(self.get_close_temp_authority_transaction_parts()?);
+            transactions
+        };
 
         Ok(transactions)
     }
@@ -954,7 +954,7 @@ impl UpgradeableProgramDeployer {
         &self,
         blockhash: &Hash,
         transaction_count: usize,
-    ) -> Result<Value, Diagnostic> {
+    ) -> Result<Option<Value>, Diagnostic> {
         let mut lamports = 0;
 
         // calculate transaction fees for all deployment transactions
@@ -998,13 +998,18 @@ impl UpgradeableProgramDeployer {
         // calculate rent for all program data written
         {
             let program_data_length = self.binary.len();
-            // size for the program data
-            lamports += self
+            let program_data_rent_lamports = self
                 .rpc_client
                 .get_minimum_balance_for_rent_exemption(
                     UpgradeableLoaderState::size_of_programdata(program_data_length),
                 )
                 .unwrap();
+
+            let buffer_account_lamports =
+                self.rpc_client.get_account(&self.buffer_pubkey).map(|a| a.lamports).unwrap_or(0);
+            // size for the program data. this data will be written to the buffer account first, so
+            // only pay lamports for the needed lamports for rent - buffer_account_lamports
+            lamports += program_data_rent_lamports.saturating_sub(buffer_account_lamports);
 
             // if this is a program upgrade, we also need to add in rent lamports for extending the program data account
             if self.is_program_upgrade {
@@ -1022,41 +1027,53 @@ impl UpgradeableProgramDeployer {
         // add 20% buffer
         let lamports = ((lamports as f64) * 1.2).round() as u64;
 
-        let account_exists =
-            self.rpc_client.get_account(&self.temp_upgrade_authority_pubkey).is_ok();
-        let (instruction, keypairs) = if account_exists {
-            (
-                system_instruction::transfer(
-                    &self.payer_pubkey,
-                    &self.temp_upgrade_authority_pubkey,
-                    lamports,
-                ),
-                vec![],
-            )
-        } else {
-            (
-                system_instruction::create_account(
-                    &self.payer_pubkey,
-                    &self.temp_upgrade_authority_pubkey,
-                    lamports,
-                    0,
-                    &solana_sdk::system_program::id(),
-                ),
-                vec![&self.temp_upgrade_authority],
-            )
-        };
+        let existing_account_lamports = self
+            .rpc_client
+            .get_account(&self.temp_upgrade_authority_pubkey)
+            .map(|a| a.lamports)
+            .ok();
+
+        let (instruction, keypairs) =
+            if let Some(existing_account_lamports) = existing_account_lamports {
+                if existing_account_lamports >= lamports {
+                    return Ok(None);
+                } else {
+                    (
+                        system_instruction::transfer(
+                            &self.payer_pubkey,
+                            &self.temp_upgrade_authority_pubkey,
+                            lamports - existing_account_lamports,
+                        ),
+                        vec![],
+                    )
+                }
+            } else {
+                (
+                    system_instruction::create_account(
+                        &self.payer_pubkey,
+                        &self.temp_upgrade_authority_pubkey,
+                        lamports,
+                        0,
+                        &solana_sdk::system_program::id(),
+                    ),
+                    vec![&self.temp_upgrade_authority],
+                )
+            };
+
         let message =
             Message::new_with_blockhash(&[instruction], Some(&self.payer_pubkey), &blockhash);
 
         let transaction = Transaction::new_unsigned(message);
 
-        DeploymentTransaction::create_temp_account(
-            &transaction,
-            keypairs,
-            &self.temp_upgrade_authority,
-            account_exists,
-        )
-        .to_value()
+        Ok(Some(
+            DeploymentTransaction::create_temp_account(
+                &transaction,
+                keypairs,
+                &self.temp_upgrade_authority,
+                existing_account_lamports.is_some(),
+            )
+            .to_value()?,
+        ))
     }
 
     fn get_create_buffer_instruction(&self) -> Result<Vec<Instruction>, Diagnostic> {
