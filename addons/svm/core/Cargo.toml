@@ -33,7 +33,7 @@ convert_case = "0.6.0"
 solana-record-service-client = "0.1.0"
 # srs is using an old version of borsh, so we need to use the same version
 borsh = { version = "0.10", package = "borsh", features = ["std"] }
-kaigan = "0.2.6"
+kaigan = "=0.3.0"
 
 [dev-dependencies]
 txtx-test-utils = { path = "../../../crates/txtx-test-utils" }
