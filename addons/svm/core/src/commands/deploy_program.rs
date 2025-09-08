@@ -500,7 +500,7 @@ impl CommandImplementation for DeployProgram {
     }
 
     fn check_signed_executability(
-        construct_did: &ConstructDid,
+        _construct_did: &ConstructDid,
         instance_name: &str,
         _spec: &CommandSpecification,
         values: &ValueStore,
@@ -554,17 +554,17 @@ impl CommandImplementation for DeployProgram {
             let description =
                 values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
             let request = ProvideSignedTransactionRequest::new(
-                &construct_did.0,
+                &authority_signer_did.0,
                 &Value::null(),
                 NAMESPACE,
                 &network_id,
             )
-            .check_expectation_action_uuid(construct_did)
+            .check_expectation_action_uuid(&nested_construct_did)
             .formatted_payload(Some(&Value::string("The program binary will be written to the program data address.".into())))
             .only_approval_needed()
             .to_action_type()
             .to_request(instance_name, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION)
-            .with_construct_did(construct_did)
+            .with_construct_did(&nested_construct_did)
             .with_some_description(description)
             .with_meta_description("The `surfnet_setAccount` cheatcode will be used to instantly deploy the program without sending any transactions.");
 
