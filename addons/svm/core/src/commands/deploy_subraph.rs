@@ -332,7 +332,8 @@ impl SubgraphRequestClient {
             ),
         );
 
-        self.logger.info("Subgraph Deployed", format!("Your subgraph can be reached at {}", res));
+        self.logger
+            .success_info("Subgraph Deployed", format!("Your subgraph can be reached at {}", res));
 
         Ok(res)
     }
