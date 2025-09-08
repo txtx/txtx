@@ -561,6 +561,7 @@ pub type CommandBackgroundTaskExecutionClosure = Box<
 >;
 
 pub type CommandAggregateNestedExecutionResults = fn(
+    &str,
     &ConstructDid,
     &Vec<(ConstructDid, ValueStore)>,
     &Vec<CommandExecutionResult>,
@@ -1239,6 +1240,7 @@ impl CommandInstance {
         }
 
         (self.specification.aggregate_nested_execution_results)(
+            &self.name,
             &construct_did,
             &nested_values,
             &nested_results,
@@ -1431,6 +1433,7 @@ pub trait CommandImplementation {
     }
 
     fn aggregate_nested_execution_results(
+        _instance_name: &str,
         _construct_did: &ConstructDid,
         _values: &Vec<(ConstructDid, ValueStore)>,
         nested_results: &Vec<CommandExecutionResult>,
