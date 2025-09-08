@@ -18,12 +18,13 @@ use indexmap::IndexMap;
 
 use crate::{
     constants::{
-        DESCRIPTION, MARKDOWN, MARKDOWN_FILEPATH, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
+        DESCRIPTION, MARKDOWN, MARKDOWN_FILEPATH, RUNBOOK_COMPLETE_ADDITIONAL_INFO,
+        SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
     },
     helpers::hcl::{
         collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
-    types::AuthorizationContext,
+    types::{types::RunbookCompleteAdditionalInfo, AuthorizationContext},
 };
 use crate::{helpers::hcl::get_object_expression_key, types::stores::ValueStore};
 
@@ -104,6 +105,12 @@ impl CommandExecutionResult {
         for (key, value) in other.outputs.iter() {
             self.outputs.insert(key.clone(), value.clone());
         }
+    }
+
+    pub fn runbook_complete_additional_info(&self) -> Option<RunbookCompleteAdditionalInfo> {
+        self.outputs
+            .get(RUNBOOK_COMPLETE_ADDITIONAL_INFO)
+            .and_then(|i| i.as_runbook_complete_additional_info())
     }
 }
 

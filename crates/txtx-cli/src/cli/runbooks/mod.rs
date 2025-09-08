@@ -828,7 +828,18 @@ pub async fn handle_run_command(
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
-                    BlockEvent::RunbookCompleted => {
+                    BlockEvent::RunbookCompleted(additional_info) => {
+                        for info in additional_info.into_iter() {
+                            let events: Vec<LogEvent> = info.into();
+                            for log_event in events.into_iter() {
+                                handle_log_event(
+                                    &mut multi_progress,
+                                    log_event,
+                                    &log_filter,
+                                    &mut active_spinners,
+                                );
+                            }
+                        }
                         println!("\n{}", green!("Runbook complete!"));
                     }
                     BlockEvent::Error(new_block) => {

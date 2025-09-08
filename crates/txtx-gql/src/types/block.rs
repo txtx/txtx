@@ -344,3 +344,26 @@ impl GqlLogEvent {
         self.0.status()
     }
 }
+
+pub struct GqlRunbookCompleteAdditionalInfo(
+    pub txtx_addon_kit::types::types::RunbookCompleteAdditionalInfo,
+);
+
+#[graphql_object(context = Context)]
+impl GqlRunbookCompleteAdditionalInfo {
+    pub fn construct_did(&self) -> String {
+        self.0.construct_did.to_string()
+    }
+
+    pub fn construct_name(&self) -> String {
+        self.0.construct_name.clone()
+    }
+
+    pub fn title(&self) -> String {
+        self.0.title.clone()
+    }
+
+    pub fn details(&self) -> String {
+        self.0.details.clone()
+    }
+}
