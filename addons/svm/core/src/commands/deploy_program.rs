@@ -10,7 +10,8 @@ use solana_sdk::signature::Keypair;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
     DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID,
-    NESTED_CONSTRUCT_INDEX, SIGNATURE_APPROVED, SIGNED_TRANSACTION_BYTES,
+    NESTED_CONSTRUCT_INDEX, RUNBOOK_COMPLETE_ADDITIONAL_INFO, SIGNATURE_APPROVED,
+    SIGNED_TRANSACTION_BYTES,
 };
 use txtx_addon_kit::futures::future;
 use txtx_addon_kit::indexmap::IndexMap;
@@ -28,7 +29,9 @@ use txtx_addon_kit::types::signers::{
     SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::{ObjectType, RunbookSupervisionContext, Type, Value};
+use txtx_addon_kit::types::types::{
+    ObjectType, RunbookCompleteAdditionalInfo, RunbookSupervisionContext, ToFromValue, Type, Value,
+};
 use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
 
@@ -40,9 +43,12 @@ use crate::constants::{
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, BUFFER_ACCOUNT_PUBKEY,
     CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DEPLOYMENT_TRANSACTIONS, DEPLOYMENT_TRANSACTION_TYPE,
     DO_AWAIT_CONFIRMATION, EPHEMERAL_AUTHORITY_SECRET_KEY, FORMATTED_TRANSACTION,
-    INSTANT_SURFNET_DEPLOYMENT, IS_DEPLOYMENT, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM,
-    PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES,
-    SIGNERS, SLOT, TRANSACTION_BYTES,
+    INSTANT_SURFNET_DEPLOYMENT, IS_DEPLOYMENT, IS_SQUADS_AUTHORITY, IS_SURFNET, NAMESPACE,
+    NETWORK_ID, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID, PROGRAM_IDL, RPC_API_URL,
+    SIGNATURE, SIGNATURES, SIGNERS, SLOT, TRANSACTION_BYTES,
+};
+use crate::signers::squads::{
+    SQUADS_DEPLOYMENT_ADDITIONAL_INFO, SQUADS_DEPLOYMENT_ADDITIONAL_INFO_TITLE, SQUADS_MATCHER,
 };
 use crate::typing::{
     DeploymentTransactionType, SvmValue, ANCHOR_PROGRAM_ARTIFACTS,
@@ -185,13 +191,18 @@ impl CommandImplementation for DeployProgram {
         construct_did: &ConstructDid,
         instance_name: &str,
         values: &ValueStore,
-        _signers_instances: &HashMap<ConstructDid, SignerInstance>,
+        signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> PrepareSignedNestedExecutionResult {
         let (
             (authority_signer_did, mut authority_signer_state),
             (_payer_signer_did, mut payer_signer_state),
         ) = pop_deployment_signers(values, &mut signers);
+
+        let is_squads_authority = signers_instances
+            .get(&authority_signer_did)
+            .map(|s| s.specification.matcher == SQUADS_MATCHER)
+            .unwrap_or(false);
 
         let program_artifacts_map = match values.get_expected_value(PROGRAM) {
             Ok(a) => a,
@@ -444,6 +455,13 @@ impl CommandImplementation for DeployProgram {
             );
 
             value_store.insert_scoped_value(&new_did.to_string(), PROGRAM_ID, program_id.clone());
+            if i == 0 {
+                value_store.insert_scoped_value(
+                    &new_did.to_string(),
+                    IS_SQUADS_AUTHORITY,
+                    Value::bool(is_squads_authority),
+                );
+            }
             if i == transaction_count - 1 {
                 if let Some(idl) = &program_idl {
                     value_store.insert_scoped_value(
@@ -903,7 +921,8 @@ impl CommandImplementation for DeployProgram {
     }
 
     fn aggregate_nested_execution_results(
-        _construct_did: &ConstructDid,
+        instance_name: &str,
+        construct_did: &ConstructDid,
         nested_values: &Vec<(ConstructDid, ValueStore)>,
         nested_results: &Vec<CommandExecutionResult>,
     ) -> Result<CommandExecutionResult, Diagnostic> {
@@ -919,6 +938,14 @@ impl CommandImplementation for DeployProgram {
             .and_then(|(id, values)| values.get_scoped_value(&id.to_string(), PROGRAM_IDL))
             .cloned();
         let slot = nested_results.last().and_then(|res| res.outputs.get(SLOT)).cloned();
+        let is_squads_authority = nested_values
+            .first()
+            .and_then(|(id, values)| {
+                values
+                    .get_scoped_value(&id.to_string(), IS_SQUADS_AUTHORITY)
+                    .and_then(|v| v.as_bool())
+            })
+            .unwrap_or(false);
 
         for (res, (nested_construct_did, values)) in nested_results.iter().zip(nested_values) {
             let tx_type = values
@@ -947,6 +974,18 @@ impl CommandImplementation for DeployProgram {
         }
         if let Some(slot) = slot {
             result.outputs.insert(SLOT.into(), slot);
+        }
+        if is_squads_authority {
+            result.outputs.insert(
+                RUNBOOK_COMPLETE_ADDITIONAL_INFO.into(),
+                RunbookCompleteAdditionalInfo::new(
+                    construct_did,
+                    instance_name,
+                    SQUADS_DEPLOYMENT_ADDITIONAL_INFO_TITLE.clone(),
+                    SQUADS_DEPLOYMENT_ADDITIONAL_INFO.clone(),
+                )
+                .to_value(),
+            );
         }
         Ok(result)
     }
