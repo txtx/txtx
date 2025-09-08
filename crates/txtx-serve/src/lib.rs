@@ -439,7 +439,7 @@ pub async fn execute_runbook(
                         let len = block_store.len();
                         block_store.insert(len, new_block.clone());
                     }
-                    BlockEvent::RunbookCompleted => {
+                    BlockEvent::RunbookCompleted(_) => {
                         println!("\n{}", green!("Runbook complete!"));
                         break;
                     }

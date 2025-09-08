@@ -3,6 +3,7 @@ use std::pin::Pin;
 use crate::{
     types::block::{
         GqlActionBlock, GqlActionItemRequestUpdate, GqlErrorBlock, GqlLogEvent, GqlModalBlock,
+        GqlRunbookCompleteAdditionalInfo,
     },
     Context,
 };
@@ -20,7 +21,8 @@ type GqlActionItemRequestUpdateStream =
     Pin<Box<dyn Stream<Item = Result<Vec<GqlActionItemRequestUpdate>, FieldError>> + Send>>;
 
 type ClearBlockEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
-type RunbookCompletedEventStream = Pin<Box<dyn Stream<Item = Result<bool, FieldError>> + Send>>;
+type RunbookCompletedEventStream =
+    Pin<Box<dyn Stream<Item = Result<Vec<GqlRunbookCompleteAdditionalInfo>, FieldError>> + Send>>;
 type LogEventStream = Pin<Box<dyn Stream<Item = Result<GqlLogEvent, FieldError>> + Send>>;
 
 #[graphql_subscription(
@@ -117,8 +119,10 @@ impl Subscription {
             loop {
               if let Ok(block_event) = block_rx.recv().await {
                 match block_event {
-                  BlockEvent::RunbookCompleted => yield Ok(true),
-                    _ => {}
+                  BlockEvent::RunbookCompleted(additional_info) => {
+                    yield Ok(additional_info.into_iter().map(GqlRunbookCompleteAdditionalInfo).collect())
+                  },
+                  _ => {}
                 }
               }
             }

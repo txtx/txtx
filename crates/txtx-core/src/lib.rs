@@ -352,6 +352,13 @@ pub async fn start_supervised_runbook_runloop(
                     let pass_has_pending_actions = pass_results.actions.has_pending_actions();
                     let pass_has_nodes_to_re_execute = !pass_results.nodes_to_re_execute.is_empty();
 
+                    let additional_info = flow_context
+                        .execution_context
+                        .commands_execution_results
+                        .values()
+                        .filter_map(|result| result.runbook_complete_additional_info())
+                        .collect::<Vec<_>>();
+
                     if !pass_has_pending_actions
                         && !pass_has_pending_bg_tasks
                         && !pass_has_nodes_to_re_execute
@@ -407,7 +414,7 @@ pub async fn start_supervised_runbook_runloop(
                     }
                     if flow_execution_completed && !start_of_loop_had_bg_tasks {
                         if current_flow_index == total_flows_count - 1 {
-                            let _ = block_tx.send(BlockEvent::RunbookCompleted);
+                            let _ = block_tx.send(BlockEvent::RunbookCompleted(additional_info));
                             return Ok(());
                         } else {
                             current_flow_index += 1;

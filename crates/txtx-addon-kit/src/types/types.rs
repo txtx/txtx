@@ -13,6 +13,8 @@ use crate::helpers::hcl::{
     collect_constructs_references_from_block, collect_constructs_references_from_expression,
     visit_optional_untyped_attribute,
 };
+use crate::types::frontend::{LogDetails, LogEvent, StaticLogEvent};
+use crate::types::ConstructDid;
 
 use super::diagnostics::Diagnostic;
 use super::{Did, EvaluatableInput};
@@ -222,6 +224,93 @@ impl<'de> Deserialize<'de> for Value {
 pub type AddonJsonConverter<'a> = Box<dyn Fn(&Value) -> Result<Option<JsonValue>, Diagnostic> + 'a>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookCompleteAdditionalInfo {
+    /// The construct did that created this info
+    pub construct_did: ConstructDid,
+    /// The name of the construct that created this info
+    pub construct_name: String,
+    /// The title of the info
+    pub title: String,
+    /// The markdown details of the info
+    pub details: String,
+}
+
+impl RunbookCompleteAdditionalInfo {
+    pub const ADDON_ID: &str = "std::runbook_complete_additional_info";
+
+    pub fn new(
+        construct_did: &ConstructDid,
+        construct_name: impl ToString,
+        title: impl ToString,
+        details: impl ToString,
+    ) -> Self {
+        Self {
+            construct_did: construct_did.clone(),
+            construct_name: construct_name.to_string(),
+            title: title.to_string(),
+            details: details.to_string(),
+        }
+    }
+}
+
+impl Into<Vec<LogEvent>> for RunbookCompleteAdditionalInfo {
+    fn into(self) -> Vec<LogEvent> {
+        self.details
+            .split("\n")
+            .filter_map(|line| {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(LogEvent::Static(StaticLogEvent {
+                        level: super::frontend::LogLevel::Info,
+                        details: LogDetails {
+                            message: trimmed.to_string(),
+                            summary: self.title.clone(),
+                        },
+                        uuid: self.construct_did.as_uuid(),
+                        namespace: self.construct_name.clone(),
+                    }))
+                }
+            })
+            .collect()
+    }
+}
+
+impl ToFromValue for RunbookCompleteAdditionalInfo {
+    fn to_value(&self) -> Value {
+        let serialized = serde_json::to_vec(self).unwrap();
+        Value::addon(serialized, RunbookCompleteAdditionalInfo::ADDON_ID)
+    }
+    fn from_value(value: &Value) -> Self {
+        let AddonData { bytes, id } = value.as_addon_data().unwrap();
+        if id != RunbookCompleteAdditionalInfo::ADDON_ID {
+            panic!("Value is not a RunbookCompleteAdditionalInfo");
+        }
+        serde_json::from_slice(bytes).unwrap()
+    }
+}
+
+pub trait ToFromValue {
+    fn to_value(&self) -> Value;
+    fn from_value(value: &Value) -> Self;
+}
+
+impl ToFromValue for Vec<RunbookCompleteAdditionalInfo> {
+    fn to_value(&self) -> Value {
+        let serialized = serde_json::to_vec(self).unwrap();
+        Value::addon(serialized, RunbookCompleteAdditionalInfo::ADDON_ID)
+    }
+    fn from_value(value: &Value) -> Self {
+        let AddonData { bytes, id } = value.as_addon_data().unwrap();
+        if id != RunbookCompleteAdditionalInfo::ADDON_ID {
+            panic!("Value is not a RunbookCompleteAdditionalInfo");
+        }
+        serde_json::from_slice(bytes).unwrap()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ThirdPartySignatureStatus {
     Initialized,
     Submitted,
@@ -295,6 +384,15 @@ impl Value {
         if let Value::Addon(addon_data) = self {
             if addon_data.id == THIRD_PARTY_SIGNATURE {
                 return Some(ThirdPartySignatureStatus::from_bytes(&addon_data.bytes));
+            }
+        }
+        None
+    }
+
+    pub fn as_runbook_complete_additional_info(&self) -> Option<RunbookCompleteAdditionalInfo> {
+        if let Value::Addon(addon_data) = self {
+            if addon_data.id == RunbookCompleteAdditionalInfo::ADDON_ID {
+                return Some(RunbookCompleteAdditionalInfo::from_value(&self));
             }
         }
         None

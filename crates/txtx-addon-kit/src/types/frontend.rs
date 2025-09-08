@@ -1,6 +1,9 @@
 use std::{borrow::BorrowMut, collections::BTreeMap, fmt::Display};
 
-use crate::{constants::ACTION_ITEM_BEGIN_FLOW, types::stores::AddonDefaults};
+use crate::{
+    constants::ACTION_ITEM_BEGIN_FLOW,
+    types::{stores::AddonDefaults, types::RunbookCompleteAdditionalInfo},
+};
 
 use super::{
     block_id::BlockId,
@@ -16,7 +19,7 @@ pub enum BlockEvent {
     Action(Block),
     Clear,
     UpdateActionItems(Vec<NormalizedActionItemRequestUpdate>),
-    RunbookCompleted,
+    RunbookCompleted(Vec<RunbookCompleteAdditionalInfo>),
     Exit,
     LogEvent(LogEvent),
     Modal(Block),
@@ -356,7 +359,7 @@ impl BlockEvent {
 
     pub fn expect_runbook_completed(&self) {
         match &self {
-            BlockEvent::RunbookCompleted => {}
+            BlockEvent::RunbookCompleted(_) => {}
             _ => unreachable!("block expected"),
         }
     }
