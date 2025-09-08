@@ -7,106 +7,6 @@ export const metadata = {
 
 
 
-## sign_transaction {{ tag: 'action' }}
-
-The `svm::send_transaction` is used to sign a transaction and broadcast it to the specified SVM-compatible network.
-
-### Inputs
-
-<Properties>
-
-
-  <Property name="description" required="optional" type="string">
-    A description of the transaction.
-  </Property>
-
-
-  <Property name="transaction_bytes" required="required" type="addon(svm::transaction)">
-    The transaction bytes to sign.
-  </Property>
-
-
-  <Property name="signers" required="optional" type="array[string]">
-    A set of references to signer constructs, which will be used to sign the transaction.
-  </Property>
-
-
-  <Property name="signer" required="optional" type="array[string]">
-    A reference to a signer construct, which will be used to sign the transaction.
-  </Property>
-
-
-  <Property name="pre_condition" required="optional" type="map">
-    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
-  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
-    - **halt** (default): Throws an error and halts execution of the runbook
-    - **log**: Logs a warning and continues execution of the runbook
-    - **skip**: Skips execution of this command and all downstream commands
-
-  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
-  </Property>
-
-
-  <Property name="post_condition" required="optional" type="map">
-    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
-  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
-
-  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
-If not specified, the default is 1000 milliseconds (1 second).
-
-  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
-    - **halt** (default): Throws an error and halts execution of the runbook
-    - **log**: Logs a warning and continues execution of the runbook
-    - **skip**: Skips execution of this command and all downstream commands
-    - **continue**: Continues execution without any action
-
-  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
-  </Property>
-
-
-
-</Properties>
-
-### Outputs
-
-<Note>
-
-When the `sign_transaction` action is successfully executed, the following outputs are attached to the action
-
-</Note>
-
-<Properties>
-
-
-  <Property name="signed_transaction_bytes" type="addon(svm::transaction)">
-    The signed transaction bytes.
-  </Property>
-
-
-</Properties>
-
-<CodeGroup title="Example using sign_transaction">
-
-
-```hcl {{ title: 'main.tx' }}
-// Coming soon
-
-```
-
-
-```json {{ title: 'main.json' }}
-// Coming soon
-```
-
-```yaml {{ title: 'main.yaml' }}
-# Coming soon
-```
-
-</CodeGroup>
-
----
-
-
 ## process_instructions {{ tag: 'action' }}
 
 The `svm::process_instructions` action encodes instructions, adds them to a transaction, and signs & broadcasts the transaction.
@@ -276,6 +176,21 @@ action "program_call" "svm::process_instructions" {
   </Property>
 
 
+  <Property name="instant_surfnet_deployment" required="optional" type="bool">
+    If set to `true`, deployments to a Surfnet will be instantaneous, deploying via a cheatcode to directly write to the program account, rather than sending transactions. Defaults to `false`.
+  </Property>
+
+
+  <Property name="ephemeral_authority_secret_key" required="optional" type="string">
+    An optional base-58 encoded keypair string to use as the temporary upgrade authority during deployment. If not provided, a new ephemeral keypair will be generated.
+  </Property>
+
+
+  <Property name="buffer_account_pubkey" required="optional" type="string">
+    The public key of the buffer account to use to continue a failed deployment.
+  </Property>
+
+
   <Property name="pre_condition" required="optional" type="map">
     Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
   - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
@@ -330,6 +245,11 @@ When the `deploy_program` action is successfully executed, the following outputs
 
   <Property name="program_idl" type="string">
     The program ID of the deployed program.
+  </Property>
+
+
+  <Property name="slot" type="integer">
+    The slot at which the program was deployed.
   </Property>
 
 
@@ -666,18 +586,66 @@ When the request is received, the associated chain is indexed and the data is st
   </Property>
 
 
-  <Property name="block_height" required="required" type="integer">
-    The block height to start indexing from.
+  <Property name="slot" required="optional" type="integer">
+    The slot to start indexing from.
   </Property>
 
 
-  <Property name="event" required="required" type="map">
+  <Property name="block_height" required="optional" type="integer">
+    Deprecated. Use slot instead.
+  </Property>
+
+
+  <Property name="event" required="optional" type="map">
     A map of events to index in the subgraph. This is a map type containing the keys:
   - **name**: The name of the event, as indexed by the IDL, whose occurrences should be added to the subgraph.
   - **field**: A map of fields to index. This is a map type containing the keys:
     - **name**: The name of the field as it should appear in the subgraph.
     - **description**: A description of the field as it should appear in the subgraph schema.
     - **idl_key**: A key from the event's type in the IDL, indicating which argument from the IDL type to map to this field. By default, the field name is used.
+    - **indexed**: Whether this field should be indexed in the subgraph. If true, the field will be indexed and can be used as a filter in the subgraph. The default is false.
+  - **intrinsic_fields**: A map of intrinsic fields to index. For Event subgraphs, intrinsics are:
+- `slot`(indexed): The slot in which the event was emitted.
+- `transactionSignature`(indexed): The transaction signature in which the event was emitted.
+  </Property>
+
+
+  <Property name="pda" required="optional" type="map">
+    The PDA account to index in the subgraph This is a map type containing the keys:
+  - **type**: The type field of the account, as indexed by the IDL. This type definition will be used to parse the PDA account data.
+  - **instruction**: An instruction that contains the account to index in the subgraph. This is a map type containing the keys:
+    - **name**: The name of the instruction that contains the account to index in the subgraph.
+    - **account_name**: The name of the account in the instruction that contains the account to index in the subgraph.
+  - **field**: A map of fields to index. This is a map type containing the keys:
+    - **name**: The name of the field as it should appear in the subgraph.
+    - **description**: A description of the field as it should appear in the subgraph schema.
+    - **idl_key**: A key from the event's type in the IDL, indicating which argument from the IDL type to map to this field. By default, the field name is used.
+    - **indexed**: Whether this field should be indexed in the subgraph. If true, the field will be indexed and can be used as a filter in the subgraph. The default is false.
+  - **intrinsic_fields**: A map of intrinsic fields to index. For PDA subgraphs, intrinsics are:
+- `slot`(indexed): The slot in which the event was emitted.
+- `pubkey`(indexed): The public key of the account.
+- `owner`(not indexed): The owner of the account.
+- `lamports`(not indexed): The lamports of the account.
+  </Property>
+
+
+  <Property name="token_account" required="optional" type="map">
+    The token account to index in the subgraph This is a map type containing the keys:
+  - **instruction**: An instruction that contains the account to index in the subgraph. This is a map type containing the keys:
+    - **name**: The name of the instruction that contains the token account to index in the subgraph.
+    - **account_name**: The name of the token account in the instruction.
+  - **intrinsic_fields**: A map of fields to index that are intrinsic to token accounts. Token Account intrinsics are:
+- `slot`(indexed): The slot in which the instruction referencing the token account was invoked.
+- `transactionSignature`(indexed): The transaction signature in which the instruction referencing the token account was invoked.
+- `pubkey`(indexed): The public key of the token account (also known as the Associated Token Address).
+- `owner`(not indexed): The owner of the token account.
+- `mint`(not indexed): The mint of the token account.
+- `tokenProgram`(not indexed): The token program id.
+- `amount`(not indexed): A string representation of the amount of tokens in the account.
+- `decimals`(not indexed): The number of decimals for the token.
+- `uiAmount`(not indexed): The amount of tokens in the account, formatted as a number with the correct number of decimals.
+- `uiAmountString`(not indexed): The amount of tokens in the account, formatted as a string with the correct number of decimals.
+- `lamports`(not indexed): The lamports of the account.
   </Property>
 
 
@@ -732,10 +700,27 @@ When the `deploy_subgraph` action is successfully executed, the following output
 action "transfer_event_subgraph" "svm::deploy_subgraph" {
     program_id = action.deploy.program_id
     program_idl = action.deploy.program_idl
-    block_height = action.deploy.block_height
+    slot = action.deploy.slot
     event {
         name = "TransferEvent"
     }
+}
+action "account_index" "svm::deploy_subgraph" {
+    program_id = action.deploy.program_id
+    program_idl = action.deploy.program_idl
+    slot = action.deploy.slot
+    pda {
+        type = "CustomAccount"
+        instruction {
+            name = "<instruction-using-this-account>"
+            account_name = "<name-of-account-in-instruction>"
+        }
+        instruction {
+            name = "<another-instruction-using-this-account>"
+            account_name = "<name-of-account-in-instruction>"
+        }
+    }
+}
 
 ```
 
@@ -777,11 +762,6 @@ The `set_token_account` action can be used to set the amount, delegate, delegate
   </Property>
 
 
-  <Property name="network_id" required="required" type="string">
-    The ID of the network type. Can be `localnet`, `devnet`, or `mainnet-beta`.
-  </Property>
-
-
   <Property name="set_account" required="optional" type="map">
     The account data to set. This is a map type containing the keys:
   - **public_key**: The public key of the account to set.
@@ -810,6 +790,13 @@ The `set_token_account` action can be used to set the amount, delegate, delegate
     The program clone data to set. This is a map type containing the keys:
   - **source_program_id**: The public key of the program to clone.
   - **destination_program_id**: The destination public key of the program.
+  </Property>
+
+
+  <Property name="set_program_authority" required="optional" type="map">
+    The program authority data to set. This is a map type containing the keys:
+  - **program_id**: The public key of the program to set the authority for.
+  - **authority**: The new authority for the program. If not provided, program's authority will be set to None.
   </Property>
 
 
@@ -875,6 +862,306 @@ action "setup" "svm::setup_surfnet" {
         source_program_id = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" // USDC program id
         destination_program_id = variable.my_program_id
     }
+    set_program_authority {
+        program_id = variable.my_program_id
+        authority = signer.caller.public_key
+    }
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## create_class {{ tag: 'action' }}
+
+The `svm::create_class` action is coming soon.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" required="optional" type="string">
+    A description of the record.
+  </Property>
+
+
+  <Property name="signer" required="required" type="array[string]">
+    A reference to a signer construct, which will be used to sign the transaction.
+  </Property>
+
+
+  <Property name="name" required="required" type="string">
+    The name of the class. This must be a valid UTF-8 string that is less than 256 bytes long.
+  </Property>
+
+
+  <Property name="metadata" required="required" type="string">
+    The metadata of the class. This must be a valid UTF-8 string.
+  </Property>
+
+
+  <Property name="is_permissioned" required="optional" type="bool">
+    Whether the class is permissioned. The default is true.
+  </Property>
+
+
+  <Property name="is_frozen" required="optional" type="bool">
+    Whether the class is frozen. The default is false.
+  </Property>
+
+
+  <Property name="rpc_api_url" required="required" type="string">
+    The URL to use when making API requests.
+  </Property>
+
+
+  <Property name="rpc_api_auth_token" required="optional" type="string">
+    The HTTP authentication token to include in the headers when making API requests.
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `create_class` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="signature" type="string">
+    The transaction computed signature.
+  </Property>
+
+
+  <Property name="name" type="string">
+    The name of the class.
+  </Property>
+
+
+  <Property name="metadata" type="string">
+    The metadata of the class.
+  </Property>
+
+
+  <Property name="public_key" type="string">
+    The public key of the created class.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using create_class">
+
+
+```hcl {{ title: 'main.tx' }}
+action "my_class" "svm::create_class" {
+    name = "my_class"
+    metadata = "metadata string"
+    is_permissioned = true
+    is_frozen = false
+    signer = signer.creator
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+
+---
+
+
+## create_record {{ tag: 'action' }}
+
+The `svm::create_record` action is coming soon.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="description" required="optional" type="string">
+    A description of the record.
+  </Property>
+
+
+  <Property name="owner" required="required" type="array[string]">
+    A reference to a signer construct, which will be used to sign the transaction and will be the owner of the record.
+  </Property>
+
+
+  <Property name="authority" required="required" type="array[string]">
+    An optional reference to a signer construct, which will be used to sign the transaction and will be the authority on the record.
+  </Property>
+
+
+  <Property name="class" required="required" type="string">
+    The public key of the class to which the record belongs.
+  </Property>
+
+
+  <Property name="name" required="required" type="string">
+    The name of the record. This must be a valid UTF-8 string that is less than 256 bytes long.
+  </Property>
+
+
+  <Property name="data" required="required" type="string">
+    The data of the record. This must be a valid UTF-8 string.
+  </Property>
+
+
+  <Property name="expiration" required="optional" type="integer">
+    The expiration time of the record, in seconds since the Unix epoch. If not provided, the record will not expire.
+  </Property>
+
+
+  <Property name="is_frozen" required="optional" type="bool">
+    Whether the record is frozen. The default is false.
+  </Property>
+
+
+  <Property name="rpc_api_url" required="required" type="string">
+    The URL to use when making API requests.
+  </Property>
+
+
+  <Property name="rpc_api_auth_token" required="optional" type="string">
+    The HTTP authentication token to include in the headers when making API requests.
+  </Property>
+
+
+  <Property name="pre_condition" required="optional" type="map">
+    Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+
+  - **assertion**: The assertion to check to determine if the pre-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+  <Property name="post_condition" required="optional" type="map">
+    Post-conditions are assertions that are evaluated after a command is executed. They can be used to determine if the command should be re-executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
+  - **retries**: If the post-condition assertion fails, the number of times to re-execute the command before executing the post-condition behavior. The default is 0.
+
+  - **backoff_ms**: If the post-condition assertion fails, the number of milliseconds to wait before re-executing the command.
+If not specified, the default is 1000 milliseconds (1 second).
+
+  - **behavior**: The behavior if the post-condition assertion does not pass. Possible values are:
+    - **halt** (default): Throws an error and halts execution of the runbook
+    - **log**: Logs a warning and continues execution of the runbook
+    - **skip**: Skips execution of this command and all downstream commands
+    - **continue**: Continues execution without any action
+
+  - **assertion**: The assertion to check to determine if the command should be re-executed or if the post-condition behavior should be executed. This value should evaluate to a boolean, or the `std::assert_eq` and other assertions from the standard library can be used.
+  </Property>
+
+
+
+</Properties>
+
+### Outputs
+
+<Note>
+
+When the `create_record` action is successfully executed, the following outputs are attached to the action
+
+</Note>
+
+<Properties>
+
+
+  <Property name="signature" type="string">
+    The transaction computed signature.
+  </Property>
+
+
+  <Property name="name" type="string">
+    The name of the record.
+  </Property>
+
+
+  <Property name="data" type="string">
+    The data of the record.
+  </Property>
+
+
+  <Property name="class" type="string">
+    The public key of the associated class.
+  </Property>
+
+
+  <Property name="public_key" type="string">
+    The public key of the created record.
+  </Property>
+
+
+</Properties>
+
+<CodeGroup title="Example using create_record">
+
+
+```hcl {{ title: 'main.tx' }}
+action "my_record" "svm::create_record" {
+    name = "my_record"
+    data = "data string"
+    class = action.create_my_class.public_key
+    owner = signer.owner
 }
 
 ```

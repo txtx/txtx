@@ -594,6 +594,12 @@
           "documentation": "Specifies the verifier options for contract verifications.",
           "typing": "map",
           "optional": true
+        },
+        {
+          "name": "linked_libraries",
+          "documentation": "A map of contract name to contract address to specify the linked libraries for the deployed contract.",
+          "typing": "object",
+          "optional": true
         }
       ],
       "outputs": [
@@ -632,45 +638,6 @@
     }
   ],
   "svm": [
-    {
-      "id": "sign_transaction",
-      "name": "Sign SVM Transaction",
-      "documentation": "The `svm::send_transaction` is used to sign a transaction and broadcast it to the specified SVM-compatible network.",
-      "inputs": [
-        {
-          "name": "description",
-          "documentation": "A description of the transaction.",
-          "typing": "string",
-          "optional": true
-        },
-        {
-          "name": "transaction_bytes",
-          "documentation": "The transaction bytes to sign.",
-          "typing": "addon(svm::transaction)",
-          "optional": false
-        },
-        {
-          "name": "signers",
-          "documentation": "A set of references to signer constructs, which will be used to sign the transaction.",
-          "typing": "array[string]",
-          "optional": true
-        },
-        {
-          "name": "signer",
-          "documentation": "A reference to a signer construct, which will be used to sign the transaction.",
-          "typing": "array[string]",
-          "optional": true
-        }
-      ],
-      "outputs": [
-        {
-          "name": "signed_transaction_bytes",
-          "documentation": "The signed transaction bytes.",
-          "typing": "addon(svm::transaction)"
-        }
-      ],
-      "example": "// Coming soon\n"
-    },
     {
       "id": "process_instructions",
       "name": "Process SVM Instructions",
@@ -762,6 +729,24 @@
           "documentation": "Whether to auto extend the program account for program upgrades. Defaults to `true`.",
           "typing": "bool",
           "optional": true
+        },
+        {
+          "name": "instant_surfnet_deployment",
+          "documentation": "If set to `true`, deployments to a Surfnet will be instantaneous, deploying via a cheatcode to directly write to the program account, rather than sending transactions. Defaults to `false`.",
+          "typing": "bool",
+          "optional": true
+        },
+        {
+          "name": "ephemeral_authority_secret_key",
+          "documentation": "An optional base-58 encoded keypair string to use as the temporary upgrade authority during deployment. If not provided, a new ephemeral keypair will be generated.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "buffer_account_pubkey",
+          "documentation": "The public key of the buffer account to use to continue a failed deployment.",
+          "typing": "string",
+          "optional": true
         }
       ],
       "outputs": [
@@ -779,6 +764,11 @@
           "name": "program_idl",
           "documentation": "The program ID of the deployed program.",
           "typing": "string"
+        },
+        {
+          "name": "slot",
+          "documentation": "The slot at which the program was deployed.",
+          "typing": "integer"
         }
       ],
       "example": "action \"deploy\" \"svm::deploy_program\" {\n    description = \"Deploy hello world program\"\n    program = svm::get_program_from_anchor_project(\"hello_world\") \n    authority = signer.authority\n    payer = signer.payer  # Optional, defaults to authority\n}\n"
@@ -960,20 +950,38 @@
           "optional": false
         },
         {
-          "name": "block_height",
-          "documentation": "The block height to start indexing from.",
+          "name": "slot",
+          "documentation": "The slot to start indexing from.",
           "typing": "integer",
-          "optional": false
+          "optional": true
+        },
+        {
+          "name": "block_height",
+          "documentation": "Deprecated. Use slot instead.",
+          "typing": "integer",
+          "optional": true
         },
         {
           "name": "event",
           "documentation": "A map of events to index in the subgraph.",
           "typing": "map",
-          "optional": false
+          "optional": true
+        },
+        {
+          "name": "pda",
+          "documentation": "The PDA account to index in the subgraph",
+          "typing": "map",
+          "optional": true
+        },
+        {
+          "name": "token_account",
+          "documentation": "The token account to index in the subgraph",
+          "typing": "map",
+          "optional": true
         }
       ],
       "outputs": [],
-      "example": "action \"transfer_event_subgraph\" \"svm::deploy_subgraph\" {\n    program_id = action.deploy.program_id\n    program_idl = action.deploy.program_idl\n    block_height = action.deploy.block_height\n    event {\n        name = \"TransferEvent\"\n    }\n"
+      "example": "action \"transfer_event_subgraph\" \"svm::deploy_subgraph\" {\n    program_id = action.deploy.program_id\n    program_idl = action.deploy.program_idl\n    slot = action.deploy.slot\n    event {\n        name = \"TransferEvent\"\n    }\n}\naction \"account_index\" \"svm::deploy_subgraph\" {\n    program_id = action.deploy.program_id\n    program_idl = action.deploy.program_idl\n    slot = action.deploy.slot\n    pda {\n        type = \"CustomAccount\"\n        instruction {\n            name = \"<instruction-using-this-account>\"\n            account_name = \"<name-of-account-in-instruction>\"\n        }\n        instruction {\n            name = \"<another-instruction-using-this-account>\"\n            account_name = \"<name-of-account-in-instruction>\"\n        }\n    }\n}\n"
     },
     {
       "id": "setup_surfnet",
@@ -989,12 +997,6 @@
         {
           "name": "rpc_api_url",
           "documentation": "The URL to use when making API requests.",
-          "typing": "string",
-          "optional": false
-        },
-        {
-          "name": "network_id",
-          "documentation": "The ID of the network type. Can be `localnet`, `devnet`, or `mainnet-beta`.",
           "typing": "string",
           "optional": false
         },
@@ -1015,10 +1017,189 @@
           "documentation": "The program clone data to set.",
           "typing": "map",
           "optional": true
+        },
+        {
+          "name": "set_program_authority",
+          "documentation": "The program authority data to set.",
+          "typing": "map",
+          "optional": true
         }
       ],
       "outputs": [],
-      "example": "action \"setup\" \"svm::setup_surfnet\" {\n    set_account {\n        public_key = signer.caller.public_key\n        lamports = 999999999\n    }\n    set_token_account {\n        public_key = signer.caller.public_key\n        token = \"usdc\"\n        amount = 1000000\n    }\n    clone_program_account {\n        source_program_id = \"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\" // USDC program id\n        destination_program_id = variable.my_program_id\n    }\n}\n"
+      "example": "action \"setup\" \"svm::setup_surfnet\" {\n    set_account {\n        public_key = signer.caller.public_key\n        lamports = 999999999\n    }\n    set_token_account {\n        public_key = signer.caller.public_key\n        token = \"usdc\"\n        amount = 1000000\n    }\n    clone_program_account {\n        source_program_id = \"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\" // USDC program id\n        destination_program_id = variable.my_program_id\n    }\n    set_program_authority {\n        program_id = variable.my_program_id\n        authority = signer.caller.public_key\n    }\n}\n"
+    },
+    {
+      "id": "create_class",
+      "name": "Create a Class with the Solana Record Service program",
+      "documentation": "The `svm::create_class` action is coming soon.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the record.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "signer",
+          "documentation": "A reference to a signer construct, which will be used to sign the transaction.",
+          "typing": "array[string]",
+          "optional": false
+        },
+        {
+          "name": "name",
+          "documentation": "The name of the class. This must be a valid UTF-8 string that is less than 256 bytes long.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "metadata",
+          "documentation": "The metadata of the class. This must be a valid UTF-8 string.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "is_permissioned",
+          "documentation": "Whether the class is permissioned. The default is true.",
+          "typing": "bool",
+          "optional": true
+        },
+        {
+          "name": "is_frozen",
+          "documentation": "Whether the class is frozen. The default is false.",
+          "typing": "bool",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL to use when making API requests.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "rpc_api_auth_token",
+          "documentation": "The HTTP authentication token to include in the headers when making API requests.",
+          "typing": "string",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "signature",
+          "documentation": "The transaction computed signature.",
+          "typing": "string"
+        },
+        {
+          "name": "name",
+          "documentation": "The name of the class.",
+          "typing": "string"
+        },
+        {
+          "name": "metadata",
+          "documentation": "The metadata of the class.",
+          "typing": "string"
+        },
+        {
+          "name": "public_key",
+          "documentation": "The public key of the created class.",
+          "typing": "string"
+        }
+      ],
+      "example": "action \"my_class\" \"svm::create_class\" {\n    name = \"my_class\"\n    metadata = \"metadata string\"\n    is_permissioned = true\n    is_frozen = false\n    signer = signer.creator\n}\n"
+    },
+    {
+      "id": "create_record",
+      "name": "Create a record with the Solana Record Service program.",
+      "documentation": "The `svm::create_record` action is coming soon.",
+      "inputs": [
+        {
+          "name": "description",
+          "documentation": "A description of the record.",
+          "typing": "string",
+          "optional": true
+        },
+        {
+          "name": "owner",
+          "documentation": "A reference to a signer construct, which will be used to sign the transaction and will be the owner of the record.",
+          "typing": "array[string]",
+          "optional": false
+        },
+        {
+          "name": "authority",
+          "documentation": "An optional reference to a signer construct, which will be used to sign the transaction and will be the authority on the record.",
+          "typing": "array[string]",
+          "optional": false
+        },
+        {
+          "name": "class",
+          "documentation": "The public key of the class to which the record belongs.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "name",
+          "documentation": "The name of the record. This must be a valid UTF-8 string that is less than 256 bytes long.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "data",
+          "documentation": "The data of the record. This must be a valid UTF-8 string.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "expiration",
+          "documentation": "The expiration time of the record, in seconds since the Unix epoch. If not provided, the record will not expire.",
+          "typing": "integer",
+          "optional": true
+        },
+        {
+          "name": "is_frozen",
+          "documentation": "Whether the record is frozen. The default is false.",
+          "typing": "bool",
+          "optional": true
+        },
+        {
+          "name": "rpc_api_url",
+          "documentation": "The URL to use when making API requests.",
+          "typing": "string",
+          "optional": false
+        },
+        {
+          "name": "rpc_api_auth_token",
+          "documentation": "The HTTP authentication token to include in the headers when making API requests.",
+          "typing": "string",
+          "optional": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "signature",
+          "documentation": "The transaction computed signature.",
+          "typing": "string"
+        },
+        {
+          "name": "name",
+          "documentation": "The name of the record.",
+          "typing": "string"
+        },
+        {
+          "name": "data",
+          "documentation": "The data of the record.",
+          "typing": "string"
+        },
+        {
+          "name": "class",
+          "documentation": "The public key of the associated class.",
+          "typing": "string"
+        },
+        {
+          "name": "public_key",
+          "documentation": "The public key of the created record.",
+          "typing": "string"
+        }
+      ],
+      "example": "action \"my_record\" \"svm::create_record\" {\n    name = \"my_record\"\n    data = \"data string\"\n    class = action.create_my_class.public_key\n    owner = signer.owner\n}\n"
     }
   ],
   "telegram": [

@@ -854,6 +854,12 @@ The `evm::get_contract_from_foundry_project` and `evm::get_contract_from_hardhat
   </Property>
 
 
+  <Property name="linked_libraries" required="optional" type="object">
+    A map of contract name to contract address to specify the linked libraries for the deployed contract. This is an object type containing the keys:
+  - **contract_name**: A contract name (key) mapped to an address. If a contract deployment requires a linked library, this contract address will be used for all occurrences of the specified library name.
+  </Property>
+
+
   <Property name="pre_condition" required="optional" type="map">
     Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
   - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:

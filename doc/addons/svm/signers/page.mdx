@@ -125,7 +125,7 @@ When the `web_wallet` action is successfully executed, the following outputs are
 
 
   <Property name="address" type="string">
-    The address of the account.
+    The address of the account. This is an alias for the `public_key` output.
   </Property>
 
 
@@ -169,8 +169,38 @@ The `svm::squads` signer can be used to synchronously sign a transaction.
 <Properties>
 
 
-  <Property name="address" required="optional" type="string">
-    The squad vault address.
+  <Property name="address" required="optional" type="addon(svm::pubkey)">
+    The Squad multisig address.
+  </Property>
+
+
+  <Property name="create_key" required="optional" type="addon(svm::pubkey)">
+    The create key used to derive the Squad multisig address.
+  </Property>
+
+
+  <Property name="vault_index" required="optional" type="integer">
+    The index of the vault to be created. If omitted, `0` will be used.
+  </Property>
+
+
+  <Property name="initiator" required="required" type="string">
+    A reference to a signer construct, which will be used to create the Squads Vault Transaction & Proposal. This signer must have the `Initiate` permission in the Squads Multisig.
+  </Property>
+
+
+  <Property name="payer" required="optional" type="string">
+    A reference to a signer construct, which will be used to pay for the Squads Vault Transaction & Proposal creation. If omitted, the `initiator` will be used.
+  </Property>
+
+
+  <Property name="program_id" required="optional" type="addon(svm::pubkey)">
+    The program ID of the Squad program. If omitted, the default program ID will be used.
+  </Property>
+
+
+  <Property name="squads_frontend_url" required="optional" type="string">
+    The URL of the Squads frontend. If omitted, the default URL 'https://app.squads.so' will be used.
   </Property>
 
 
@@ -189,12 +219,32 @@ When the `squads` action is successfully executed, the following outputs are att
 
 
   <Property name="public_key" type="string">
-    The public key of the squad vault.
+    The public key of the Squad vault for the provided vault index. This is an alias for the `vault_public_key` output
   </Property>
 
 
   <Property name="address" type="string">
-    The SVM address generated from the secret key, mnemonic, or keypair file. This is an alias for the `public_key` output.
+    The public key of the Squad vault for the provided vault index. This is an alias for the `vault_public_key` output
+  </Property>
+
+
+  <Property name="vault_public_key" type="string">
+    The public key of the Squad vault for the provided vault index.
+  </Property>
+
+
+  <Property name="vault_address" type="string">
+    The public key of the Squad vault for the provided vault index. This is an alias for the `vault_public_key` output
+  </Property>
+
+
+  <Property name="multisig_public_key" type="string">
+    The public key of the Squad multisig pda. This address should not be funded.
+  </Property>
+
+
+  <Property name="multisig_address" type="string">
+    The public key of the Squad multisig pda. This address should not be funded. This is an alias for the `multisig_public_key` output
   </Property>
 
 
@@ -204,8 +254,12 @@ When the `squads` action is successfully executed, the following outputs are att
 
 
 ```hcl {{ title: 'main.tx' }}
+signer "initiator" "svm::web_wallet" {
+    expected_address = input.initiator_address
+}
 signer "deployer" "svm::squads" {
-    address = input.address
+    public_key = input.squad_public_key
+    initiator = signer.initiator
 }
 
 ```

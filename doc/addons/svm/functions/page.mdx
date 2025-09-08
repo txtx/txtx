@@ -512,7 +512,7 @@ output "sol" {
 <Properties>
 
 
-  <Property name="program_id" required="required" type="string | addon(svm::pubkey) | addon(svm::address)">
+  <Property name="program_id" required="required" type="string | addon(svm::pubkey)">
     The address of the program the PDA is derived from.
   </Property>
 
@@ -580,12 +580,12 @@ output "bump" {
 <Properties>
 
 
-  <Property name="wallet_address" required="required" type="string | addon(svm::pubkey) | addon(svm::address)">
+  <Property name="wallet_address" required="required" type="string | addon(svm::pubkey)">
     The address of the wallet to compute the associated token account for.
   </Property>
 
 
-  <Property name="token_mint_address" required="optional" type="string | addon(svm::pubkey) | addon(svm::address)">
+  <Property name="token_mint_address" required="optional" type="string | addon(svm::pubkey)">
     The address of the token mint used to compute the token account.
   </Property>
 
@@ -640,22 +640,22 @@ variable "token_account" {
 <Properties>
 
 
-  <Property name="funding_address" required="required" type="string | addon(svm::pubkey) | addon(svm::address)">
+  <Property name="funding_address" required="required" type="string | addon(svm::pubkey)">
     The address of the funding account.
   </Property>
 
 
-  <Property name="wallet_address" required="required" type="string | addon(svm::pubkey) | addon(svm::address)">
+  <Property name="wallet_address" required="required" type="string | addon(svm::pubkey)">
     The address of the wallet to compute the associated token account for.
   </Property>
 
 
-  <Property name="token_mint_address" required="optional" type="string | addon(svm::pubkey) | addon(svm::address)">
+  <Property name="token_mint_address" required="optional" type="string | addon(svm::pubkey)">
     The address of the token mint used to compute the token account.
   </Property>
 
 
-  <Property name="token_program_id" required="optional" type="string | addon(svm::pubkey) | addon(svm::address)">
+  <Property name="token_program_id" required="optional" type="string | addon(svm::pubkey)">
     The address of the token program used to compute the token account.
   </Property>
 
