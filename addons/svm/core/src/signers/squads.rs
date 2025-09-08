@@ -53,7 +53,7 @@ lazy_static! {
         SvmSecretKey => {
             name: "Squads Signer",
             matcher: SQUADS_MATCHER,
-            documentation:txtx_addon_kit::indoc! {r#"The `svm::squads` signer can be used to synchronously sign a transaction."#},
+            documentation:txtx_addon_kit::indoc! {r#"The `svm::squads` signer can be used to sign a transaction with a squads multisig."#},
             inputs: [
                 address: {
                     documentation: "The Squad multisig address.",
