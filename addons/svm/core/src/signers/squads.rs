@@ -46,11 +46,13 @@ use crate::utils::build_transaction_from_svm_value;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 use txtx_addon_kit::types::types::{RunbookSupervisionContext, ThirdPartySignatureStatus};
 
+pub const SQUADS_MATCHER: &str = "squads";
+
 lazy_static! {
     pub static ref SVM_SQUADS: SignerSpecification = define_signer! {
         SvmSecretKey => {
             name: "Squads Signer",
-            matcher: "squads",
+            matcher: SQUADS_MATCHER,
             documentation:txtx_addon_kit::indoc! {r#"The `svm::squads` signer can be used to synchronously sign a transaction."#},
             inputs: [
                 address: {
@@ -141,6 +143,17 @@ lazy_static! {
             force_sequential_signing: true
         }
     };
+    pub static ref SQUADS_DEPLOYMENT_ADDITIONAL_INFO_TITLE: String =
+        "Squads Deployment Follow-up Steps".into();
+    pub static ref SQUADS_DEPLOYMENT_ADDITIONAL_INFO: String = format!(
+        r#"
+You've now deployed your program to with you Squads multisig as the authority!
+However, to get the program to show up in the Squads app, you'll need to add it manually.
+
+Follow steps 1 and 2 here to add your program to the squad frontend:
+https://docs.squads.so/main/navigating-your-squad/developers-assets/programs#add-programs
+                    "#
+    );
 }
 
 pub struct SvmSecretKey;

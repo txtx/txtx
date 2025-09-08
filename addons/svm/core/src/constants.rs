@@ -70,7 +70,6 @@ pub const DEPLOYMENT_TRANSACTIONS: &str = "deployment_transactions";
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
 pub const SLOT: &str = "slot";
-pub const EVENT: &str = "event";
 pub const SUBGRAPH_NAME: &str = "subgraph_name";
 pub const SUBGRAPH_REQUEST: &str = "subgraph_request";
 pub const SUBGRAPH_URL: &str = "subgraph_url";
@@ -98,3 +97,4 @@ pub const SQUADS_MULTISIG: &str = "squads_multisig";
 pub const INITIATOR: &str = "initiator";
 pub const VAULT_ADDRESS: &str = "vault_address";
 pub const VAULT_PUBLIC_KEY: &str = "vault_public_key";
+pub const IS_SQUADS_AUTHORITY: &str = "is_squads_authority";
