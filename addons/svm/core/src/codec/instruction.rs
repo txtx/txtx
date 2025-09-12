@@ -41,7 +41,7 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
     for instruction_data in instructions_data.iter_mut() {
         // if the raw_bytes key was provided, treat it as a serialized instruction
         if let Some(value) = instruction_data.swap_remove(RAW_BYTES) {
-            let instruction = serde_json::from_slice(&value.to_bytes())
+            let instruction = serde_json::from_slice(&value.to_be_bytes())
                 .map_err(|e| diagnosed_error!("failed to deserialize raw instruction: {e}"))?;
             instructions.push(instruction);
             continue;
@@ -143,7 +143,7 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                 Ok::<(), Diagnostic>(())
             })?;
 
-            ix_data = value.to_bytes();
+            ix_data = value.to_be_bytes();
         }
 
         if accounts.is_empty() {

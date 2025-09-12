@@ -334,7 +334,7 @@ impl SvmValue {
             }
             None => {}
         };
-        let bytes = value.to_bytes();
+        let bytes = value.to_be_bytes();
         let bytes: [u8; 64] = bytes[0..64]
             .try_into()
             .map_err(|e| format!("could not convert value to pubkey: {e}"))?;
@@ -354,7 +354,7 @@ impl SvmValue {
     }
 
     pub fn to_keypair(value: &Value) -> Result<Keypair, Diagnostic> {
-        let bytes = value.to_bytes();
+        let bytes = value.to_be_bytes();
         Keypair::from_bytes(&bytes)
             .map_err(|e| diagnosed_error!("could not convert value to keypair: {e}"))
     }
@@ -378,7 +378,7 @@ impl SvmValue {
             }
             None => {}
         };
-        let bytes = value.to_bytes();
+        let bytes = value.to_be_bytes();
         let bytes: [u8; 32] = bytes[0..32]
             .try_into()
             .map_err(|e| format!("could not convert value to pubkey: {e}"))?;

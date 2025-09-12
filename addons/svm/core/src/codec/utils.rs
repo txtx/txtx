@@ -16,7 +16,7 @@ pub fn get_seeds_from_value(value: &Value) -> Result<Vec<Vec<u8>>, Diagnostic> {
         .ok_or_else(|| diagnosed_error!("seeds must be an array"))?
         .iter()
         .map(|s| {
-            let bytes = s.to_bytes();
+            let bytes = s.to_le_bytes();
             if bytes.is_empty() {
                 return Err(diagnosed_error!("seed cannot be empty"));
             }

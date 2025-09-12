@@ -361,31 +361,31 @@ pub fn value_to_primitive_abi_type(
     let sol_value = match type_specifier.stem.span() {
         "address" => DynSolValue::Address(EvmValue::to_address(value)?),
         "uint8" => DynSolValue::Uint(
-            U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+            U256::try_from_be_slice(&value.to_be_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             8,
         ),
         "uint16" => DynSolValue::Uint(
-            U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+            U256::try_from_be_slice(&value.to_be_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             16,
         ),
         "uint32" => DynSolValue::Uint(
-            U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+            U256::try_from_be_slice(&value.to_be_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             32,
         ),
         "uint64" => DynSolValue::Uint(
-            U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+            U256::try_from_be_slice(&value.to_be_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             64,
         ),
         "uint96" => DynSolValue::Uint(
-            U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+            U256::try_from_be_slice(&value.to_be_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             96,
         ),
         "uint256" => DynSolValue::Uint(
-            U256::try_from_be_slice(&value.to_bytes()).ok_or(diagnosed_error!("{msg}"))?,
+            U256::try_from_be_slice(&value.to_be_bytes()).ok_or(diagnosed_error!("{msg}"))?,
             256,
         ),
-        "bytes" => DynSolValue::Bytes(value.to_bytes()),
-        "bytes32" => DynSolValue::FixedBytes(Word::from_slice(&value.to_bytes()), 32),
+        "bytes" => DynSolValue::Bytes(value.to_be_bytes()),
+        "bytes32" => DynSolValue::FixedBytes(Word::from_slice(&value.to_be_bytes()), 32),
         "bool" => DynSolValue::Bool(value.as_bool().ok_or(diagnosed_error!("{msg}"))?),
         "string" => DynSolValue::String(value.to_string()),
         "tuple" => {
