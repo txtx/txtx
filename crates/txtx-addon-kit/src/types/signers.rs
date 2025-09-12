@@ -323,7 +323,7 @@ impl SignerInstance {
         for input in self.specification.inputs.iter() {
             let Some(value) = evaluated_inputs.inputs.get_value(&input.name) else { continue };
             if input.sensitive {
-                comps.push(value.to_bytes());
+                comps.push(value.to_be_bytes());
             }
         }
         Did::from_components(comps)

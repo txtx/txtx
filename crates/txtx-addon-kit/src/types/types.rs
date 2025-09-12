@@ -686,13 +686,13 @@ impl Value {
             (Value::Addon(_), _) => false,
         }
     }
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_be_bytes(&self) -> Vec<u8> {
         match &self {
             Value::Buffer(bytes) => bytes.clone(),
             Value::Array(values) => {
                 let mut joined = vec![];
                 for value in values.iter() {
-                    joined.extend(value.to_bytes());
+                    joined.extend(value.to_be_bytes());
                 }
                 joined
             }
@@ -716,7 +716,44 @@ impl Value {
                 let mut joined = vec![];
                 for (key, value) in values.iter() {
                     joined.extend(key.as_bytes());
-                    joined.extend(value.to_bytes());
+                    joined.extend(value.to_be_bytes());
+                }
+                joined
+            }
+        }
+    }
+
+    pub fn to_le_bytes(&self) -> Vec<u8> {
+        match &self {
+            Value::Buffer(bytes) => bytes.clone(),
+            Value::Array(values) => {
+                let mut joined = vec![];
+                for value in values.iter() {
+                    joined.extend(value.to_le_bytes());
+                }
+                joined
+            }
+            Value::String(bytes) => {
+                let bytes = if bytes.starts_with("0x") {
+                    crate::hex::decode(&bytes[2..]).unwrap()
+                } else {
+                    match crate::hex::decode(&bytes) {
+                        Ok(res) => res,
+                        Err(_) => bytes.as_bytes().to_vec(),
+                    }
+                };
+                bytes
+            }
+            Value::Addon(data) => data.bytes.clone(),
+            Value::Integer(value) => value.to_le_bytes().to_vec(),
+            Value::Float(value) => value.to_le_bytes().to_vec(),
+            Value::Bool(value) => vec![*value as u8],
+            Value::Null => vec![],
+            Value::Object(values) => {
+                let mut joined = vec![];
+                for (key, value) in values.iter() {
+                    joined.extend(key.as_bytes());
+                    joined.extend(value.to_le_bytes());
                 }
                 joined
             }
@@ -744,7 +781,7 @@ impl Value {
     }
 
     pub fn compute_fingerprint(&self) -> Did {
-        let bytes = self.to_bytes();
+        let bytes = self.to_be_bytes();
         Did::from_components(vec![bytes])
     }
 

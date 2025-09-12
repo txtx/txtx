@@ -63,7 +63,7 @@ impl SurfpoolAccountUpdate {
             .transpose()?;
 
         let some_data = map.swap_remove("data");
-        let data = some_data.map(|v| hex::encode(v.to_bytes()));
+        let data = some_data.map(|v| hex::encode(v.to_be_bytes()));
 
         let some_owner = map.swap_remove("owner");
         let owner = some_owner

@@ -636,7 +636,7 @@ impl FunctionImplementation for EncodeEvmBytes {
             })?,
             Value::Addon(addon_value) => Bytes::copy_from_slice(&addon_value.bytes[..]),
             other => {
-                let bytes = other.to_bytes();
+                let bytes = other.to_be_bytes();
                 Bytes::copy_from_slice(&bytes)
             }
         };
@@ -696,7 +696,7 @@ impl FunctionImplementation for EncodeEvmUint256 {
                 };
                 Ok(EvmValue::uint256(normalized))
             }
-            _ => Ok(EvmValue::uint256(value.to_bytes())),
+            _ => Ok(EvmValue::uint256(value.to_be_bytes())),
         }
     }
 }

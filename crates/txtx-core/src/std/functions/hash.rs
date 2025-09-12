@@ -106,7 +106,7 @@ impl FunctionImplementation for Ripemd160 {
         };
 
         let mut hasher = LibRipemd160::new();
-        hasher.update(value.to_bytes());
+        hasher.update(value.to_be_bytes());
         let result = hasher.finalize();
         Ok(StdValue::hash(result[..].to_vec()))
     }
@@ -132,7 +132,7 @@ impl FunctionImplementation for Sha256 {
         };
 
         let mut hasher = LibSha256::new();
-        hasher.update(value.to_bytes());
+        hasher.update(value.to_be_bytes());
         let result = hasher.finalize();
         Ok(StdValue::hash(result[..].to_vec()))
     }

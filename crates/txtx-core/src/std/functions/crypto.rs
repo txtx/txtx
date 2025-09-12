@@ -58,8 +58,8 @@ impl FunctionImplementation for Secp256k1Recover {
             return Err(diagnosed_error!("{}: expected 2 arguments", fn_spec.name));
         };
 
-        let signature_bytes = signature.to_bytes();
-        let message = Message::parse_slice(&message.to_bytes()).unwrap();
+        let signature_bytes = signature.to_be_bytes();
+        let message = Message::parse_slice(&message.to_be_bytes()).unwrap();
         let recovery_id = RecoveryId::parse(signature_bytes[0]).unwrap();
         let signature = Signature::parse_standard_slice(&signature_bytes[1..]).unwrap();
         let public_key = recover(&message, &signature, &recovery_id).unwrap();

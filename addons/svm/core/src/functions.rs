@@ -369,6 +369,50 @@ lazy_static! {
                     typing: Type::addon(SVM_PUBKEY.into())
                 },
             }
+        },
+        define_function! {
+            SvmU64 => {
+                name: "u64",
+                documentation: "`svm::u64` creates a byte array representation of a u64 integer, suitable for use as a seed in PDA derivation.",
+                example: indoc! {r#"
+                    variable "u64" {
+                        value = svm::u64(1000000000)
+                    }
+                "#},
+                inputs: [
+                    value: {
+                        documentation: "The u64 integer to convert to a byte array.",
+                        typing: vec![Type::integer()],
+                        optional: false
+                    }
+                ],
+                output: {
+                    documentation: "The byte array representation of the provided u64 integer.",
+                    typing: Type::buffer()
+                },
+            }
+        },
+        define_function! {
+            SvmI64 => {
+                name: "i64",
+                documentation: "`svm::i64` creates a byte array representation of a i64 integer, suitable for use as a seed in PDA derivation.",
+                example: indoc! {r#"
+                    variable "i64" {
+                        value = svm::i64(-1000000000)
+                    }
+                "#},
+                inputs: [
+                    value: {
+                        documentation: "The i64 integer to convert to a byte array.",
+                        typing: vec![Type::integer()],
+                        optional: false
+                    }
+                ],
+                output: {
+                    documentation: "The byte array representation of the provided i64 integer.",
+                    typing: Type::buffer()
+                },
+            }
         }
     ];
 }
@@ -721,7 +765,7 @@ impl FunctionImplementation for FindPda {
         let (pda, bump) = Pubkey::try_find_program_address(&seed_refs, &program_id)
             .ok_or(to_diag(fn_spec, "failed to find pda".to_string()))?;
         let obj = ObjectType::from(vec![
-            ("pda", SvmValue::pubkey(pda.to_bytes().to_vec())),
+            ("pda", Value::string(pda.to_string())),
             ("bump_seed", Value::integer(bump as i128)),
         ])
         .to_value();
@@ -812,5 +856,48 @@ impl FunctionImplementation for CreateTokenAccountInstruction {
         })?;
 
         Ok(SvmValue::instruction(bytes))
+    }
+}
+
+pub struct SvmU64;
+impl FunctionImplementation for SvmU64 {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let value = args.get(0).unwrap().as_uint().unwrap().map_err(|e| to_diag(fn_spec, e))?;
+        Ok(SvmValue::u64(value))
+    }
+}
+pub struct SvmI64;
+impl FunctionImplementation for SvmI64 {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        arg_checker(fn_spec, args)?;
+        let value = args.get(0).unwrap().as_integer().unwrap();
+        let value: i64 =
+            value.try_into().map_err(|_| to_diag(fn_spec, "i64 value out of range"))?;
+        Ok(SvmValue::i64(value))
     }
 }

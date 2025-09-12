@@ -237,7 +237,7 @@ fn borsh_encode_value_to_idl_type(
         IdlType::F64 => SvmValue::to_number::<f64>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("f64", &e)),
-        IdlType::Bytes => Ok(value.to_bytes().clone()),
+        IdlType::Bytes => Ok(value.to_be_bytes().clone()),
         IdlType::String => value
             .as_string()
             .and_then(|s| Some(borsh::to_vec(&s).map_err(|e| encode_err("string", &e))))

@@ -72,7 +72,7 @@ impl EvmValue {
             }
             None => {}
         };
-        let bytes = value.to_bytes();
+        let bytes = value.to_be_bytes();
         if bytes.len() != 20 {
             return Err(diagnosed_error!("expected 20 bytes for address, got {}", bytes.len()));
         }
