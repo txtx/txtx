@@ -2,5 +2,11 @@
     "rust-analyzer.linkedProjects": [
     ],
     "rust-analyzer.showUnlinkedFileNotification": false,
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+    "files.associations": {
+        "*.tx": "txtx"
+    },
+    
+    // Point to the local txtx binary for LSP (uses workspace-relative path)
+    "txtx.lspPath": "${workspaceFolder}/target/release/txtx"
 }
