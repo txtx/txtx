@@ -14971,6 +14971,7 @@ dependencies = [
  "test-case",
  "tokio",
  "tower-lsp",
+ "txtx-addon-kit",
  "txtx-addon-network-bitcoin",
  "txtx-addon-network-evm",
  "txtx-addon-network-ovm",
@@ -14984,6 +14985,7 @@ dependencies = [
  "txtx-lsp",
  "txtx-serve",
  "txtx-supervisor-ui",
+ "txtx-test-utils",
  "unicode-width 0.2.0",
 ]
 

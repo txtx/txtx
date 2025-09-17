@@ -9,6 +9,7 @@ use txtx_cloud::{LoginCommand, PublishRunbook};
 
 mod common;
 mod docs;
+mod doctor;
 mod env;
 mod lsp;
 mod runbooks;
@@ -76,6 +77,9 @@ enum Command {
     /// Display documentation
     #[clap(name = "docs", bin_name = "docs")]
     Docs(GetDocumentation),
+    /// Validate and diagnose issues in runbooks
+    #[clap(name = "doctor", bin_name = "doctor")]
+    Doctor(DoctorCommand),
     /// Start the txtx language server
     #[clap(name = "lsp", bin_name = "lsp")]
     Lsp,
@@ -245,6 +249,49 @@ pub struct StartServer {
     pub network_binding_ip_address: String,
 }
 
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct DoctorCommand {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: Option<String>,
+    /// Name of the runbook as indexed in the txtx.yml, or the path of the .tx file to check
+    pub runbook: Option<String>,
+    /// Choose the environment variable to set from those configured in the txtx.yml
+    #[arg(long = "env")]
+    pub environment: Option<String>,
+    /// Provide inputs as key=value pairs
+    #[arg(long = "input", value_parser = parse_key_val::<String, String>)]
+    pub inputs: Vec<(String, String)>,
+    /// Output format for validation results
+    #[arg(long = "format", value_enum, default_value = "auto")]
+    pub format: DoctorOutputFormat,
+}
+
+#[derive(clap::ValueEnum, PartialEq, Clone, Debug)]
+pub enum DoctorOutputFormat {
+    /// Automatically detect the best format (default)
+    Auto,
+    /// Pretty-printed terminal output
+    Pretty,
+    /// Machine-readable quickfix format
+    Quickfix,
+    /// JSON output
+    Json,
+}
+
+fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn std::error::Error + Send + Sync + 'static>>
+where
+    T: std::str::FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+    U: std::str::FromStr,
+    U::Err: std::error::Error + Send + Sync + 'static,
+{
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{}`", s))?;
+    Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
+}
+
 #[derive(Subcommand, PartialEq, Clone, Debug)]
 pub enum CloudCommand {
     /// Login to the Txtx Cloud
@@ -318,6 +365,15 @@ async fn handle_command(
         }
         Command::Snapshots(SnapshotCommand::Commit(cmd)) => {
             snapshots::handle_commit_command(&cmd, ctx).await?;
+        }
+        Command::Doctor(cmd) => {
+            doctor::run_doctor(
+                cmd.manifest_path,
+                cmd.runbook,
+                cmd.environment,
+                cmd.inputs,
+                cmd.format,
+            )?;
         }
         Command::Lsp => {
             lsp::run_lsp().await?;

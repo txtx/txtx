@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 txtx-core = { workspace = true }
+txtx-addon-kit = { workspace = true }
 txtx-supervisor-ui = { workspace = true, optional = true }
 txtx-cloud = { workspace = true }
 txtx-serve = { workspace = true, optional = true }
@@ -69,3 +70,4 @@ stacks = ["txtx-addon-network-stacks"]
 
 [dev-dependencies]
 test-case = "*"
+txtx-test-utils = { path = "../txtx-test-utils" }

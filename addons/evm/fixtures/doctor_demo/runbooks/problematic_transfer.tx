@@ -1,0 +1,34 @@
+# This runbook demonstrates the common issue where developers
+# try to access complex output fields from send_eth
+
+addon "evm" {
+    chain_id = env.ETHEREUM_CHAIN_ID
+    rpc_api_url = env.ETHEREUM_NETWORK_URL
+}
+
+signer "alice" "evm::wallet" {
+    private_key = env.ALICE_PRIVATE_KEY
+}
+
+action "transfer" "evm::send_eth" {
+    signer = signer.alice
+    recipient_address = env.RECIPIENT_ADDRESS
+    amount = 1000000000000000000  # 1 ETH
+}
+
+# These outputs will cause errors because send_eth only provides tx_hash
+output "from_address" {
+    value = action.transfer.result.from
+}
+
+output "to_address" {
+    value = action.transfer.result.to
+}
+
+output "transferred_value" {
+    value = action.transfer.value
+}
+
+output "gas_used" {
+    value = action.transfer.result.gas_used
+}

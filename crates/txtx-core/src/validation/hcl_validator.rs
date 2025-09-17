@@ -7,8 +7,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use txtx_addon_kit::hcl::{
     expr::{Expression, Traversal, TraversalOperator},
-    structure::{Block, BlockLabel, Body},
-    visit::{visit_block, visit_expr, Visit},
+    structure::{Attribute, Block, BlockLabel, Body},
+    visit::{visit_attr, visit_block, visit_expr, Visit},
     Span,
 };
 
@@ -68,6 +68,10 @@ pub struct HclValidationVisitor<'a> {
     blocks_with_errors: HashSet<String>,
     /// Primary errors (namespace/type errors) to report first
     primary_errors: Vec<ValidationError>,
+    
+    // === Action Validation ===
+    /// Track attributes seen in current action block
+    seen_action_attributes: HashSet<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -96,6 +100,7 @@ impl<'a> HclValidationVisitor<'a> {
             input_refs: Vec::new(),
             blocks_with_errors: HashSet::new(),
             primary_errors: Vec::new(),
+            seen_action_attributes: HashSet::new(),
         }
     }
 
@@ -122,6 +127,7 @@ impl<'a> HclValidationVisitor<'a> {
             input_refs: Vec::new(),
             blocks_with_errors: HashSet::new(),
             primary_errors: Vec::new(),
+            seen_action_attributes: HashSet::new(),
         }
     }
 
@@ -298,6 +304,8 @@ impl<'a> HclValidationVisitor<'a> {
                             if self.blocks_with_errors.contains(&name_str) {
                                 return;
                             }
+                            // Clear seen attributes for this new action block
+                            self.seen_action_attributes.clear();
                         }
                     }
                 }
@@ -618,6 +626,51 @@ impl<'a> HclValidationVisitor<'a> {
         }
     }
 
+    /// Check for missing required parameters in the current action block
+    fn check_missing_required_parameters(&mut self) {
+        // Early return if not in validation phase
+        if !self.is_validation_phase {
+            return;
+        }
+
+        let ctx = match &self.current_block {
+            Some(ctx) if ctx.block_type == "action" => ctx,
+            _ => return,
+        };
+
+        let spec = match self.action_specs.get(&ctx.name) {
+            Some(spec) => spec,
+            None => return,
+        };
+
+        let action_type = match self.action_types.get(&ctx.name) {
+            Some(action_type) => action_type,
+            None => return, // Defensive: shouldn't happen if spec exists
+        };
+
+        // Get position from block context if available
+        let (line, col) = ctx.span.as_ref()
+            .map(|span| self.span_to_position(span))
+            .unwrap_or((1, 1));
+
+        // Check each required input
+        for input in &spec.inputs {
+            if input.optional || input.internal || self.seen_action_attributes.contains(&input.name) {
+                continue;
+            }
+
+            self.result.errors.push(MissingParameterError {
+                parameter_name: &input.name,
+                action_name: &ctx.name,
+                action_type,
+                documentation: &input.documentation,
+                file_path: &self.file_path,
+                line,
+                column: col,
+            }.into());
+        }
+    }
+
     /// Run two-pass validation on the body
     pub fn validate(&mut self, body: &Body) {
         // Pass 1: Collection phase
@@ -633,6 +686,94 @@ impl<'a> HclValidationVisitor<'a> {
         let mut all_errors = std::mem::take(&mut self.primary_errors);
         all_errors.append(&mut self.result.errors);
         self.result.errors = all_errors;
+    }
+
+    /// Validate an attribute in an action block
+    fn validate_action_attribute(&mut self, attr: &Attribute, ctx: &BlockContext, spec: &CommandSpecification) {
+        let attr_name = attr.key.as_str();
+
+        // Track that we've seen this attribute
+        self.seen_action_attributes.insert(attr_name.to_string());
+
+        // Collect valid input names
+        let valid_inputs: HashSet<String> = spec.inputs
+            .iter()
+            .map(|input| input.name.clone())
+            .collect();
+
+        // Check if this attribute is a valid input
+        if valid_inputs.contains(attr_name) || spec.accepts_arbitrary_inputs {
+            return; // Valid attribute
+        }
+
+        // Get action type (defensive: should always exist if spec exists)
+        let action_type = match self.action_types.get(&ctx.name) {
+            Some(action_type) => action_type,
+            None => return,
+        };
+
+        // Get position
+        let (line, col) = self.optional_span_to_position(attr.span());
+
+        // Create list of available parameters for error message
+        let available_inputs: Vec<String> = spec.inputs
+            .iter()
+            .filter(|input| !input.internal)
+            .map(|input| {
+                if input.optional {
+                    format!("{} (optional)", input.name)
+                } else {
+                    input.name.clone()
+                }
+            })
+            .collect();
+
+        self.result.errors.push(InvalidParameterError {
+            parameter_name: attr_name,
+            action_name: &ctx.name,
+            action_type,
+            available_inputs,
+            file_path: &self.file_path,
+            line,
+            column: col,
+        }.into());
+    }
+}
+
+/// Helper struct for creating missing parameter errors
+struct MissingParameterError<'a> {
+    parameter_name: &'a str,
+    action_name: &'a str,
+    action_type: &'a str,
+    documentation: &'a str,
+    file_path: &'a str,
+    line: usize,
+    column: usize,
+}
+
+impl<'a> From<MissingParameterError<'a>> for ValidationError {
+    fn from(error: MissingParameterError<'a>) -> Self {
+        let (line, column) = if error.line > 0 { 
+            (Some(error.line), Some(error.column)) 
+        } else { 
+            (None, None) 
+        };
+        
+        ValidationError {
+            message: format!(
+                "Missing required parameter '{}' for action '{}' ({})",
+                error.parameter_name,
+                error.action_name,
+                error.action_type
+            ),
+            file: error.file_path.to_string(),
+            line,
+            column,
+            context: Some(format!("{}: {}", error.parameter_name, error.documentation)),
+            documentation_link: error.action_type
+                .split_once("::")
+                .and_then(|(ns, action)| get_action_doc_link(ns, action)),
+        }
     }
 }
 
@@ -652,6 +793,45 @@ impl<'a> Visit for HclValidationVisitor<'a> {
 
         // Continue visiting the block's contents
         visit_block(self, block);
+        
+        // After visiting all attributes, check for missing required parameters
+        // This must be done AFTER visit_block to ensure all attributes have been seen
+        // Note: check_missing_required_parameters already checks is_validation_phase internally
+        if matches!(&self.current_block, Some(ctx) if ctx.block_type == "action") {
+            self.check_missing_required_parameters();
+        }
+    }
+
+    fn visit_attr(&mut self, attr: &Attribute) {
+        // Early return if not in validation phase
+        if !self.is_validation_phase {
+            visit_attr(self, attr);
+            return;
+        }
+
+        // Check if we're in an action block that needs validation
+        let ctx = match &self.current_block {
+            Some(ctx) if ctx.block_type == "action" && !self.blocks_with_errors.contains(&ctx.name) => ctx.clone(),
+            _ => {
+                visit_attr(self, attr);
+                return;
+            }
+        };
+
+        // Get the action specification
+        let spec = match self.action_specs.get(&ctx.name) {
+            Some(spec) => spec.clone(),
+            None => {
+                visit_attr(self, attr);
+                return;
+            }
+        };
+
+        // Validate the attribute
+        self.validate_action_attribute(attr, &ctx, &spec);
+
+        // Continue visiting the attribute's value
+        visit_attr(self, attr);
     }
 
     fn visit_expr(&mut self, expr: &Expression) {
@@ -661,11 +841,55 @@ impl<'a> Visit for HclValidationVisitor<'a> {
             }
             _ => {}
         }
-
-        // Continue visiting nested expressions
         visit_expr(self, expr);
     }
 }
+
+/// Helper struct for creating invalid parameter errors
+struct InvalidParameterError<'a> {
+    parameter_name: &'a str,
+    action_name: &'a str,
+    action_type: &'a str,
+    available_inputs: Vec<String>,
+    file_path: &'a str,
+    line: usize,
+    column: usize,
+}
+
+impl<'a> From<InvalidParameterError<'a>> for ValidationError {
+    fn from(error: InvalidParameterError<'a>) -> Self {
+        let (line, column) = if error.line > 0 { 
+            (Some(error.line), Some(error.column)) 
+        } else { 
+            (None, None) 
+        };
+        
+        let available_params = if error.available_inputs.is_empty() {
+            "none".to_string()
+        } else {
+            error.available_inputs.join(", ")
+        };
+        
+        ValidationError {
+            message: format!(
+                "Invalid parameter '{}' for action '{}' ({}). Available parameters: {}",
+                error.parameter_name,
+                error.action_name,
+                error.action_type,
+                available_params
+            ),
+            file: error.file_path.to_string(),
+            line,
+            column,
+            context: error.action_type
+                .split_once("::")
+                .and_then(|(ns, action)| get_action_doc_link(ns, action))
+                .map(|link| format!("See documentation: {}", link)),
+            documentation_link: None,
+        }
+    }
+}
+
 
 /// Run HCL-based validation on a runbook with custom addon specifications
 pub fn validate_with_hcl_and_addons(
