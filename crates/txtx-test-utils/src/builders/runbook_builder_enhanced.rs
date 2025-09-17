@@ -33,7 +33,7 @@ pub enum ValidationMode {
 ///
 /// # Example Implementation
 ///
-/// ```rust
+/// ```rust,ignore
 /// use txtx_test_utils::{RunbookBuilder, RunbookBuilderExt, ValidationResult};
 /// use txtx_cli::cli::doctor::analyzer::RunbookAnalyzer;
 ///
@@ -89,7 +89,10 @@ impl RunbookBuilder {
     /// in your test crate with access to txtx-cli.
     ///
     /// # Example
-    /// ```rust
+    /// ```rust,ignore
+    /// use txtx_test_utils::{RunbookBuilder, assert_validation_error};
+    /// use some_helper::create_test_manifest;
+    /// 
     /// let manifest = create_test_manifest();
     /// let result = RunbookBuilder::new()
     ///     .action("deploy", "evm::deploy_contract")

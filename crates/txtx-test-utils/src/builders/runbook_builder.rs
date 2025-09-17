@@ -74,6 +74,8 @@ pub struct ExecutionResult {
 /// # Example
 ///
 /// ```rust
+/// use txtx_test_utils::RunbookBuilder;
+/// 
 /// let result = RunbookBuilder::new()
 ///     .addon("evm", vec![("network_id", "1")])
 ///     .action("deploy", "evm::deploy_contract")
@@ -315,7 +317,7 @@ signer "{}" "{}" {{
     /// which may not include all variables needed for actual environments.
     ///
     /// For proper validation, always use set_current_environment() first:
-    /// ```
+    /// ```rust,ignore
     /// builder.set_current_environment("production").validate_with_manifest()
     /// ```
     pub fn validate_with_manifest(&mut self) -> ValidationResult {
