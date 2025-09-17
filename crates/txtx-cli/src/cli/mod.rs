@@ -7,6 +7,7 @@ use runbooks::load_runbook_from_manifest;
 use std::process;
 use txtx_cloud::{LoginCommand, PublishRunbook};
 
+mod common;
 mod docs;
 mod env;
 mod lsp;
