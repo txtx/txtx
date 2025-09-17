@@ -29,53 +29,56 @@ mod doctor_fixture_tests {
     use super::*;
 
     // Test case 1: test_doctor_simple.tx
-    // Expected errors: 2
-    // 1. Undefined signer: signer.undefined_signer
-    // 2. Invalid field access: action.send.from (send_eth has no 'from' output)
+    // Expected errors:
+    // - Undefined signer reference
+    // - Invalid parameter names 'to' and 'value'
+    // - Missing required parameter 'recipient_address'
+    // - Invalid field access 'from' on action
     #[test]
     fn test_doctor_simple_with_builder() {
         let mut builder = RunbookBuilder::new()
             .action("send", "evm::send_eth")
             .input("signer", "signer.undefined_signer") // ERROR: signer not defined
-            .input("to", "0x123")
-            .input("value", "1000")
+            .input("to", "0x123")  // ERROR: invalid parameter name
+            .input("value", "1000") // ERROR: invalid parameter name
             .output("bad", "action.send.from"); // ERROR: send_eth only outputs 'tx_hash'
 
         let result = builder.validate();
 
-        // Should have 2 errors
         assert!(!result.success);
-        assert_eq!(
+        assert!(
+            result.errors.len() >= 4,
+            "Expected at least 4 errors, got {}: {:?}",
             result.errors.len(),
-            2,
-            "Expected 2 errors, got: {:?}",
             result.errors.iter().map(|e| &e.message).collect::<Vec<_>>()
         );
 
         // Check specific errors
         assert_validation_error!(result, "undefined_signer");
         assert_validation_error!(result, "from");
+        assert_validation_error!(result, "Invalid parameter 'to'");
+        assert_validation_error!(result, "Invalid parameter 'value'");
     }
 
     // Test case 2: test_doctor_valid.tx
-    // Test file with no errors
+    // Valid runbook with correct parameter names
     #[test]
     fn test_doctor_valid_with_builder() {
         let mut builder = RunbookBuilder::new()
             .addon("evm", vec![("rpc_api_url", "\"https://eth.example.com\"")])
             // Define a signer
             .signer("operator", "evm::private_key", vec![("private_key", "0x1234")])
-            // Action 1 references the signer
+            // Action 1 with CORRECT parameter names
             .action("action1", "evm::send_eth")
-            .input("from", "signer.operator.address")
-            .input("to", "0x456")
-            .input("value", "1000")
+            .input("signer", "signer.operator")  // Correct: 'signer' not 'from'
+            .input("recipient_address", "0x456")  // Correct: 'recipient_address' not 'to'
+            .input("amount", "1000")  // Correct: 'amount' not 'value'
             // Action 2 references action1 (forward reference is OK)
             .action("action2", "evm::send_eth")
-            .input("from", "signer.operator.address")
-            .input("to", "0x789")
-            .input("value", "2000")
-            .input("depends_on", "[action.action1.tx_hash]")
+            .input("signer", "signer.operator")  // Correct: 'signer' not 'from'
+            .input("recipient_address", "0x789")  // Correct: 'recipient_address' not 'to'
+            .input("amount", "2000")  // Correct: 'amount' not 'value'
+            // Note: depends_on is not a valid parameter for send_eth
             // Output references both actions
             .output("tx1", "action.action1.tx_hash")
             .output("tx2", "action.action2.tx_hash");
@@ -85,21 +88,32 @@ mod doctor_fixture_tests {
     }
 
     // Test case 3: test_doctor_two_pass.tx
-    // Should find undefined action reference
+    // Expected errors:
+    // - Invalid parameters 'to' and 'value'
+    // - Missing required parameters
+    // - Undefined action reference
     #[test]
     fn test_doctor_two_pass_with_builder() {
         let mut builder = RunbookBuilder::new()
             .addon("evm", vec![])
             .action("first", "evm::send_eth")
-            .input("to", "0x123")
-            .input("value", "1000")
+            .input("to", "0x123")  // ERROR: should be 'recipient_address'
+            .input("value", "1000") // ERROR: should be 'amount'
             .output("result", "action.second.tx_hash"); // ERROR: 'second' action not defined
 
         let result = builder.validate();
 
         assert!(!result.success);
-        assert_eq!(result.errors.len(), 1, "Expected 1 error");
+        assert!(
+            result.errors.len() >= 3,
+            "Expected at least 3 errors, got {}: {:?}",
+            result.errors.len(),
+            result.errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+
         assert_validation_error!(result, "second");
+        assert_validation_error!(result, "Invalid parameter 'to'");
+        assert_validation_error!(result, "Invalid parameter 'value'");
     }
 
     // Test case 4: test_doctor_unknown_action_type.tx

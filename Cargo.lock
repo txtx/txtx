@@ -7015,6 +7015,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64804cc6a5042d4f05379909ba25b503ec04e2c082151d62122d5dcaa274b961"
 
 [[package]]
+name = "libyml"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3302702afa434ffa30847a83305f0a69d6abd74293b6554c18ec85c7ef30c980"
+dependencies = [
+ "anyhow",
+ "version_check",
+]
+
+[[package]]
 name = "libz-sys"
 version = "1.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7105,6 +7115,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "227748d55f2f0ab4735d87fd623798cb6b664512fe979705f829c9f81c934465"
 dependencies = [
  "hashbrown 0.15.2",
+]
+
+[[package]]
+name = "lsp-server"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "248f65b78f6db5d8e1b1604b4098a28b43d21a8eb1deeca22b1c421b276c7095"
+dependencies = [
+ "crossbeam-channel",
+ "log 0.4.27",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -10212,13 +10234,28 @@ checksum = "48e76bab63c3fd98d27c17f9cbce177f64a91f5e69ac04cafe04e1bb25d1dc3c"
 dependencies = [
  "indexmap 2.8.0",
  "itoa",
- "libyml",
+ "libyml 0.0.4",
  "log 0.4.27",
  "memchr",
  "ryu",
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "serde_yml"
+version = "0.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59e2dd588bf1597a252c3b920e0143eb99b0f76e4e082f4c92ce34fbc9e71ddd"
+dependencies = [
+ "indexmap 2.8.0",
+ "itoa",
+ "libyml 0.0.5",
+ "memchr",
+ "ryu",
+ "serde",
+ "version_check",
 ]
 
 [[package]]
@@ -14552,40 +14589,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "121c2a6cda46980bb0fcd1647ffaf6cd3fc79a013de288782836f6df9c48780e"
 
 [[package]]
-name = "tower-lsp"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4ba052b54a6627628d9b3c34c176e7eda8359b7da9acd497b9f20998d118508"
-dependencies = [
- "async-trait",
- "auto_impl",
- "bytes",
- "dashmap 5.5.3",
- "futures",
- "httparse",
- "lsp-types",
- "memchr",
- "serde",
- "serde_json",
- "tokio",
- "tokio-util",
- "tower 0.4.13",
- "tower-lsp-macros",
- "tracing",
-]
-
-[[package]]
-name = "tower-lsp-macros"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84fd902d4e0b9a4b27f2f440108dc034e1758628a9b702f8ec61ad66355422fa"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.100",
-]
-
-[[package]]
 name = "tower-service"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14953,6 +14956,7 @@ dependencies = [
  "clap_generate",
  "console 0.15.8",
  "convert_case 0.6.0",
+ "crossbeam-channel",
  "ctrlc",
  "dialoguer",
  "dotenvy",
@@ -14962,15 +14966,19 @@ dependencies = [
  "itertools 0.12.1",
  "lazy_static",
  "log 0.4.27",
+ "lsp-server",
+ "lsp-types",
  "openssl",
  "openssl-sys",
+ "regex",
  "rusqlite",
  "serde",
  "serde_derive",
  "serde_json",
+ "serde_yml 0.0.12",
  "test-case",
  "tokio",
- "tower-lsp",
+ "toml 0.8.19",
  "txtx-addon-kit",
  "txtx-addon-network-bitcoin",
  "txtx-addon-network-evm",
@@ -14982,7 +14990,6 @@ dependencies = [
  "txtx-cloud",
  "txtx-core",
  "txtx-gql",
- "txtx-lsp",
  "txtx-serve",
  "txtx-supervisor-ui",
  "txtx-test-utils",
@@ -15038,7 +15045,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_with 3.12.0",
- "serde_yml",
+ "serde_yml 0.0.11",
  "similar",
  "test-case",
  "tokio",
@@ -15057,27 +15064,6 @@ dependencies = [
  "juniper_codegen",
  "tokio",
  "txtx-addon-kit",
-]
-
-[[package]]
-name = "txtx-lsp"
-version = "0.5.0"
-dependencies = [
- "console_error_panic_hook",
- "js-sys",
- "lazy_static",
- "lsp-types",
- "regex",
- "serde",
- "serde-wasm-bindgen",
- "serde_json",
- "txtx-addon-kit",
- "txtx-addon-network-evm",
- "txtx-addon-telegram",
- "txtx-core",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
