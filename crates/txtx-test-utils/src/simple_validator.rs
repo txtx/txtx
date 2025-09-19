@@ -5,7 +5,6 @@
 //! ## Known Limitations
 //!
 //! 1. Circular dependency detection between actions is not implemented
-//! 2. Deep addon configuration validation only checks for presence of fields
 
 use crate::addon_registry::{extract_addon_specifications, get_all_addons};
 use crate::builders::ValidationResult;
