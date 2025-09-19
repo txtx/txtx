@@ -412,6 +412,47 @@ mod tests {
     }
 
     #[test]
+    fn test_error_position_handling() {
+        // Test that missing position information (0, 0) is handled correctly
+        // This would occur if span information is missing from the HCL parser
+        let result = RunbookBuilder::new()
+            .with_content(
+                r#"
+                addon "evm" {
+                  network_id = 1
+                  rpc_api_url = "https://eth.llamarpc.com"
+                }
+
+                action "test" "evm::send_eth" {
+                  # Missing required parameter should generate error
+                  signer = "0x123"
+                }
+            "#,
+            )
+            .validate();
+
+        // Should have error for missing required parameter
+        assert!(!result.errors.is_empty(), "Should have validation errors");
+
+        // Check that error position is handled correctly
+        // Diagnostics use span with line_start/column_start
+        for error in &result.errors {
+            if let Some(span) = &error.span {
+                // Line numbers should never be 0 when span is present
+                // A span with line_start = 0 means position is unknown
+                // and ideally shouldn't be present (span should be None)
+                assert!(
+                    span.line_start > 0,
+                    "Line number should be > 0 when span is present, got {}",
+                    span.line_start
+                );
+            }
+            // When position is truly unknown, span should be None
+            // rather than Some(span) with 0 values
+        }
+    }
+
+    #[test]
     fn test_action_with_all_valid_parameters() {
         // This test verifies that when all required parameters are present
         // and no invalid parameters are used, there are no validation errors
