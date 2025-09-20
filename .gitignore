@@ -16,3 +16,14 @@ addons/sp1/examples/fibonacci/program/target
 addons/ovm/examples/cache/*
 addons/ovm/examples/out/*
 tarpaulin-report.html
+
+# VSCode specific
+.vscode/*
+!.vscode/settings.json.example
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+*.code-workspace
+.history/
+*.vsix

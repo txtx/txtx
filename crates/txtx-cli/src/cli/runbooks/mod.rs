@@ -701,7 +701,7 @@ pub async fn handle_run_command(
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
     let log_store = Arc::new(RwLock::new(Vec::new()));
     let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
-    let (action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
+    let (_action_item_events_tx, action_item_events_rx) = tokio::sync::broadcast::channel(32);
 
     #[cfg(feature = "supervisor_ui")]
     let runbook_description = runbook.description.clone();

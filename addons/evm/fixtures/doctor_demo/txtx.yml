@@ -1,0 +1,19 @@
+name: doctor_demo
+description: Demonstrates how txtx doctor finds common issues
+
+runbooks:
+  problematic_transfer:
+    location: runbooks/problematic_transfer.tx
+    description: "A runbook with the send_eth output access issue"
+  
+  correct_transfer:
+    location: runbooks/correct_transfer.tx
+    description: "The corrected version using get_transaction"
+
+environments:
+  testing:
+    INFURA_API_KEY: "${INFURA_API_KEY:?INFURA_API_KEY env var is not set}"
+    ETHEREUM_NETWORK_URL: "https://ethereum-sepolia.publicnode.com"
+    ETHEREUM_CHAIN_ID: "11155111"
+    ALICE_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    RECIPIENT_ADDRESS: "0x742d35Cc6634C0532925a3b844Bc9e7595f6aE3"

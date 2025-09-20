@@ -1,0 +1,15 @@
+{
+  // Example VSCode settings for txtx development
+  // Copy this to .vscode/settings.json and adjust paths as needed
+  
+  // Point to your local txtx binary
+  "txtx.lspPath": "${workspaceFolder}/target/release/txtx",
+  
+  // Enable LSP tracing for debugging
+  "txtx.trace.server": "verbose",
+  
+  // File associations
+  "files.associations": {
+    "*.tx": "txtx"
+  }
+}

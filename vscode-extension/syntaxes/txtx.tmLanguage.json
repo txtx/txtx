@@ -1,0 +1,185 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "txtx",
+  "scopeName": "source.txtx",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#keywords" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#variables" },
+    { "include": "#functions" },
+    { "include": "#blocks" },
+    { "include": "#operators" },
+    { "include": "#constants" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.txtx",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.txtx",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.txtx",
+          "match": "\\b(depends_on|no_interact|cli_interact|web_interact|post_condition_mode)\\b"
+        },
+        {
+          "name": "keyword.other.txtx",
+          "match": "\\b(addon|module|variable|output|action|signer|input)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.txtx",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.txtx",
+              "match": "\\\\."
+            },
+            {
+              "name": "variable.other.interpolation.txtx",
+              "match": "\\$\\{[^}]+\\}"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.txtx",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.txtx",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.txtx",
+          "match": "\\b0x[0-9a-fA-F]+\\b"
+        },
+        {
+          "name": "constant.numeric.float.txtx",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.txtx",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.other.reference.txtx",
+          "match": "\\b(variable|action|output|module|addon|signer|input)\\.[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)*\\b"
+        },
+        {
+          "name": "variable.language.txtx",
+          "match": "\\b(yield)\\b"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_:]*)\\s*\\(",
+          "captures": {
+            "1": { "name": "entity.name.function.txtx" }
+          }
+        }
+      ]
+    },
+    "blocks": {
+      "patterns": [
+        {
+          "begin": "\\b(addon|module|variable|output|action|signer)\\s+(\"[^\"]+\")\\s+(\"[^:\"]+::[^\"]+\")\\s+(\"[^\"]+\")\\s*\\{",
+          "beginCaptures": {
+            "1": { "name": "keyword.other.txtx" },
+            "2": { "name": "string.quoted.double.txtx" },
+            "3": { "name": "entity.name.type.namespace.txtx" },
+            "4": { "name": "entity.name.txtx" }
+          },
+          "end": "\\}",
+          "patterns": [{ "include": "$self" }]
+        },
+        {
+          "begin": "\\b(addon|module|variable|output|action|signer)\\s+(\"[^\"]+\")\\s+(\"[^\"]+\")\\s*\\{",
+          "beginCaptures": {
+            "1": { "name": "keyword.other.txtx" },
+            "2": { "name": "entity.name.type.txtx" },
+            "3": { "name": "entity.name.txtx" }
+          },
+          "end": "\\}",
+          "patterns": [{ "include": "$self" }]
+        },
+        {
+          "begin": "\\b(addon|module|variable|output|action|signer)\\s+(\"[^\"]+\")\\s*\\{",
+          "beginCaptures": {
+            "1": { "name": "keyword.other.txtx" },
+            "2": { "name": "entity.name.txtx" }
+          },
+          "end": "\\}",
+          "patterns": [{ "include": "$self" }]
+        },
+        {
+          "begin": "\\b(no_interact|cli_interact|web_interact)\\s*\\{",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.txtx" }
+          },
+          "end": "\\}",
+          "patterns": [{ "include": "$self" }]
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.txtx",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.arithmetic.txtx",
+          "match": "\\+|-|\\*|/|%"
+        },
+        {
+          "name": "keyword.operator.comparison.txtx",
+          "match": "==|!=|<=?|>=?"
+        },
+        {
+          "name": "keyword.operator.logical.txtx",
+          "match": "&&|\\|\\||!"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.txtx",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.null.txtx",
+          "match": "\\b(null)\\b"
+        }
+      ]
+    }
+  }
+}
