@@ -28,6 +28,56 @@ fn get_action_doc_link(namespace: &str, action: &str) -> Option<String> {
     }
 }
 
+/// A basic HCL validator that performs structural validation without addon specifications.
+/// This validator can check HCL syntax, references between blocks, and structural correctness,
+/// but cannot validate action parameters since it lacks addon specifications.
+pub struct BasicHclValidator<'a> {
+    inner: HclValidationVisitor<'a>,
+}
+
+/// A full HCL validator with addon specifications for comprehensive validation.
+/// This validator can perform all validations including action parameter checking.
+pub struct FullHclValidator<'a> {
+    inner: HclValidationVisitor<'a>,
+}
+
+impl<'a> BasicHclValidator<'a> {
+    /// Create a basic validator for structural validation only.
+    /// This validator cannot check action parameters since it lacks addon specifications.
+    pub fn new(result: &'a mut ValidationResult, file_path: &str, source: &'a str) -> Self {
+        Self {
+            inner: HclValidationVisitor::new_with_addons(result, file_path, source, HashMap::new()),
+        }
+    }
+
+    /// Run validation on the HCL body
+    pub fn validate(&mut self, body: &Body) -> Vec<LocatedInputRef> {
+        self.inner.validate(body);
+        std::mem::take(&mut self.inner.input_refs)
+    }
+}
+
+impl<'a> FullHclValidator<'a> {
+    /// Create a full validator with addon specifications for comprehensive validation.
+    /// This validator can check all aspects including action parameters.
+    pub fn new(
+        result: &'a mut ValidationResult,
+        file_path: &str,
+        source: &'a str,
+        addon_specs: HashMap<String, Vec<(String, CommandSpecification)>>,
+    ) -> Self {
+        Self {
+            inner: HclValidationVisitor::new_with_addons(result, file_path, source, addon_specs),
+        }
+    }
+
+    /// Run validation on the HCL body
+    pub fn validate(&mut self, body: &Body) -> Vec<LocatedInputRef> {
+        self.inner.validate(body);
+        std::mem::take(&mut self.inner.input_refs)
+    }
+}
+
 /// A visitor that validates HCL runbooks
 pub struct HclValidationVisitor<'a> {
     /// Results collector
@@ -82,9 +132,8 @@ struct BlockContext {
 }
 
 impl<'a> HclValidationVisitor<'a> {
-    /// Create a validator with addon specifications for full validation
-    /// This enables complete validation including action parameter checking
-    pub fn new_with_addons(
+    /// Internal constructor with addon specifications
+    fn new_with_addons(
         result: &'a mut ValidationResult,
         file_path: &str,
         source: &'a str,
@@ -111,12 +160,6 @@ impl<'a> HclValidationVisitor<'a> {
         }
     }
 
-    /// Create a validator without addon specifications (limited validation)
-    /// WARNING: This provides limited validation - cannot validate action parameters.
-    /// Use only when addon specs are unavailable (e.g., in txtx-core without CLI context).
-    pub fn new(result: &'a mut ValidationResult, file_path: &str, source: &'a str) -> Self {
-        Self::new_with_addons(result, file_path, source, HashMap::new())
-    }
 
     /// Convert a span to line/column position
     fn span_to_position(&self, span: &std::ops::Range<usize>) -> (usize, usize) {
@@ -889,12 +932,11 @@ pub fn validate_with_hcl_and_addons(
     // Parse the content as HCL
     let body: Body = content.parse().map_err(|e| format!("Failed to parse runbook: {}", e))?;
 
-    // Create and run the validator with custom addon specs
-    let mut visitor =
-        HclValidationVisitor::new_with_addons(result, file_path, content, addon_specs);
-    visitor.validate(&body);
+    // Create and run the full validator with addon specs
+    let mut validator = FullHclValidator::new(result, file_path, content, addon_specs);
+    let input_refs = validator.validate(&body);
 
-    Ok(visitor.input_refs)
+    Ok(input_refs)
 }
 
 #[cfg(test)]
@@ -1179,7 +1221,7 @@ mod tests {
     */
 }
 
-/// Run HCL-based validation on a runbook (uses default addon specifications)
+/// Run HCL-based validation on a runbook (limited validation without addon specs)
 pub fn validate_with_hcl(
     content: &str,
     result: &mut ValidationResult,
@@ -1188,10 +1230,10 @@ pub fn validate_with_hcl(
     // Parse the content as HCL
     let body: Body = content.parse().map_err(|e| format!("Failed to parse runbook: {}", e))?;
 
-    // Create and run the validator without addon specs (limited validation)
-    // Note: This path cannot validate action parameters since addon specs are not available
-    let mut visitor = HclValidationVisitor::new(result, file_path, content);
-    visitor.validate(&body);
+    // Create and run the basic validator (structural validation only)
+    // Note: This validator cannot validate action parameters since addon specs are not available
+    let mut validator = BasicHclValidator::new(result, file_path, content);
+    let input_refs = validator.validate(&body);
 
-    Ok(visitor.input_refs)
+    Ok(input_refs)
 }

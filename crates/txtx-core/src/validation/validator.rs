@@ -1,6 +1,6 @@
 //! High-level validation API for runbook files
 
-use super::hcl_validator::HclValidationVisitor;
+use super::hcl_validator::{BasicHclValidator, FullHclValidator};
 use super::types::ValidationResult;
 use crate::kit::hcl::structure::Body;
 use crate::kit::types::commands::{CommandSpecification, PreCommandSpecification};
@@ -35,16 +35,19 @@ pub fn validate_runbook(
     file_path: &str,
     source: &str,
     body: &Body,
-    _config: ValidatorConfig,
+    config: ValidatorConfig,
 ) -> ValidationResult {
     let mut result = ValidationResult::new();
 
-    let mut visitor = HclValidationVisitor::new(&mut result, file_path, source);
-
-    // TODO: Need to update HclValidationVisitor to accept addon_specs as parameter
-    // For now, it uses get_addon_specifications() internally
-
-    visitor.validate(body);
+    if config.addon_specs.is_empty() {
+        // Use basic validator when no addon specs are available
+        let mut validator = BasicHclValidator::new(&mut result, file_path, source);
+        validator.validate(body);
+    } else {
+        // Use full validator when addon specs are provided
+        let mut validator = FullHclValidator::new(&mut result, file_path, source, config.addon_specs);
+        validator.validate(body);
+    }
 
     result
 }
