@@ -114,6 +114,10 @@ pub struct MockConfig {
 }
 
 impl RunbookBuilder {
+    // ==========================================
+    // Construction and Configuration
+    // ==========================================
+
     /// Create a new runbook builder
     pub fn new() -> Self {
         Self {
@@ -270,17 +274,51 @@ signer "{}" "{}" {{
         self
     }
 
-    /// Get the content being built (for internal use by extensions)
-    #[allow(dead_code)]
+    // ==========================================
+    // Internal Accessors for From/Into Traits
+    // ==========================================
+    //
+    // These methods provide access to internal state for conversion traits.
+    // They are marked as dead_code because they're not directly called in this crate,
+    // but will be used by From<RunbookBuilder> implementations for test harness integration.
+    //
+    // Future implementation:
+    //   impl From<RunbookBuilder> for TestHarnessInput {
+    //       fn from(builder: RunbookBuilder) -> Self {
+    //           TestHarnessInput {
+    //               content: builder.get_content().to_string(),
+    //               files: builder.get_files().clone(),
+    //               // ... other conversions
+    //           }
+    //       }
+    //   }
+
+    /// Get the content being built
+    ///
+    /// This method is intended for use by From/Into trait implementations
+    /// to convert RunbookBuilder into test harness inputs.
+    ///
+    /// TODO: Implement From<RunbookBuilder> for TestHarness to utilize this method
+    #[allow(dead_code)] // Will be used by upcoming From/Into implementations
     pub(crate) fn get_content(&self) -> &str {
         &self.content
     }
 
-    // Helper for test harness (not used by builder itself)
-    #[allow(dead_code)]
+    /// Get the files map for multi-file runbooks
+    ///
+    /// This method is intended for use by From/Into trait implementations
+    /// to convert RunbookBuilder into test harness inputs that support
+    /// multi-file runbook testing.
+    ///
+    /// TODO: Implement From<RunbookBuilder> for TestHarness to utilize this method
+    #[allow(dead_code)] // Will be used by upcoming From/Into implementations
     pub(crate) fn get_files(&self) -> &HashMap<String, String> {
         &self.files
     }
+
+    // ==========================================
+    // Building and Validation
+    // ==========================================
 
     /// Build the final content
     pub fn build_content(&mut self) -> String {
