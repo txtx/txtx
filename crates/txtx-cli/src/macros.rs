@@ -45,7 +45,7 @@ macro_rules! yellow {
 #[macro_export]
 macro_rules! blue {
     ($($arg:tt)*) => {
-        colorize_impl!(ansi_term::Colour::Cyan.bold(), $($arg)*)
+        colorize_impl!(ansi_term::Colour::Blue.bold(), $($arg)*)
     }
 }
 
@@ -111,9 +111,9 @@ mod tests {
     const ANSI_GREEN: &str = "\x1b[32;1m";
     const ANSI_RED: &str = "\x1b[31;1m";
     const ANSI_YELLOW: &str = "\x1b[33;1m";
-    const ANSI_CYAN: &str = "\x1b[36;1m";  // blue! macro uses Cyan
+    const ANSI_BLUE: &str = "\x1b[34;1m";
     const ANSI_PURPLE: &str = "\x1b[35;1m";
-    const ANSI_GRAY: &str = "\x1b[38;5;244m";  // black! uses Fixed(244)
+    const ANSI_GRAY: &str = "\x1b[38;5;244m";
     const ANSI_RESET: &str = "\x1b[0m";
     const ANSI_BOLD: &str = "\x1b[1m";
 
@@ -161,8 +161,8 @@ mod tests {
         // We can test the macro expansion logic
         macro_rules! test_colorize {
             ($color:expr, $text:literal) => {{
-                use atty::Stream;
                 use ansi_term::Style;
+                use atty::Stream;
                 if atty::is(Stream::Stdout) {
                     format!("{}", $color.paint($text))
                 } else {
@@ -270,5 +270,60 @@ mod tests {
 
         // Verify the decision matches TTY status
         assert_eq!(has_ansi, is_tty());
+    }
+
+    // Test that when ANSI codes are present, they're the correct colors
+    #[test]
+    fn test_correct_color_codes() {
+        let green_out = green!("test");
+        let red_out = red!("test");
+        let yellow_out = yellow!("test");
+        let blue_out = blue!("test");
+        let purple_out = purple!("test");
+        let black_out = black!("test");
+
+        // If we have ANSI codes, verify they're the RIGHT codes
+        if green_out.contains("\x1b[") {
+            // Green should contain "32" (green color code)
+            assert!(green_out.contains("32"), "green! should use color code 32");
+            assert!(!green_out.contains("31"), "green! should not use red's code");
+
+            // Red should contain "31" (red color code)
+            assert!(red_out.contains("31"), "red! should use color code 31");
+            assert!(!red_out.contains("32"), "red! should not use green's code");
+
+            // Yellow should contain "33" (yellow color code)
+            assert!(yellow_out.contains("33"), "yellow! should use color code 33");
+            assert!(!yellow_out.contains("34"), "yellow! should not use blue's code");
+
+            // Blue should contain "34" (blue color code)
+            assert!(blue_out.contains("34"), "blue! should use color code 34");
+            assert!(!blue_out.contains("33"), "blue! should not use yellow's code");
+
+            // Purple should contain "35" (purple/magenta color code)
+            assert!(purple_out.contains("35"), "purple! should use color code 35");
+            assert!(!purple_out.contains("36"), "purple! should not use cyan's code");
+
+            // Black (gray) should contain "244" (our custom gray)
+            assert!(black_out.contains("244"), "black! should use color code 244");
+            assert!(!black_out.contains("30"), "black! should not use pure black's code");
+        }
+    }
+
+    // Visual test - only useful when run with --nocapture in a real terminal
+    #[test]
+    #[ignore] // Ignored by default since it's for manual inspection
+    fn test_visual_colors() {
+        println!("\n=== Visual Color Test (run with --nocapture in a terminal) ===");
+        println!("Green:  {}", green!("This should be green"));
+        println!("Red:    {}", red!("This should be red"));
+        println!("Yellow: {}", yellow!("This should be yellow"));
+        println!("Blue:   {}", blue!("This should be blue"));
+        println!("Purple: {}", purple!("This should be purple"));
+        println!("Black:  {}", black!("This should be gray"));
+        println!("\n=== Format macros ===");
+        println!("{}", format_err!("This is an error message"));
+        println!("{}", format_warn!("This is a warning message"));
+        println!("{}", format_note!("This is a note message"));
     }
 }
