@@ -477,7 +477,7 @@ impl DeploymentTransaction {
                     })?;
                 if *already_exists {
                     logger.info(
-                        "Failure Recovery Info",
+                        "[Recovery Instructions]",
                         format!(
                             "Using the provided Ephemeral authority with pubkey: {}",
                             temp_authority_keypair.pubkey()
@@ -485,21 +485,21 @@ impl DeploymentTransaction {
                     );
                 } else {
                     logger
-                    .info("Failure Recovery Info","An ephemeral authority account will be created and funded to write to the buffer account.");
+                    .info("[Recovery Instructions]","An ephemeral authority account will be created and funded to write to the buffer account.");
                     logger
-                    .info("Failure Recovery Info","Please save the following information in case the deployment fails and the account needs to be recovered:");
+                    .info("[Recovery Instructions]","Please save the following information in case the deployment fails and the account needs to be recovered:");
                     logger.info(
-                        "Failure Recovery Info",
+                        "[Recovery Instructions]",
                         format!(
                             "Ephemeral authority public key: {}",
                             temp_authority_keypair.pubkey()
                         ),
                     );
                     logger.info(
-                        "Failure Recovery Info",
+                        "[Recovery Instructions]",
                         format!(
-                            "Ephemeral authority secret key: {}",
-                            temp_authority_keypair.to_base58_string()
+                            "Ephemeral authority secret key: {:?}",
+                            temp_authority_keypair.to_bytes()
                         ),
                     );
                 }
@@ -507,7 +507,7 @@ impl DeploymentTransaction {
             DeploymentTransactionType::CreateBuffer { buffer_pubkey }
             | DeploymentTransactionType::CreateBufferAndExtendProgram { buffer_pubkey } => {
                 logger.info(
-                    "Failure Recovery Info",
+                    "[Recovery Instructions]",
                     format!("Creating program buffer account at pubkey {}", buffer_pubkey),
                 );
             }
