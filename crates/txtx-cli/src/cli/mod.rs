@@ -7,11 +7,19 @@ use runbooks::load_runbook_from_manifest;
 use std::process;
 use txtx_cloud::{LoginCommand, PublishRunbook};
 
+mod common;
 mod docs;
+mod doctor;
 mod env;
 mod lsp;
 mod runbooks;
 mod snapshots;
+
+/// Parse a single key-value pair
+fn parse_key_val(s: &str) -> Result<(String, String), String> {
+    let pos = s.find('=').ok_or_else(|| format!("invalid KEY=VALUE: no '=' found in '{}'", s))?;
+    Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
+}
 
 pub const AUTH_SERVICE_URL_KEY: &str = "AUTH_SERVICE_URL";
 pub const AUTH_CALLBACK_PORT_KEY: &str = "AUTH_CALLBACK_PORT";
@@ -77,7 +85,7 @@ enum Command {
     Docs(GetDocumentation),
     /// Start the txtx language server
     #[clap(name = "lsp", bin_name = "lsp")]
-    Lsp,
+    Lsp(LspCommand),
     /// Start a server to listen for requests to execute runbooks
     #[clap(name = "serve", bin_name = "serve")]
     #[cfg(feature = "txtx_serve")]
@@ -88,6 +96,9 @@ enum Command {
     /// Txtx cloud commands
     #[clap(subcommand, name = "cloud", bin_name = "cloud")]
     Cloud(CloudCommand),
+    /// Diagnose issues with runbook configuration
+    #[clap(name = "doctor", bin_name = "doctor")]
+    Doctor(DoctorCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -137,6 +148,43 @@ pub struct CheckRunbook {
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct GetDocumentation;
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct LspCommand {
+    /// Start the language server in stdio mode (this flag is accepted for compatibility but has no effect as stdio is the default)
+    #[arg(long = "stdio")]
+    pub stdio: bool,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct DoctorCommand {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
+    pub manifest_path: Option<String>,
+    /// Specific runbook to validate (validates all if not specified)
+    pub runbook: Option<String>,
+    /// Choose the environment variables to validate against from those configured in the txtx.yml
+    #[arg(long = "env", short = 'e')]
+    pub environment: Option<String>,
+    /// Input variable overrides (format: name=value)
+    #[arg(long = "input", short = 'i', value_parser = parse_key_val)]
+    pub inputs: Vec<(String, String)>,
+    /// Output format (auto, pretty, quickfix, json)
+    #[arg(long = "format", short = 'f', default_value = "auto", value_enum)]
+    pub format: DoctorOutputFormat,
+}
+
+#[derive(clap::ValueEnum, PartialEq, Clone, Debug)]
+pub enum DoctorOutputFormat {
+    /// Auto-detect based on output context
+    Auto,
+    /// Human-readable output with colors and context
+    Pretty,
+    /// Single-line format for editor integration
+    Quickfix,
+    /// Machine-readable JSON format
+    Json,
+}
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct InspectRunbook {
@@ -278,7 +326,18 @@ pub fn main() {
         }
     };
 
-    let buffer_stdin = if let Command::Lsp = opts.command { None } else { load_stdin() };
+    // Special case for LSP - it runs its own synchronous loop
+    if let Command::Lsp(_) = opts.command {
+        match lsp::run_lsp() {
+            Err(e) => {
+                eprintln!("LSP server error: {}", e);
+                process::exit(1);
+            }
+            Ok(_) => return,
+        }
+    }
+
+    let buffer_stdin = load_stdin();
 
     match hiro_system_kit::nestable_block_on(handle_command(opts, &ctx, buffer_stdin)) {
         Err(e) => {
@@ -295,6 +354,7 @@ async fn handle_command(
     ctx: &Context,
     buffer_stdin: Option<String>,
 ) -> Result<(), String> {
+    dotenv().ok();
     let env = TxtxEnv::load();
     match opts.command {
         Command::Check(cmd) => {
@@ -318,8 +378,9 @@ async fn handle_command(
         Command::Snapshots(SnapshotCommand::Commit(cmd)) => {
             snapshots::handle_commit_command(&cmd, ctx).await?;
         }
-        Command::Lsp => {
-            lsp::run_lsp().await?;
+        Command::Lsp(_lsp_cmd) => {
+            // This case is handled before entering the async runtime
+            unreachable!("LSP command should be handled synchronously");
         }
         #[cfg(feature = "txtx_serve")]
         Command::Serve(cmd) => {
@@ -337,6 +398,16 @@ async fn handle_command(
             thread::sleep(std::time::Duration::new(1800, 0));
         }
         Command::Cloud(cmd) => handle_cloud_commands(&cmd, buffer_stdin, &env).await?,
+        Command::Doctor(cmd) => {
+            use doctor::run_doctor;
+            run_doctor(
+                cmd.manifest_path.clone(),
+                cmd.runbook.clone(),
+                cmd.environment.clone(),
+                cmd.inputs.clone(),
+                cmd.format.clone(),
+            )?;
+        }
     }
     Ok(())
 }

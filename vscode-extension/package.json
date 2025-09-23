@@ -1,0 +1,118 @@
+{
+  "name": "txtx-lsp-extension",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.103.0"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:txtx"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "txtx",
+        "extensions": [
+          ".tx"
+        ],
+        "aliases": [
+          "txtx",
+          "Txtx"
+        ],
+        "filenames": [
+          "txtx.yml",
+          "txtx.yaml"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "txtx",
+        "scopeName": "source.txtx",
+        "path": "./syntaxes/txtx.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "txtx.showLogs",
+        "title": "Txtx: Show Language Server Logs"
+      },
+      {
+        "command": "txtx.testDefinition",
+        "title": "Txtx: Test Go-to-Definition at Cursor"
+      },
+      {
+        "command": "txtx.restartLsp",
+        "title": "Txtx: Restart Language Server"
+      },
+      {
+        "command": "txtx.selectEnvironment",
+        "title": "Txtx: Select Environment"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Txtx",
+      "properties": {
+        "txtx.lspPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to txtx LSP binary (leave empty to use PATH or development build)"
+        },
+        "txtx.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server."
+        },
+        "txtx.currentEnvironment": {
+          "type": "string",
+          "default": "global",
+          "description": "The currently selected Txtx environment for validation",
+          "scope": "resource"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node build.js",
+    "compile:production": "NODE_ENV=production node build.js",
+    "compile-tests": "tsc -p ./tsconfig.test.json",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile-tests",
+    "test": "node ./out/test/runTest.js",
+    "package": "npm run compile:production && vsce package --allow-missing-repository",
+    "build": "npm run package"
+  },
+  "keywords": [
+    "txtx",
+    "lsp"
+  ],
+  "author": "cds-amal",
+  "displayName": "Txtx Language Support",
+  "description": "Language Server Protocol support for Txtx files",
+  "categories": [
+    "Programming Languages"
+  ],
+  "publisher": "cds-amal",
+  "license": "MIT",
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.3.1",
+    "@types/vscode": "^1.103.0",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.25.9",
+    "glob": "^10.4.5",
+    "mocha": "^11.7.2",
+    "typescript": "^5.9.2"
+  }
+}

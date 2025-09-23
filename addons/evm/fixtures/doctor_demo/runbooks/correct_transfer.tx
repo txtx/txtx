@@ -1,0 +1,63 @@
+# This runbook shows the correct way to track transaction details
+
+addon "evm" {
+    chain_id = env.ETHEREUM_CHAIN_ID
+    rpc_api_url = env.ETHEREUM_NETWORK_URL
+}
+
+signer "alice" "evm::wallet" {
+    private_key = env.ALICE_PRIVATE_KEY
+}
+
+# Store the values we need before the transaction
+variable "sender_address" {
+    value = signer.alice.address
+    description = "The address sending ETH"
+}
+
+variable "recipient_address" {
+    value = env.RECIPIENT_ADDRESS
+    description = "The address receiving ETH"
+}
+
+variable "amount" {
+    value = 1000000000000000000  # 1 ETH
+    description = "Amount to send in wei"
+}
+
+# Send ETH (only returns tx_hash)
+action "transfer" "evm::send_eth" {
+    signer = signer.alice
+    recipient_address = var.recipient_address
+    amount = var.amount
+}
+
+# Outputs using stored values and the tx_hash
+output "tx_hash" {
+    value = action.transfer.tx_hash
+    description = "The transaction hash"
+}
+
+output "from_address" {
+    value = var.sender_address
+    description = "The sender's address"
+}
+
+output "to_address" {
+    value = var.recipient_address
+    description = "The recipient's address"
+}
+
+output "transferred_value" {
+    value = var.amount
+    description = "The amount transferred in wei"
+}
+
+# Note: There's no evm::get_transaction action in txtx.
+# If you need on-chain confirmation data, use check_confirmations:
+action "confirm_tx" "evm::check_confirmations" {
+    tx_hash = action.transfer.tx_hash
+    rpc_api_url = env.ETHEREUM_NETWORK_URL
+    chain_id = env.ETHEREUM_CHAIN_ID
+    confirmations = 1
+}

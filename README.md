@@ -93,8 +93,14 @@ brew install txtx/taps/txtx
 
 Other installation options are available and described in our [doc website](https://docs.txtx.sh/install).
 
-## Going Further
+## Documentation
 
+### Local Documentation
+- [**User Guides**](docs/user/) - LSP setup, Doctor command usage
+- [**Developer Docs**](docs/developer/) - Architecture, testing, contributing
+- [**All Documentation**](docs/) - Complete documentation index
+
+### Online Resources
 - Documentation: https://docs.txtx.sh
 - Cases Study: https://txtx.sh/blog
 - Demos and Screencasts: https://www.youtube.com/@runtxtx
