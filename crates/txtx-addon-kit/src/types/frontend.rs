@@ -1100,6 +1100,7 @@ impl Actions {
     pub fn push_begin_flow_panel(
         &mut self,
         flow_index: usize,
+        total_flows_count: usize,
         flow_name: &str,
         flow_description: &Option<String>,
     ) {
@@ -1112,6 +1113,7 @@ impl Actions {
                     title: None,
                     action_items: vec![ActionItemRequestType::BeginFlow(FlowBlockData {
                         index: flow_index,
+                        total_flows: total_flows_count,
                         name: flow_name.to_string(),
                         description: flow_description.clone(),
                     })
@@ -1958,6 +1960,7 @@ impl ValidateBlockData {
 #[serde(rename_all = "camelCase")]
 pub struct FlowBlockData {
     index: usize,
+    total_flows: usize,
     name: String,
     description: Option<String>,
 }
