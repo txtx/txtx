@@ -544,6 +544,7 @@ pub type CommandExecutionClosure = Box<
         &CommandSpecification,
         &ValueStore,
         &channel::Sender<BlockEvent>,
+        &AuthorizationContext,
     ) -> CommandExecutionFutureResult,
 >;
 
@@ -575,6 +576,7 @@ pub type CommandSignedExecutionClosure = Box<
         &channel::Sender<BlockEvent>,
         &HashMap<ConstructDid, SignerInstance>,
         SignersState,
+        &AuthorizationContext,
     ) -> SignerSignFutureResult,
 >;
 
@@ -948,6 +950,7 @@ impl CommandInstance {
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
+        auth_ctx: &AuthorizationContext,
     ) -> Result<CommandExecutionResult, Diagnostic> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
@@ -955,9 +958,15 @@ impl CommandInstance {
             .append_inputs(&nested_evaluation_values.inputs);
 
         let spec = &self.specification;
-        let res = (spec.run_execution)(&construct_did, &self.specification, &values, progress_tx)?
-            .await
-            .map_err(|e| e.set_span_range(self.block.span()));
+        let res = (spec.run_execution)(
+            &construct_did,
+            &self.specification,
+            &values,
+            progress_tx,
+            auth_ctx,
+        )?
+        .await
+        .map_err(|e| e.set_span_range(self.block.span()));
 
         for request in action_item_requests.iter_mut() {
             let (status, success) = match &res {
@@ -1131,6 +1140,7 @@ impl CommandInstance {
         action_item_requests: &mut Vec<&mut ActionItemRequest>,
         _action_item_responses: &Option<&Vec<ActionItemResponse>>,
         progress_tx: &channel::Sender<BlockEvent>,
+        auth_context: &AuthorizationContext,
     ) -> Result<(SignersState, CommandExecutionResult), (SignersState, Diagnostic)> {
         let values = ValueStore::new(&self.name, &construct_did.value())
             .with_defaults(&evaluated_inputs.inputs.defaults)
@@ -1145,6 +1155,7 @@ impl CommandInstance {
             progress_tx,
             signer_instances,
             signers,
+            auth_context,
         );
         let res = consolidate_signer_activate_future_result(future, self.block.span()).await?;
 
@@ -1366,6 +1377,7 @@ pub trait CommandImplementation {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _progress_tx: &channel::Sender<BlockEvent>,
+        _auth_context: &AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }
@@ -1452,6 +1464,7 @@ pub trait CommandImplementation {
         _progress_tx: &channel::Sender<BlockEvent>,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         _signers_state: SignersState,
+        _auth_context: &AuthorizationContext,
     ) -> SignerSignFutureResult {
         unimplemented!()
     }

@@ -830,6 +830,33 @@ lazy_static! {
             tainting: true
         }
     };
+
+    pub static ref DEPLOY_PROGRAM: Type = define_strict_map_type! {
+        program_id: {
+            documentation: "The public key of the program being deployed.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        binary_path: {
+            documentation: "The location of the program's .so file. (e.g. `./target/deploy/my_program.so`)",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        authority: {
+            documentation: "The public key of the authority over the program after it is deployed. If not provided, the program will have no authority.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        },
+        idl_path: {
+            documentation: "The location of the program's IDL file. (e.g. `./target/idl/my_program.json`)",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: true,
+            tainting: true
+        }
+    };
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]

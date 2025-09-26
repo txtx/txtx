@@ -157,7 +157,10 @@ impl SurfpoolAccountUpdate {
         );
     }
 
-    async fn send_request(&self, rpc_client: &RpcClient) -> Result<serde_json::Value, Diagnostic> {
+    pub async fn send_request(
+        &self,
+        rpc_client: &RpcClient,
+    ) -> Result<serde_json::Value, Diagnostic> {
         rpc_client
             .send::<serde_json::Value>(
                 RpcRequest::Custom { method: Self::rpc_method() },

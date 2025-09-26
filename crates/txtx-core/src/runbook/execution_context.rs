@@ -430,6 +430,7 @@ impl RunbookExecutionContext {
                         &mut vec![],
                         &None,
                         &tx,
+                        &runtime_context.authorization_context,
                     )
                     .await
             };

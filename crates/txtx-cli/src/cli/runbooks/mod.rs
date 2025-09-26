@@ -454,6 +454,8 @@ pub async fn run_action(
 
     let mut inputs = ValueStore::new("inputs", &construct_did).with_defaults(&addon_defaults.store);
 
+    let authorization_context = AuthorizationContext::new(FileLocation::working_dir());
+
     for input in raw_inputs.iter() {
         let Some((input_name, input_value)) = input.split_once("=") else {
             return Err(Diagnostic::error_from_string(format!(
@@ -475,6 +477,7 @@ pub async fn run_action(
             &mut vec![],
             &None,
             &tx,
+            &authorization_context,
         )
         .await?;
     Ok(())

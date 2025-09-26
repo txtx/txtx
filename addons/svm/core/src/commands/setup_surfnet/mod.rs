@@ -147,6 +147,7 @@ impl CommandImplementation for SetupSurfpool {
         _spec: &CommandSpecification,
         values: &ValueStore,
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::types::commands::CommandExecutionResult;
 
