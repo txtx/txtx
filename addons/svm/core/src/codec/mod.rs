@@ -861,21 +861,22 @@ impl UpgradeableProgramDeployer {
             // transactions for first deployment of a program
             if !self.is_program_upgrade {
 
-                let Some(keypair) = self.program_keypair.as_ref() else {
-                    return Err(diagnosed_error!("program keypair is required for initial deployment; does your `target/deploy` folder have a keypair.json?"));
-                };
-
-                if keypair.pubkey() != self.program_pubkey {
-                    return Err(diagnosed_error!(
-                        "program keypair does not match program pubkey found in IDL: keypair pubkey: '{}'; IDL pubkey: '{}'",
-                        keypair.pubkey(),
-                        self.program_pubkey
-                    ));
-                }
 
                 if self.do_cheatcode_deploy {
                     vec![DeploymentTransaction::cheatcode_deploy(self.final_upgrade_authority_pubkey.clone(), self.binary.clone()).to_value()?]
                 } else {
+                    let Some(keypair) = self.program_keypair.as_ref() else {
+                        return Err(diagnosed_error!("program keypair is required for initial deployment; does your `target/deploy` folder have a keypair.json?"));
+                    };
+
+                    if keypair.pubkey() != self.program_pubkey {
+                        return Err(diagnosed_error!(
+                            "program keypair does not match program pubkey found in IDL: keypair pubkey: '{}'; IDL pubkey: '{}'",
+                            keypair.pubkey(),
+                            self.program_pubkey
+                        ));
+                    }
+                    
                     // create the buffer account
                     let create_buffer_account_transaction =
                         self.get_create_buffer_transaction(&recent_blockhash)?;
@@ -1667,4 +1668,11 @@ impl ProgramArtifacts {
             .transpose(),
         }
     }
+}
+
+pub fn validate_program_so(bin: &[u8]) -> Result<(), Diagnostic> {
+    if bin.len() < 4 || &bin[0..4] != b"\x7fELF" {
+        return Err(diagnosed_error!("program binary is not a valid ELF file"));
+    }
+    Ok(())
 }
