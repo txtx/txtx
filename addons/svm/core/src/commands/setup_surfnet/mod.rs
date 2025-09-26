@@ -1,3 +1,4 @@
+mod cheatcode_deploy_program;
 pub mod clone_program_account;
 pub mod set_account;
 mod set_program_authority;
@@ -21,7 +22,8 @@ use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_network_svm_types::{
-    CLONE_PROGRAM_ACCOUNT, SET_ACCOUNT_MAP, SET_PROGRAM_AUTHORITY, SET_TOKEN_ACCOUNT_MAP,
+    CLONE_PROGRAM_ACCOUNT, DEPLOY_PROGRAM, SET_ACCOUNT_MAP, SET_PROGRAM_AUTHORITY,
+    SET_TOKEN_ACCOUNT_MAP,
 };
 
 use crate::commands::setup_surfnet::set_program_authority::SurfpoolSetProgramAuthority;
@@ -37,9 +39,13 @@ lazy_static! {
                 documentation: indoc!{r#"
                     `svm::setup_surfnet` can be used to configure a surfnet.
                     
-                    The current supported operations are to set account or token account data.
-                    The `set_account` action can be used to set the lamports, owner, data, and executable fields of an account.
-                    The `set_token_account` action can be used to set the amount, delegate, delegated amount, and close authority for a token account.
+                    The following operations are supported:
+                     - `set_account` - used to set the lamports, owner, data, and executable fields of an account.
+                     - `set_token_account` - used to set the amount, delegate, delegated amount, and close authority for a token account.
+                     - `clone_program_account` - used to clone a program account from a source program id to a destination program id.
+                     - `set_program_authority` - used to set the authority of a program.
+                     - `deploy_program` - used to deploy a program (via a direct write to the account data rather than valid transactions) to the surfnet.
+
                 "#},
                 implements_signing_capability: false,
                 implements_background_task_capability: true,
@@ -91,6 +97,14 @@ lazy_static! {
                         tainting: false,
                         internal: false,
                         sensitive: false
+                    },
+                    deploy_program: {
+                        documentation: "The program deployment data to set.",
+                        typing: DEPLOY_PROGRAM.clone(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
                     }
                 ],
                 outputs: [],
@@ -112,6 +126,10 @@ lazy_static! {
                         set_program_authority {
                             program_id = variable.my_program_id
                             authority = signer.caller.public_key
+                        }
+                        deploy_program {
+                            program_id = variable.my_program_id
+                            binary_path = "./path/to/my_program.so"
                         }
                     }
                 "#},
@@ -154,6 +172,7 @@ impl CommandImplementation for SetupSurfpool {
         let values = values.clone();
         let progress_tx = progress_tx.clone();
         let construct_did = construct_did.clone();
+        let auth_context = auth_context.clone();
 
         let future = async move {
             let result = CommandExecutionResult::new();
@@ -190,6 +209,17 @@ impl CommandImplementation for SetupSurfpool {
             let set_authorities = SurfpoolSetProgramAuthority::parse_value_store(&values)?;
             SurfpoolSetProgramAuthority::process_updates(set_authorities, &rpc_client, &logger)
                 .await?;
+
+            let deployments = cheatcode_deploy_program::SurfpoolDeployProgram::parse_value_store(
+                &values,
+                &auth_context,
+            )?;
+            cheatcode_deploy_program::SurfpoolDeployProgram::process_updates(
+                deployments,
+                &rpc_client,
+                &logger,
+            )
+            .await?;
 
             Ok(result)
         };
