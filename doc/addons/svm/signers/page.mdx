@@ -162,15 +162,15 @@ signer "alice" "svm::web_wallet" {
 
 ## squads {{ tag: 'signer' }}
 
-The `svm::squads` signer can be used to synchronously sign a transaction.
+The `svm::squads` signer can be used to sign a transaction with a squads multisig.
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="address" required="optional" type="addon(svm::pubkey)">
-    The Squad multisig address.
+  <Property name="multisig_account_public_key" required="optional" type="addon(svm::pubkey)">
+    The Squad multisig account pubkey. This is found on the settings page in the Squads app. This is not the vault address. Rather, this multisig account address will be used to derive the vault address and all transaction PDAs.
   </Property>
 
 
@@ -238,13 +238,13 @@ When the `squads` action is successfully executed, the following outputs are att
   </Property>
 
 
-  <Property name="multisig_public_key" type="string">
+  <Property name="multisig_account_public_key" type="string">
     The public key of the Squad multisig pda. This address should not be funded.
   </Property>
 
 
-  <Property name="multisig_address" type="string">
-    The public key of the Squad multisig pda. This address should not be funded. This is an alias for the `multisig_public_key` output
+  <Property name="multisig_account_address" type="string">
+    The public key of the Squad multisig pda. This address should not be funded. This is an alias for the `multisig_account_public_key` output
   </Property>
 
 
@@ -258,7 +258,7 @@ signer "initiator" "svm::web_wallet" {
     expected_address = input.initiator_address
 }
 signer "deployer" "svm::squads" {
-    public_key = input.squad_public_key
+    multisig_account_public_key = input.squads_multisig_address
     initiator = signer.initiator
 }
 
