@@ -743,6 +743,7 @@ pub async fn evaluate_command_instance(
                         action_items_requests,
                         &action_items_response,
                         progress_tx,
+                        &runtime_context.authorization_context,
                     )
                     .await;
                 let execution_result = match execution_result {
@@ -815,6 +816,7 @@ pub async fn evaluate_command_instance(
                             action_items_requests,
                             &action_items_response,
                             progress_tx,
+                            &runtime_context.authorization_context,
                         )
                         .await
                 };

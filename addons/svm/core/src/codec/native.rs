@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::typing::anchor::types as anchor_types;
+use crate::{codec::validate_program_so, typing::anchor::types as anchor_types};
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
@@ -52,6 +52,8 @@ impl NativeProgramArtifacts {
                 e
             )
         })?;
+
+        validate_program_so(&bin)?;
 
         let keypair = if keypair_path.exists() {
             let keypair_file = keypair_path.read_content().map_err(|e| {

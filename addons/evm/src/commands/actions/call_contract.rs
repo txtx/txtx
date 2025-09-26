@@ -312,6 +312,7 @@ impl CommandImplementation for SignEvmContractCall {
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerSignFutureResult {
         let mut values = values.clone();
         let signers_instances = signers_instances.clone();
@@ -319,6 +320,7 @@ impl CommandImplementation for SignEvmContractCall {
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
         let signers = signers.clone();
+        let auth_context = auth_context.clone();
 
         let mut result: CommandExecutionResult = CommandExecutionResult::new();
 
@@ -351,6 +353,7 @@ impl CommandImplementation for SignEvmContractCall {
                 &progress_tx,
                 &signers_instances,
                 signers,
+                &auth_context,
             );
             let (signers, signer_state, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
@@ -367,6 +370,7 @@ impl CommandImplementation for SignEvmContractCall {
                 &spec,
                 &values,
                 &progress_tx,
+                &auth_context,
             ) {
                 Ok(future) => match future.await {
                     Ok(res) => res,

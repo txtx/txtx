@@ -131,6 +131,7 @@ impl CommandImplementation for StartRollup {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         let future = async move {
             let result = CommandExecutionResult::new();

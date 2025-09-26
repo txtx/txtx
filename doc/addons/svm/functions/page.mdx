@@ -706,3 +706,113 @@ action "call" "svm::process_instructions" {
 
 ---
 
+
+## u64 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::u64` creates a byte array representation of a u64 integer, suitable for use as a seed in PDA derivation.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="value" required="required" type="integer">
+    The u64 integer to convert to a byte array.
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="buffer">
+    The byte array representation of the provided u64 integer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using u64">
+
+
+```hcl {{ title: 'main.tx' }}
+variable "u64" {
+    value = svm::u64(1000000000)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+
+## i64 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`svm::i64` creates a byte array representation of a i64 integer, suitable for use as a seed in PDA derivation.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="value" required="required" type="integer">
+    The i64 integer to convert to a byte array.
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="buffer">
+    The byte array representation of the provided i64 integer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using i64">
+
+
+```hcl {{ title: 'main.tx' }}
+variable "i64" {
+    value = svm::i64(-1000000000)
+}
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+

@@ -641,6 +641,7 @@ impl CommandImplementation for DeployProgram {
         _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
+        _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerSignFutureResult {
         let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
         let authority_signer_state =
@@ -812,8 +813,16 @@ impl CommandImplementation for DeployProgram {
                 | DeploymentTransactionType::CheatcodeUpgrade => {
                     let (upgrade_authority, data) =
                         deployment_transaction.cheatcode_data.as_ref().unwrap();
-                    cheatcode_deploy_program(&rpc_api_url, program_id, data, *upgrade_authority)
-                        .map_err(|e| diagnosed_error!("failed to deploy program: {}", e))?;
+                    cheatcode_deploy_program(
+                        &solana_client::nonblocking::rpc_client::RpcClient::new(
+                            rpc_api_url.clone(),
+                        ),
+                        program_id,
+                        data,
+                        Some(*upgrade_authority),
+                    )
+                    .await
+                    .map_err(|e| diagnosed_error!("failed to deploy program: {}", e))?;
 
                     CommandExecutionResult::new()
                 }

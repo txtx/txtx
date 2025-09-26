@@ -74,6 +74,7 @@ impl CommandImplementation for TelegramSetupChat {
         _spec: &CommandSpecification,
         values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         let values = values.clone();
 

@@ -10,6 +10,7 @@ use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult,
 };
 use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::AuthorizationContext;
 use txtx_addon_kit::types::{
     commands::CommandSpecification,
     diagnostics::Diagnostic,
@@ -247,12 +248,14 @@ impl CommandImplementation for SendEth {
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
+        auth_context: &AuthorizationContext,
     ) -> SignerSignFutureResult {
         let mut values = values.clone();
         let signers_instances = signers_instances.clone();
         let construct_did = construct_did.clone();
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
+        let auth_context = auth_context.clone();
         let mut signers = signers.clone();
 
         let mut result: CommandExecutionResult = CommandExecutionResult::new();
@@ -267,6 +270,7 @@ impl CommandImplementation for SendEth {
                 &progress_tx,
                 &signers_instances,
                 signers,
+                &auth_context,
             );
             let (signers, signer_state, mut res_signing) = match run_signing_future {
                 Ok(future) => match future.await {
@@ -283,6 +287,7 @@ impl CommandImplementation for SendEth {
                 &spec,
                 &values,
                 &progress_tx,
+                &auth_context,
             ) {
                 Ok(future) => match future.await {
                     Ok(res) => res,

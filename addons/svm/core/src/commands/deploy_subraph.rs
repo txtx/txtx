@@ -178,6 +178,7 @@ impl CommandImplementation for DeployProgram {
         _spec: &CommandSpecification,
         values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::{constants::DESCRIPTION, types::commands::return_synchronous_ok};
 

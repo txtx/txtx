@@ -37,9 +37,9 @@ use crate::commands::sign_transaction::{check_signed_executability, run_signed_e
 use crate::constants::{
     ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION, ADDRESS,
     CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, INITIATOR, IS_DEPLOYMENT,
-    IS_SIGNABLE, MULTISIG_ADDRESS, MULTISIG_PUBLIC_KEY, NAMESPACE, NETWORK_ID, PAYER, PUBLIC_KEY,
-    RPC_API_URL, SIGNATURE, SIGNERS, SQUADS_MULTISIG, TRANSACTION_BYTES, VAULT_ADDRESS,
-    VAULT_PUBLIC_KEY,
+    IS_SIGNABLE, MULTISIG_ACCOUNT_ADDRESS, MULTISIG_ACCOUNT_PUBLIC_KEY, NAMESPACE, NETWORK_ID,
+    PAYER, PUBLIC_KEY, RPC_API_URL, SIGNATURE, SIGNERS, SQUADS_MULTISIG, TRANSACTION_BYTES,
+    VAULT_ADDRESS, VAULT_PUBLIC_KEY,
 };
 use crate::typing::SvmValue;
 use crate::utils::build_transaction_from_svm_value;
@@ -55,8 +55,8 @@ lazy_static! {
             matcher: SQUADS_MATCHER,
             documentation:txtx_addon_kit::indoc! {r#"The `svm::squads` signer can be used to sign a transaction with a squads multisig."#},
             inputs: [
-                address: {
-                    documentation: "The Squad multisig address.",
+                multisig_account_public_key: {
+                    documentation: "The Squad multisig account pubkey. This is found on the settings page in the Squads app. This is not the vault address. Rather, this multisig account address will be used to derive the vault address and all transaction PDAs.",
                     typing: Type::addon(SVM_PUBKEY),
                     optional: true,
                     tainting: true,
@@ -122,12 +122,12 @@ lazy_static! {
                     documentation: "The public key of the Squad vault for the provided vault index. This is an alias for the `vault_public_key` output",
                     typing: Type::string()
                 },
-                multisig_public_key: {
+                multisig_account_public_key: {
                     documentation: "The public key of the Squad multisig pda. This address should not be funded.",
                     typing: Type::string()
                 },
-                multisig_address: {
-                    documentation: "The public key of the Squad multisig pda. This address should not be funded. This is an alias for the `multisig_public_key` output",
+                multisig_account_address: {
+                    documentation: "The public key of the Squad multisig pda. This address should not be funded. This is an alias for the `multisig_account_public_key` output",
                     typing: Type::string()
                 }
             ],
@@ -136,7 +136,7 @@ lazy_static! {
                     expected_address = input.initiator_address
                 }
                 signer "deployer" "svm::squads" {
-                    public_key = input.squad_public_key
+                    multisig_account_public_key = input.squads_multisig_address
                     initiator = signer.initiator
                 }
             "#},
@@ -182,7 +182,9 @@ impl SignerImplementation for SvmSecretKey {
         use txtx_addon_kit::constants::{DESCRIPTION, IS_BALANCE_CHECKED};
         use txtx_addon_kit::types::signers::consolidate_signer_result;
 
-        use crate::constants::{CREATE_KEY, PROGRAM_ID, SQUADS_FRONTEND_URL, VAULT_INDEX};
+        use crate::constants::{
+            CREATE_KEY, MULTISIG_ACCOUNT_PUBLIC_KEY, PROGRAM_ID, SQUADS_FRONTEND_URL, VAULT_INDEX,
+        };
         use crate::{codec::squads::SquadsMultisig, constants::RPC_API_URL};
 
         let mut consolidated_actions = Actions::none();
@@ -226,7 +228,7 @@ impl SignerImplementation for SvmSecretKey {
 
         let squads_frontend_url = values.get_string(SQUADS_FRONTEND_URL);
 
-        let squad = if let Some(address) = values.get_value(ADDRESS) {
+        let squad = if let Some(address) = values.get_value(MULTISIG_ACCOUNT_PUBLIC_KEY) {
             let address = SvmValue::to_pubkey(address).map_err(|e| {
                 (
                     signers.clone(),
@@ -290,8 +292,8 @@ impl SignerImplementation for SvmSecretKey {
         if let Ok(_) = signer_state.get_expected_string(CHECKED_ADDRESS) {
             signer_state.insert(CHECKED_PUBLIC_KEY, vault_pubkey_value.clone());
             signer_state.insert(CHECKED_ADDRESS, vault_pubkey_string_value.clone());
-            signer_state.insert(MULTISIG_ADDRESS, Value::string(pubkey.to_string()));
-            signer_state.insert(MULTISIG_PUBLIC_KEY, Value::string(pubkey.to_string()));
+            signer_state.insert(MULTISIG_ACCOUNT_ADDRESS, Value::string(pubkey.to_string()));
+            signer_state.insert(MULTISIG_ACCOUNT_PUBLIC_KEY, Value::string(pubkey.to_string()));
             signer_state.insert(SQUADS_MULTISIG, multisig_value);
             signer_state.insert(INITIATOR, Value::string(initiator_did.to_string()));
             if let Some((payer_did, _)) = &some_payer {
@@ -462,11 +464,12 @@ impl SignerImplementation for SvmSecretKey {
         );
         result.outputs.insert(VAULT_ADDRESS.into(), Value::string(multisig.vault_pda.to_string()));
 
-        result
-            .outputs
-            .insert(MULTISIG_ADDRESS.into(), Value::string(multisig.multisig_pda.to_string()));
         result.outputs.insert(
-            MULTISIG_PUBLIC_KEY.into(),
+            MULTISIG_ACCOUNT_ADDRESS.into(),
+            Value::string(multisig.multisig_pda.to_string()),
+        );
+        result.outputs.insert(
+            MULTISIG_ACCOUNT_PUBLIC_KEY.into(),
             SvmValue::pubkey(multisig.multisig_pda.to_bytes().to_vec()),
         );
         result.outputs.insert(ADDRESS.into(), address.clone());

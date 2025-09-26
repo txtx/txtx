@@ -72,6 +72,7 @@ impl CommandImplementation for Module {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         let result = CommandExecutionResult::new();
         return_synchronous_result(Ok(result))
@@ -207,6 +208,7 @@ impl CommandImplementation for Variable {
         _spec: &CommandSpecification,
         values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         let mut result = CommandExecutionResult::new();
         let value = values.get_expected_value("value")?;
@@ -297,6 +299,7 @@ impl CommandImplementation for Output {
         _spec: &CommandSpecification,
         args: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         let value = args.get_expected_value("value")?;
         let mut result = CommandExecutionResult::new();
@@ -361,6 +364,7 @@ impl CommandImplementation for Runtime {
         _spec: &CommandSpecification,
         _values: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         unimplemented!()
     }

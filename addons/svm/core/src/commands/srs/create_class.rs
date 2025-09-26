@@ -427,6 +427,7 @@ impl CommandImplementation for ProcessInstructions {
         _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
+        _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerSignFutureResult {
         let args = args.clone();
         let signers_instances = signers_instances.clone();

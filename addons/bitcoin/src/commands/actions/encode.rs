@@ -79,6 +79,7 @@ impl CommandImplementation for CallReadonlyStacksFunction {
         _spec: &CommandSpecification,
         args: &ValueStore,
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
+        _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
         use crate::constants::INSTRUCTIONS;
 
