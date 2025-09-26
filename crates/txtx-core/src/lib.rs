@@ -670,6 +670,7 @@ pub async fn build_genesis_panel(
     if total_flows_count > 1 {
         actions.push_begin_flow_panel(
             current_flow_index,
+            total_flows_count,
             &flow_context.name,
             &flow_context.description,
         );
