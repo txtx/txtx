@@ -11,11 +11,11 @@ use txtx_addon_kit::types::types::{ObjectProperty, ObjectType};
 
 lazy_static! {
     pub static ref IDL: Idl =
-        serde_json::from_slice(&include_bytes!("./fixtures/idl.json").to_vec()).unwrap();
-    pub static ref ACCOUNT: IdlAccount = IDL.accounts.get(0).unwrap().clone();
+        serde_json::from_slice(include_bytes!("./fixtures/idl.json").as_ref()).unwrap();
+    pub static ref ACCOUNT: IdlAccount = IDL.accounts.first().unwrap().clone();
     pub static ref ACCOUNT_TYPE: IdlTypeDef =
         IDL.types.iter().find(|t| t.name == "CustomAccount").unwrap().clone();
-    pub static ref INSTRUCTION_1: IdlInstruction = IDL.instructions.get(0).unwrap().clone();
+    pub static ref INSTRUCTION_1: IdlInstruction = IDL.instructions.first().unwrap().clone();
     pub static ref INSTRUCTION_2: IdlInstruction = IDL.instructions.get(1).unwrap().clone();
     pub static ref INSTRUCTION_1_ACCOUNT: IdlInstructionAccount =
         INSTRUCTION_1.accounts.iter().find_map(|a| match a {
@@ -28,7 +28,7 @@ lazy_static! {
         }).unwrap().clone();
     // pub static ref INSTRUCTION_2_ACCOUNT: IdlInstructionAccount =
     //     INSTRUCTION_2.accounts.iter().find(|a| a.name == "account_2").unwrap().clone();
-    pub static ref EVENT: IdlEvent = IDL.events.get(0).unwrap().clone();
+    pub static ref EVENT: IdlEvent = IDL.events.first().unwrap().clone();
     pub static ref EVENT_TYPE: IdlTypeDef =
         IDL.types.iter().find(|t| t.name == "SplitTransferEvent").unwrap().clone();
 
@@ -110,7 +110,7 @@ fn test_parse_defined_fields(
                     Value::String(name.to_string()),
                     idl_key.clone().map(Value::String),
                     description.clone().map(Value::String),
-                    is_indexed.clone(),
+                    *is_indexed,
                 )
             })
             .collect::<Vec<_>>()

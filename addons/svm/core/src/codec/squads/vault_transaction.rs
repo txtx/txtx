@@ -1,9 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_sdk::{
-    instruction::{AccountMeta, Instruction},
-    message::{AccountKeys, AddressLookupTableAccount, Message},
-    pubkey::Pubkey,
-};
+
+use solana_instruction::{AccountMeta, Instruction};
+use solana_message::{AccountKeys, AddressLookupTableAccount, Message};
+use solana_pubkey::Pubkey;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 
 use super::{compiled_keys::CompiledKeys, small_vec::SmallVec};

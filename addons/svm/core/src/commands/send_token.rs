@@ -2,9 +2,9 @@ use std::collections::{HashMap, VecDeque};
 use std::str::FromStr;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::message::Message;
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::transaction::Transaction;
+use solana_message::Message;
+use solana_pubkey::Pubkey;
+use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::futures::future;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
@@ -239,7 +239,7 @@ impl CommandImplementation for SendToken {
                 )
             })?
         } else {
-            signer_pubkeys[0].clone()
+            signer_pubkeys[0]
         };
 
         let source_token_address = spl_associated_token_account::get_associated_token_address(
@@ -256,7 +256,7 @@ impl CommandImplementation for SendToken {
             &source_token_address,
             &recipient_token_address,
             &authority_pubkey,
-            &signer_pubkeys.iter().map(|s| s).collect::<Vec<_>>(),
+            &signer_pubkeys.iter().collect::<Vec<_>>(),
             amount,
         )
         .map_err(|e| {

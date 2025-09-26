@@ -2,7 +2,8 @@ use std::{path::PathBuf, str::FromStr};
 
 use crate::typing::anchor::types as anchor_types;
 
-use solana_sdk::{pubkey::Pubkey, signature::Keypair};
+use solana_keypair::Keypair;
+use solana_pubkey::Pubkey;
 use txtx_addon_kit::{
     indexmap::IndexMap,
     types::{

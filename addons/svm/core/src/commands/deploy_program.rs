@@ -3,10 +3,10 @@ use std::str::FromStr;
 use std::vec;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::bs58;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::signature::Keypair;
+use solana_commitment_config::CommitmentConfig;
+use solana_keypair::Keypair;
+use solana_pubkey::Pubkey;
+use bs58;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
     DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID,

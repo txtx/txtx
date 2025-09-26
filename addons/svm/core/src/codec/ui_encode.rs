@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use solana_instruction::Instruction;
 use solana_message::Message;
-use solana_sdk::instruction::Instruction;
 use txtx_addon_kit::{
     hex,
     types::{

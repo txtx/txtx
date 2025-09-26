@@ -4,16 +4,15 @@ use std::ops::Deref;
 
 use kaigan::types::RemainderStr;
 use solana_client::rpc_client::RpcClient;
+use solana_commitment_config::CommitmentConfig;
+use solana_message::Message;
+use solana_pubkey::Pubkey;
 use solana_record_service_client::accounts::{Class, Record};
 use solana_record_service_client::instructions::{
     CreateRecordBuilder, FreezeRecordBuilder, TransferRecordBuilder, UpdateRecordBuilder,
 };
 use solana_record_service_client::programs::SOLANA_RECORD_SERVICE_ID;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::message::Message;
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::system_program;
-use solana_sdk::transaction::Transaction;
+use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::META_DESCRIPTION;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
@@ -371,7 +370,7 @@ impl CommandImplementation for ProcessInstructions {
                 record_actions.push(RecordAction::UpdateData);
                 let ix = UpdateRecordBuilder::new()
                     .record(record)
-                    .system_program(system_program::ID)
+                    .system_program(solana_sdk_ids::system_program::ID)
                     .authority(authority_pubkey.unwrap_or(owner_pubkey))
                     .data(data.clone())
                     .instruction();
@@ -424,7 +423,7 @@ impl CommandImplementation for ProcessInstructions {
                 .owner(owner_pubkey)
                 .class(class)
                 .record(record)
-                .system_program(system_program::ID)
+                .system_program(solana_sdk_ids::system_program::ID)
                 .authority(authority_pubkey)
                 .expiration(expiration)
                 .name(name.clone())

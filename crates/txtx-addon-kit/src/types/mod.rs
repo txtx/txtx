@@ -36,6 +36,12 @@ mod tests;
 #[derive(Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct Did(pub [u8; 32]);
 
+impl core::fmt::Display for Did {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
 impl Did {
     pub fn from_components(comps: Vec<impl AsRef<[u8]>>) -> Self {
         let mut hasher = Sha256::new();
@@ -51,18 +57,14 @@ impl Did {
         Self::from_bytes(&bytes)
     }
 
-    pub fn from_bytes(source_bytes: &Vec<u8>) -> Self {
+    pub fn from_bytes(source_bytes: &[u8]) -> Self {
         let mut bytes = [0u8; 32];
-        bytes.copy_from_slice(&source_bytes);
+        bytes.copy_from_slice(source_bytes);
         Did(bytes)
     }
 
     pub fn zero() -> Self {
         Self([0u8; 32])
-    }
-
-    pub fn to_string(&self) -> String {
-        hex::encode(self.0)
     }
 
     pub fn as_bytes(&self) -> &[u8] {
@@ -94,20 +96,20 @@ impl<'de> Deserialize<'de> for Did {
     }
 }
 
-impl std::fmt::Display for Did {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
 impl std::fmt::Debug for Did {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "0x{}", self.to_string())
+        write!(f, "0x{}", self)
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RunbookDid(pub Did);
+
+impl Display for RunbookDid {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl RunbookDid {
     pub fn value(&self) -> Did {
@@ -116,10 +118,6 @@ impl RunbookDid {
 
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
-    }
-
-    pub fn to_string(&self) -> String {
-        self.0.to_string()
     }
 }
 
@@ -177,10 +175,6 @@ impl PackageDid {
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
-
-    pub fn to_string(&self) -> String {
-        self.0.to_string()
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -217,9 +211,9 @@ impl PackageId {
         runbook_id: &RunbookId,
         package_name: &str,
     ) -> Result<Self, Diagnostic> {
-        let package_location = location.get_parent_location().map_err(|e| {
-            Diagnostic::error_from_string(format!("{}", e.to_string())).location(&location)
-        })?;
+        let package_location = location
+            .get_parent_location()
+            .map_err(|e| Diagnostic::error_from_string(e.to_string()).location(location))?;
         Ok(PackageId {
             runbook_id: runbook_id.clone(),
             package_location: package_location.clone(),
@@ -240,10 +234,6 @@ impl ConstructDid {
         self.0.as_bytes()
     }
 
-    pub fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-
     pub fn from_hex_string(did_str: &str) -> Self {
         ConstructDid(Did::from_hex_string(did_str))
     }
@@ -254,8 +244,8 @@ impl ConstructDid {
 }
 
 impl Display for ConstructDid {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

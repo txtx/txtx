@@ -2,11 +2,12 @@ use std::fs;
 use std::{env, path::Path};
 
 fn main() {
+    return; // TODO: commented for local build
     #[cfg(not(feature = "bypass_supervisor_build"))]
     {
         use npm_rs::*;
         let out_dir = env::var_os("OUT_DIR").unwrap();
-        let out_dir = Path::new(&format!("{}", out_dir.to_str().unwrap())).join("supervisor");
+        let out_dir = Path::new(&out_dir.to_str().unwrap().to_string()).join("supervisor");
         let local_dist_dir = Path::new("supervisor-dist");
 
         println!("cargo:warning=------------ Supervisor Build Script ------------");
@@ -18,7 +19,7 @@ fn main() {
 
             fs::create_dir_all(&out_dir).unwrap();
 
-            copy_dir_recursive(&local_dist_dir, &out_dir)
+            copy_dir_recursive(local_dist_dir, &out_dir)
                 .expect("Failed to copy supervisor dist directory");
         } else {
             println!("cargo:warning=Running npm build in txtx-supervisor-ui");

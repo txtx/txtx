@@ -1,4 +1,3 @@
-use spl_token::solana_program;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 
 use crate::typing::anchor as anchor_lang_idl;

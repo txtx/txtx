@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::message::Message;
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::transaction::Transaction;
+use solana_message::Message;
+use solana_pubkey::Pubkey;
+use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::futures::future;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
@@ -163,7 +163,7 @@ impl CommandImplementation for SendSol {
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
         let instruction =
-            solana_sdk::system_instruction::transfer(&signer_pubkey, &recipient, amount);
+            solana_system_interface::instruction::transfer(&signer_pubkey, &recipient, amount);
 
         let mut message = Message::new(&vec![instruction], None);
         let client = RpcClient::new(rpc_api_url);

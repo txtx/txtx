@@ -10,7 +10,7 @@ pub struct BlockId(String);
 impl BlockId {
     pub fn new(data: &[u8]) -> Self {
         // use a seed that is consistent across this run of txtx, but unique across multiple runs
-        let key = Key(SEED.clone());
+        let key = Key(*SEED);
         let mut hasher = HighwayHasher::new(key);
         hasher.append(data);
         // the result is two 64 bit numbers
@@ -18,14 +18,10 @@ impl BlockId {
         // turn each number into a hex string, padded with 0s to 16 chars so we have consistent length
         BlockId(format!("{:016x}-{:016x}", res[0], res[1]))
     }
-
-    pub fn to_string(&self) -> String {
-        self.0.clone()
-    }
 }
 
-impl std::fmt::Display for BlockId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for BlockId {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }

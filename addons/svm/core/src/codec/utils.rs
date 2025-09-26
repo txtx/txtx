@@ -1,11 +1,10 @@
 use std::{str::FromStr, thread::sleep, time::Duration};
 
 use solana_client::rpc_request::RpcRequest;
-use solana_sdk::{
-    bpf_loader_upgradeable::{self, get_program_data_address, UpgradeableLoaderState},
-    clock::DEFAULT_MS_PER_SLOT,
-    pubkey::Pubkey,
-};
+use solana_clock::DEFAULT_MS_PER_SLOT;
+use solana_loader_v3_interface::get_program_data_address;
+use solana_loader_v3_interface::state::UpgradeableLoaderState;
+use solana_pubkey::Pubkey;
 use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
 
 use crate::commands::setup_surfnet::set_account::SurfpoolAccountUpdate;
@@ -79,7 +78,7 @@ pub fn cheatcode_deploy_program(
         public_key: program_data_address,
         lamports: Some(rent_lamports),
         data: Some(txtx_addon_kit::hex::encode(program_data)),
-        owner: Some(bpf_loader_upgradeable::id().to_string()),
+        owner: Some(solana_sdk_ids::bpf_loader_upgradeable::id().to_string()),
         executable: Some(false),
         rent_epoch: Some(0),
     };
@@ -96,7 +95,7 @@ pub fn cheatcode_deploy_program(
         public_key: program_id,
         lamports: Some(rent_lamports),
         data: Some(txtx_addon_kit::hex::encode(&program_data)),
-        owner: Some(bpf_loader_upgradeable::id().to_string()),
+        owner: Some(solana_sdk_ids::bpf_loader_upgradeable::id().to_string()),
         executable: Some(true),
         rent_epoch: Some(0),
     };

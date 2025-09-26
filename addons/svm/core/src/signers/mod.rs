@@ -4,7 +4,7 @@ pub mod web_wallet;
 
 use secret_key::SVM_SECRET_KEY;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::pubkey::Pubkey;
+use solana_pubkey::Pubkey;
 use squads::SVM_SQUADS;
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
@@ -123,7 +123,7 @@ async fn get_check_balance_action(
         Some(address) => match solana_rpc.get_balance(&address).await {
             Ok(response) => (
                 ActionItemStatus::Todo,
-                Value::float(solana_sdk::native_token::lamports_to_sol(response)),
+                Value::float(solana_cli_output::display::build_balance_message(response)),
             ),
             Err(err) => (
                 ActionItemStatus::Error(diagnosed_error!(

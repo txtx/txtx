@@ -32,6 +32,47 @@ reqwest = { version = "0.11.27", default-features = false, features = [
     "json",
     "rustls-tls",
 ]}
+lazy_static = "1.4.0"
+serde = { version = "1.0.226", default-features = false }
+serde_derive = { version = "1.0.226", default-features = false }                                                                        # must match the serde version, see https://github.com/serde-rs/serde/issues/2584#issuecomment-1685252251
+serde_json = { version = "1.0.135", default-features = false }
+serde_with = { version = "3", default-features = false }
+async-recursion = "1"
+base64 = { version = "0.22.1", default-features = false }
+bincode = "1.3.3"
+borsh = "1.5.1"
+bs58 = "0.5.1"
+solana-account = { version = "2.2.1", default-features = false }
+solana-message = { version = "2.2.1", default-features = false }
+# solana-native-token = { version = "3.0.0", default-features = false }
+solana-cli-output =  { version = "2.2.1", default-features = false }
+solana-sha256-hasher =  { version = "2.2.1", default-features = false }
+solana-client =  { version = "2.2.1", default-features = false }
+solana-pubkey =  { version = "2.2.1", default-features = false }
+solana-keypair =  { version = "2.2.1", default-features = false }
+solana-commitment-config =  { version = "2.2.1", default-features = false }
+solana-transaction =  { version = "2.2.1", default-features = false }
+solana-signer =  { version = "2.2.1", default-features = false }
+solana-hash =  { version = "2.2.1", default-features = false }
+solana-transaction-status-client-types =  { version = "2.2.1", default-features = false }
+solana-clock =  { version = "2.2.1", default-features = false }
+solana-packet =  { version = "2.2.1", default-features = false }
+solana-instruction =  { version = "2.2.1", default-features = false }
+solana-signature =  { version = "2.2.1", default-features = false }
+solana-loader-v3-interface =  { version = "5.0.0", default-features = false }
+solana-system-interface =  { version = "1.0.0", default-features = false }
+solana-sdk-ids =  { version = "2.2.1", default-features = false }
+spl-associated-token-account =  { version = "7.0.0", default-features = false }
+spl-token =  { version = "8.0.0", default-features = false }
+spl-token-2022 =  { version = "8.0.1", default-features = false } 
+solana_idl = "0.2.0"
+borsh_1_5_1 = { version = "1.5.1", package = "borsh" }
+tiny-bip39 = "0.8.2"
+convert_case = "0.6.0"
+test-case = "3.3.0"
+solana-record-service-client =  { version =  "0.1.0", default-features = false } 
+anchor-lang-idl = { version = "0.1.2", default-features = false}
+
 
 txtx-core = { path = "crates/txtx-core", default-features = false }
 txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }

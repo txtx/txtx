@@ -4,13 +4,10 @@ use multisig::Multisig;
 use proposal::{get_proposal_ix_data, Proposal, ProposalStatus};
 use serde::{Deserialize, Serialize};
 use solana_client::rpc_client::{GetConfirmedSignaturesForAddress2Config, RpcClient};
-use solana_sdk::{
-    instruction::{AccountMeta, Instruction},
-    message::Message,
-    pubkey::Pubkey,
-    system_program,
-    transaction::Transaction,
-};
+use solana_instruction::{AccountMeta, Instruction};
+use solana_message::Message;
+use solana_pubkey::Pubkey;
+use solana_transaction::Transaction;
 use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value, ConstructDid};
 use txtx_addon_network_svm_types::{SvmValue, SVM_SQUAD_MULTISIG};
 use vault_transaction::get_create_vault_transaction_ix_data;
@@ -180,7 +177,7 @@ impl SquadsMultisig {
                 AccountMeta::new(proposal_pda, false),
                 AccountMeta::new_readonly(*initiator, true),
                 AccountMeta::new(*rent_payer, true),
-                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(solana_sdk_ids::system_program::ID, false),
             ],
         )
     }
@@ -207,7 +204,7 @@ impl SquadsMultisig {
                 AccountMeta::new(transaction_pda, false),
                 AccountMeta::new_readonly(*initiator, true),
                 AccountMeta::new(*rent_payer, true),
-                AccountMeta::new_readonly(system_program::ID, false),
+                AccountMeta::new_readonly(solana_sdk_ids::system_program::ID, false),
             ],
         ))
     }

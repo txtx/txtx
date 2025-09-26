@@ -12,8 +12,8 @@ categories = { workspace = true }
 
 [dependencies]
 hcl-edit = "0.8.0"
-serde = "1"
-serde_derive = "1"
+serde = { workspace = true }
+serde_derive = { workspace = true }
 jaq-interpret = "1.2.1"
 url = { version = "2.2.2", features = ["serde"] }
 uuid = { workspace = true }
@@ -28,7 +28,7 @@ highway = "1.1.0"
 rand = "0.8.5"
 serde_json = "1"
 sha2 = "0.10.8"
-indexmap = { version = "2.2.6", features = ["serde"] } 
+indexmap = { version = "2.2.6", features = ["serde"] }
 wasm-bindgen = { version = "0.2.93", optional = true }
 wasm-bindgen-futures = { version = "0.4.41", optional = true }
 hmac = "0.12.0"
@@ -44,7 +44,7 @@ test-case = "3.3"
 hiro-system-kit = "0.3.4"
 
 [features]
-default=[]
+default = []
 wasm = ["wasm-bindgen", "wasm-bindgen-futures"]
 
 [lib]
