@@ -1,0 +1,19 @@
+// Deploy contract runbook
+
+variable "deployed_contract" {
+  value = "unset"
+}
+
+action "deploy" "evm::deploy_contract" {
+  contract_address = inputs.contract_address
+  private_key = inputs.private_key
+  api_endpoint = inputs.api_url
+}
+
+output "contract_address" {
+  value = action.deploy.contract_address
+}
+
+output "api_used" {
+  value = inputs.api_url
+}

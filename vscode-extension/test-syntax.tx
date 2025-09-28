@@ -1,0 +1,115 @@
+// This is a single-line comment
+/* This is a
+   multi-line comment */
+
+// Module definitions
+module "runbook" {
+  name = "Test Runbook"
+  description = "Testing syntax highlighting"
+}
+
+// Variables with different types
+variable "string_var" {
+  description = "A string variable"
+  value = "Hello, World!"
+}
+
+variable "number_var" {
+  description = "A number variable"
+  value = 42
+}
+
+variable "float_var" {
+  value = 3.14159
+}
+
+variable "hex_var" {
+  value = 0xFF00AA
+}
+
+variable "interpolated" {
+  description = "Using ${variable.string_var} interpolation"
+  value = "${variable.string_var} and ${variable.number_var}"
+}
+
+// Binary operations
+variable "math_result" {
+  value = variable.number_var + 10 * 2 - 5 / 2
+}
+
+// Addon configuration
+addon "stacks" {
+  network_id = input.stacks_network_id
+  rpc_api_url = input.stacks_api_url
+}
+
+// Signer definition
+signer "alice" "stacks::web_wallet" {
+  expected_address = "ST2JHG361ZXG51QTKY2NQCVBPPRRE2KZB1HR05NNC"
+  // mnemonic = "test mnemonic words"
+}
+
+// Action with namespace
+action "get_price" "stacks::call_readonly_fn" {
+  description = "Get name price"
+  contract_id = "ST000000000000000000002AMW42H.bns"
+  function_name = "get-name-price"
+  function_args = [
+    stacks::cv_buff(encode_hex(variable.namespace)),
+    stacks::cv_buff(encode_hex(variable.name))
+  ]
+  sender = signer.alice.address
+}
+
+// Action with depends_on
+action "register" "stacks::call_contract" {
+  description = "Register name"
+  function_args = [
+    stacks::cv_uint(action.get_price.value),
+    stacks::cv_buff(encode_hex("test"))
+  ]
+  signer = signer.alice
+  confirmations = 1
+  depends_on = [action.get_price]
+}
+
+// Different interaction modes
+addon "example" "transaction" "tx" {
+  no_interact {
+    nonce = 1
+    fee = 1200
+  }
+  
+  cli_interact {
+    nonce = stacks_fetch_nonce(signer.alice.address)
+  }
+  
+  web_interact {
+    payload_bytes = 1
+  }
+}
+
+// Output definition
+output "result" {
+  description = "Final result"
+  value = action.register.transaction_id
+}
+
+// Using constants
+variable "bool_test" {
+  value = true
+}
+
+variable "null_test" {
+  value = null
+}
+
+// Function calls
+variable "encoded" {
+  value = sha256(ripemd160(encode_hex("test")))
+}
+
+// Yield keyword
+variable "interactive" {
+  value = yield
+}

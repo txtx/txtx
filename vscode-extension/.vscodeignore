@@ -1,0 +1,17 @@
+.vscode/**
+.vscode-test/**
+src/**
+test/**
+tsconfig.json
+tsconfig.test.json
+.gitignore
+**/*.map
+**/*.ts
+**/tsconfig.json
+!**/tsconfig.*.json
+node_modules/**
+nvim-txtx/**
+test-headless.sh
+*.vsix
+.github/**
+test-syntax.tx
