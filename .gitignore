@@ -16,3 +16,35 @@ addons/sp1/examples/fibonacci/program/target
 addons/ovm/examples/cache/*
 addons/ovm/examples/out/*
 tarpaulin-report.html
+
+# Coverage reports
+lcov.info
+*.lcov
+coverage/
+*.profraw
+*.profdata
+
+# VSCode specific
+.vscode/*
+!.vscode/settings.json.example
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+*.code-workspace
+.history/
+*.vsix
+
+# Structurizr generated files
+.structurizr/
+**/workspace.json
+docs/architecture/linter/workspace-generated.dsl
+
+# nvim tree-sitter generated files
+vscode-extension/nvim-txtx/src/parser.c
+vscode-extension/nvim-txtx/src/grammar.json
+vscode-extension/nvim-txtx/src/node-types.json
+vscode-extension/nvim-txtx/src/tree_sitter/
+vscode-extension/nvim-txtx/parser/
+vscode-extension/nvim-txtx/build/
+vscode-extension/nvim-txtx/node_modules/

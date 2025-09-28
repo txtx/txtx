@@ -7,11 +7,20 @@ use runbooks::load_runbook_from_manifest;
 use std::process;
 use txtx_cloud::{LoginCommand, PublishRunbook};
 
+mod common;
 mod docs;
+mod linter;
 mod env;
+mod lint;
 mod lsp;
 mod runbooks;
 mod snapshots;
+
+/// Parse a single key-value pair
+fn parse_key_val(s: &str) -> Result<(String, String), String> {
+    let pos = s.find('=').ok_or_else(|| format!("invalid KEY=VALUE: no '=' found in '{}'", s))?;
+    Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
+}
 
 pub const AUTH_SERVICE_URL_KEY: &str = "AUTH_SERVICE_URL";
 pub const AUTH_CALLBACK_PORT_KEY: &str = "AUTH_CALLBACK_PORT";
@@ -77,7 +86,7 @@ enum Command {
     Docs(GetDocumentation),
     /// Start the txtx language server
     #[clap(name = "lsp", bin_name = "lsp")]
-    Lsp,
+    Lsp(LspCommand),
     /// Start a server to listen for requests to execute runbooks
     #[clap(name = "serve", bin_name = "serve")]
     #[cfg(feature = "txtx_serve")]
@@ -88,6 +97,9 @@ enum Command {
     /// Txtx cloud commands
     #[clap(subcommand, name = "cloud", bin_name = "cloud")]
     Cloud(CloudCommand),
+    /// Lint runbooks for errors and style issues
+    #[clap(name = "lint", bin_name = "lint")]
+    Lint(LintCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -137,6 +149,76 @@ pub struct CheckRunbook {
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct GetDocumentation;
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct LspCommand {
+    /// Start the language server in stdio mode (this flag is accepted for compatibility but has no effect as stdio is the default)
+    #[arg(long = "stdio")]
+    pub stdio: bool,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
+pub struct LintCommand {
+    /// Runbook to lint (lints all if not specified)
+    pub runbook: Option<String>,
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm')]
+    pub manifest_path: Option<String>,
+    /// Choose the environment variables to use from those configured in the txtx.yml
+    #[arg(long = "env", short = 'e')]
+    pub environment: Option<String>,
+    /// Input variable overrides (format: name=value)
+    #[arg(long = "input", short = 'i', value_parser = parse_key_val)]
+    pub inputs: Vec<(String, String)>,
+    /// Output format (use 'doc' for shareable examples)
+    #[arg(long = "format", short = 'f', default_value = "stylish", value_enum)]
+    pub format: LintOutputFormat,
+
+    // Linter configuration
+    /// Path to linter config file (.txtxlint.yml)
+    #[arg(long = "config", short = 'c')]
+    pub config: Option<String>,
+    /// Disable specific lint rules (can be specified multiple times)
+    #[arg(long = "disable", short = 'd')]
+    pub disable_rules: Vec<String>,
+    /// Run only specific lint rules (can be specified multiple times)
+    #[arg(long = "only", short = 'o')]
+    pub only_rules: Vec<String>,
+    /// Auto-fix lint violations where possible
+    #[arg(long = "fix")]
+    pub fix: bool,
+    /// Initialize a new .txtxlint.yml configuration file
+    #[arg(long = "init")]
+    pub init: bool,
+
+    // CLI generation features
+    /// Generate CLI template for running the runbook (only undefined variables)
+    #[arg(long = "gen-cli", conflicts_with = "gen_cli_full")]
+    pub gen_cli: bool,
+    /// Generate CLI template with all variables (including defined ones from manifest/env)
+    #[arg(long = "gen-cli-full", conflicts_with = "gen_cli")]
+    pub gen_cli_full: bool,
+}
+
+
+
+#[derive(clap::ValueEnum, PartialEq, Clone, Debug)]
+pub enum LintOutputFormat {
+    /// Auto-detect based on output context
+    Auto,
+    /// Human-readable output with colors and context
+    Pretty,
+    /// Single-line format for editor integration
+    Quickfix,
+    /// Machine-readable JSON format
+    Json,
+    /// Human-readable output with colors and context (stylish format)
+    Stylish,
+    /// Compact single-line format
+    Compact,
+    /// Documentation format with source code and error squigglies
+    Doc,
+}
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 pub struct InspectRunbook {
@@ -278,7 +360,18 @@ pub fn main() {
         }
     };
 
-    let buffer_stdin = if let Command::Lsp = opts.command { None } else { load_stdin() };
+    // Special case for LSP - it runs its own synchronous loop
+    if let Command::Lsp(_) = opts.command {
+        match lsp::run_lsp() {
+            Err(e) => {
+                eprintln!("LSP server error: {}", e);
+                process::exit(1);
+            }
+            Ok(_) => return,
+        }
+    }
+
+    let buffer_stdin = load_stdin();
 
     match hiro_system_kit::nestable_block_on(handle_command(opts, &ctx, buffer_stdin)) {
         Err(e) => {
@@ -295,6 +388,7 @@ async fn handle_command(
     ctx: &Context,
     buffer_stdin: Option<String>,
 ) -> Result<(), String> {
+    dotenv().ok();
     let env = TxtxEnv::load();
     match opts.command {
         Command::Check(cmd) => {
@@ -318,8 +412,9 @@ async fn handle_command(
         Command::Snapshots(SnapshotCommand::Commit(cmd)) => {
             snapshots::handle_commit_command(&cmd, ctx).await?;
         }
-        Command::Lsp => {
-            lsp::run_lsp().await?;
+        Command::Lsp(_lsp_cmd) => {
+            // This case is handled before entering the async runtime
+            unreachable!("LSP command should be handled synchronously");
         }
         #[cfg(feature = "txtx_serve")]
         Command::Serve(cmd) => {
@@ -337,6 +432,28 @@ async fn handle_command(
             thread::sleep(std::time::Duration::new(1800, 0));
         }
         Command::Cloud(cmd) => handle_cloud_commands(&cmd, buffer_stdin, &env).await?,
+        Command::Lint(cmd) => {
+            use lint::{run_lint, LinterOptions};
+
+            let linter_options = LinterOptions {
+                config_path: cmd.config.clone(),
+                disabled_rules: cmd.disable_rules.clone(),
+                only_rules: cmd.only_rules.clone(),
+                fix: cmd.fix,
+                init: cmd.init,
+            };
+
+            run_lint(
+                cmd.runbook.clone(),
+                cmd.manifest_path.clone(),
+                cmd.environment.clone(),
+                cmd.inputs.clone(),
+                cmd.format.clone(),
+                linter_options,
+                cmd.gen_cli,
+                cmd.gen_cli_full,
+            )?;
+        }
     }
     Ok(())
 }

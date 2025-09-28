@@ -1,0 +1,4 @@
+default_job = "build_no_supervisor"
+
+[jobs.build_no_supervisor]
+command = ["cargo", "build", "--package", "txtx-cli", "--release", "--no-default-features", "--features", "cli" ]

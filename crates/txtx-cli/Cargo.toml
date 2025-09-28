@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 txtx-core = { workspace = true }
+txtx-addon-kit = { workspace = true }
 txtx-supervisor-ui = { workspace = true, optional = true }
 txtx-cloud = { workspace = true }
 txtx-serve = { workspace = true, optional = true }
@@ -32,26 +33,34 @@ dotenvy = "0.15.7"
 serde = "1"
 serde_json = "1"
 serde_derive = "1"
+serde_yml = "0.0.12"
 ascii_table = "4.0.3"
 itertools = "0.12.0"
 unicode-width = "0.2.0"
 ansi_term = "0.12.1"
 atty = "0.2.14"
-tokio = "1.37.0"
+tokio = { version = "1.37", features = ["rt-multi-thread", "macros", "sync"] }
+dashmap = "5.5"
+lru = "0.12"
 openssl = { version = "*", features = ["vendored"] }
 openssl-sys = { version = "*", features = ["vendored"] }
 dialoguer = "0.11.0"
 console = "0.15.8"
 convert_case = "0.6.0"
 rusqlite = "0.31.0"
-txtx-lsp = { path = "../txtx-lsp" }
-tower-lsp = { version = "0.20.0" }
+lsp-server = "0.7.6"
+lsp-types = "0.94.0"
+crossbeam-channel = "0.5"
 chrono = "0.4.38"
 actix-web = "4"
 indicatif = "0.18.0"
 fern = "0.7.1"
+colored = "2.0"
 log = "0.4.27"
 lazy_static = "1.4.0"
+regex = "1.10"
+toml = "0.8"
+futures = "0.3"
 
 [features]
 default = ["cli", "supervisor_ui"]
@@ -69,3 +78,11 @@ stacks = ["txtx-addon-network-stacks"]
 
 [dev-dependencies]
 test-case = "*"
+criterion = { version = "0.5", features = ["html_reports"] }
+serde_json = "1"
+txtx-test-utils = { path = "../txtx-test-utils" }
+tempfile = "3"
+
+[[bench]]
+name = "lsp_performance"
+harness = false
