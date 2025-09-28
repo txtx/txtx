@@ -2,5 +2,29 @@
     "rust-analyzer.linkedProjects": [
     ],
     "rust-analyzer.showUnlinkedFileNotification": false,
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+    "files.associations": {
+        "*.tx": "txtx"
+    },
+    "rust-analyzer.cargo.buildScripts.enable": true,
+    "rust-analyzer.cargo.features": ["cli"],
+    "rust-analyzer.cargo.noDefaultFeatures": true,
+    "rust-analyzer.checkOnSave.command": "build",
+    "rust-analyzer.checkOnSave.allTargets": false,
+    "rust-analyzer.checkOnSave.extraArgs": [
+        "--package",
+        "txtx-cli",
+        "--features",
+        "cli"
+    ],
+    "rust-analyzer.runnables.command": "cargo",
+    "rust-analyzer.runnables.extraArgs": [
+        "--package",
+        "txtx-cli",
+        "--features",
+        "cli"
+    ],
+    
+    // Point to the local txtx binary for LSP (uses workspace-relative path)
+    "txtx.lspPath": "${workspaceFolder}/target/release/txtx"
 }

@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build txtx Binary",
+      "type": "shell",
+      "command": "cargo build --package txtx-cli --bin txtx",
+      "group": "build",
+      "presentation": {
+        "reveal": "silent"
+      },
+      "problemMatcher": "$rustc"
+    }
+  ]
+}
