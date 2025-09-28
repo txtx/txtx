@@ -18,9 +18,10 @@
 ### Next Phase
 
 🔜 **Phase 5: Performance & Polish** - Validation debouncing, metrics, optimization
-   - Can now leverage Phase 6 state tracking for performance metrics
-   - Debounce rapid edits (300ms threshold)
-   - Track time-in-state and transition counts
+
+- Can now leverage Phase 6 state tracking for performance metrics
+- Debounce rapid edits (300ms threshold)
+- Track time-in-state and transition counts
 
 ### Key Achievements
 
@@ -502,6 +503,7 @@ graph TB
 ```
 
 **Dependency Rules:**
+
 1. **Runbook → Manifest**: All runbooks depend on their manifest for environment inputs
 2. **Multi-file Parts → Directory**: All `.tx` files in multi-file runbook depend on directory
 3. **Action References** (future): Runbook A → Runbook B if A calls actions from B
@@ -726,6 +728,7 @@ pub enum StateAction {
 ### 10. Implementation Roadmap
 
 #### Phase 1: Foundation ✅ COMPLETE
+
 - [x] Add `ValidationState` struct
 - [x] Add `DependencyGraph` struct
 - [x] Implement content hashing
@@ -734,6 +737,7 @@ pub enum StateAction {
 - [x] Add documentation following Rust guidelines
 
 **Implemented:**
+
 - `validation_state.rs` - 7 validation status types
 - `dependency_graph.rs` - Cycle detection with caching
 - `state.rs` - Enhanced with validation cache and dirty tracking
@@ -741,6 +745,7 @@ pub enum StateAction {
 - `state_management_test.rs` - 28 integration tests
 
 #### Phase 2: Dependency Tracking ✅ COMPLETE
+
 - [x] Implement dependency extraction from HCL content
 - [x] Build dependency graph on document open/change
 - [x] Implement cycle detection algorithm
@@ -750,6 +755,7 @@ pub enum StateAction {
 - [x] Implement cascade validation
 
 **Implemented:**
+
 - `dependency_extractor.rs` - Regex-based extraction
 - Automatic dependency tracking on document changes
 - Cross-file action and variable references
@@ -760,12 +766,14 @@ pub enum StateAction {
 - `cascade_validation_test.rs` - 6 tests
 
 #### Phase 3: Smart Invalidation ✅ COMPLETE
+
 - [x] Implement `needs_validation()` logic
 - [x] Add stale marking for dependents
 - [x] Implement cascade validation
 - [x] Add transitive dependency invalidation
 
 **Implemented:**
+
 - Content hash-based change detection
 - Transitive cascade validation
 - Automatic marking of affected documents as dirty
@@ -773,6 +781,7 @@ pub enum StateAction {
 - All 50 LSP tests passing
 
 #### Phase 4: Integration with DiagnosticsHandler ✅ COMPLETE
+
 - [x] Hook up cascade validation to didChange events
 - [x] Integrate dependency extraction calls on document open/change
 - [x] Add environment change handler to mark all docs dirty
@@ -784,6 +793,7 @@ pub enum StateAction {
 **Implemented:**
 
 *Core Integration:*
+
 - `DiagnosticsHandler::validate_and_update_state()` - Validates and updates validation cache
 - `DiagnosticsHandler::get_dirty_documents()` - Gets all documents needing re-validation
 - `WorkspaceState::set_current_environment()` - Automatically marks all runbooks dirty on env change
@@ -791,6 +801,7 @@ pub enum StateAction {
 - Helper functions: `publish_diagnostics()`, `validate_and_publish()` - DRY compliance
 
 *Testing:*
+
 - `integration_cascade_test.rs` - 9 comprehensive integration tests covering:
   - Manifest changes triggering dependent runbook validation
   - Action definition changes cascading to users
@@ -803,6 +814,7 @@ pub enum StateAction {
 - `mock_editor.rs` enhancements: `set_environment()`, `clear_dirty()`, `assert_is_dirty()`
 
 *Code Quality:*
+
 - Zero DRY violations - extracted helper functions for repeated diagnostic publishing
 - Idiomatic Rust patterns - using `filter_map`, `bool::then`, proper formatting
 - All 115 LSP tests passing (106 original + 9 new integration tests)
@@ -815,23 +827,27 @@ pub enum StateAction {
   - Code examples with contextual usage
 
 *Key Features Delivered:*
+
 1. **Automatic Cascade Validation**: Changes to manifests, actions, or variables automatically trigger re-validation of all dependent files
 2. **Smart Environment Switching**: Changing environments marks all runbooks dirty and re-validates them with new context
 3. **Transitive Dependency Support**: A→B→C chains correctly cascade validation through all levels
 4. **Optimized Performance**: Only affected documents are validated, content hashing prevents redundant work
 
 #### Phase 5: Performance & Polish (FUTURE)
+
 - [ ] Add validation debouncing for rapid edits
 - [ ] Implement diagnostics caching to avoid republishing
 - [ ] Add metrics/logging for cache hit rate
 - [ ] Performance benchmarks and optimization
 
 **Goals:**
+
 - < 100ms response time for cached validations
 - 80%+ cache hit rate for unchanged documents
 - Debounce rapid edits (300ms threshold)
 
 #### Phase 6: State Machine ✅ COMPLETE
+
 - [x] Implement `MachineState` enum with 9 workspace-level states
 - [x] Implement `StateEvent` enum for all triggers (9 event types)
 - [x] Implement `StateAction` enum for side effects (5 action types)
@@ -850,36 +866,42 @@ While the current implicit state (via `ValidationStatus`) works correctly, an ex
 state machine provides critical observability improvements:
 
 **Debugging & Troubleshooting:**
+
 - Always know exactly what state the workspace is in
 - Audit trail of all state transitions with timestamps
 - Can reconstruct sequence of events leading to issues
 - State history visible in logs and debugging tools
 
 **Error Prevention:**
+
 - Invalid state transitions caught at compile time
 - State machine validates preconditions for transitions
 - Prevents race conditions through atomic state updates
 - Clear error messages when unexpected states occur
 
 **Metrics & Performance:**
+
 - Track time spent in each state (e.g., time validating)
 - Count state transitions for performance analysis
 - Identify bottlenecks (e.g., excessive revalidation)
 - Foundation for Phase 5 performance optimization
 
 **Testing & Maintenance:**
+
 - State machine testable independently of LSP
 - Can test complex state flows in isolation
 - State diagram serves as living documentation
 - Easier to reason about system behavior
 
 **Current Implementation:**
+
 - Per-document state via `ValidationStatus` (7 states)
 - No workspace-level state tracking
 - State transitions implicit in handler logic
 - Difficult to debug complex scenarios
 
 **Implemented:**
+
 - Workspace-level `MachineState` enum (9 states)
 - Event-driven architecture (`StateEvent` → `StateAction`)
 - Explicit state transition validation
@@ -888,6 +910,7 @@ state machine provides critical observability improvements:
 - Comprehensive test coverage (29 tests)
 
 **Delivered:**
+
 - State machine infrastructure in `WorkspaceState` with `MachineState` and `StateHistory` fields
 - Event-driven `process_event()` method handling all state transitions
 - Automatic state transition logging with `[LSP STATE]` prefix to stderr
@@ -897,6 +920,7 @@ state machine provides critical observability improvements:
 - Idiomatic Rust: zero DRY violations, concise documentation per RFC 1574
 
 #### Phase 7: Advanced Features (FUTURE)
+
 - [ ] Incremental parsing (if HCL parser supports it)
 - [ ] Multi-file runbook dependency tracking
 - [ ] Action reference resolution across files
@@ -1048,16 +1072,19 @@ mod tests {
 ### Future Enhancements (Phases 5-7)
 
 **Phase 5: Performance & Polish**
+
 - Validation debouncing for rapid edits
 - Diagnostics caching to avoid republishing
 - Metrics/logging for cache hit rate
 - Performance benchmarks
 
 **Phase 6: State Machine (Optional)**
+
 - Explicit state machine for debugging
 - State transition tracking
 
 **Phase 7: Advanced Features**
+
 - Multi-file runbook dependency tracking
 - Action reference resolution across files
 - Variable scope analysis

@@ -121,9 +121,11 @@ graph LR
 
 **Actors**: Developer, Editor, LSP Server
 **Preconditions**:
+
 - LSP server initialized
 - File is `.tx` or `.yml` format
 **Flow**:
+
 1. Developer opens file in editor
 2. Editor sends `textDocument/didOpen` notification
 3. DocumentSyncHandler stores document in workspace state
@@ -153,6 +155,7 @@ graph LR
 **Actors**: Developer, Editor
 **Preconditions**: Document is open
 **Flow**:
+
 1. Developer makes changes
 2. Editor sends full content in `didChange`
 3. DocumentSyncHandler updates workspace
@@ -222,6 +225,7 @@ graph TB
 **Actors**: LSP Server, Linter, HCL Parser
 **Purpose**: Provide real-time validation feedback
 **Features**:
+
 - Syntax validation (HCL parser errors)
 - Semantic validation (linter rules)
 - Environment-aware checking
@@ -249,6 +253,7 @@ graph LR
 **Actors**: Developer, Editor
 **Trigger**: Developer invokes "Go to Definition" on `input.variable`
 **Flow**:
+
 1. Editor sends cursor position
 2. Handler extracts `input.` reference
 3. Searches manifest environments
@@ -343,6 +348,7 @@ graph LR
 **Actors**: Developer, Editor
 **Trigger**: User types `input.` or invokes completion
 **Features**:
+
 - Trigger character: `.`
 - Runs asynchronously (non-blocking)
 - Shows all available inputs across environments
@@ -378,6 +384,7 @@ graph TB
 **Actors**: Editor Extension, LSP Server
 **Purpose**: Populate environment selector UI
 **Sources**:
+
 1. Open document filenames (*.{env}.tx)
 2. Manifest environments section
 3. Workspace file scan (if needed)
@@ -404,6 +411,7 @@ graph LR
 
 **Actors**: Developer, Extension, LSP Server
 **Flow**:
+
 1. User selects environment from dropdown
 2. Extension sends custom notification
 3. Server updates global environment state
@@ -443,6 +451,7 @@ graph TB
 **Purpose**: Ensure runbooks are valid for selected environment
 **Key Rule**: `undefined-input` linter rule
 **Behavior**:
+
 - Checks each `input.` reference
 - Resolves against current environment + global fallback
 - Warns if input missing in selected environment
@@ -467,6 +476,7 @@ graph LR
 
 **Purpose**: Catch HCL syntax errors immediately
 **Examples**:
+
 - Missing closing braces
 - Invalid attribute syntax
 - Malformed strings
@@ -508,6 +518,7 @@ graph TB
 ```
 
 **Linter Rules**:
+
 1. **undefined-input**: Checks input references against manifest + environment
 2. **cli-override**: Warns when CLI inputs override environment values
 3. **type-validation**: Validates action parameters match schemas
@@ -542,7 +553,8 @@ graph TB
 
 **Purpose**: Support directory-based runbooks
 **Example Structure**:
-```
+
+```console
 runbooks/
   my_runbook/
     actions.tx
@@ -551,6 +563,7 @@ runbooks/
 ```
 
 **Process**:
+
 1. Detect directory-based runbook in manifest
 2. Load all `.tx` files in directory
 3. Combine with file markers for position tracking
@@ -559,6 +572,7 @@ runbooks/
 6. Return only diagnostics for current file
 
 **Benefits**:
+
 - Cross-file reference validation
 - Consistent action/signer resolution
 - Cleaner project organization
@@ -570,16 +584,19 @@ runbooks/
 ### Primary Actors
 
 **Developer/User**
+
 - Writes txtx runbooks
 - Interacts through code editor
 - Benefits from IDE features
 
 **Code Editor** (VS Code, Neovim, etc.)
+
 - Implements LSP client
 - Displays diagnostics and UI
 - Sends LSP requests
 
 **Editor Extension/Plugin**
+
 - Language-specific integration
 - Custom UI (environment picker)
 - Translates custom requests
@@ -587,26 +604,31 @@ runbooks/
 ### System Components
 
 **LSP Server Core**
+
 - Request router
 - Handler orchestration
 - Async task management
 
 **Workspace State**
+
 - Document cache
 - Manifest cache
 - Environment state
 
 **Linter Engine**
+
 - Rule execution
 - Violation reporting
 - Configurable rules
 
 **HCL Parser**
+
 - Syntax validation
 - AST generation
 - Error reporting
 
 **Function Registry**
+
 - Static function/action metadata
 - Documentation lookup
 - Signer type info
