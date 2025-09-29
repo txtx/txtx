@@ -478,6 +478,7 @@ impl CommandImplementation for DeployContract {
         progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         signers: SignersState,
+        auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerSignFutureResult {
         let mut values = values.clone();
         let signers_instances = signers_instances.clone();
@@ -485,6 +486,7 @@ impl CommandImplementation for DeployContract {
         let spec = spec.clone();
         let progress_tx = progress_tx.clone();
         let mut signers = signers.clone();
+        let auth_context = auth_context.clone();
 
         let mut result: CommandExecutionResult = CommandExecutionResult::new();
         let signer_did = get_signer_did(&values).unwrap();
@@ -544,6 +546,7 @@ impl CommandImplementation for DeployContract {
                     &progress_tx,
                     &signers_instances,
                     signers,
+                    &auth_context,
                 );
                 let (signers, signer_state, mut res_signing) = match run_signing_future {
                     Ok(future) => match future.await {
@@ -568,6 +571,7 @@ impl CommandImplementation for DeployContract {
                 &spec,
                 &values,
                 &progress_tx,
+                &auth_context,
             ) {
                 Ok(future) => match future.await {
                     Ok(res) => res,

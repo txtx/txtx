@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
-use crate::typing::anchor::types as anchor_types;
+use crate::{codec::validate_program_so, typing::anchor::types as anchor_types};
 
 use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use txtx_addon_kit::{
@@ -48,6 +48,8 @@ impl AnchorProgramArtifacts {
                 e
             )
         })?;
+
+        validate_program_so(&bin)?;
 
         let keypair = if std::fs::exists(&keypair_path).map_err(|e| {
             format!(

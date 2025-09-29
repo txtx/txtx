@@ -1,6 +1,6 @@
 use std::{str::FromStr, thread::sleep, time::Duration};
 
-use solana_client::rpc_request::RpcRequest;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     bpf_loader_upgradeable::{self, get_program_data_address, UpgradeableLoaderState},
     clock::DEFAULT_MS_PER_SLOT,
@@ -38,39 +38,28 @@ pub fn get_seeds_from_value(value: &Value) -> Result<Vec<Vec<u8>>, Diagnostic> {
     Ok(seeds)
 }
 
-fn set_account_cheatcode(
-    rpc_client: &solana_client::rpc_client::RpcClient,
-    account_update: &SurfpoolAccountUpdate,
-) -> Result<(), Diagnostic> {
-    let pubkey = serde_json::json!(account_update.public_key.to_string());
-    let account_update_value = serde_json::to_value(account_update).unwrap();
-    let params = serde_json::json!(vec![pubkey, account_update_value]);
-
-    let _ = rpc_client
-        .send::<serde_json::Value>(RpcRequest::Custom { method: "surfnet_setAccount" }, params)
-        .map_err(|e| diagnosed_error!("`surfnet_setAccount` RPC call failed: {e}"))?;
-
-    Ok(())
-}
-
-pub fn cheatcode_deploy_program(
-    rpc_api_url: &str,
+pub async fn cheatcode_deploy_program(
+    rpc_client: &RpcClient,
     program_id: Pubkey,
     data: &Vec<u8>,
-    upgrade_authority: Pubkey,
+    upgrade_authority: Option<Pubkey>,
 ) -> Result<(), Diagnostic> {
-    let rpc_client = solana_client::rpc_client::RpcClient::new(rpc_api_url.to_string());
     let program_data_address = get_program_data_address(&program_id);
     let rent_lamports = rpc_client
         .get_minimum_balance_for_rent_exemption(data.len())
+        .await
         .map_err(|e| diagnosed_error!("failed to get rent exemption: {e}"))?;
 
-    let slot =
-        rpc_client.get_slot().map_err(|e| diagnosed_error!("failed to get current slot: {e}"))?;
+    let slot = rpc_client
+        .get_slot()
+        .await
+        .map_err(|e| diagnosed_error!("failed to get current slot: {e}"))?;
 
     let mut program_data = bincode::serialize(&UpgradeableLoaderState::ProgramData {
         slot,
-        upgrade_authority_address: Some(upgrade_authority),
+        // LiteSVM rejects setting a program account without an upgrade authority for some reason,
+        // so we set one to the default Pubkey if none is provided.
+        upgrade_authority_address: Some(upgrade_authority.unwrap_or_default()),
     })
     .map_err(|e| diagnosed_error!("failed to serialize program data state: {e}"))?;
     program_data.extend(data);
@@ -91,6 +80,7 @@ pub fn cheatcode_deploy_program(
 
     let rent_lamports = rpc_client
         .get_minimum_balance_for_rent_exemption(program_data.len())
+        .await
         .map_err(|e| diagnosed_error!("failed to get rent exemption: {e}"))?;
     let program_payload = SurfpoolAccountUpdate {
         public_key: program_id,
@@ -101,9 +91,9 @@ pub fn cheatcode_deploy_program(
         rent_epoch: Some(0),
     };
 
-    set_account_cheatcode(&rpc_client, &program_data_address_payload)?;
+    program_data_address_payload.send_request(&rpc_client).await?;
 
-    set_account_cheatcode(&rpc_client, &program_payload)?;
+    program_payload.send_request(&rpc_client).await?;
 
     Ok(())
 }

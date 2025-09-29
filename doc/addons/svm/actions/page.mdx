@@ -742,9 +742,13 @@ action "account_index" "svm::deploy_subgraph" {
 
 `svm::setup_surfnet` can be used to configure a surfnet.
 
-The current supported operations are to set account or token account data.
-The `set_account` action can be used to set the lamports, owner, data, and executable fields of an account.
-The `set_token_account` action can be used to set the amount, delegate, delegated amount, and close authority for a token account.
+The following operations are supported:
+ - `set_account` - used to set the lamports, owner, data, and executable fields of an account.
+ - `set_token_account` - used to set the amount, delegate, delegated amount, and close authority for a token account.
+ - `clone_program_account` - used to clone a program account from a source program id to a destination program id.
+ - `set_program_authority` - used to set the authority of a program.
+ - `deploy_program` - used to deploy a program (via a direct write to the account data rather than valid transactions) to the surfnet.
+
 
 
 ### Inputs
@@ -797,6 +801,15 @@ The `set_token_account` action can be used to set the amount, delegate, delegate
     The program authority data to set. This is a map type containing the keys:
   - **program_id**: The public key of the program to set the authority for.
   - **authority**: The new authority for the program. If not provided, program's authority will be set to None.
+  </Property>
+
+
+  <Property name="deploy_program" required="optional" type="map">
+    The program deployment data to set. This is a map type containing the keys:
+  - **program_id**: The public key of the program being deployed.
+  - **binary_path**: The location of the program's .so file. (e.g. `./target/deploy/my_program.so`)
+  - **authority**: The public key of the authority over the program after it is deployed. If not provided, the program will have no authority.
+  - **idl_path**: The location of the program's IDL file. (e.g. `./target/idl/my_program.json`)
   </Property>
 
 
@@ -865,6 +878,10 @@ action "setup" "svm::setup_surfnet" {
     set_program_authority {
         program_id = variable.my_program_id
         authority = signer.caller.public_key
+    }
+    deploy_program {
+        program_id = variable.my_program_id
+        binary_path = "./path/to/my_program.so"
     }
 }
 

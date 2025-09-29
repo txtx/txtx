@@ -271,6 +271,7 @@ impl CommandImplementation for SignEvmTransaction {
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
+        _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerSignFutureResult {
         let signer_did = get_signer_did(values).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
