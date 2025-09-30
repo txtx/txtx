@@ -222,7 +222,13 @@ pub struct ListRunbooks {
     /// Path to the manifest
     #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
     pub manifest_path: String,
+
+    /// List environments instead of runbooks
+    #[arg(long = "envs")]
+    pub envs: bool,
 }
+
+
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 #[cfg(feature = "txtx_serve")]
