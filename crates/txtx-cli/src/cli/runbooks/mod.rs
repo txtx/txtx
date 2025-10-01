@@ -412,10 +412,33 @@ pub async fn handle_new_command(cmd: &CreateRunbook, _ctx: &Context) -> Result<(
 pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(), String> {
     let manifest_location = FileLocation::from_path_string(&cmd.manifest_path)?;
     let manifest = WorkspaceManifest::from_location(&manifest_location)?;
+
+    if cmd.envs {
+        // List environments
+        let mut env_names: Vec<&String> = manifest.environments.keys()
+            .filter(|name| *name != "global")
+            .collect();
+
+        if env_names.is_empty() {
+            println!("No environments defined in manifest");
+            return Ok(());
+        }
+
+        env_names.sort();
+
+        for env in env_names {
+            println!("{}", env);
+        }
+
+        return Ok(());
+    } 
+
+    // List runbooks
     if manifest.runbooks.is_empty() {
         println!("{}: no runbooks referenced in the txtx.yml manifest.\nRun the command `txtx new` to create a new runbook.", yellow!("warning"));
         std::process::exit(1);
     }
+
     println!("{:<35}\t{}", "Name", yellow!("Description"));
     for runbook in manifest.runbooks {
         let heading = runbook
