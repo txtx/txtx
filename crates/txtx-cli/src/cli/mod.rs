@@ -229,7 +229,6 @@ pub struct ListRunbooks {
 }
 
 
-
 #[derive(Parser, PartialEq, Clone, Debug)]
 #[cfg(feature = "txtx_serve")]
 pub struct StartServer {
