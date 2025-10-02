@@ -1,6 +1,6 @@
 /// This is all copied from the Squads v4 program. I couldn't pull the crate due to dependency collisions.
 /// https://github.com/Squads-Protocol/v4
-use solana_sdk::pubkey::Pubkey;
+use solana_pubkey::Pubkey;
 
 use super::SQUADS_MULTISIG_PROGRAM_ID;
 

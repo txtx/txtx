@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::message::Message;
-use solana_sdk::transaction::Transaction;
+use solana_message::Message;
+use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::futures::future;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;

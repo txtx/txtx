@@ -1,5 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_sdk::pubkey::Pubkey;
+use solana_pubkey::Pubkey;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 
 use crate::codec::idl::convert_idl::compute_discriminator;

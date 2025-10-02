@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_request::RpcRequest;
-use solana_sdk::pubkey::Pubkey;
+use solana_pubkey::Pubkey;
 
 use txtx_addon_kit::{
     indexmap::IndexMap,

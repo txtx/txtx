@@ -12,7 +12,7 @@ pub mod rpc;
 mod signers;
 pub mod templates;
 pub mod utils;
-pub use solana_sdk::pubkey::Pubkey;
+pub use solana_pubkey::Pubkey;
 
 pub mod typing {
     pub use txtx_addon_network_svm_types::*;

@@ -1,7 +1,9 @@
 use std::str::FromStr;
 
 use crate::{codec::validate_program_so, typing::anchor::types as anchor_types};
-use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer};
+use solana_keypair::Keypair;
+use solana_pubkey::Pubkey;
+use solana_signer::Signer;
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     types::{

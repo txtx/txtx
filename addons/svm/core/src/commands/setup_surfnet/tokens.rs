@@ -1,4 +1,4 @@
-use solana_sdk::pubkey::Pubkey;
+use solana_pubkey::Pubkey;
 
 const MAINNET_AAVE_PROGRAM_ID: &str = "3vAs4D1WE6Na4tCgt4BApgFfENbm8WY7q4cSPD1yM4Cg";
 const MAINNET_AUDIO_PROGRAM_ID: &str = "9LzCMqDgTKYz9Drzqnpgee3SGa89up3a247ypMj2xrqM";

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::signature::Signature;
-use solana_sdk::transaction::Transaction;
+use solana_commitment_config::CommitmentConfig;
+use solana_signature::Signature;
+use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{SIGNATURE_SKIPPABLE, SIGNED_TRANSACTION_BYTES};
 use txtx_addon_kit::types::commands::CommandExecutionResult;

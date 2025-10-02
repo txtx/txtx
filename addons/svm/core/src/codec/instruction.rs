@@ -1,9 +1,7 @@
 use std::{collections::VecDeque, str::FromStr};
 
-use solana_sdk::{
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-};
+use solana_instruction::{AccountMeta, Instruction};
+use solana_pubkey::Pubkey;
 use txtx_addon_kit::{
     indexmap::IndexMap,
     types::{diagnostics::Diagnostic, stores::ValueStore, types::Value},
