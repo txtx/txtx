@@ -2,7 +2,7 @@ use crate::codec::DeploymentTransaction;
 use crate::typing::{
     SVM_CLOSE_TEMP_AUTHORITY_TRANSACTION_PARTS, SVM_DEPLOYMENT_TRANSACTION, SVM_TRANSACTION,
 };
-use solana_sdk::transaction::Transaction;
+use solana_transaction::Transaction;
 use txtx_addon_kit::hex;
 use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
 

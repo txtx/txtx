@@ -9,7 +9,7 @@ use anchor_lang_idl::types::{
     IdlTypeDefGeneric, IdlTypeDefTy,
 };
 use convert_idl::classic_idl_to_anchor_idl;
-use solana_sdk::pubkey::Pubkey;
+use solana_pubkey::Pubkey;
 use std::fmt::Display;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::{helpers::fs::FileLocation, indexmap::IndexMap, types::types::Value};

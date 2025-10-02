@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
-use solana_sdk::signature::Keypair;
-use solana_sdk::transaction::Transaction;
+use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
+use solana_keypair::Keypair;
+use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
@@ -135,7 +135,8 @@ impl SignerImplementation for SvmSecretKey {
             DEFAULT_DERIVATION_PATH, DERIVATION_PATH, IS_ENCRYPTED, KEYPAIR_JSON, MNEMONIC,
             PASSWORD, REQUESTED_STARTUP_DATA, SECRET_KEY,
         };
-        use solana_sdk::{signature::Keypair, signer::Signer};
+        use solana_keypair::Keypair;
+        use solana_signer::Signer;
         use txtx_addon_kit::{constants::DESCRIPTION, crypto::secret_key_bytes_from_mnemonic};
         let mut actions = Actions::none();
 
@@ -395,7 +396,7 @@ impl SignerImplementation for SvmSecretKey {
 
         // prevent discrepancies between new block hash and a hash on the transaction that's already been signed
         let blockhash = if let Some(blockhash) = &previously_signed_blockhash {
-            solana_sdk::hash::Hash::new_from_array(blockhash.to_be_bytes().try_into().unwrap())
+            solana_hash::Hash::new_from_array(blockhash.to_be_bytes().try_into().unwrap())
         } else {
             let rpc_api_url = values
                 .get_expected_string(RPC_API_URL)
