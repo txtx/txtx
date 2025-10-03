@@ -1,0 +1,12 @@
+[package]
+name = "c4-generator"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "c4-generator"
+path = "src/main.rs"
+
+[dependencies]
+regex = "1.10"
+walkdir = "2.5"
