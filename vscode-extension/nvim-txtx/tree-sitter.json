@@ -1,0 +1,16 @@
+{
+  "grammars": ["tree-sitter-txtx"],
+  "metadata": {
+    "name": "txtx",
+    "scope": "source.txtx",
+    "version": "1.0.0"
+  },
+  "bindings": {
+    "rust": {
+      "path": "bindings/rust"
+    },
+    "node": {
+      "path": "bindings/node"
+    }
+  }
+}

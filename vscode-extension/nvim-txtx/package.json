@@ -1,0 +1,25 @@
+{
+  "name": "tree-sitter-txtx",
+  "version": "1.0.0",
+  "description": "Tree-sitter grammar for txtx",
+  "keywords": [
+    "tree-sitter",
+    "txtx",
+    "parser"
+  ],
+  "tree-sitter": [
+    {
+      "scope": "source.txtx",
+      "file-types": [
+        "tx"
+      ]
+    }
+  ],
+  "devDependencies": {
+    "tree-sitter-cli": "^0.20.8"
+  },
+  "main": "bindings/node",
+  "dependencies": {
+    "nan": "^2.23.0"
+  }
+}

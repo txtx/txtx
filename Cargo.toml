@@ -12,16 +12,17 @@ members = [
     "crates/txtx-core",
     "crates/txtx-addon-kit",
     "crates/txtx-cloud",
-    "crates/txtx-lsp",
     "crates/txtx-supervisor-ui",
     "crates/txtx-serve",
+    "crates/txtx-test-utils",
+    "crates/c4-generator",
     "addons/bitcoin",
     "addons/evm",
     "addons/ovm",
     "addons/stacks",
     "addons/svm/core",
     "addons/telegram",
-    "addons/sp1", 
+    "addons/sp1",
 ]
 default-members = ["crates/txtx-cli"]
 resolver = "2"
@@ -45,4 +46,5 @@ txtx-addon-network-stacks = { path = "addons/stacks" }
 txtx-addon-network-svm = { path = "addons/svm/core" }
 txtx-addon-telegram = { path = "addons/telegram" }
 txtx-addon-sp1 = { path = "addons/sp1" }
+txtx-test-utils = { path = "crates/txtx-test-utils" }
 uuid = { version = "1.15.1", features = ["v4", "serde", "js"] }
