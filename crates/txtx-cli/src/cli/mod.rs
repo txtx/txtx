@@ -224,10 +224,9 @@ pub struct ListRunbooks {
     pub manifest_path: String,
 
     /// List environments instead of runbooks
-    #[arg(long = "envs")]
+    #[arg(long = "envs", alias = "env", short = 'e')]
     pub envs: bool,
 }
-
 
 #[derive(Parser, PartialEq, Clone, Debug)]
 #[cfg(feature = "txtx_serve")]
