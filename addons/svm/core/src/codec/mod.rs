@@ -20,27 +20,24 @@ use native::NativeProgramArtifacts;
 use serde::Deserialize;
 use serde::Serialize;
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::account_utils::StateMut;
-use solana_sdk::bpf_loader_upgradeable::create_buffer;
-use solana_sdk::bpf_loader_upgradeable::get_program_data_address;
-use solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::commitment_config::CommitmentLevel;
-use solana_sdk::hash::Hash;
-use solana_sdk::packet::PACKET_DATA_SIZE;
-use solana_sdk::signature::keypair_from_seed;
-use solana_sdk::signature::Keypair;
-use solana_sdk::signature::Signature;
-use solana_sdk::signer::Signer;
-use solana_sdk::system_instruction;
-use solana_sdk::system_instruction::MAX_PERMITTED_DATA_LENGTH;
+use solana_account::state_traits::StateMut;
+use solana_loader_v3_interface::{get_program_data_address, instruction::create_buffer, state::UpgradeableLoaderState};
+use solana_commitment_config::CommitmentConfig;
+use solana_commitment_config::CommitmentLevel;
+use solana_hash::Hash;
+use solana_packet::PACKET_DATA_SIZE;
+use solana_keypair::{Keypair, keypair_from_seed};
+use solana_signature::Signature;
+use solana_signer::Signer;
+use solana_system_interface::instruction as system_instruction;
+use solana_system_interface::MAX_PERMITTED_DATA_LENGTH;
 use txtx_addon_kit::types::frontend::LogDispatcher;
-// use solana_sdk::loader_v4::finalize;
 use crate::typing::DeploymentTransactionType;
-use solana_sdk::{
-    bpf_loader_upgradeable, instruction::Instruction, message::Message, pubkey::Pubkey,
-    transaction::Transaction,
-};
+use solana_loader_v3_interface::instruction as bpf_loader_upgradeable;
+use solana_instruction::Instruction;
+use solana_message::Message;
+use solana_pubkey::Pubkey;
+use solana_transaction::Transaction;
 use std::collections::HashMap;
 use std::str::FromStr;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
@@ -766,7 +763,7 @@ impl UpgradeableProgramDeployer {
                     )
                 })?;
 
-                if buffer_account.owner != bpf_loader_upgradeable::id() {
+                if buffer_account.owner != solana_sdk_ids::bpf_loader_upgradeable::id() {
                     return Err(diagnosed_error!(
                         "buffer account {} is not owned by the bpf_loader_upgradeable program",
                         buffer_pubkey
@@ -1055,7 +1052,7 @@ impl UpgradeableProgramDeployer {
                         &self.temp_upgrade_authority_pubkey,
                         lamports,
                         0,
-                        &solana_sdk::system_program::id(),
+                        &solana_sdk_ids::system_program::id(),
                     ),
                     vec![&self.temp_upgrade_authority],
                 )
@@ -1500,7 +1497,7 @@ impl UpgradeableProgramDeployer {
             .map_err(|e| diagnosed_error!("failed to get program account: {e}"))?
             .value
         {
-            if account.owner != bpf_loader_upgradeable::id() {
+            if account.owner != solana_sdk_ids::bpf_loader_upgradeable::id() {
                 return Err(diagnosed_error!(
                     "Account {} is not an upgradeable program or already is in use",
                     program_pubkey

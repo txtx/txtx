@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use solana_client::rpc_client::RpcClient;
-use solana_sdk::signature::Signature;
-use solana_sdk::transaction::Transaction;
+use solana_signature::Signature;
+use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
     META_DESCRIPTION, SIGNED_TRANSACTION_BYTES, THIRD_PARTY_SIGNATURE_STATUS,

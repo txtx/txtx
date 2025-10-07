@@ -8,11 +8,11 @@ use solana_record_service_client::instructions::{
     CreateClassBuilder, FreezeClassBuilder, UpdateClassMetadataBuilder,
 };
 use solana_record_service_client::programs::SOLANA_RECORD_SERVICE_ID;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::message::Message;
-use solana_sdk::pubkey::Pubkey;
-use solana_sdk::system_program;
-use solana_sdk::transaction::Transaction;
+use solana_commitment_config::CommitmentConfig;
+use solana_message::Message;
+use solana_pubkey::Pubkey;
+use solana_sdk_ids::system_program;
+use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::META_DESCRIPTION;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;

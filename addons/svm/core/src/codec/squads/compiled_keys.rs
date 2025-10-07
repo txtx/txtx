@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use solana_sdk::instruction::Instruction;
-use solana_sdk::message::v0::{LoadedAddresses, MessageAddressTableLookup};
-use solana_sdk::message::{AddressLookupTableAccount, CompileError, MessageHeader};
-use solana_sdk::pubkey::Pubkey;
+use solana_instruction::Instruction;
+use solana_message::v0::{LoadedAddresses, MessageAddressTableLookup};
+use solana_message::{AddressLookupTableAccount, CompileError, MessageHeader};
+use solana_pubkey::Pubkey;
 
 /// A helper struct to collect pubkeys compiled for a set of instructions
 ///

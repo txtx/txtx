@@ -4,7 +4,7 @@ use crate::commands::get_signers_did;
 use crate::constants::PREVIOUSLY_SIGNED_BLOCKHASH;
 use crate::typing::SvmValue;
 use crate::utils::build_transaction_from_svm_value;
-use solana_sdk::signature::Signature;
+use solana_signature::Signature;
 use std::collections::HashMap;
 use txtx_addon_kit::constants::META_DESCRIPTION;
 use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
@@ -150,7 +150,7 @@ pub fn run_signed_execution(
             (payload, None)
         };
         let mut combined_transaction = build_transaction_from_svm_value(&payload).unwrap();
-        let mut blockhash: Option<solana_sdk::hash::Hash> = None;
+        let mut blockhash: Option<solana_hash::Hash> = None;
         let mut cursor = 0;
 
         for (signer_did, signer_instance) in signers_dids_with_instances {

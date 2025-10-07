@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use crate::{codec::utils::get_seeds_from_value, typing::anchor::types::Idl};
 
 use crate::constants::{DEFAULT_NATIVE_TARGET_PATH, DEFAULT_SHANK_IDL_PATH};
-use solana_sdk::{pubkey::Pubkey, system_program};
+use solana_pubkey::Pubkey;
+use solana_sdk_ids::system_program;
 use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
@@ -708,7 +709,7 @@ impl FunctionImplementation for SolToLamports {
             }
             _ => unreachable!(),
         };
-        let lamports = solana_sdk::native_token::sol_to_lamports(sol);
+        let lamports = solana_native_token::sol_to_lamports(sol);
         Ok(Value::integer(lamports as i128))
     }
 }
@@ -731,7 +732,7 @@ impl FunctionImplementation for LamportsToSol {
         arg_checker(fn_spec, args)?;
         let lamports = args.get(0).unwrap().as_uint().unwrap().map_err(|e| to_diag(fn_spec, e))?;
 
-        let sol = solana_sdk::native_token::lamports_to_sol(lamports);
+        let sol = solana_native_token::lamports_to_sol(lamports);
         Ok(Value::float(sol))
     }
 }
