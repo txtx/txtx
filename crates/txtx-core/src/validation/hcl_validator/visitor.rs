@@ -8,7 +8,7 @@
 //! # Examples
 //!
 //! ```no_run
-//! use txtx_core::validation::hcl_validator::visitor::{BasicHclValidator, validate_with_hcl};
+//! use txtx_core::validation::hcl_validator::{BasicHclValidator, validate_with_hcl};
 //! use txtx_core::validation::types::ValidationResult;
 //!
 //! let mut result = ValidationResult::new();
