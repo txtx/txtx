@@ -46,6 +46,7 @@ lazy_static! {
                      - `clone_program_account` - used to clone a program account from a source program id to a destination program id.
                      - `set_program_authority` - used to set the authority of a program.
                      - `deploy_program` - used to deploy a program (via a direct write to the account data rather than valid transactions) to the surfnet.
+                     - `reset_account` - used to reset an account on the surfnet, removing it from the local cache to be pulled again from the upstream.
 
                 "#},
                 implements_signing_capability: false,
@@ -139,6 +140,9 @@ lazy_static! {
                         deploy_program {
                             program_id = variable.my_program_id
                             binary_path = "./path/to/my_program.so"
+                        }
+                        reset_account {
+                            public_key = variable.some_pubkey
                         }
                     }
                 "#},

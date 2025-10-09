@@ -986,7 +986,7 @@
     {
       "id": "setup_surfnet",
       "name": "Setup Surfpool",
-      "documentation": "`svm::setup_surfnet` can be used to configure a surfnet.\n\nThe following operations are supported:\n - `set_account` - used to set the lamports, owner, data, and executable fields of an account.\n - `set_token_account` - used to set the amount, delegate, delegated amount, and close authority for a token account.\n - `clone_program_account` - used to clone a program account from a source program id to a destination program id.\n - `set_program_authority` - used to set the authority of a program.\n - `deploy_program` - used to deploy a program (via a direct write to the account data rather than valid transactions) to the surfnet.\n\n",
+      "documentation": "`svm::setup_surfnet` can be used to configure a surfnet.\n\nThe following operations are supported:\n - `set_account` - used to set the lamports, owner, data, and executable fields of an account.\n - `set_token_account` - used to set the amount, delegate, delegated amount, and close authority for a token account.\n - `clone_program_account` - used to clone a program account from a source program id to a destination program id.\n - `set_program_authority` - used to set the authority of a program.\n - `deploy_program` - used to deploy a program (via a direct write to the account data rather than valid transactions) to the surfnet.\n - `reset_account` - used to reset an account on the surfnet, removing it from the local cache to be pulled again from the upstream.\n\n",
       "inputs": [
         {
           "name": "description",
@@ -1038,7 +1038,7 @@
         }
       ],
       "outputs": [],
-      "example": "action \"setup\" \"svm::setup_surfnet\" {\n    set_account {\n        public_key = signer.caller.public_key\n        lamports = 999999999\n    }\n    set_token_account {\n        public_key = signer.caller.public_key\n        token = \"usdc\"\n        amount = 1000000\n    }\n    clone_program_account {\n        source_program_id = \"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\" // USDC program id\n        destination_program_id = variable.my_program_id\n    }\n    set_program_authority {\n        program_id = variable.my_program_id\n        authority = signer.caller.public_key\n    }\n    deploy_program {\n        program_id = variable.my_program_id\n        binary_path = \"./path/to/my_program.so\"\n    }\n}\n"
+      "example": "action \"setup\" \"svm::setup_surfnet\" {\n    set_account {\n        public_key = signer.caller.public_key\n        lamports = 999999999\n    }\n    set_token_account {\n        public_key = signer.caller.public_key\n        token = \"usdc\"\n        amount = 1000000\n    }\n    clone_program_account {\n        source_program_id = \"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\" // USDC program id\n        destination_program_id = variable.my_program_id\n    }\n    set_program_authority {\n        program_id = variable.my_program_id\n        authority = signer.caller.public_key\n    }\n    deploy_program {\n        program_id = variable.my_program_id\n        binary_path = \"./path/to/my_program.so\"\n    }\n    reset_account {\n        public_key = variable.some_pubkey\n    }\n}\n"
     },
     {
       "id": "create_class",
