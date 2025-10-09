@@ -190,7 +190,7 @@ mod tests {
         assert!(!stacks_scope.applies_to(&active));
 
         // Multiple addon scope
-        let multi_scope = AddonScope::multiple(&["evm", "stacks"]);
+        let multi_scope = AddonScope::multiple(["evm", "stacks"]);
         assert!(multi_scope.applies_to(&active)); // Has evm
     }
 

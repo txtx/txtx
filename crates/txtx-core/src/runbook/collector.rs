@@ -5,6 +5,7 @@ use txtx_addon_kit::hcl::{
     visit::{visit_block, visit_expr, Visit},
     Span,
 };
+use super::location::{SourceLocation, SourceMapper, BlockContext};
 
 /// A comprehensive item collected from a runbook
 #[derive(Debug, Clone)]
@@ -13,28 +14,28 @@ pub enum RunbookItem {
     InputReference {
         name: String,
         full_path: String,
-        location: Location,
+        location: SourceLocation,
         raw: Expression,
     },
     VariableReference {
         name: String,
         full_path: String,
-        location: Location,
+        location: SourceLocation,
     },
     ActionReference {
         action_name: String,
         field: Option<String>,
         full_path: String,
-        location: Location,
+        location: SourceLocation,
     },
     SignerReference {
         name: String,
         full_path: String,
-        location: Location,
+        location: SourceLocation,
     },
     VariableDef {
         name: String,
-        location: Location,
+        location: SourceLocation,
         raw: Block,
     },
     ActionDef {
@@ -42,23 +43,23 @@ pub enum RunbookItem {
         action_type: String,
         namespace: String,
         action_name: String,
-        location: Location,
+        location: SourceLocation,
         raw: Block,
     },
     SignerDef {
         name: String,
         signer_type: String,
-        location: Location,
+        location: SourceLocation,
         raw: Block,
     },
     OutputDef {
         name: String,
-        location: Location,
+        location: SourceLocation,
         raw: Block,
     },
     FlowDef {
         name: String,
-        location: Location,
+        location: SourceLocation,
         raw: Block,
     },
 
@@ -66,8 +67,8 @@ pub enum RunbookItem {
     Attribute {
         key: String,
         value: Expression,
-        parent_context: ParentContext,
-        location: Location,
+        parent_context: BlockContext,
+        location: SourceLocation,
         raw: Attribute,
     },
 
@@ -75,54 +76,22 @@ pub enum RunbookItem {
     RawBlock {
         block_type: String,
         labels: Vec<String>,
-        location: Location,
+        location: SourceLocation,
         raw: Block,
     },
     RawExpression {
-        location: Location,
+        location: SourceLocation,
         raw: Expression,
     },
 }
 
-/// Context about where an attribute appears
-#[derive(Debug, Clone)]
-pub enum ParentContext {
-    Action(String),
-    Signer(String),
-    Variable(String),
-    Output(String),
-    Flow(String),
-    Unknown,
-}
-
-impl ParentContext {
-    /// Extract the context name if available
-    fn name(&self) -> Option<&str> {
-        match self {
-            ParentContext::Action(name)
-            | ParentContext::Signer(name)
-            | ParentContext::Variable(name)
-            | ParentContext::Output(name)
-            | ParentContext::Flow(name) => Some(name),
-            ParentContext::Unknown => None,
-        }
-    }
-}
-
-/// Location in source file
-#[derive(Debug, Clone)]
-pub struct Location {
-    pub file: String,
-    pub line: usize,
-    pub column: usize,
-}
 
 /// Collects all items from a runbook in a single pass
 pub struct RunbookCollector {
     items: Vec<RunbookItem>,
     source: Arc<String>,
     file_path: String,
-    current_context: Option<ParentContext>,
+    current_context: Option<BlockContext>,
 }
 
 impl RunbookCollector {
@@ -136,34 +105,9 @@ impl RunbookCollector {
         RunbookItems { items: self.items, source: self.source, file_path: self.file_path }
     }
 
-    fn make_location(&self, span: Option<std::ops::Range<usize>>) -> Location {
-        let (line, column) = self.span_to_position(span);
-        Location { file: self.file_path.clone(), line, column }
-    }
-
-    /// Convert a span to line/column position
-    fn span_to_position(&self, span: Option<std::ops::Range<usize>>) -> (usize, usize) {
-        let Some(span) = span else {
-            return (1, 1);
-        };
-
-        let start = span.start;
-        let mut line = 1;
-        let mut col = 1;
-
-        for (i, ch) in self.source.char_indices() {
-            if i >= start {
-                break;
-            }
-            if ch == '\n' {
-                line += 1;
-                col = 1;
-            } else {
-                col += 1;
-            }
-        }
-
-        (line, col)
+    fn make_location(&self, span: Option<std::ops::Range<usize>>) -> SourceLocation {
+        let mapper = SourceMapper::new(&self.source);
+        mapper.optional_span_to_location(span.as_ref(), self.file_path.clone())
     }
 
     /// Generic helper for extracting reference information from traversals
@@ -248,7 +192,7 @@ impl Visit for RunbookCollector {
         // Create high-level items based on block type
         let item = match block_type {
             "variable" if !labels.is_empty() => {
-                self.current_context = Some(ParentContext::Variable(labels[0].clone()));
+                self.current_context = Some(BlockContext::Variable(labels[0].clone()));
                 RunbookItem::VariableDef {
                     name: labels[0].clone(),
                     location: location.clone(),
@@ -256,7 +200,7 @@ impl Visit for RunbookCollector {
                 }
             }
             "action" if labels.len() >= 2 => {
-                self.current_context = Some(ParentContext::Action(labels[0].clone()));
+                self.current_context = Some(BlockContext::Action(labels[0].clone()));
                 let action_type = &labels[1];
                 let (namespace, action_name) =
                     action_type.split_once("::").unwrap_or(("unknown", action_type.as_str()));
@@ -271,7 +215,7 @@ impl Visit for RunbookCollector {
                 }
             }
             "signer" if labels.len() >= 2 => {
-                self.current_context = Some(ParentContext::Signer(labels[0].clone()));
+                self.current_context = Some(BlockContext::Signer(labels[0].clone()));
                 RunbookItem::SignerDef {
                     name: labels[0].clone(),
                     signer_type: labels[1].clone(),
@@ -280,7 +224,7 @@ impl Visit for RunbookCollector {
                 }
             }
             "output" if !labels.is_empty() => {
-                self.current_context = Some(ParentContext::Output(labels[0].clone()));
+                self.current_context = Some(BlockContext::Output(labels[0].clone()));
                 RunbookItem::OutputDef {
                     name: labels[0].clone(),
                     location: location.clone(),
@@ -288,7 +232,7 @@ impl Visit for RunbookCollector {
                 }
             }
             "flow" if !labels.is_empty() => {
-                self.current_context = Some(ParentContext::Flow(labels[0].clone()));
+                self.current_context = Some(BlockContext::Flow(labels[0].clone()));
                 RunbookItem::FlowDef {
                     name: labels[0].clone(),
                     location: location.clone(),
@@ -321,7 +265,7 @@ impl Visit for RunbookCollector {
         self.items.push(RunbookItem::Attribute {
             key: attr.key.as_str().to_string(),
             value: attr.value.clone(),
-            parent_context: self.current_context.clone().unwrap_or(ParentContext::Unknown),
+            parent_context: self.current_context.clone().unwrap_or(BlockContext::Unknown),
             location,
             raw: attr.clone(),
         });
@@ -406,7 +350,7 @@ impl RunbookItems {
     }
 
     /// Get only input references
-    pub fn input_references(&self) -> impl Iterator<Item = (&str, &Location)> + '_ {
+    pub fn input_references(&self) -> impl Iterator<Item = (&str, &SourceLocation)> + '_ {
         self.filter_items(move |item| {
             if let RunbookItem::InputReference { name, location, .. } = item {
                 Some((name.as_str(), location))
@@ -417,7 +361,7 @@ impl RunbookItems {
     }
 
     /// Get only action definitions
-    pub fn actions(&self) -> impl Iterator<Item = (&str, &str, &Location)> + '_ {
+    pub fn actions(&self) -> impl Iterator<Item = (&str, &str, &SourceLocation)> + '_ {
         self.filter_items(move |item| {
             if let RunbookItem::ActionDef { name, action_type, location, .. } = item {
                 Some((name.as_str(), action_type.as_str(), location))
@@ -431,7 +375,7 @@ impl RunbookItems {
     pub fn attributes_in_context<'a>(
         &'a self,
         context_name: &'a str,
-    ) -> impl Iterator<Item = (&'a str, &'a Expression, &'a Location)> + 'a {
+    ) -> impl Iterator<Item = (&'a str, &'a Expression, &'a SourceLocation)> + 'a {
         self.items.iter().filter_map(move |item| {
             if let RunbookItem::Attribute { key, value, parent_context, location, .. } = item {
                 parent_context
@@ -447,7 +391,7 @@ impl RunbookItems {
     /// Get potentially sensitive attributes
     pub fn sensitive_attributes(
         &self,
-    ) -> impl Iterator<Item = (&str, &Expression, &Location)> + '_ {
+    ) -> impl Iterator<Item = (&str, &Expression, &SourceLocation)> + '_ {
         const SENSITIVE_PATTERNS: &[&str] =
             &["secret", "key", "token", "password", "credential", "private"];
 
@@ -473,7 +417,7 @@ impl RunbookItems {
     }
 
     /// Get all variable definitions
-    pub fn variables(&self) -> impl Iterator<Item = (&str, &Location)> + '_ {
+    pub fn variables(&self) -> impl Iterator<Item = (&str, &SourceLocation)> + '_ {
         self.filter_items(move |item| {
             if let RunbookItem::VariableDef { name, location, .. } = item {
                 Some((name.as_str(), location))
@@ -484,7 +428,7 @@ impl RunbookItems {
     }
 
     /// Get all signer definitions
-    pub fn signers(&self) -> impl Iterator<Item = (&str, &str, &Location)> + '_ {
+    pub fn signers(&self) -> impl Iterator<Item = (&str, &str, &SourceLocation)> + '_ {
         self.filter_items(move |item| {
             if let RunbookItem::SignerDef { name, signer_type, location, .. } = item {
                 Some((name.as_str(), signer_type.as_str(), location))
@@ -500,7 +444,7 @@ impl RunbookItems {
     }
 
     /// Get all variable references (var.* or variable.*)
-    pub fn variable_references(&self) -> impl Iterator<Item = (&str, &Location)> + '_ {
+    pub fn variable_references(&self) -> impl Iterator<Item = (&str, &SourceLocation)> + '_ {
         self.filter_items(move |item| {
             if let RunbookItem::VariableReference { name, location, .. } = item {
                 Some((name.as_str(), location))
@@ -511,7 +455,7 @@ impl RunbookItems {
     }
 
     /// Get all action references (action.*)
-    pub fn action_references(&self) -> impl Iterator<Item = (&str, Option<&str>, &Location)> + '_ {
+    pub fn action_references(&self) -> impl Iterator<Item = (&str, Option<&str>, &SourceLocation)> + '_ {
         self.filter_items(move |item| {
             if let RunbookItem::ActionReference { action_name, field, location, .. } = item {
                 Some((action_name.as_str(), field.as_deref(), location))
@@ -522,7 +466,7 @@ impl RunbookItems {
     }
 
     /// Get all signer references (signer.* references and signer attributes)
-    pub fn signer_references(&self) -> impl Iterator<Item = (&str, &Location)> + '_ {
+    pub fn signer_references(&self) -> impl Iterator<Item = (&str, &SourceLocation)> + '_ {
         self.items.iter().filter_map(|item| match item {
             RunbookItem::SignerReference { name, location, .. } => Some((name.as_str(), location)),
             RunbookItem::Attribute { key, value, location, .. } if key == "signer" => {
@@ -537,7 +481,7 @@ impl RunbookItems {
     }
 
     /// Get all outputs
-    pub fn outputs(&self) -> impl Iterator<Item = (&str, &Location)> + '_ {
+    pub fn outputs(&self) -> impl Iterator<Item = (&str, &SourceLocation)> + '_ {
         self.filter_items(move |item| {
             if let RunbookItem::OutputDef { name, location, .. } = item {
                 Some((name.as_str(), location))

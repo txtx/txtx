@@ -25,6 +25,7 @@ pub mod embedded_runbook;
 mod execution_context;
 pub mod flow_context;
 mod graph_context;
+pub mod location;
 mod runtime_context;
 pub mod variables;
 mod workspace_context;

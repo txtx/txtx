@@ -257,7 +257,7 @@ pub fn get_strict_linter_rules() -> Vec<Box<dyn ManifestValidationRule>> {
 mod tests {
     use super::*;
     use crate::manifest::WorkspaceManifest;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use txtx_addon_kit::indexmap::IndexMap;
 
     fn create_test_context<'a>(
@@ -275,6 +275,7 @@ mod tests {
             cli_inputs: &[],
             content: "",
             file_path: "test.tx",
+            active_addons: HashSet::new(),
         }
     }
 
