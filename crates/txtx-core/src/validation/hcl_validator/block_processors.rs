@@ -15,6 +15,12 @@ use crate::validation::hcl_validator::visitor::{
 };
 
 /// Extract position from a block's identifier span
+///
+/// Converts the block's identifier span to a Position using the source mapper.
+/// Returns a default position (1, 1) if the block has no span information.
+///
+/// This helper consolidates the repeated pattern of extracting positions
+/// from block identifiers, reducing code duplication across processor functions.
 fn extract_block_position(block: &Block, source_mapper: &SourceMapper) -> Position {
     block.ident.span()
         .as_ref()
