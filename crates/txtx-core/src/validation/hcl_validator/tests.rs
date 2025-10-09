@@ -101,14 +101,20 @@ flow "super2" {
     chain_id = "11155111"
 }
 
-action "deploy" "evm::deploy_contract" {
-    constructor_args = [flow.chain_id]
+variable "chain_config" {
+    value = flow.chain_id
 }
 "#;
 
         let mut result = ValidationResult::new();
         let _refs = validate_with_hcl(combined_content, &mut result, "runbook.tx").unwrap();
 
+        if result.has_errors() {
+            eprintln!("Errors found:");
+            for error in &result.errors {
+                eprintln!("  - {}", error.message);
+            }
+        }
         assert!(!result.has_errors(), "Should not have errors when all flows define the input");
     }
 
@@ -199,8 +205,8 @@ output "api_used" {
     fn test_no_flows_defined() {
         // Reference to flow.* when no flows exist at all
         let combined_content = r#"
-action "deploy" "evm::deploy_contract" {
-    constructor_args = [flow.chain_id]
+variable "chain_config" {
+    value = flow.chain_id
 }
 "#;
 
@@ -210,6 +216,12 @@ action "deploy" "evm::deploy_contract" {
         // When no flows are defined, we don't generate errors
         // because the flow might be provided at runtime
         // The partition logic handles this: (defining.is_empty(), missing.is_empty()) = (true, true) → no errors
+        if result.has_errors() {
+            eprintln!("Errors found:");
+            for error in &result.errors {
+                eprintln!("  - {}", error.message);
+            }
+        }
         assert!(!result.has_errors(), "Should not error when no flows are defined (might be runtime flow)");
     }
 }
