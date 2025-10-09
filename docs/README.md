@@ -8,6 +8,7 @@ Start here if you're using txtx to validate runbooks and write blockchain automa
 
 - [**Linter Guide**](user/linter-guide.md) - Validate runbooks with `txtx lint`
 - [**Linter Configuration**](user/linter-configuration.md) - Command-line options and output formats
+- [**LSP Guide**](user/lsp-guide.md) - Editor integration for real-time validation and completion
 
 ## 🛠 Developer Documentation
 
@@ -26,7 +27,11 @@ Understand the txtx architecture, design decisions, and performance characterist
 
 - [**Architecture Overview**](architecture/README.md) - Hybrid documentation approach and C4 models
 - [**Linter Architecture**](architecture/linter/architecture.md) - Multi-layer validation pipeline
-- [**Feature Behavior**](architecture/features.md) - Linter feature scoping
+- [**LSP Architecture**](architecture/lsp/async-implementation.md) - Async handlers and performance
+- [**LSP Sequences**](architecture/lsp/sequences.md) - Protocol request/response flows
+- [**LSP State Management**](architecture/lsp/state-management.md) - Workspace state machine
+- [**LSP Use Cases**](architecture/lsp/use-cases.md) - User interaction scenarios
+- [**Feature Behavior**](architecture/features.md) - Linter and LSP feature scoping
 
 ### Historical Reports
 
@@ -37,6 +42,7 @@ Understand the txtx architecture, design decisions, and performance characterist
 Understand why key architectural decisions were made:
 
 - [ADR 001: Parallel Runbook Validation](adr/001-pr-architectural-premise.md)
+- [ADR 002: Eliminate LSP Server Crate](adr/002-eliminate-lsp-server-crate.md)
 - [ADR 003: Capture Everything Pattern](adr/003-capture-everything-filter-later-pattern.md)
 - [ADR 004: Visitor Strategy Pattern](adr/004-visitor-strategy-pattern-with-readonly-iterators.md)
 
