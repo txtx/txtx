@@ -857,6 +857,21 @@ lazy_static! {
             tainting: true
         }
     };
+
+    pub static ref RESET_ACCOUNT: Type = define_strict_map_type! {
+        public_key: {
+            documentation: "The public key of the account to reset.",
+            typing: Type::addon(SVM_PUBKEY),
+            optional: false,
+            tainting: true
+        },
+        recursive: {
+            documentation: "Whether to recursively delete all accounts owned by this account. Default is false.",
+            typing: Type::bool(),
+            optional: true,
+            tainting: false
+        }
+    };
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]

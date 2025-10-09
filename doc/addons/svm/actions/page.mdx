@@ -748,6 +748,7 @@ The following operations are supported:
  - `clone_program_account` - used to clone a program account from a source program id to a destination program id.
  - `set_program_authority` - used to set the authority of a program.
  - `deploy_program` - used to deploy a program (via a direct write to the account data rather than valid transactions) to the surfnet.
+ - `reset_account` - used to reset an account on the surfnet, removing it from the local cache to be pulled again from the upstream.
 
 
 
@@ -810,6 +811,13 @@ The following operations are supported:
   - **binary_path**: The location of the program's .so file. (e.g. `./target/deploy/my_program.so`)
   - **authority**: The public key of the authority over the program after it is deployed. If not provided, the program will have no authority.
   - **idl_path**: The location of the program's IDL file. (e.g. `./target/idl/my_program.json`)
+  </Property>
+
+
+  <Property name="reset_account" required="optional" type="map">
+    The account reset data to set. This is a map type containing the keys:
+  - **public_key**: The public key of the account to reset.
+  - **recursive**: Whether to recursively delete all accounts owned by this account. Default is false.
   </Property>
 
 
@@ -882,6 +890,9 @@ action "setup" "svm::setup_surfnet" {
     deploy_program {
         program_id = variable.my_program_id
         binary_path = "./path/to/my_program.so"
+    }
+    reset_account {
+        public_key = variable.some_pubkey
     }
 }
 

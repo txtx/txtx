@@ -1,5 +1,6 @@
 mod cheatcode_deploy_program;
 pub mod clone_program_account;
+mod reset_account;
 pub mod set_account;
 mod set_program_authority;
 mod set_token_account;
@@ -22,7 +23,7 @@ use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_network_svm_types::{
-    CLONE_PROGRAM_ACCOUNT, DEPLOY_PROGRAM, SET_ACCOUNT_MAP, SET_PROGRAM_AUTHORITY,
+    CLONE_PROGRAM_ACCOUNT, DEPLOY_PROGRAM, RESET_ACCOUNT, SET_ACCOUNT_MAP, SET_PROGRAM_AUTHORITY,
     SET_TOKEN_ACCOUNT_MAP,
 };
 
@@ -45,6 +46,7 @@ lazy_static! {
                      - `clone_program_account` - used to clone a program account from a source program id to a destination program id.
                      - `set_program_authority` - used to set the authority of a program.
                      - `deploy_program` - used to deploy a program (via a direct write to the account data rather than valid transactions) to the surfnet.
+                     - `reset_account` - used to reset an account on the surfnet, removing it from the local cache to be pulled again from the upstream.
 
                 "#},
                 implements_signing_capability: false,
@@ -105,6 +107,14 @@ lazy_static! {
                         tainting: false,
                         internal: false,
                         sensitive: false
+                    },
+                    reset_account: {
+                        documentation: "The account reset data to set.",
+                        typing: RESET_ACCOUNT.clone(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
                     }
                 ],
                 outputs: [],
@@ -130,6 +140,9 @@ lazy_static! {
                         deploy_program {
                             program_id = variable.my_program_id
                             binary_path = "./path/to/my_program.so"
+                        }
+                        reset_account {
+                            public_key = variable.some_pubkey
                         }
                     }
                 "#},
@@ -220,6 +233,10 @@ impl CommandImplementation for SetupSurfpool {
                 &logger,
             )
             .await?;
+
+            let resets = reset_account::SurfpoolResetAccount::parse_value_store(&values)?;
+            reset_account::SurfpoolResetAccount::process_updates(resets, &rpc_client, &logger)
+                .await?;
 
             Ok(result)
         };
