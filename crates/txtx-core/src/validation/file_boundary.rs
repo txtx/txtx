@@ -54,8 +54,10 @@ impl FileBoundaryMap {
     pub fn add_file(&mut self, file_path: String, line_count: usize) {
         let start_line = if let Some(last) = self.boundaries.last() {
             // Next file starts after the previous file
+            // Empty files (line_count=0) still occupy at least 1 line in the concatenated content
             // +1 accounts for the newline separator we add between files
-            last.start_line + last.line_count + 1
+            let effective_line_count = last.line_count.max(1);
+            last.start_line + effective_line_count + 1
         } else {
             // First file starts at line 1
             1
