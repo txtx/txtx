@@ -822,11 +822,13 @@ impl UpgradeableProgramDeployer {
                 (buffer_keypair.pubkey(), Some(buffer_keypair), vec![0; binary.len()])
             }
         };
+        let do_cheatcode_deploy = hot_swap && is_surfnet;
 
         let is_program_upgrade = !UpgradeableProgramDeployer::should_do_initial_deploy(
             &rpc_client,
             &program_pubkey,
             &final_upgrade_authority_pubkey,
+            do_cheatcode_deploy
         )?;
 
         Ok(Self {
@@ -844,7 +846,7 @@ impl UpgradeableProgramDeployer {
             auto_extend: auto_extend.unwrap_or(true),
             is_program_upgrade,
             is_surfnet,
-            do_cheatcode_deploy: hot_swap && is_surfnet,
+            do_cheatcode_deploy,
         })
     }
 
@@ -1491,6 +1493,7 @@ impl UpgradeableProgramDeployer {
         rpc_client: &RpcClient,
         program_pubkey: &Pubkey,
         final_upgrade_authority_pubkey: &Pubkey,
+        via_cheatcode: bool,
     ) -> Result<bool, Diagnostic> {
         if let Some(account) = rpc_client
             .get_account_with_commitment(&program_pubkey, CommitmentConfig::processed())
@@ -1524,11 +1527,14 @@ impl UpgradeableProgramDeployer {
                     {
                         if let Some(program_authority_pubkey) = program_authority_pubkey {
                             if program_authority_pubkey != *final_upgrade_authority_pubkey {
-                                return Err(diagnosed_error!(
-                                    "Program's authority {:?} does not match authority provided {:?}",
-                                    program_authority_pubkey, final_upgrade_authority_pubkey,
-                                )
-                                .into());
+                                // skip authority check if we're using the cheatcode deploy
+                                if !via_cheatcode {
+                                    return Err(diagnosed_error!(
+                                        "Program's authority {:?} does not match authority provided {:?}",
+                                        program_authority_pubkey, final_upgrade_authority_pubkey,
+                                    )
+                                    .into());
+                                }
                             }
                         }
                         // Do upgrade
