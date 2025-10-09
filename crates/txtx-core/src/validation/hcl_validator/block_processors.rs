@@ -14,6 +14,17 @@ use crate::validation::hcl_validator::visitor::{
     ValidationError,
 };
 
+/// Extract position from a block's identifier span
+fn extract_block_position(block: &Block, source_mapper: &SourceMapper) -> Position {
+    block.ident.span()
+        .as_ref()
+        .map(|span| {
+            let (line, col) = source_mapper.span_to_position(span);
+            Position::new(line, col)
+        })
+        .unwrap_or_default()
+}
+
 /// Process a block during the collection phase.
 pub fn process_block(
     block: &Block,
@@ -54,13 +65,7 @@ fn process_variable(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<C
     let name = block.labels.extract_name()
         .ok_or(ValidationError::MissingLabel("variable name"))?;
 
-    let position = block.ident.span()
-        .as_ref()
-        .map(|span| {
-            let (line, col) = source_mapper.span_to_position(span);
-            Position::new(line, col)
-        })
-        .unwrap_or_else(|| Position::new(1, 1));
+    let position = extract_block_position(block, source_mapper);
 
     // Extract dependencies from the variable's value
     let mut dependencies = Vec::new();
@@ -135,13 +140,7 @@ fn process_action(
     let action_type = block.labels.extract_type()
         .ok_or(ValidationError::MissingLabel("action type"))?;
 
-    let position = block.ident.span()
-        .as_ref()
-        .map(|span| {
-            let (line, col) = source_mapper.span_to_position(span);
-            Position::new(line, col)
-        })
-        .unwrap_or_else(|| Position::new(1, 1));
+    let position = extract_block_position(block, source_mapper);
 
     // Always collect the action, but validation will happen in validation phase
     // We still try to get the spec for parameter validation later
@@ -227,13 +226,7 @@ fn process_flow(
         .map(|attr| attr.key.to_string())
         .collect();
 
-    let position = block.ident.span()
-        .as_ref()
-        .map(|span| {
-            let (line, col) = source_mapper.span_to_position(span);
-            Position::new(line, col)
-        })
-        .unwrap_or_else(|| Position::new(1, 1));
+    let position = extract_block_position(block, source_mapper);
 
     Ok(vec![
         CollectedItem::Declaration(DeclarationItem::Flow {
