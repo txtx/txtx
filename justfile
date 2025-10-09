@@ -16,8 +16,6 @@ default:
     @echo "  cli-int         - CLI integration tests"
     @echo "  lint-unit       - Linter unit tests"
     @echo "  lint-int        - Linter integration tests"
-    @echo "  lsp-unit        - LSP unit tests"
-    @echo "  lsp-int         - LSP integration tests"
     @echo "  test <name>     - Run specific test"
     @echo "  test-verbose    - Run tests with output"
     @echo "  watch           - Watch and run tests"
@@ -37,9 +35,7 @@ default:
     @echo ""
     @echo "Architecture:"
     @echo "  arch-c4         - Generate C4 diagrams from code"
-    @echo "  arch-view       - View linter C4 diagrams (default)"
-    @echo "  arch-view-linter - View linter architecture"
-    @echo "  arch-view-lsp   - View LSP architecture"
+    @echo "  arch-view       - View linter C4 diagrams"
     @echo "  arch-modules    - Generate module dependency graph"
     @echo ""
     @echo "Other:"
@@ -72,15 +68,6 @@ lint-unit:
 # Linter integration tests only
 lint-int:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test --package txtx-cli --test linter_tests_builder --no-default-features --features cli
-
-# ===== LSP Tests =====
-# LSP unit tests only
-lsp-unit:
-    RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_BIN}} cli::lsp::
-
-# LSP integration tests only
-lsp-int:
-    RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test --package txtx-cli --test lsp_tests_builder --no-default-features --features cli
 
 # ===== Code Coverage =====
 # Generate HTML coverage report
@@ -193,32 +180,7 @@ arch-view-linter:
         exit 1; \
     fi
 
-# View LSP C4 diagrams with Structurizr Lite
-arch-view-lsp:
-    @echo "📊 Viewing LSP Architecture..."
-    @if command -v podman >/dev/null 2>&1; then \
-        echo "🚀 Starting Structurizr Lite with podman..."; \
-        echo "   Viewing: LSP Architecture"; \
-        echo "   Open http://localhost:8080 in your browser"; \
-        echo ""; \
-        podman run -it --rm -p 8080:8080 \
-            -v $(pwd)/docs/architecture/lsp:/usr/local/structurizr:Z \
-            docker.io/structurizr/lite; \
-    elif command -v docker >/dev/null 2>&1; then \
-        echo "🚀 Starting Structurizr Lite with docker..."; \
-        echo "   Viewing: LSP Architecture"; \
-        echo "   Open http://localhost:8080 in your browser"; \
-        echo ""; \
-        docker run -it --rm -p 8080:8080 \
-            -v $(pwd)/docs/architecture/lsp:/usr/local/structurizr \
-            structurizr/lite; \
-    else \
-        echo "❌ Neither docker nor podman found. Install one of them:"; \
-        echo "   brew install podman  # or brew install docker"; \
-        exit 1; \
-    fi
-
-# View all C4 diagrams (alias for linter, use arch-view-lsp for LSP)
+# View linter C4 diagrams (alias)
 arch-view: arch-view-linter
 
 # Generate module dependency graph (requires cargo-modules and graphviz)
