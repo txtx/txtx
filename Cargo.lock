@@ -14951,6 +14951,7 @@ dependencies = [
  "chrono",
  "clap 4.5.17",
  "clap_generate",
+ "colored",
  "console 0.15.8",
  "convert_case 0.6.0",
  "ctrlc",
@@ -14971,6 +14972,7 @@ dependencies = [
  "test-case",
  "tokio",
  "tower-lsp",
+ "txtx-addon-kit",
  "txtx-addon-network-bitcoin",
  "txtx-addon-network-evm",
  "txtx-addon-network-ovm",
@@ -14985,6 +14987,7 @@ dependencies = [
  "txtx-serve",
  "txtx-supervisor-ui",
  "unicode-width 0.2.0",
+ "yansi",
 ]
 
 [[package]]

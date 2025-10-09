@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 txtx-core = { workspace = true }
+txtx-addon-kit = { workspace = true }
 txtx-supervisor-ui = { workspace = true, optional = true }
 txtx-cloud = { workspace = true }
 txtx-serve = { workspace = true, optional = true }
@@ -52,6 +53,8 @@ indicatif = "0.18.0"
 fern = "0.7.1"
 log = "0.4.27"
 lazy_static = "1.4.0"
+colored = "2.1"
+yansi = "1.0"
 
 [features]
 default = ["cli", "supervisor_ui"]
