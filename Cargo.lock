@@ -15317,6 +15317,7 @@ dependencies = [
  "serde_yml",
  "similar",
  "test-case",
+ "thiserror 1.0.69",
  "tokio",
  "txtx-addon-kit",
  "txtx-test-utils",
@@ -15423,6 +15424,10 @@ dependencies = [
  "test-case",
  "tokio",
  "txtx-addon-kit",
+ "txtx-addon-network-bitcoin",
+ "txtx-addon-network-evm",
+ "txtx-addon-network-svm",
+ "txtx-addon-telegram",
  "txtx-core",
 ]
 

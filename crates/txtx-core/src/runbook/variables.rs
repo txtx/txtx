@@ -1,6 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use crate::manifest::WorkspaceManifest;
 use crate::runbook::RunbookSources;
+use crate::runbook::location::SourceLocation;
 use crate::validation::hcl_validator::validate_with_hcl_and_addons;
 use crate::validation::types::ValidationResult;
 use crate::kit::types::commands::CommandSpecification;
@@ -34,12 +35,8 @@ pub enum VariableSource {
 /// A reference to a variable in the runbook
 #[derive(Debug, Clone)]
 pub struct VariableReference {
-    /// File where the reference appears
-    pub file: String,
-    /// Line number (1-based)
-    pub line: usize,
-    /// Column number (1-based)
-    pub column: usize,
+    /// Location where the reference appears
+    pub location: SourceLocation,
     /// Context of the reference
     pub context: ReferenceContext,
 }
@@ -142,9 +139,7 @@ impl RunbookVariableIterator {
 
             // Add reference
             entry.references.push(VariableReference {
-                file: file.clone(),
-                line: input_ref.line,
-                column: input_ref.column,
+                location: SourceLocation::new(file.clone(), input_ref.line, input_ref.column),
                 context: Self::determine_context(&input_ref.name),
             });
         }
@@ -261,9 +256,11 @@ impl RunbookVariableIterator {
                             resolved_value,
                             source,
                             references: vec![VariableReference {
-                                file,
-                                line: error.line.unwrap_or(0),
-                                column: error.column.unwrap_or(0),
+                                location: SourceLocation::new(
+                                    file,
+                                    error.line.unwrap_or(0),
+                                    error.column.unwrap_or(0)
+                                ),
                                 context: ReferenceContext::Signer {
                                     signer_name: signer_name.to_string()
                                 },
