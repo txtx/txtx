@@ -97,6 +97,21 @@ action "deploy_{}" "svm::deploy_program" {{
     );
 }
 
+pub fn get_in_memory_interpolated_anchor_program_deployment_template(program_name: &str) -> String {
+    return format!(
+        r#"
+action "deploy_{}" "svm::deploy_program" {{
+    description = "Deploy {} program"
+    program = svm::get_program_from_anchor_project("{}") 
+    authority = signer.authority
+    payer = signer.payer
+    instant_surfnet_deployment = true
+}}
+"#,
+        program_name, program_name, program_name
+    );
+}
+
 pub fn get_interpolated_native_program_deployment_template(program_name: &str) -> String {
     return format!(
         r#"
@@ -109,6 +124,21 @@ action "deploy_{}" "svm::deploy_program" {{
     // Deploying via a cheatcode will write the program data directly to the program account, rather than sending transactions.
     // This will make deployments instantaneous, but is deviating from how the deployments will take place on devnet/mainnet.
     // instant_surfnet_deployment = true
+}}
+"#,
+        program_name, program_name, program_name
+    );
+}
+
+pub fn get_in_memory_interpolated_native_program_deployment_template(program_name: &str) -> String {
+    return format!(
+        r#"
+action "deploy_{}" "svm::deploy_program" {{
+    description = "Deploy {} program"
+    program = svm::get_program_from_native_project("{}") 
+    authority = signer.authority
+    payer = signer.payer
+    instant_surfnet_deployment = true
 }}
 "#,
         program_name, program_name, program_name
