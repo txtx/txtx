@@ -392,7 +392,7 @@ mod tests {
         let mut result = ValidationResult::new();
 
         let input_refs =
-            vec![LocatedInputRef { name: "env.cli_provided".to_string(), line: 10, column: 5 }];
+            vec![LocatedInputRef { name: "input.cli_provided".to_string(), line: 10, column: 5 }];
 
         let cli_inputs = vec![("cli_provided".to_string(), "cli-value".to_string())];
 
@@ -422,7 +422,7 @@ mod tests {
 
         // Reference exists but let's test strict mode warnings
         let input_refs =
-            vec![LocatedInputRef { name: "env.api_url".to_string(), line: 10, column: 5 }];
+            vec![LocatedInputRef { name: "input.api_url".to_string(), line: 10, column: 5 }];
 
         validate_inputs_against_manifest(
             &input_refs,
