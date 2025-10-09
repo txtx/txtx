@@ -14281,7 +14281,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-kit"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "crossbeam-channel",
  "dirs 5.0.1",
@@ -14391,7 +14391,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm"
-version = "0.3.9"
+version = "0.3.10"
 dependencies = [
  "async-recursion",
  "bincode",
@@ -14434,7 +14434,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "anchor-lang-idl",
  "borsh 1.5.6",
@@ -14478,7 +14478,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cli"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "actix-web",
  "ansi_term",
@@ -14525,7 +14525,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-cloud"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -14553,7 +14553,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-core"
-version = "0.4.12"
+version = "0.4.13"
 dependencies = [
  "base64 0.22.1",
  "better-debug",
@@ -14582,7 +14582,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-gql"
-version = "0.3.6"
+version = "0.3.7"
 dependencies = [
  "async-stream",
  "futures",
@@ -14595,7 +14595,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-lsp"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -14650,7 +14650,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-supervisor-ui"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "actix-cors",
  "actix-web",
