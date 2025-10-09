@@ -162,6 +162,18 @@ pub struct Position {
     pub column: usize,
 }
 
+impl Position {
+    pub fn new(line: usize, column: usize) -> Self {
+        Self { line, column }
+    }
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Self { line: 1, column: 1 }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct FlowInputReference {
     input_name: String,
@@ -174,12 +186,6 @@ struct FlowInputReference {
 enum DependencyType {
     Variable,
     Action,
-}
-
-impl Position {
-    pub fn new(line: usize, column: usize) -> Self {
-        Self { line, column }
-    }
 }
 
 
@@ -254,7 +260,7 @@ fn source_mapper_to_position(mapper: &SourceMapper, span: &std::ops::Range<usize
 
 fn optional_span_to_position(mapper: &SourceMapper, span: Option<&std::ops::Range<usize>>) -> Position {
     span.map(|s| source_mapper_to_position(mapper, s))
-        .unwrap_or_else(|| Position::new(0, 0))
+        .unwrap_or_default()
 }
 
 
@@ -592,7 +598,7 @@ impl<'a> HclValidationVisitor<'a> {
                     cycle,
                 };
                 // Report at a default position rather than silently failing
-                self.add_error(error, Position::new(1, 1));
+                self.add_error(error, Position::default());
             }
         }
     }
