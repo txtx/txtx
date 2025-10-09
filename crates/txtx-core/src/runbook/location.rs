@@ -3,6 +3,17 @@
 //! This module provides shared types used across the runbook collector,
 //! validation system, and LSP implementation to track source locations
 //! and references in txtx files.
+//!
+//! @c4-component SourceLocationMapper
+//! @c4-container Runbook Core
+//! @c4-description Shared location tracking and span-to-position mapping
+//! @c4-technology Rust
+//! @c4-responsibility Track source locations (file, line, column) across the codebase
+//! @c4-responsibility Convert byte offsets to line/column positions
+//! @c4-responsibility Provide context about where references appear in HCL structure
+//! @c4-relationship "Used by" "Runbook Collector"
+//! @c4-relationship "Used by" "HCL Validator"
+//! @c4-relationship "Used by" "Variable Extractor"
 
 use std::ops::Range;
 
