@@ -12,7 +12,6 @@ members = [
     "crates/txtx-core",
     "crates/txtx-addon-kit",
     "crates/txtx-cloud",
-    "crates/txtx-lsp",
     "crates/txtx-supervisor-ui",
     "crates/txtx-serve",
     "crates/txtx-test-utils",

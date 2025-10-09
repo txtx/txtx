@@ -386,7 +386,8 @@ async fn handle_command(
             snapshots::handle_commit_command(&cmd, ctx).await?;
         }
         Command::Lsp => {
-            lsp::run_lsp().await?;
+            lsp::run_lsp().map_err(|e| e.to_string())?;
+            return Ok(());
         }
         #[cfg(feature = "txtx_serve")]
         Command::Serve(cmd) => {
