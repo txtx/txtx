@@ -29,6 +29,7 @@ use txtx_addon_kit::constants::{
     DESCRIPTION, DEPENDS_ON, MARKDOWN, MARKDOWN_FILEPATH, POST_CONDITION, PRE_CONDITION,
 };
 
+use crate::runbook::location::{SourceMapper, BlockContext};
 use crate::validation::types::{LocatedInputRef, ValidationError as LegacyError, ValidationResult};
 use crate::kit::types::commands::CommandSpecification;
 
@@ -166,15 +167,7 @@ struct FlowInputReference {
     input_name: String,
     location: Position,
     file_path: String,
-    context: ReferenceContext,
-}
-
-#[derive(Debug, Clone)]
-enum ReferenceContext {
-    Action(String),
-    Variable(String),
-    Output(String),
-    Flow(String),
+    context: BlockContext,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -253,34 +246,15 @@ mod validation_rules {
 
 
 
-/// Maps source spans to line/column positions for error reporting.
-
-pub struct PositionMapper<'a> {
-    source: &'a str,
+/// Helper to convert SourceMapper results to Position (without file)
+fn source_mapper_to_position(mapper: &SourceMapper, span: &std::ops::Range<usize>) -> Position {
+    let (line, col) = mapper.span_to_position(span);
+    Position::new(line, col)
 }
 
-impl<'a> PositionMapper<'a> {
-    pub fn new(source: &'a str) -> Self {
-        Self { source }
-    }
-
-    pub fn span_to_position(&self, span: &std::ops::Range<usize>) -> Position {
-        let (line, col) = self.source[..span.start]
-            .char_indices()
-            .fold((1, 1), |(line, col), (_, ch)| {
-                if ch == '\n' {
-                    (line + 1, 1)
-                } else {
-                    (line, col + 1)
-                }
-            });
-        Position::new(line, col)
-    }
-
-    pub fn optional_span_to_position(&self, span: Option<&std::ops::Range<usize>>) -> Position {
-        span.map(|s| self.span_to_position(s))
-            .unwrap_or_else(|| Position::new(0, 0))
-    }
+fn optional_span_to_position(mapper: &SourceMapper, span: Option<&std::ops::Range<usize>>) -> Position {
+    span.map(|s| source_mapper_to_position(mapper, s))
+        .unwrap_or_else(|| Position::new(0, 0))
 }
 
 
@@ -388,7 +362,7 @@ impl ValidationState {
 
 struct ValidationPhaseHandler<'a> {
     state: &'a ValidationState,
-    position_mapper: &'a PositionMapper<'a>,
+    source_mapper: &'a SourceMapper<'a>,
     file_path: &'a str,
 }
 
@@ -504,7 +478,7 @@ impl<'a> ValidationPhaseHandler<'a> {
 pub struct HclValidationVisitor<'a> {
     result: &'a mut ValidationResult,
     file_path: Cow<'a, str>,
-    position_mapper: PositionMapper<'a>,
+    source_mapper: SourceMapper<'a>,
     addon_specs: &'a HashMap<String, Vec<(String, CommandSpecification)>>,
     state: ValidationState,
 }
@@ -519,7 +493,7 @@ impl<'a> HclValidationVisitor<'a> {
         Self {
             result,
             file_path: Cow::Borrowed(file_path),
-            position_mapper: PositionMapper::new(source),
+            source_mapper: SourceMapper::new(source),
             addon_specs,
             state: ValidationState::default(),
         }
@@ -549,7 +523,7 @@ impl<'a> HclValidationVisitor<'a> {
         let items: Vec<CollectedItem> = body.blocks()
             .filter_map(|block| {
                 let block_type = BlockType::from_str(block.ident.value());
-                block_processors::process_block(block, block_type, self.addon_specs, &self.position_mapper).ok()
+                block_processors::process_block(block, block_type, self.addon_specs, &self.source_mapper).ok()
             })
             .flatten()
             .collect();
@@ -663,7 +637,7 @@ impl<'a> HclValidationVisitor<'a> {
                 // Create visitor and collect validation data
                 let handler = ValidationPhaseHandler {
                     state: &self.state,
-                    position_mapper: &self.position_mapper,
+                    source_mapper: &self.source_mapper,
                     file_path: &self.file_path,
                 };
 
@@ -800,13 +774,13 @@ impl<'a> HclValidationVisitor<'a> {
                             let position = block.body.attributes()
                                 .find(|attr| attr.key.as_str() == param_name)
                                 .and_then(|attr| attr.span())
-                                .map(|span| self.position_mapper.span_to_position(&span))
+                                .map(|span| source_mapper_to_position(&self.source_mapper, &span))
                                 // If not found in attributes, try blocks
                                 .or_else(|| {
                                     block.body.blocks()
                                         .find(|b| b.ident.as_str() == param_name)
                                         .and_then(|b| b.ident.span())
-                                        .map(|span| self.position_mapper.span_to_position(&span))
+                                        .map(|span| source_mapper_to_position(&self.source_mapper, &span))
                                 })
                                 .unwrap_or_else(|| Position::new(0, 0));
 
@@ -823,7 +797,8 @@ impl<'a> HclValidationVisitor<'a> {
                     let missing_param_errors = spec.inputs.iter()
                         .filter(|input| !input.optional && !block_params.contains(&input.name))
                         .map(|input| {
-                            let position = self.position_mapper.optional_span_to_position(
+                            let position = optional_span_to_position(
+                                &self.source_mapper,
                                 block.ident.span().as_ref()
                             );
 
@@ -914,15 +889,19 @@ impl<'a> HclValidationVisitor<'a> {
 
                 let flow_errors = missing.iter().map(|(name, def)| {
                     let context_desc = match &references.first().map(|r| &r.context) {
-                        Some(ReferenceContext::Action(action_name)) =>
+                        Some(BlockContext::Action(action_name)) =>
                             format!("action '{}'", action_name),
-                        Some(ReferenceContext::Variable(var_name)) =>
+                        Some(BlockContext::Variable(var_name)) =>
                             format!("variable '{}'", var_name),
-                        Some(ReferenceContext::Output(output_name)) =>
+                        Some(BlockContext::Output(output_name)) =>
                             format!("output '{}'", output_name),
-                        Some(ReferenceContext::Flow(flow_name)) =>
+                        Some(BlockContext::Flow(flow_name)) =>
                             format!("flow '{}'", flow_name),
-                        None => "unknown context".to_string(),
+                        Some(BlockContext::Signer(signer_name)) =>
+                            format!("signer '{}'", signer_name),
+                        Some(BlockContext::Addon(addon_name)) =>
+                            format!("addon '{}'", addon_name),
+                        Some(BlockContext::Unknown) | None => "unknown context".to_string(),
                     };
 
                     LegacyError {
@@ -981,7 +960,8 @@ impl<'a> Visit for ReferenceValidationVisitor<'a> {
     fn visit_expr(&mut self, expr: &Expression) {
         if let Expression::Traversal(traversal) = expr {
             let parts = extract_traversal_parts(traversal);
-            let position = self.handler.position_mapper.optional_span_to_position(
+            let position = optional_span_to_position(
+                self.handler.source_mapper,
                 traversal.span().as_ref()
             );
 
@@ -997,12 +977,12 @@ impl<'a> Visit for ReferenceValidationVisitor<'a> {
             // Collect flow input references
             if parts.len() >= 2 && parts[0] == "flow" {
                 let context = match &self.current_entity {
-                    Some((EntityType::Action, name)) => ReferenceContext::Action(name.clone()),
-                    Some((EntityType::Variable, name)) => ReferenceContext::Variable(name.clone()),
+                    Some((EntityType::Action, name)) => BlockContext::Action(name.clone()),
+                    Some((EntityType::Variable, name)) => BlockContext::Variable(name.clone()),
                     None => {
                         // Check if we're in an output or flow block by looking at current block type
                         // For now, default to a generic context - this will be refined
-                        ReferenceContext::Action("unknown".to_string())
+                        BlockContext::Action("unknown".to_string())
                     }
                 };
 

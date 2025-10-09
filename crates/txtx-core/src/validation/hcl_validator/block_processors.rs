@@ -8,9 +8,10 @@ use txtx_addon_kit::constants::{
 };
 
 use crate::kit::types::commands::CommandSpecification;
+use crate::runbook::location::SourceMapper;
 use crate::validation::hcl_validator::visitor::{
     CollectedItem, DefinitionItem, DeclarationItem, BlockType, Position,
-    ValidationError, PositionMapper,
+    ValidationError,
 };
 
 /// Process a block during the collection phase.
@@ -18,15 +19,15 @@ pub fn process_block(
     block: &Block,
     block_type: BlockType,
     addon_specs: &HashMap<String, Vec<(String, CommandSpecification)>>,
-    position_mapper: &PositionMapper,
+    source_mapper: &SourceMapper,
 ) -> Result<Vec<CollectedItem>, ValidationError> {
     match block_type {
         BlockType::Signer => process_signer(block),
-        BlockType::Variable => process_variable(block, position_mapper),
+        BlockType::Variable => process_variable(block, source_mapper),
         BlockType::Output => process_output(block),
         BlockType::Secret => process_secret(block),
-        BlockType::Action => process_action(block, addon_specs, position_mapper),
-        BlockType::Flow => process_flow(block, position_mapper),
+        BlockType::Action => process_action(block, addon_specs, source_mapper),
+        BlockType::Flow => process_flow(block, source_mapper),
         BlockType::Addon | BlockType::Unknown => Ok(Vec::new()),
     }
 }
@@ -46,7 +47,7 @@ fn process_signer(block: &Block) -> Result<Vec<CollectedItem>, ValidationError> 
     ])
 }
 
-fn process_variable(block: &Block, position_mapper: &PositionMapper) -> Result<Vec<CollectedItem>, ValidationError> {
+fn process_variable(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<CollectedItem>, ValidationError> {
     use txtx_addon_kit::hcl::visit::{visit_expr, Visit};
     use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
 
@@ -55,7 +56,10 @@ fn process_variable(block: &Block, position_mapper: &PositionMapper) -> Result<V
 
     let position = block.ident.span()
         .as_ref()
-        .map(|span| position_mapper.span_to_position(span))
+        .map(|span| {
+            let (line, col) = source_mapper.span_to_position(span);
+            Position::new(line, col)
+        })
         .unwrap_or_else(|| Position::new(1, 1));
 
     // Extract dependencies from the variable's value
@@ -120,7 +124,7 @@ fn process_secret(block: &Block) -> Result<Vec<CollectedItem>, ValidationError> 
 fn process_action(
     block: &Block,
     addon_specs: &HashMap<String, Vec<(String, CommandSpecification)>>,
-    position_mapper: &PositionMapper,
+    source_mapper: &SourceMapper,
 ) -> Result<Vec<CollectedItem>, ValidationError> {
     use txtx_addon_kit::hcl::visit::{visit_expr, visit_block, Visit};
     use txtx_addon_kit::hcl::expr::{Expression, TraversalOperator};
@@ -133,7 +137,10 @@ fn process_action(
 
     let position = block.ident.span()
         .as_ref()
-        .map(|span| position_mapper.span_to_position(span))
+        .map(|span| {
+            let (line, col) = source_mapper.span_to_position(span);
+            Position::new(line, col)
+        })
         .unwrap_or_else(|| Position::new(1, 1));
 
     // Always collect the action, but validation will happen in validation phase
@@ -209,7 +216,7 @@ fn process_action(
 
 fn process_flow(
     block: &Block,
-    position_mapper: &PositionMapper,
+    source_mapper: &SourceMapper,
 ) -> Result<Vec<CollectedItem>, ValidationError> {
     let name = block.labels.extract_name()
         .ok_or(ValidationError::MissingLabel("flow name"))?;
@@ -220,9 +227,13 @@ fn process_flow(
         .map(|attr| attr.key.to_string())
         .collect();
 
-    let position = position_mapper.optional_span_to_position(
-        block.ident.span().as_ref()
-    );
+    let position = block.ident.span()
+        .as_ref()
+        .map(|span| {
+            let (line, col) = source_mapper.span_to_position(span);
+            Position::new(line, col)
+        })
+        .unwrap_or_else(|| Position::new(1, 1));
 
     Ok(vec![
         CollectedItem::Declaration(DeclarationItem::Flow {
