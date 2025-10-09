@@ -1,0 +1,20 @@
+id: linter_demo
+name: linter_demo
+description: Demonstrates how txtx lint finds common issues
+
+runbooks:
+  - name: problematic_transfer
+    location: runbooks/problematic_transfer.tx
+    description: "A runbook with the send_eth output access issue"
+
+  - name: correct_transfer
+    location: runbooks/correct_transfer.tx
+    description: "The corrected version using get_transaction"
+
+environments:
+  testing:
+    infura_api_key: "${INFURA_API_KEY:?INFURA_API_KEY env var is not set}"
+    ethereum_network_url: "https://ethereum-sepolia.publicnode.com"
+    ethereum_chain_id: "11155111"
+    alice_private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    recipient_address: "0x742d35Cc6634C0532925a3b844Bc9e7595f6aE3"
