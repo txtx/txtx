@@ -813,6 +813,13 @@ The following operations are supported:
   </Property>
 
 
+  <Property name="reset_account" required="optional" type="map">
+    The account reset data to set. This is a map type containing the keys:
+  - **public_key**: The public key of the account to reset.
+  - **recursive**: Whether to recursively delete all accounts owned by this account. Default is false.
+  </Property>
+
+
   <Property name="pre_condition" required="optional" type="map">
     Pre-conditions are assertions that are evaluated before a command is executed. They can be used to determine if the command should be executed or if a specific behavior should be executed based on the result of the assertion. This is a map type containing the keys:
   - **behavior**: The behavior if the pre-condition assertion does not pass. Possible values are:

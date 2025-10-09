@@ -1029,6 +1029,12 @@
           "documentation": "The program deployment data to set.",
           "typing": "map",
           "optional": true
+        },
+        {
+          "name": "reset_account",
+          "documentation": "The account reset data to set.",
+          "typing": "map",
+          "optional": true
         }
       ],
       "outputs": [],
