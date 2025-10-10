@@ -19,12 +19,15 @@ use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
 use txtx_addon_kit::types::{AuthorizationContext, Did, PackageId, RunbookId};
 use txtx_addon_kit::Addon;
 
+pub mod collector;
 mod diffing_context;
 pub mod embedded_runbook;
 mod execution_context;
 pub mod flow_context;
 mod graph_context;
+pub mod location;
 mod runtime_context;
+pub mod variables;
 mod workspace_context;
 
 pub use diffing_context::ConsolidatedChanges;

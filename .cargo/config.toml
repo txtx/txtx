@@ -1,5 +1,32 @@
 [alias]
+# Build aliases
 txtx-install = "install --path crates/txtx-cli --features supervisor_ui --features ovm --locked --force"
+build-cli = "build --package txtx-cli --no-default-features --features cli"
+build-cli-release = "build --package txtx-cli --no-default-features --features cli --release"
+
+# Test aliases following pattern: test-[scope]-[type]-[target]
+# Unit tests (code in src/)
+test-cli-unit = "test --package txtx-cli --bin txtx --no-default-features --features cli"
+test-cli-unit-linter = "test --package txtx-cli --bin txtx --no-default-features --features cli cli::linter_impl::"
+test-cli-unit-lsp = "test --package txtx-cli --bin txtx --no-default-features --features cli cli::lsp::"
+test-core-unit = "test --package txtx-core --lib"
+test-addon-kit-unit = "test --package txtx-addon-kit --lib"
+
+# Integration tests (code in tests/)
+test-cli-int = "test --package txtx-cli --tests --no-default-features --features cli"
+test-cli-int-linter = "test --package txtx-cli --test linter_tests_builder --no-default-features --features cli"
+test-cli-int-lsp = "test --package txtx-cli --test lsp_tests_builder --no-default-features --features cli"
+
+# HCL validation tests
+test-hcl-diagnostics = "test --package txtx-cli --bin txtx --no-default-features --features cli cli::lsp::tests::hcl_diagnostics_test"  # Test HCL diagnostic extraction
+test-lsp-validation = "test --package txtx-cli --bin txtx --no-default-features --features cli cli::lsp::tests::validation_integration_test"  # Test LSP validation pipeline
+
+# Convenience aliases
+test-cli = "test --package txtx-cli --no-default-features --features cli"  # All CLI tests
+test-cli-linter = "test --package txtx-cli --bin txtx --no-default-features --features cli cli::linter_impl::"  # All linter unit tests
 
 [build]
 rustflags = ["--cfg", "tokio_unstable"]
+
+
+
