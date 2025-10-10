@@ -2,6 +2,7 @@
 //!
 //! Finds all references to a symbol across all environment files, not just the current environment.
 
+use super::common::{expand_runbook_uris, filter_runbook_uris};
 use super::workspace_discovery::{discover_workspace_files, find_input_in_yaml};
 use super::{Handler, TextDocumentHandler};
 use crate::cli::lsp::hcl_ast::{self, Reference};
@@ -311,101 +312,6 @@ fn is_key_under_environments(content: &str, key_name: &str) -> bool {
     }
 
     false
-}
-
-/// Expand runbook URIs into individual file URIs
-///
-/// For multi-file runbooks (directories), this scans the directory and returns URIs
-/// for all .tx files. For single-file runbooks, returns the URI as-is.
-fn expand_runbook_uris(uris: &[Url]) -> Vec<Url> {
-    let mut file_uris = Vec::new();
-
-    for uri in uris {
-        let Ok(path) = uri.to_file_path() else {
-            eprintln!("[References] Invalid file URI: {}", uri);
-            continue;
-        };
-
-        if path.is_dir() {
-            // Multi-file runbook: collect all .tx files
-            let Ok(entries) = std::fs::read_dir(&path) else {
-                eprintln!("[References] Failed to read directory: {}", path.display());
-                continue;
-            };
-
-            for entry in entries.flatten() {
-                let entry_path = entry.path();
-
-                if entry_path.extension().map_or(false, |ext| ext == "tx") {
-                    if let Ok(file_uri) = Url::from_file_path(&entry_path) {
-                        file_uris.push(file_uri);
-                    } else {
-                        eprintln!("[References] Failed to create URI for: {}", entry_path.display());
-                    }
-                }
-            }
-        } else {
-            // Single file runbook
-            file_uris.push(uri.clone());
-        }
-    }
-
-    file_uris
-}
-
-/// Filter runbook URIs to only include files from a specific runbook
-///
-/// This uses the manifest to determine which URIs belong to the specified runbook,
-/// then expands those URIs into individual .tx files.
-fn filter_runbook_uris(
-    uris: &[Url],
-    runbook_name: &str,
-    workspace: &SharedWorkspaceState,
-) -> Vec<Url> {
-    let workspace_read = workspace.read();
-
-    // Get manifest to map URIs to runbook names
-    let manifest_uri = workspace_read
-        .documents()
-        .iter()
-        .find(|(uri, _)| super::is_manifest_file(uri))
-        .map(|(uri, _)| uri.clone());
-
-    let Some(manifest_uri) = manifest_uri else {
-        eprintln!("[References] No manifest found for filtering runbooks");
-        return Vec::new();
-    };
-
-    let Some(manifest) = workspace_read.get_manifest(&manifest_uri) else {
-        eprintln!("[References] Failed to get manifest");
-        return Vec::new();
-    };
-
-    // Find the runbook with the matching name
-    let matching_runbook = manifest
-        .runbooks
-        .iter()
-        .find(|r| r.name == runbook_name);
-
-    let Some(runbook) = matching_runbook else {
-        eprintln!("[References] Runbook '{}' not found in manifest", runbook_name);
-        return Vec::new();
-    };
-
-    // Filter URIs to only include the matching runbook's URI
-    let filtered_uris: Vec<Url> = uris
-        .iter()
-        .filter(|uri| {
-            runbook
-                .absolute_uri
-                .as_ref()
-                .map_or(false, |runbook_uri| runbook_uri == *uri)
-        })
-        .cloned()
-        .collect();
-
-    // Expand the filtered URIs
-    expand_runbook_uris(&filtered_uris)
 }
 
 /// Find all occurrences of a reference in the given content

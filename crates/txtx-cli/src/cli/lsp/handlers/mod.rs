@@ -6,6 +6,7 @@
 use super::workspace::SharedWorkspaceState;
 use lsp_types::*;
 
+pub mod common;
 mod completion;
 mod debug_dump;
 mod definition;
@@ -18,6 +19,7 @@ pub mod rename;
 pub mod workspace;
 mod workspace_discovery;
 
+pub use common::is_manifest_file;
 pub use completion::CompletionHandler;
 pub use definition::DefinitionHandler;
 pub use diagnostics::DiagnosticsHandler;
@@ -44,15 +46,6 @@ pub trait TextDocumentHandler: Handler {
         let document = workspace.get_document(&params.text_document.uri)?;
         Some((params.text_document.uri.clone(), document.content().to_string(), params.position))
     }
-}
-
-/// Check if a URI points to a txtx manifest file
-///
-/// Currently checks for txtx.yml and txtx.yaml, but this can be extended
-/// to support custom manifest file names in the future.
-pub fn is_manifest_file(uri: &Url) -> bool {
-    let path = uri.path();
-    path.ends_with("txtx.yml") || path.ends_with("txtx.yaml")
 }
 
 /// Container for all handlers
