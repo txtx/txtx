@@ -72,27 +72,17 @@ mod tests {
     fn test_validation_result_conversion() {
         use crate::cli::lsp::validation::validation_errors_to_diagnostics;
         use lsp_types::Url;
-        use txtx_core::validation::ValidationError;
+        use txtx_core::validation::Diagnostic;
 
         let errors = vec![
-            ValidationError {
-                message: "Test error 1".to_string(),
-                file: "test.tx".to_string(),
-                line: Some(5),
-                column: Some(10),
-                context: None,
-                related_locations: vec![],
-                documentation_link: None,
-            },
-            ValidationError {
-                message: "Test error 2".to_string(),
-                file: "test.tx".to_string(),
-                line: Some(10),
-                column: Some(5),
-                context: None,
-                related_locations: vec![],
-                documentation_link: None,
-            },
+            Diagnostic::error("Test error 1")
+                .with_file("test.tx".to_string())
+                .with_line(5)
+                .with_column(10),
+            Diagnostic::error("Test error 2")
+                .with_file("test.tx".to_string())
+                .with_line(10)
+                .with_column(5),
         ];
 
         let uri = Url::parse("file:///test.tx").unwrap();
