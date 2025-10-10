@@ -77,15 +77,10 @@ pub fn validate_content_with_manifest(
 
     // Handle validation errors
     if let Err(e) = validation_result {
-        core_result.errors.push(txtx_core::validation::ValidationError {
-            message: e,
-            file: "test.tx".to_string(),
-            line: None,
-            column: None,
-            context: None,
-            related_locations: vec![],
-            documentation_link: None,
-        });
+        core_result.errors.push(
+            txtx_core::validation::Diagnostic::error(e)
+                .with_file("test.tx".to_string())
+        );
     }
 
     // Convert errors to our type

@@ -30,7 +30,8 @@ use txtx_addon_kit::constants::{
 };
 
 use crate::runbook::location::{SourceMapper, BlockContext};
-use crate::validation::types::{LocatedInputRef, ValidationError as LegacyError, ValidationResult};
+use crate::validation::types::{LocatedInputRef, ValidationResult};
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 use crate::kit::types::commands::CommandSpecification;
 
 use super::dependency_graph::DependencyGraph;
@@ -720,15 +721,12 @@ impl<'a> HclValidationVisitor<'a> {
     }
 
     fn add_error(&mut self, error: ValidationError, position: Position) {
-        self.result.errors.push(LegacyError {
-            message: error.to_string(),
-            file: self.file_path.to_string(),
-            line: Some(position.line),
-            column: Some(position.column),
-            context: None,
-            related_locations: vec![],
-            documentation_link: None,
-        });
+        self.result.errors.push(
+            Diagnostic::error(error.to_string())
+                .with_file(self.file_path.to_string())
+                .with_line(position.line)
+                .with_column(position.column)
+        );
     }
 
     fn validate_action_parameters(&self, block: &Block) -> Vec<(ValidationError, Position)> {
@@ -828,7 +826,7 @@ impl<'a> HclValidationVisitor<'a> {
 
     fn validate_all_flow_inputs(&mut self) {
         // Loop over each referenced input and partition flows by definition status
-        let errors: Vec<LegacyError> = self.state.flow_input_refs.iter()
+        let errors: Vec<Diagnostic> = self.state.flow_input_refs.iter()
             .flat_map(|(input_name, references)| {
                 // Partition flows into those that define the input and those that don't
                 let (defining, missing): (Vec<_>, Vec<_>) = self.state.declarations.flows.iter()
@@ -853,44 +851,44 @@ impl<'a> HclValidationVisitor<'a> {
         references: &[FlowInputReference],
         defining: &[(&String, &FlowDeclaration)],
         missing: &[(&String, &FlowDeclaration)],
-    ) -> Vec<LegacyError> {
+    ) -> Vec<Diagnostic> {
         match (defining.is_empty(), missing.is_empty()) {
             (true, false) => {
                 // All flows missing the input - errors at reference sites
-                references.iter().map(|ref_loc| LegacyError {
-                    message: format!("Undefined flow input '{}'", input_name),
-                    file: ref_loc.file_path.clone(),
-                    line: Some(ref_loc.location.line),
-                    column: Some(ref_loc.location.column),
-                    context: None,
-                    related_locations: self.state.declarations.flows.iter()
-                        .map(|(name, def)| crate::validation::types::RelatedLocation {
+                references.iter().map(|ref_loc| {
+                    let mut error = Diagnostic::error(format!("Undefined flow input '{}'", input_name))
+                        .with_file(ref_loc.file_path.clone())
+                        .with_line(ref_loc.location.line)
+                        .with_column(ref_loc.location.column);
+
+                    for (name, def) in &self.state.declarations.flows {
+                        error = error.with_related_location(crate::validation::types::RelatedLocation {
                             file: self.file_path.to_string(),
                             line: def.position.line,
                             column: def.position.column,
                             message: format!("Flow '{}' is missing input '{}'", name, input_name),
-                        })
-                        .collect(),
-                    documentation_link: None,
+                        });
+                    }
+                    error
                 }).collect()
             },
             (false, false) => {
                 // Some flows missing the input - bidirectional errors
-                let ref_errors = references.iter().map(|ref_loc| LegacyError {
-                    message: format!("Flow input '{}' not defined in all flows", input_name),
-                    file: ref_loc.file_path.clone(),
-                    line: Some(ref_loc.location.line),
-                    column: Some(ref_loc.location.column),
-                    context: None,
-                    related_locations: missing.iter()
-                        .map(|(name, def)| crate::validation::types::RelatedLocation {
+                let ref_errors = references.iter().map(|ref_loc| {
+                    let mut error = Diagnostic::error(format!("Flow input '{}' not defined in all flows", input_name))
+                        .with_file(ref_loc.file_path.clone())
+                        .with_line(ref_loc.location.line)
+                        .with_column(ref_loc.location.column);
+
+                    for (name, def) in missing {
+                        error = error.with_related_location(crate::validation::types::RelatedLocation {
                             file: self.file_path.to_string(),
                             line: def.position.line,
                             column: def.position.column,
                             message: format!("Missing in flow '{}'", name),
-                        })
-                        .collect(),
-                    documentation_link: None,
+                        });
+                    }
+                    error
                 });
 
                 let flow_errors = missing.iter().map(|(name, def)| {
@@ -910,21 +908,22 @@ impl<'a> HclValidationVisitor<'a> {
                         Some(BlockContext::Unknown) | None => "unknown context".to_string(),
                     };
 
-                    LegacyError {
-                        message: format!("Flow '{}' missing input '{}'", name, input_name),
-                        file: self.file_path.to_string(),
-                        line: Some(def.position.line),
-                        column: Some(def.position.column),
-                        context: Some(format!("Input '{}' is referenced in {}", input_name, context_desc)),
-                        related_locations: references.iter()
-                            .map(|ref_loc| crate::validation::types::RelatedLocation {
+                    {
+                        let mut error = Diagnostic::error(format!("Flow '{}' missing input '{}'", name, input_name))
+                            .with_file(self.file_path.to_string())
+                            .with_line(def.position.line)
+                            .with_column(def.position.column)
+                            .with_context(format!("Input '{}' is referenced in {}", input_name, context_desc));
+
+                        for ref_loc in references {
+                            error = error.with_related_location(crate::validation::types::RelatedLocation {
                                 file: ref_loc.file_path.clone(),
                                 line: ref_loc.location.line,
                                 column: ref_loc.location.column,
                                 message: "Referenced here".to_string(),
-                            })
-                            .collect(),
-                        documentation_link: None,
+                            });
+                        }
+                        error
                     }
                 });
 

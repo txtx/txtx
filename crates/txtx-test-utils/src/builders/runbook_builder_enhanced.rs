@@ -174,15 +174,11 @@ impl RunbookBuilder {
                         }
                     }
                     Err(e) => {
-                        core_result.errors.push(txtx_core::validation::ValidationError {
-                            message: format!("Failed to parse runbook: {}", e),
-                            file: file_path_str.clone(),
-                            line: None,
-                            column: None,
-                            context: None,
-                            related_locations: vec![],
-                            documentation_link: None,
-                        });
+                        core_result.errors.push(
+                            txtx_core::validation::Diagnostic::error(
+                                format!("Failed to parse runbook: {}", e)
+                            ).with_file(file_path_str.clone())
+                        );
                     }
                 }
 

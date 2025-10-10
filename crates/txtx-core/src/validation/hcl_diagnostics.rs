@@ -3,7 +3,8 @@
 //! This module provides functionality to extract diagnostics from HCL parsing
 //! and convert them to a format suitable for LSP and other consumers.
 
-use super::types::{ValidationError, ValidationResult};
+use super::types::ValidationResult;
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 use std::ops::Range;
 
 /// Represents a diagnostic from HCL parsing with full context
@@ -96,15 +97,10 @@ pub fn validate_with_diagnostics(
         }
         Err(e) => {
             // Parsing failed, add to validation result
-            let error = ValidationError {
-                message: e.clone(),
-                file: file_path.to_string(),
-                line: Some(0),
-                column: Some(0),
-                context: None,
-                related_locations: vec![],
-                documentation_link: None,
-            };
+            let error = Diagnostic::error(e.clone())
+                .with_file(file_path.to_string())
+                .with_line(0)
+                .with_column(0);
             result.errors.push(error);
         }
     }
@@ -212,15 +208,12 @@ mod tests {
         assert!(result.errors.is_empty());
 
         // Add an error
-        result.errors.push(ValidationError {
-            message: "Test error".to_string(),
-            file: "test.tx".to_string(),
-            line: Some(1),
-            column: Some(1),
-            context: None,
-            related_locations: vec![],
-            documentation_link: None,
-        });
+        result.errors.push(
+            Diagnostic::error("Test error")
+                .with_file("test.tx")
+                .with_line(1)
+                .with_column(1)
+        );
 
         assert_eq!(result.errors.len(), 1);
     }

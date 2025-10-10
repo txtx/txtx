@@ -13,8 +13,9 @@
 
 use super::rule_id::{AddonScope, RuleIdentifier};
 use super::types::{
-    LocatedInputRef, ValidationError, ValidationResult, ValidationSuggestion, ValidationWarning,
+    LocatedInputRef, ValidationResult, ValidationSuggestion,
 };
+use txtx_addon_kit::types::diagnostics::Diagnostic;
 use crate::manifest::WorkspaceManifest;
 use std::collections::{HashMap, HashSet};
 
@@ -144,15 +145,20 @@ pub fn validate_inputs_against_manifest(
                     suggestion,
                     documentation_link,
                 } => {
-                    result.errors.push(ValidationError {
-                        message,
-                        file: file_path.to_string(),
-                        line: Some(input_ref.line),
-                        column: Some(input_ref.column),
-                        context: ctx,
-                        related_locations: vec![],
-                        documentation_link,
-                    });
+                    let mut error = Diagnostic::error(message)
+                        .with_file(file_path.to_string())
+                        .with_line(input_ref.line)
+                        .with_column(input_ref.column);
+
+                    if let Some(ctx) = ctx {
+                        error = error.with_context(ctx);
+                    }
+
+                    if let Some(doc) = documentation_link {
+                        error = error.with_documentation(doc);
+                    }
+
+                    result.errors.push(error);
 
                     if let Some(suggestion) = suggestion {
                         result
@@ -162,13 +168,16 @@ pub fn validate_inputs_against_manifest(
                 }
 
                 ValidationOutcome::Warning { message, suggestion } => {
-                    result.warnings.push(ValidationWarning {
-                        message,
-                        file: file_path.to_string(),
-                        line: Some(input_ref.line),
-                        column: Some(input_ref.column),
-                        suggestion,
-                    });
+                    let mut warning = Diagnostic::warning(message)
+                        .with_file(file_path.to_string())
+                        .with_line(input_ref.line)
+                        .with_column(input_ref.column);
+
+                    if let Some(sug) = suggestion {
+                        warning = warning.with_suggestion(sug);
+                    }
+
+                    result.warnings.push(warning);
                 }
             }
         }
