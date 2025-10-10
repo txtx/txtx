@@ -5,7 +5,7 @@
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 use txtx_addon_kit::types::diagnostics::DiagnosticLevel;
-use txtx_core::validation::Diagnostic as CoreDiagnostic;
+use txtx_core::validation::{Diagnostic as CoreDiagnostic, ValidationResult};
 
 /// Convert a core validation diagnostic to LSP diagnostic format
 pub fn to_lsp_diagnostic(diag: &CoreDiagnostic) -> Diagnostic {
@@ -89,6 +89,23 @@ fn estimate_token_length(message: &str) -> usize {
 
     // Default: 8 characters
     8
+}
+
+/// Convert a ValidationResult to a vector of LSP diagnostics
+///
+/// This is the idiomatic way to convert all errors and warnings from a
+/// validation result into LSP diagnostics.
+///
+/// # Example
+/// ```ignore
+/// let result = linter.validate_content(...);
+/// let diagnostics = validation_result_to_diagnostics(result);
+/// ```
+pub fn validation_result_to_diagnostics(result: ValidationResult) -> Vec<Diagnostic> {
+    result.errors.into_iter()
+        .chain(result.warnings.into_iter())
+        .map(|d| to_lsp_diagnostic(&d))
+        .collect()
 }
 
 #[cfg(test)]

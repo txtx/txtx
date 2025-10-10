@@ -6,5 +6,5 @@
 pub mod converter;
 pub mod provider;
 
-pub use converter::to_lsp_diagnostic;
+pub use converter::{to_lsp_diagnostic, validation_result_to_diagnostics};
 pub use provider::{validate_runbook, validate_workspace};

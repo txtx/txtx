@@ -1,6 +1,7 @@
 //! Adapter to integrate linter validation into LSP diagnostics
 
 use crate::cli::linter::{Linter, LinterConfig, Format};
+use crate::cli::lsp::diagnostics::validation_result_to_diagnostics;
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range, Url};
 use std::path::PathBuf;
 use txtx_core::manifest::WorkspaceManifest;
@@ -69,57 +70,7 @@ impl LinterValidationAdapter {
         );
 
         // Convert validation results to diagnostics
-        let mut diagnostics = Vec::new();
-
-        // Convert errors
-        for error in &result.errors {
-            diagnostics.push(Diagnostic {
-                range: Range {
-                    start: Position {
-                        line: error.line.unwrap_or(0).saturating_sub(1) as u32,
-                        character: error.column.unwrap_or(0).saturating_sub(1) as u32,
-                    },
-                    end: Position {
-                        line: error.line.unwrap_or(0).saturating_sub(1) as u32,
-                        character: error.column.unwrap_or(0) as u32,
-                    },
-                },
-                severity: Some(DiagnosticSeverity::ERROR),
-                code: None,
-                code_description: None,
-                source: Some("txtx-linter".to_string()),
-                message: error.message.clone(),
-                related_information: None,
-                tags: None,
-                data: None,
-            });
-        }
-
-        // Convert warnings
-        for warning in &result.warnings {
-            diagnostics.push(Diagnostic {
-                range: Range {
-                    start: Position {
-                        line: warning.line.unwrap_or(0).saturating_sub(1) as u32,
-                        character: warning.column.unwrap_or(0).saturating_sub(1) as u32,
-                    },
-                    end: Position {
-                        line: warning.line.unwrap_or(0).saturating_sub(1) as u32,
-                        character: warning.column.unwrap_or(0) as u32,
-                    },
-                },
-                severity: Some(DiagnosticSeverity::WARNING),
-                code: None,
-                code_description: None,
-                source: Some("txtx-linter".to_string()),
-                message: warning.message.clone(),
-                related_information: None,
-                tags: None,
-                data: None,
-            });
-        }
-
-        diagnostics
+        validation_result_to_diagnostics(result)
     }
 
     /// Set active environment for validation

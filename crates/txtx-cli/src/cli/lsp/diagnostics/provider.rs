@@ -10,7 +10,7 @@
 //! @c4-responsibility Convert validation errors to LSP diagnostics
 //! @c4-responsibility Publish diagnostics to IDE
 
-use super::to_lsp_diagnostic;
+use super::validation_result_to_diagnostics;
 use crate::cli::common::addon_registry;
 use lsp_types::{Diagnostic, Url};
 use std::collections::HashMap;
@@ -20,8 +20,6 @@ use std::collections::HashMap;
 /// This is a simplified version that focuses on HCL validation first.
 /// We'll add deeper semantic validation in future iterations.
 pub fn validate_runbook(file_uri: &Url, content: &str) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
-
     // Create a validation result to collect errors
     let mut validation_result = txtx_core::validation::ValidationResult {
         errors: Vec::new(),
@@ -36,25 +34,15 @@ pub fn validate_runbook(file_uri: &Url, content: &str) -> Vec<Diagnostic> {
     let addon_specs = addon_registry::extract_addon_specifications(&addons);
 
     // Run HCL validation with addon specifications
-    match txtx_core::validation::hcl_validator::validate_with_hcl_and_addons(
+    let _ = txtx_core::validation::hcl_validator::validate_with_hcl_and_addons(
         content,
         &mut validation_result,
         file_path,
         addon_specs,
-    ) {
-        Ok(_) | Err(_) => {
-            // Convert validation errors and warnings to LSP diagnostics using unified converter
-            for error in validation_result.errors {
-                diagnostics.push(to_lsp_diagnostic(&error));
-            }
+    );
 
-            for warning in validation_result.warnings {
-                diagnostics.push(to_lsp_diagnostic(&warning));
-            }
-        }
-    }
-
-    diagnostics
+    // Convert validation result to LSP diagnostics
+    validation_result_to_diagnostics(validation_result)
 }
 
 /// Validate multiple runbook files in a workspace

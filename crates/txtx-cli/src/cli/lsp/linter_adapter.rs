@@ -3,7 +3,7 @@
 //! Bridges the linter engine's validation output with the LSP protocol's diagnostic format.
 
 use crate::cli::linter::{Linter, LinterConfig, Format};
-use crate::cli::lsp::diagnostics::to_lsp_diagnostic;
+use crate::cli::lsp::diagnostics::validation_result_to_diagnostics;
 use crate::cli::lsp::workspace::{
     manifest_converter::lsp_manifest_to_workspace_manifest, Manifest,
 };
@@ -43,14 +43,8 @@ pub fn validate_runbook_with_linter_rules(
                 environment.map(String::from).as_ref(),
             );
 
-            // Convert errors and warnings to LSP diagnostics using unified converter
-            for error in &result.errors {
-                diagnostics.push(to_lsp_diagnostic(error));
-            }
-
-            for warning in &result.warnings {
-                diagnostics.push(to_lsp_diagnostic(warning));
-            }
+            // Convert validation result to LSP diagnostics
+            diagnostics.extend(validation_result_to_diagnostics(result));
         }
         Err(err) => {
             // If linting fails completely, add an error diagnostic
