@@ -11,7 +11,7 @@
 //! @c4-uses Formatter "Formats results"
 
 use std::path::PathBuf;
-use txtx_core::validation::{ValidationResult, ValidationError, ValidationWarning};
+use txtx_core::validation::{ValidationResult, Diagnostic};
 use txtx_core::manifest::WorkspaceManifest;
 use txtx_addon_kit::helpers::fs::FileLocation;
 use crate::cli::common::addon_registry;
@@ -122,15 +122,10 @@ impl Linter {
                 }
             }
             Err(e) => {
-                result.errors.push(ValidationError {
-                    message: format!("Failed to parse runbook: {}", e),
-                    file: file_path.to_string(),
-                    line: None,
-                    column: None,
-                    context: None,
-                    related_locations: vec![],
-                    documentation_link: None,
-                });
+                result.errors.push(
+                    Diagnostic::error(format!("Failed to parse runbook: {}", e))
+                        .with_file(file_path.to_string())
+                );
             }
         }
 
@@ -169,24 +164,32 @@ impl Linter {
             for issue in issues {
                 match issue.severity {
                     Severity::Error => {
-                        result.errors.push(ValidationError {
-                            message: issue.message.into_owned(),
-                            file: file_path.to_string(),
-                            line: Some(input_ref.line),
-                            column: Some(input_ref.column),
-                            context: issue.help.map(|h| h.into_owned()),
-                            related_locations: vec![],
-                            documentation_link: issue.example,
-                        });
+                        let mut diagnostic = Diagnostic::error(issue.message.into_owned())
+                            .with_file(file_path.to_string())
+                            .with_line(input_ref.line)
+                            .with_column(input_ref.column);
+
+                        if let Some(help) = issue.help {
+                            diagnostic = diagnostic.with_context(help.into_owned());
+                        }
+
+                        if let Some(example) = issue.example {
+                            diagnostic = diagnostic.with_documentation(example);
+                        }
+
+                        result.errors.push(diagnostic);
                     }
                     Severity::Warning => {
-                        result.warnings.push(ValidationWarning {
-                            message: issue.message.into_owned(),
-                            file: file_path.to_string(),
-                            line: Some(input_ref.line),
-                            column: Some(input_ref.column),
-                            suggestion: issue.help.map(|h| h.into_owned()),
-                        });
+                        let mut diagnostic = Diagnostic::warning(issue.message.into_owned())
+                            .with_file(file_path.to_string())
+                            .with_line(input_ref.line)
+                            .with_column(input_ref.column);
+
+                        if let Some(help) = issue.help {
+                            diagnostic = diagnostic.with_suggestion(help.into_owned());
+                        }
+
+                        result.warnings.push(diagnostic);
                     }
                 }
             }

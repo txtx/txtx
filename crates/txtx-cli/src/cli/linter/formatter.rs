@@ -47,7 +47,10 @@ impl OutputFormatter for StylishFormatter {
                 "  {} {} {}",
                 "error:".red().bold(),
                 error.message,
-                format_location(&error.file, error.line, error.column).dimmed()
+                error.file.as_deref()
+                    .map(|f| format_location(f, error.line, error.column))
+                    .unwrap_or_default()
+                    .dimmed()
             );
 
             if let Some(ref context) = error.context {
@@ -73,11 +76,10 @@ impl OutputFormatter for StylishFormatter {
                 "  {} {} {}",
                 "warning:".yellow().bold(),
                 warning.message,
-                format_location(
-                    &warning.file,
-                    warning.line,
-                    warning.column
-                ).dimmed()
+                warning.file.as_deref()
+                    .map(|f| format_location(f, warning.line, warning.column))
+                    .unwrap_or_default()
+                    .dimmed()
             );
         }
     }
@@ -90,7 +92,7 @@ impl OutputFormatter for CompactFormatter {
         for error in &result.errors {
             println!(
                 "{}:{}:{}: error: {}",
-                error.file,
+                error.file.as_deref().unwrap_or("<unknown>"),
                 error.line.unwrap_or(1),
                 error.column.unwrap_or(1),
                 error.message
@@ -98,10 +100,9 @@ impl OutputFormatter for CompactFormatter {
         }
 
         for warning in &result.warnings {
-            let file = &warning.file;
             println!(
                 "{}:{}:{}: warning: {}",
-                file,
+                warning.file.as_deref().unwrap_or("<unknown>"),
                 warning.line.unwrap_or(1),
                 warning.column.unwrap_or(1),
                 warning.message
@@ -131,7 +132,7 @@ impl OutputFormatter for JsonFormatter {
                             "message": r.message,
                         })
                     }).collect::<Vec<_>>(),
-                    "documentation_link": e.documentation_link,
+                    "documentation": e.documentation,
                 })
             }).collect::<Vec<_>>(),
             "warnings": result.warnings.iter().map(|w| {
@@ -157,7 +158,7 @@ impl OutputFormatter for QuickfixFormatter {
         for error in &result.errors {
             println!(
                 "{}:{}:{}: E: {}",
-                error.file,
+                error.file.as_deref().unwrap_or("<unknown>"),
                 error.line.unwrap_or(1),
                 error.column.unwrap_or(1),
                 error.message
@@ -165,10 +166,9 @@ impl OutputFormatter for QuickfixFormatter {
         }
 
         for warning in &result.warnings {
-            let file = &warning.file;
             println!(
                 "{}:{}:{}: W: {}",
-                file,
+                warning.file.as_deref().unwrap_or("<unknown>"),
                 warning.line.unwrap_or(1),
                 warning.column.unwrap_or(1),
                 warning.message
@@ -212,8 +212,9 @@ impl OutputFormatter for DocumentationFormatter {
         let mut issues_by_file: HashMap<String, Vec<Issue>> = HashMap::new();
 
         for error in &result.errors {
+            let file = error.file.clone().unwrap_or_else(|| "<unknown>".to_string());
             issues_by_file
-                .entry(error.file.clone())
+                .entry(file)
                 .or_default()
                 .push(Issue {
                     line: error.line,
@@ -224,8 +225,9 @@ impl OutputFormatter for DocumentationFormatter {
         }
 
         for warning in &result.warnings {
+            let file = warning.file.clone().unwrap_or_else(|| "<unknown>".to_string());
             issues_by_file
-                .entry(warning.file.clone())
+                .entry(file)
                 .or_default()
                 .push(Issue {
                     line: warning.line,

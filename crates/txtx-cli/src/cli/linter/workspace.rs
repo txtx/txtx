@@ -568,7 +568,7 @@ runbooks: []"#);
         assert!(combined_result.errors.len() > 0, "Should have errors from second file");
         // Verify error has correct file information
         let has_file2_error = combined_result.errors.iter()
-            .any(|e| e.file == "file2.tx");
+            .any(|e| e.file.as_deref() == Some("file2.tx"));
         assert!(has_file2_error, "Error should reference correct file");
     }
 
