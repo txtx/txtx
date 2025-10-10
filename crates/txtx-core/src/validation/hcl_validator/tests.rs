@@ -36,7 +36,7 @@ action "deploy" "evm::deploy_contract" {
             .find(|e| e.message.contains("chain_id"))
             .expect("Should have error mentioning chain_id");
 
-        assert_eq!(error.file, "runbook.tx");
+        assert_eq!(error.file.as_deref(), Some("runbook.tx"));
 
         // Should have related locations pointing to flows
         assert_eq!(error.related_locations.len(), 2,

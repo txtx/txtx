@@ -248,7 +248,7 @@ impl RunbookVariableIterator {
                             cli_inputs,
                         );
 
-                        let file = error.file.clone();
+                        let file = error.file.clone().unwrap_or_default();
 
                         variables.insert(input_name.clone(), RunbookVariable {
                             name: input_name.clone(),

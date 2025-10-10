@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 use super::file_boundary::FileBoundaryMap;
 
+// Use common types from txtx-addon-kit
+use txtx_addon_kit::types::diagnostics::Diagnostic;
+
+// Re-export for convenience
+pub use txtx_addon_kit::types::diagnostic_types::RelatedLocation;
+
 #[derive(Debug, Clone)]
 pub struct LocatedInputRef {
     pub name: String,
@@ -10,8 +16,8 @@ pub struct LocatedInputRef {
 
 #[derive(Debug, Default)]
 pub struct ValidationResult {
-    pub errors: Vec<ValidationError>,
-    pub warnings: Vec<ValidationWarning>,
+    pub errors: Vec<Diagnostic>,
+    pub warnings: Vec<Diagnostic>,
     pub suggestions: Vec<ValidationSuggestion>,
 }
 
@@ -41,7 +47,7 @@ impl ValidationResult {
         for error in &mut self.errors {
             if let Some(line) = error.line {
                 let (file, mapped_line) = boundary_map.map_line(line);
-                error.file = file;
+                error.file = Some(file);
                 error.line = Some(mapped_line);
             }
 
@@ -57,39 +63,11 @@ impl ValidationResult {
         for warning in &mut self.warnings {
             if let Some(line) = warning.line {
                 let (file, mapped_line) = boundary_map.map_line(line);
-                warning.file = file;
+                warning.file = Some(file);
                 warning.line = Some(mapped_line);
             }
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ValidationError {
-    pub message: String,
-    pub file: String,
-    pub line: Option<usize>,
-    pub column: Option<usize>,
-    pub context: Option<String>,
-    pub related_locations: Vec<RelatedLocation>,
-    pub documentation_link: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RelatedLocation {
-    pub file: String,
-    pub line: usize,
-    pub column: usize,
-    pub message: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ValidationWarning {
-    pub message: String,
-    pub file: String,
-    pub line: Option<usize>,
-    pub column: Option<usize>,
-    pub suggestion: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
