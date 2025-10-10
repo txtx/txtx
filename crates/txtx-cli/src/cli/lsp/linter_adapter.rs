@@ -3,6 +3,7 @@
 //! Bridges the linter engine's validation output with the LSP protocol's diagnostic format.
 
 use crate::cli::linter::{Linter, LinterConfig, Format};
+use crate::cli::lsp::diagnostics::to_lsp_diagnostic;
 use crate::cli::lsp::workspace::{
     manifest_converter::lsp_manifest_to_workspace_manifest, Manifest,
 };
@@ -42,70 +43,13 @@ pub fn validate_runbook_with_linter_rules(
                 environment.map(String::from).as_ref(),
             );
 
-            // Convert errors to diagnostics
+            // Convert errors and warnings to LSP diagnostics using unified converter
             for error in &result.errors {
-                diagnostics.push(Diagnostic {
-                    range: Range {
-                        start: Position {
-                            line: error.line.unwrap_or(0).saturating_sub(1) as u32,
-                            character: error.column.unwrap_or(0).saturating_sub(1) as u32,
-                        },
-                        end: Position {
-                            line: error.line.unwrap_or(0).saturating_sub(1) as u32,
-                            character: error.column.unwrap_or(0) as u32,
-                        },
-                    },
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    code: None,
-                    code_description: error.documentation.as_ref().map(|link| {
-                        lsp_types::CodeDescription {
-                            href: lsp_types::Url::parse(link).ok().unwrap_or_else(|| {
-                                lsp_types::Url::parse("https://docs.txtx.io/linter").unwrap()
-                            }),
-                        }
-                    }),
-                    source: Some("txtx-linter".to_string()),
-                    message: format!(
-                        "{}{}",
-                        error.message,
-                        error.context.as_ref()
-                            .map(|ctx| format!("\n{}", ctx))
-                            .unwrap_or_default()
-                    ),
-                    related_information: None,
-                    tags: None,
-                    data: None,
-                });
+                diagnostics.push(to_lsp_diagnostic(error));
             }
 
-            // Convert warnings to diagnostics
             for warning in &result.warnings {
-                diagnostics.push(Diagnostic {
-                    range: Range {
-                        start: Position {
-                            line: warning.line.unwrap_or(0).saturating_sub(1) as u32,
-                            character: warning.column.unwrap_or(0).saturating_sub(1) as u32,
-                        },
-                        end: Position {
-                            line: warning.line.unwrap_or(0).saturating_sub(1) as u32,
-                            character: warning.column.unwrap_or(0) as u32,
-                        },
-                    },
-                    severity: Some(DiagnosticSeverity::WARNING),
-                    code: None,
-                    code_description: None,
-                    source: Some("txtx-linter".to_string()),
-                    message: format!(
-                        "{}{}",
-                        warning.message,
-                        warning.suggestion.as_ref()
-                            .map(|sug| format!("\nSuggestion: {}", sug))
-                            .unwrap_or_default()
-                    ),
-                    related_information: None,
-                    tags: None,
-                    data: None,
-                });
+                diagnostics.push(to_lsp_diagnostic(warning));
             }
         }
         Err(err) => {
