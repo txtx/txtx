@@ -57,7 +57,7 @@ pub fn validate_runbook_with_linter_rules(
                     },
                     severity: Some(DiagnosticSeverity::ERROR),
                     code: None,
-                    code_description: error.documentation_link.as_ref().map(|link| {
+                    code_description: error.documentation.as_ref().map(|link| {
                         lsp_types::CodeDescription {
                             href: lsp_types::Url::parse(link).ok().unwrap_or_else(|| {
                                 lsp_types::Url::parse("https://docs.txtx.io/linter").unwrap()

@@ -82,10 +82,10 @@ fn offset_to_position(source: &str, offset: usize) -> (usize, usize) {
     (line, column)
 }
 
-/// Convert validation errors to LSP diagnostics
+/// Convert validation diagnostics to LSP diagnostics
 #[allow(dead_code)]
 pub fn validation_errors_to_diagnostics(
-    errors: &[txtx_core::validation::ValidationError],
+    errors: &[txtx_core::validation::Diagnostic],
     _uri: &lsp_types::Url,
 ) -> Vec<Diagnostic> {
     errors
