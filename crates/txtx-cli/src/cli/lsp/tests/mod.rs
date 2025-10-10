@@ -12,7 +12,6 @@ mod rename_input_test;
 mod rename_manifest_input_test;
 mod rename_multifile_runbook_test;
 mod rename_test;
-mod state_machine_test;
 mod state_management_test;
 pub mod test_utils;
 mod validation_integration_test;

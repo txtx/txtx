@@ -15,7 +15,6 @@ mod documents;
 pub mod manifest_converter;
 mod manifests;
 mod state;
-mod state_machine;
 mod validation_state;
 
 pub use documents::Document;
@@ -24,6 +23,3 @@ pub use manifests::Manifest;
 pub use manifests::RunbookRef;
 pub use state::{SharedWorkspaceState, WorkspaceState};
 pub use validation_state::ValidationStatus;
-
-#[cfg(test)]
-pub use state_machine::{MachineState, StateAction, StateEvent, StateHistory, StateTransition};

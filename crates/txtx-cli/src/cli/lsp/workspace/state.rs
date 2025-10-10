@@ -7,7 +7,6 @@
 use super::{
     dependency_graph::DependencyGraph,
     manifests::find_manifest_for_runbook,
-    state_machine::{MachineState, StateHistory},
     validation_state::ValidationState,
     Document, Manifest,
 };
@@ -50,10 +49,6 @@ pub struct WorkspaceState {
     action_definitions: HashMap<String, Url>,
     /// Map from variable name to the document URI where it's defined.
     variable_definitions: HashMap<String, Url>,
-    /// Current workspace-level state machine state.
-    machine_state: MachineState,
-    /// State transition history for debugging.
-    state_history: StateHistory,
 }
 
 impl WorkspaceState {
@@ -70,8 +65,6 @@ impl WorkspaceState {
             dirty_documents: HashSet::new(),
             action_definitions: HashMap::new(),
             variable_definitions: HashMap::new(),
-            machine_state: MachineState::default(),
-            state_history: StateHistory::default(),
         }
     }
 
@@ -466,237 +459,6 @@ impl WorkspaceState {
         }
 
         self.current_environment = environment;
-    }
-
-    /// Returns the current workspace-level machine state.
-    pub fn get_machine_state(&self) -> &MachineState {
-        &self.machine_state
-    }
-
-    /// Returns the state transition history for debugging.
-    pub fn get_state_history(&self) -> &StateHistory {
-        &self.state_history
-    }
-
-    /// Transitions to a new machine state with logging.
-    ///
-    /// Records the transition in the state history and emits a log message.
-    ///
-    /// # Arguments
-    ///
-    /// * `new_state` - State to transition to
-    /// * `event` - Description of triggering event
-    fn transition_state(&mut self, new_state: MachineState, event: impl Into<String>) {
-        use super::state_machine::StateTransition;
-
-        let old_state = std::mem::replace(&mut self.machine_state, new_state.clone());
-        let transition = StateTransition::new(old_state, new_state, event);
-
-        eprintln!("[LSP STATE] {}", transition.format());
-        self.state_history.record(transition);
-    }
-
-    /// Handles document validation events.
-    ///
-    /// Transitions to Validating state and queues validation action.
-    fn handle_document_validation(
-        &mut self,
-        uri: Url,
-        event_name: &str,
-    ) -> Vec<super::state_machine::StateAction> {
-        use super::state_machine::StateAction;
-
-        if self.machine_state.can_accept_requests() {
-            self.transition_state(
-                MachineState::Validating {
-                    document: uri.clone(),
-                },
-                event_name,
-            );
-            vec![StateAction::ValidateDocument { uri }]
-        } else {
-            Vec::new()
-        }
-    }
-
-    /// Creates a publish diagnostics action.
-    fn publish_diagnostics_action(
-        uri: Url,
-        diagnostics: Vec<lsp_types::Diagnostic>,
-    ) -> super::state_machine::StateAction {
-        use super::state_machine::StateAction;
-        StateAction::PublishDiagnostics { uri, diagnostics }
-    }
-
-    /// Processes a state event and produces actions.
-    ///
-    /// Core event-driven method handling state transitions and generating actions.
-    /// The method validates events, performs transitions, and returns actions.
-    ///
-    /// # Arguments
-    ///
-    /// * `event` - Event to process
-    ///
-    /// # Returns
-    ///
-    /// Actions to perform in response to the event.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// let mut workspace = WorkspaceState::new();
-    /// let event = StateEvent::Initialize;
-    /// let actions = workspace.process_event(event);
-    /// ```
-    pub fn process_event(
-        &mut self,
-        event: super::state_machine::StateEvent,
-    ) -> Vec<super::state_machine::StateAction> {
-        use super::state_machine::{StateAction, StateEvent};
-
-        let mut actions = Vec::new();
-
-        match event {
-            StateEvent::Initialize => {
-                self.transition_state(MachineState::Indexing, "Initialize");
-                actions.push(StateAction::LogTransition {
-                    message: "LSP server initialized, starting workspace indexing".to_string(),
-                });
-            }
-
-            StateEvent::IndexingComplete => {
-                if self.machine_state == MachineState::Indexing {
-                    self.transition_state(MachineState::Ready, "IndexingComplete");
-                    actions.push(StateAction::LogTransition {
-                        message: "Workspace indexing completed successfully".to_string(),
-                    });
-                }
-            }
-
-            StateEvent::IndexingFailed { error } => {
-                if self.machine_state == MachineState::Indexing {
-                    self.transition_state(MachineState::IndexingError, "IndexingFailed");
-                    actions.push(StateAction::LogTransition {
-                        message: format!("Workspace indexing failed: {}", error),
-                    });
-                }
-            }
-
-            StateEvent::DocumentOpened { uri, content: _ } => {
-                actions.extend(self.handle_document_validation(uri, "DocumentOpened"));
-            }
-
-            StateEvent::DocumentChanged { uri, content: _ } => {
-                actions.extend(self.handle_document_validation(uri, "DocumentChanged"));
-            }
-
-            StateEvent::DocumentClosed { uri } => {
-                actions.push(StateAction::InvalidateCache { uri });
-            }
-
-            StateEvent::EnvironmentChanged { new_env } => {
-                if self.machine_state.can_accept_requests() {
-                    self.transition_state(
-                        MachineState::EnvironmentChanging {
-                            new_env: new_env.clone(),
-                        },
-                        "EnvironmentChanged",
-                    );
-
-                    let runbook_uris: Vec<Url> = self
-                        .documents
-                        .iter()
-                        .filter_map(|(uri, doc)| doc.is_runbook().then(|| uri.clone()))
-                        .collect();
-
-                    if !runbook_uris.is_empty() {
-                        self.transition_state(
-                            MachineState::Revalidating {
-                                documents: runbook_uris.clone(),
-                                current: 0,
-                            },
-                            "Revalidating after environment change",
-                        );
-
-                        for uri in runbook_uris {
-                            actions.push(StateAction::ValidateDocument { uri });
-                        }
-                    } else {
-                        self.transition_state(MachineState::Ready, "No runbooks to revalidate");
-                    }
-                }
-            }
-
-            StateEvent::ValidationCompleted {
-                uri,
-                diagnostics,
-                success: _,
-            } => {
-                match &self.machine_state {
-                    MachineState::Validating { document } if document == &uri => {
-                        self.transition_state(MachineState::Ready, "ValidationCompleted");
-                        actions.push(Self::publish_diagnostics_action(uri, diagnostics));
-                    }
-                    MachineState::Revalidating { documents, current } => {
-                        let next = current + 1;
-                        if next >= documents.len() {
-                            self.transition_state(MachineState::Ready, "All revalidations completed");
-                        } else {
-                            self.transition_state(
-                                MachineState::Revalidating {
-                                    documents: documents.clone(),
-                                    current: next,
-                                },
-                                format!("Revalidating {}/{}", next + 1, documents.len()),
-                            );
-                        }
-                        actions.push(Self::publish_diagnostics_action(uri, diagnostics));
-                    }
-                    _ => {
-                        actions.push(Self::publish_diagnostics_action(uri, diagnostics));
-                    }
-                }
-            }
-
-            StateEvent::DependencyChanged { uri: _, affected } => {
-                if self.machine_state.can_accept_requests() {
-                    self.transition_state(
-                        MachineState::Invalidating {
-                            affected: affected.clone(),
-                        },
-                        "DependencyChanged",
-                    );
-
-                    for affected_uri in &affected {
-                        self.mark_dirty(affected_uri);
-                        actions.push(StateAction::InvalidateCache {
-                            uri: affected_uri.clone(),
-                        });
-                    }
-
-                    if !affected.is_empty() {
-                        let docs: Vec<Url> = affected.iter().cloned().collect();
-                        self.transition_state(
-                            MachineState::Revalidating {
-                                documents: docs,
-                                current: 0,
-                            },
-                            "Revalidating affected documents",
-                        );
-
-                        for affected_uri in affected {
-                            actions.push(StateAction::ValidateDocument {
-                                uri: affected_uri,
-                            });
-                        }
-                    } else {
-                        self.transition_state(MachineState::Ready, "No affected documents");
-                    }
-                }
-            }
-        }
-
-        actions
     }
 }
 
