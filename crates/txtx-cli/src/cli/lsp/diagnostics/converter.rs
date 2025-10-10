@@ -7,7 +7,7 @@ use lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 use txtx_addon_kit::types::diagnostics::DiagnosticLevel;
 use txtx_core::validation::{Diagnostic as CoreDiagnostic, ValidationResult};
 
-/// Convert a core validation diagnostic to LSP diagnostic format
+/// Converts a core validation diagnostic to LSP diagnostic format.
 pub fn to_lsp_diagnostic(diag: &CoreDiagnostic) -> Diagnostic {
     let severity = match diag.level {
         DiagnosticLevel::Error => DiagnosticSeverity::ERROR,
@@ -42,10 +42,10 @@ pub fn to_lsp_diagnostic(diag: &CoreDiagnostic) -> Diagnostic {
     }
 }
 
-/// Create a Range from line, column, and estimated token length
+/// Creates a Range from line, column, and estimated token length.
 ///
-/// LSP uses 0-based line numbers, but our diagnostics use 1-based.
-/// This function handles the conversion.
+/// Converts from 1-based line/column numbers (used in diagnostics) to
+/// 0-based positions (used by LSP).
 fn create_diagnostic_range(line: usize, column: usize, length: usize) -> Range {
     Range {
         start: Position {
@@ -59,7 +59,7 @@ fn create_diagnostic_range(line: usize, column: usize, length: usize) -> Range {
     }
 }
 
-/// Build the complete diagnostic message including context and suggestions
+/// Builds the complete diagnostic message including context and suggestions.
 fn build_message(diag: &CoreDiagnostic) -> String {
     let mut message = diag.message.clone();
 
@@ -76,9 +76,10 @@ fn build_message(diag: &CoreDiagnostic) -> String {
     message
 }
 
-/// Estimate token length from diagnostic message
+/// Estimates token length from diagnostic message.
 ///
-/// Looks for quoted identifiers in the message. Falls back to a default length.
+/// Looks for quoted identifiers in the message and returns their length,
+/// falling back to a default of 8 characters.
 fn estimate_token_length(message: &str) -> usize {
     // Look for quoted identifiers in the message
     if let Some(start) = message.find('\'') {
@@ -91,12 +92,9 @@ fn estimate_token_length(message: &str) -> usize {
     8
 }
 
-/// Convert a ValidationResult to a vector of LSP diagnostics
+/// Converts all errors and warnings from a validation result into LSP diagnostics.
 ///
-/// This is the idiomatic way to convert all errors and warnings from a
-/// validation result into LSP diagnostics.
-///
-/// # Example
+/// # Examples
 /// ```ignore
 /// let result = linter.validate_content(...);
 /// let diagnostics = validation_result_to_diagnostics(result);

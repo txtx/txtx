@@ -10,7 +10,7 @@ use crate::cli::lsp::workspace::{
 use lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range, Url};
 use std::path::PathBuf;
 
-/// Validate a runbook file with both HCL and linter validation rules
+/// Validates a runbook file with both HCL and linter validation rules.
 pub fn validate_runbook_with_linter_rules(
     file_uri: &Url,
     content: &str,

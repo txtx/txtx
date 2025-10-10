@@ -14,12 +14,12 @@ pub struct LinterValidationAdapter {
 }
 
 impl LinterValidationAdapter {
-    /// Create a new adapter
+    /// Creates a new adapter.
     pub fn new() -> Self {
         Self {}
     }
 
-    /// Run validation on a document and return diagnostics
+    /// Runs validation on a document and returns diagnostics.
     #[allow(dead_code)] // Used by LSP handlers for async implementation
     pub fn validate_document(
         &self,
@@ -73,7 +73,7 @@ impl LinterValidationAdapter {
         validation_result_to_diagnostics(result)
     }
 
-    /// Set active environment for validation
+    /// Sets the active environment for validation.
     #[allow(dead_code)] // Kept for API compatibility, may be used when async is fully implemented
     pub fn set_environment(&mut self, _environment: String) {
         // The new linter doesn't store state, environment is passed per validation

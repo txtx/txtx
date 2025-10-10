@@ -15,10 +15,10 @@ use crate::cli::common::addon_registry;
 use lsp_types::{Diagnostic, Url};
 use std::collections::HashMap;
 
-/// Validate a runbook file and return diagnostics
+/// Validates a runbook file and returns diagnostics.
 ///
-/// This is a simplified version that focuses on HCL validation first.
-/// We'll add deeper semantic validation in future iterations.
+/// Currently performs HCL validation with addon specifications.
+/// Deeper semantic validation will be added in future iterations.
 pub fn validate_runbook(file_uri: &Url, content: &str) -> Vec<Diagnostic> {
     // Create a validation result to collect errors
     let mut validation_result = txtx_core::validation::ValidationResult {
@@ -45,7 +45,7 @@ pub fn validate_runbook(file_uri: &Url, content: &str) -> Vec<Diagnostic> {
     validation_result_to_diagnostics(validation_result)
 }
 
-/// Validate multiple runbook files in a workspace
+/// Validates multiple runbook files in a workspace.
 #[allow(dead_code)]
 pub fn validate_workspace(files: HashMap<Url, String>) -> HashMap<Url, Vec<Diagnostic>> {
     let mut all_diagnostics = HashMap::new();
