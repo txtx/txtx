@@ -625,7 +625,7 @@ impl<'a> HclValidationVisitor<'a> {
             .collect();
 
         errors.into_iter()
-            .for_each(|error| self.add_error(error, Position::new(0, 0)));
+            .for_each(|error| self.add_error(error, Position::default()));
     }
 
     fn validate_references(&mut self, body: &Body) {
@@ -786,7 +786,7 @@ impl<'a> HclValidationVisitor<'a> {
                                         .and_then(|b| b.ident.span())
                                         .map(|span| source_mapper_to_position(&self.source_mapper, &span))
                                 })
-                                .unwrap_or_else(|| Position::new(0, 0));
+                                .unwrap_or_default();
 
                             (
                                 ValidationError::InvalidParameter {
