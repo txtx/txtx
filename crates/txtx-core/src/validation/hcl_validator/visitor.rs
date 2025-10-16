@@ -380,7 +380,7 @@ impl<'a> ValidationPhaseHandler<'a> {
         }
 
         match parts[0].as_str() {
-            "var" | "variable" => self.validate_variable_reference(parts, position),
+            "variable" => self.validate_variable_reference(parts, position),
             "action" => self.validate_action_reference(parts, position),
             "signer" => self.validate_signer_reference(parts, position),
             "output" => self.validate_output_reference(parts, position),
