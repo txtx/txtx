@@ -190,6 +190,10 @@ variable "{}" {{
                 || value.starts_with("input.")
                 || value.starts_with("action.")
                 || value.starts_with("variable.")
+                || value.starts_with("signer.")
+                || value.starts_with('"')
+                || value.starts_with('[')
+                || value.parse::<i64>().is_ok()
             {
                 value.to_string()
             } else {
@@ -224,6 +228,9 @@ action "{}" "{}" {{"#,
                     || value.starts_with("input.")
                     || value.starts_with("action.")
                     || value.starts_with("variable.")
+                    || value.starts_with("env.")
+                    || value.starts_with('"')
+                    || value.starts_with('[')
                     || value.parse::<i64>().is_ok()
                 {
                     value.to_string()
