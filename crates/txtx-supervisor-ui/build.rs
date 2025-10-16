@@ -2,8 +2,6 @@ use std::fs;
 use std::{env, path::Path};
 
 fn main() {
-    return;
-
     #[cfg(not(feature = "bypass_supervisor_build"))]
     {
         use npm_rs::*;

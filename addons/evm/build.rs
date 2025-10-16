@@ -1,7 +1,6 @@
 use std::{fs, path::PathBuf, str::FromStr};
 
 fn main() {
-    return;
     // evm contract builds
     {
         let out_dir = std::env::var_os("OUT_DIR").unwrap();
