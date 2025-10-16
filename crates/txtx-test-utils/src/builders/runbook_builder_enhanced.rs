@@ -381,17 +381,17 @@ mod tests {
             ("production", vec![("API_KEY", "prod-key"), ("DB_URL", "postgres://...")]),
         ]);
 
-        // Test missing env var
+        // Test missing input
         let result = RunbookBuilder::new()
-            .variable("key", "env.MISSING_KEY")
+            .variable("key", "input.MISSING_KEY")
             .output("result", "variable.key")
             .validate_with_linter(Some(manifest.clone()), Some("production".to_string()));
 
         assert_validation_error!(result, "MISSING_KEY");
 
-        // Test valid env var
+        // Test valid input
         let result2 = RunbookBuilder::new()
-            .variable("key", "env.API_KEY")
+            .variable("key", "input.API_KEY")
             .output("result", "variable.key")
             .validate_with_linter(Some(manifest), Some("production".to_string()));
 
