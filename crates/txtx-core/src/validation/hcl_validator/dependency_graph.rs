@@ -143,9 +143,4 @@ impl DependencyGraph {
         rec_stack.remove(node);
         path.pop();
     }
-
-    /// Get the span for a node if it exists
-    pub fn get_span(&self, node: &str) -> Option<&std::ops::Range<usize>> {
-        self.spans.get(node)
-    }
 }
