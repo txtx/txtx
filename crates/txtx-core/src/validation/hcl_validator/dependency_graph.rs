@@ -17,10 +17,6 @@ pub struct DependencyGraph {
 }
 
 impl DependencyGraph {
-    /// Create a new empty dependency graph
-    pub fn new() -> Self {
-        Self::default()
-    }
 
     /// Add a node to the graph, initializing its dependency list if needed
     ///
