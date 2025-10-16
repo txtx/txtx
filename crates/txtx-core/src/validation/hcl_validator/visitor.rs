@@ -127,9 +127,22 @@ impl BlockType {
 pub enum CollectedItem {
     Definition(DefinitionItem),
     Declaration(DeclarationItem),
+    /// Dependency information for circular dependency detection.
+    ///
+    /// Example: `variable "x" { value = variable.y }` produces:
+    /// ```text
+    /// Dependencies {
+    ///     entity_type: "variable",
+    ///     entity_name: "x",
+    ///     depends_on: vec!["y"],  // x depends on y
+    /// }
+    /// ```
     Dependencies {
+        /// Type of entity ("variable" or "action")
         entity_type: String,
+        /// Name of the entity that has dependencies
         entity_name: String,
+        /// Names of entities that `entity_name` depends on
         depends_on: Vec<String>,
     },
 }
