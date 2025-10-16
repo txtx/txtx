@@ -25,9 +25,6 @@ use txtx_addon_kit::hcl::{
     visit::{visit_block, visit_expr, Visit},
     Span,
 };
-use txtx_addon_kit::constants::{
-    DESCRIPTION, DEPENDS_ON, MARKDOWN, MARKDOWN_FILEPATH, POST_CONDITION, PRE_CONDITION,
-};
 
 use crate::runbook::location::{SourceMapper, BlockContext};
 use crate::validation::types::{LocatedInputRef, ValidationResult};
@@ -36,6 +33,7 @@ use crate::kit::types::commands::CommandSpecification;
 
 use super::dependency_graph::DependencyGraph;
 use super::block_processors;
+use super::validation_helpers;
 
 /// Validation errors.
 #[derive(Debug, thiserror::Error)]
@@ -197,68 +195,6 @@ struct FlowInputReference {
 enum DependencyType {
     Variable,
     Action,
-}
-
-
-mod validation_rules {
-    use super::*;
-
-    /// Validate action format (namespace::action)
-    pub fn validate_action_format(action: &str) -> Result<(&str, &str), ValidationError> {
-        action
-            .split_once("::")
-            .ok_or_else(|| ValidationError::InvalidFormat {
-                value: action.to_string(),
-                expected: "namespace::action",
-            })
-    }
-
-    /// Check if namespace exists
-    pub fn validate_namespace_exists<'a>(
-        namespace: &str,
-        specs: &'a HashMap<String, Vec<(String, CommandSpecification)>>,
-    ) -> Result<&'a Vec<(String, CommandSpecification)>, ValidationError> {
-        specs.get(namespace).ok_or_else(|| ValidationError::UnknownNamespace {
-            namespace: namespace.to_string(),
-            available: specs.keys().cloned().collect(),
-        })
-    }
-
-    /// Find action in namespace
-    pub fn find_action_spec<'a>(
-        action: &str,
-        namespace_actions: &'a [(String, CommandSpecification)],
-    ) -> Option<&'a CommandSpecification> {
-        namespace_actions
-            .iter()
-            .find(|(matcher, _)| matcher == action)
-            .map(|(_, spec)| spec)
-    }
-
-    /// Validate a complete action
-    pub fn validate_action(
-        action_type: &str,
-        specs: &HashMap<String, Vec<(String, CommandSpecification)>>,
-    ) -> Result<CommandSpecification, ValidationError> {
-        let (namespace, action) = validate_action_format(action_type)?;
-        let namespace_actions = validate_namespace_exists(namespace, specs)?;
-
-        find_action_spec(action, namespace_actions)
-            .cloned()
-            .ok_or_else(|| ValidationError::UnknownAction {
-                namespace: namespace.to_string(),
-                action: action.to_string(),
-                cause: None,
-            })
-    }
-
-    /// Check if an attribute is an inherited property
-    pub fn is_inherited_property(attr_name: &str) -> bool {
-        matches!(
-            attr_name,
-            MARKDOWN | MARKDOWN_FILEPATH | DESCRIPTION | DEPENDS_ON | PRE_CONDITION | POST_CONDITION
-        )
-    }
 }
 
 
@@ -627,7 +563,7 @@ impl<'a> HclValidationVisitor<'a> {
             .iter()
             .filter(|(_, decl)| decl.spec.is_none())
             .filter_map(|(_, decl)| {
-                validation_rules::validate_action(&decl.action_type, self.addon_specs).err()
+                validation_helpers::validate_action(&decl.action_type, self.addon_specs).err()
             })
             .collect();
 
@@ -758,7 +694,7 @@ impl<'a> HclValidationVisitor<'a> {
                 if let Some(ref spec) = action_decl.spec {
                     // Collect all attribute names from the block (excluding inherited properties)
                     let mut block_params: HashSet<String> = block.body.attributes()
-                        .filter(|attr| !validation_rules::is_inherited_property(attr.key.as_str()))
+                        .filter(|attr| !validation_helpers::is_inherited_property(attr.key.as_str()))
                         .map(|attr| attr.key.to_string())
                         .collect();
 
@@ -767,7 +703,7 @@ impl<'a> HclValidationVisitor<'a> {
                     // Filter out inherited properties like pre_condition and post_condition
                     block_params.extend(
                         block.body.blocks()
-                            .filter(|b| !validation_rules::is_inherited_property(b.ident.as_str()))
+                            .filter(|b| !validation_helpers::is_inherited_property(b.ident.as_str()))
                             .map(|b| b.ident.to_string())
                     );
 

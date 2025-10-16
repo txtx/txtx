@@ -3,9 +3,6 @@
 use std::collections::HashMap;
 
 use txtx_addon_kit::hcl::{structure::{Block, BlockLabel}, Span};
-use txtx_addon_kit::constants::{
-    DESCRIPTION, DEPENDS_ON, MARKDOWN, MARKDOWN_FILEPATH, POST_CONDITION, PRE_CONDITION,
-};
 
 use crate::kit::types::commands::CommandSpecification;
 use crate::runbook::location::SourceMapper;
@@ -13,6 +10,7 @@ use crate::validation::hcl_validator::visitor::{
     CollectedItem, DefinitionItem, DeclarationItem, BlockType, Position,
     ValidationError,
 };
+use super::validation_helpers;
 
 /// Extract position from a block's identifier span
 ///
@@ -137,7 +135,7 @@ fn process_action(
 
     // Always collect the action, but validation will happen in validation phase
     // We still try to get the spec for parameter validation later
-    let spec = validate_action_spec(action_type, addon_specs).ok();
+    let spec = validation_helpers::validate_action(action_type, addon_specs).ok();
 
     // Extract action dependencies using visitor pattern
     struct DependencyExtractor {
@@ -215,7 +213,7 @@ fn process_flow(
 
     let inputs: Vec<String> = block.body
         .attributes()
-        .filter(|attr| !is_inherited_property(attr.key.as_str()))
+        .filter(|attr| !validation_helpers::is_inherited_property(attr.key.as_str()))
         .map(|attr| attr.key.to_string())
         .collect();
 
@@ -230,38 +228,6 @@ fn process_flow(
     ])
 }
 
-fn validate_action_spec(
-    action_type: &str,
-    addon_specs: &HashMap<String, Vec<(String, CommandSpecification)>>,
-) -> Result<CommandSpecification, ValidationError> {
-    let (namespace, action) = action_type.split_once("::")
-        .ok_or_else(|| ValidationError::InvalidFormat {
-            value: action_type.to_string(),
-            expected: "namespace::action",
-        })?;
-
-    let namespace_specs = addon_specs.get(namespace)
-        .ok_or_else(|| ValidationError::UnknownNamespace {
-            namespace: namespace.to_string(),
-            available: addon_specs.keys().cloned().collect(),
-        })?;
-
-    namespace_specs.iter()
-        .find(|(name, _)| name == action)
-        .map(|(_, spec)| spec.clone())
-        .ok_or_else(|| ValidationError::UnknownAction {
-            namespace: namespace.to_string(),
-            action: action.to_string(),
-            cause: None,
-        })
-}
-
-fn is_inherited_property(name: &str) -> bool {
-    matches!(
-        name,
-        MARKDOWN | MARKDOWN_FILEPATH | DESCRIPTION | DEPENDS_ON | PRE_CONDITION | POST_CONDITION
-    )
-}
 
 trait BlockLabelExt {
     fn extract_name(&self) -> Option<&str>;
@@ -286,7 +252,7 @@ impl BlockLabelExt for [BlockLabel] {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::validation_helpers::is_inherited_property;
 
     #[test]
     fn test_is_inherited_property() {

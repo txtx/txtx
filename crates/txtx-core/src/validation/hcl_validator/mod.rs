@@ -23,6 +23,7 @@
 mod dependency_graph;
 mod block_processors;
 mod visitor;
+mod validation_helpers;
 
 #[cfg(test)]
 mod tests;
