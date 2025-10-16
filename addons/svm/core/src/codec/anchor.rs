@@ -75,7 +75,7 @@ impl AnchorProgramArtifacts {
                 )
             })?;
 
-            let keypair: Keypair = Keypair::from_bytes(&keypair_bytes).map_err(|e| {
+            let keypair: Keypair = Keypair::try_from(keypair_bytes.as_ref()).map_err(|e| {
                 format!(
                     "invalid anchor program keypair at location {}: {}",
                     &keypair_path.to_str().unwrap_or(""),

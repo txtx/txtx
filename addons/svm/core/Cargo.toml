@@ -1,7 +1,7 @@
 [package]
 name = "txtx-addon-network-svm"
 description = "Primitives for executing Solana runbooks"
-version = "0.3.10"
+version = "0.3.11"
 edition = { workspace = true }
 license = "Apache-2.0"
 repository = { workspace = true }
@@ -19,47 +19,43 @@ serde_derive = "1"
 async-recursion = "1"
 bs58 = "0.5.0"
 bincode = "1.3.3"
-solana-message = { version = "2.2.1", features = ["serde"] }
-solana-client = "2.2.1"
-solana-clock = "2.2.1"
-solana-sdk-ids = "2.2.1"
-solana-account = "2.2.1"
-solana-keypair = "2.2.1"
-solana-pubkey = "2.2.1"
-solana-hash = "2.2.1"
-solana-transaction = { version = "2.2.1", features = ["verify"] }
-solana-signature = "2.2.1"
-solana-signer = "2.2.1"
-solana-instruction = "2.2.1"
-solana-packet = "2.2.1"
-solana-native-token = "2.2.1"
-solana-commitment-config = "2.2.1"
-solana-loader-v3-interface = { version = "5.0.0", features = ["bincode"] }
-solana-system-interface = { version = "1.0.0", features = ["bincode"] }
-spl-associated-token-account = "6.0.0"
-spl-token = "7.0.0"
-spl-token-2022 = "7.0.0"
+solana-message = { version = "3.0.0", features = ["serde"] }
+solana-client = "3.0.0"
+solana-clock = "3.0.0"
+solana-sdk-ids = "3.0.0"
+solana-account = "3.0.0"
+solana-keypair = "3.0.0"
+solana-pubkey = { version = "3.0.0", features = ["serde", "borsh"] }
+solana-hash = "3.0.0"
+solana-transaction = { version = "3.0.0", features = ["verify"] }
+solana-signature = "3.0.0"
+solana-signer = "3.0.0"
+solana-instruction = "3.0.0"
+solana-packet = "3.0.0"
+solana-sha256-hasher = "3.0.0"
+solana-commitment-config = "3.0.0"
+solana-loader-v3-interface = { version = "6.1.0", features = ["bincode"] }
+solana-system-interface = { version = "2.0.0", features = ["bincode"] }
+spl-associated-token-account-interface = "2.0.0"
+spl-token-interface = "2.0.0"
+spl-token-2022-interface = "2.0.0"
 solana_idl = "0.2.0"
-borsh_1_5_1 = { version = "1.5.1", package = "borsh" }
+# borsh_1_5_1 = { version = "1.5.1", package = "borsh" }
 tiny-bip39 = "0.8.2"
 convert_case = "0.6.0"
 
 # Solana Record Service Dependencies
-solana-record-service-client = "0.1.0"
+solana-record-service-client = { path = "../../../../solana-record-service/sdk/rust" }
 # srs is using an old version of borsh, so we need to use the same version
-borsh = { version = "0.10", package = "borsh", features = ["std"] }
-kaigan = "=0.3.0"
+borsh = { version = "1.5.7", package = "borsh", features = ["std"] }
+kaigan = { path = "../../../../kaigan", features = ["serde"] }
 
 [dev-dependencies]
 txtx-test-utils = { path = "../../../crates/txtx-test-utils" }
 
 [features]
-default = [
-  "txtx-addon-kit/default"
-]
-wasm = [
-  "txtx-addon-kit/wasm",
-]
+default = ["txtx-addon-kit/default"]
+wasm = ["txtx-addon-kit/wasm"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

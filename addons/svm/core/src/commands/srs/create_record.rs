@@ -1,19 +1,19 @@
-use std::collections::HashMap;
-use std::future;
-use std::ops::Deref;
-
-use kaigan::types::RemainderStr;
+use borsh::BorshDeserialize;
+use kaigan::types::{RemainderStr, RemainderVec};
 use solana_client::rpc_client::RpcClient;
+use solana_commitment_config::CommitmentConfig;
+use solana_message::Message;
+use solana_pubkey::Pubkey;
 use solana_record_service_client::accounts::{Class, Record};
 use solana_record_service_client::instructions::{
     CreateRecordBuilder, FreezeRecordBuilder, TransferRecordBuilder, UpdateRecordBuilder,
 };
 use solana_record_service_client::programs::SOLANA_RECORD_SERVICE_ID;
-use solana_commitment_config::CommitmentConfig;
-use solana_message::Message;
-use solana_pubkey::Pubkey;
 use solana_sdk_ids::system_program;
 use solana_transaction::Transaction;
+use std::collections::HashMap;
+use std::future;
+use std::ops::Deref;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::META_DESCRIPTION;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
@@ -39,6 +39,7 @@ use crate::codec::ui_encode::{
     message_data_to_formatted_value,
 };
 use crate::commands::get_custom_signer_did;
+use crate::commands::srs::to_u8_prefix_vec;
 use crate::constants::{
     AUTHORITY, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, OWNER, RPC_API_URL, SIGNERS,
     TRANSACTION_BYTES,
@@ -278,7 +279,7 @@ impl CommandImplementation for ProcessInstructions {
             .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?
             .unwrap_or(0);
 
-        let name = to_u8_prefix_string(name_str).map_err(|diag| {
+        let name = to_u8_prefix_vec(name_str).map_err(|diag| {
             (
                 signers.clone(),
                 owner_signer_state.clone(),
@@ -288,7 +289,7 @@ impl CommandImplementation for ProcessInstructions {
 
         let data = args
             .get_expected_string("data")
-            .map(|d| RemainderStr::from(d.to_string()))
+            .map(|d| RemainderVec::try_from_slice(d.as_bytes()).unwrap())
             .map_err(|diag| (signers.clone(), owner_signer_state.clone(), diag))?;
 
         let is_frozen = args.get_bool("is_frozen");
@@ -427,17 +428,17 @@ impl CommandImplementation for ProcessInstructions {
                 .system_program(system_program::ID)
                 .authority(authority_pubkey)
                 .expiration(expiration)
-                .name(name.clone())
+                .seed(name.clone())
                 .data(data.clone())
                 .instruction();
             let formatted_ix = ix_to_formatted_value(&ix);
             instructions.push(ix);
             descriptions.push(format!(
-                "Instruction #{} will create record '{record}' at address '{record_address}' with data '{data}'",
+                "Instruction #{} will create record '{record}' at address '{record_address}' with data '{data:?}'",
                 instructions.len(),
                 record = name_str,
                 record_address = record.to_string(),
-                data = data.deref()
+                data = data
             ));
             formatted_instructions.push(formatted_ix);
             // and if the user is trying to freeze it, push that instruction after the create

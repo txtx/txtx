@@ -355,7 +355,8 @@ impl SvmValue {
 
     pub fn to_keypair(value: &Value) -> Result<Keypair, Diagnostic> {
         let bytes = value.to_be_bytes();
-        Keypair::from_bytes(&bytes)
+
+        Keypair::try_from(bytes.as_ref())
             .map_err(|e| diagnosed_error!("could not convert value to keypair: {e}"))
     }
 

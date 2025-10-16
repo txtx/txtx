@@ -2,6 +2,7 @@ pub mod secret_key;
 pub mod squads;
 pub mod web_wallet;
 
+use crate::functions::lamports_to_sol;
 use secret_key::SVM_SECRET_KEY;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_pubkey::Pubkey;
@@ -121,10 +122,7 @@ async fn get_check_balance_action(
 
     let (action_status, value) = match address {
         Some(address) => match solana_rpc.get_balance(&address).await {
-            Ok(response) => (
-                ActionItemStatus::Todo,
-                Value::float(solana_native_token::lamports_to_sol(response)),
-            ),
+            Ok(response) => (ActionItemStatus::Todo, Value::float(lamports_to_sol(response))),
             Err(err) => (
                 ActionItemStatus::Error(diagnosed_error!(
                     "unable to retrieve balance {}: {}",

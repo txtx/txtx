@@ -3,7 +3,7 @@ use serde_json::json;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_request::RpcRequest;
 use solana_pubkey::Pubkey;
-use spl_associated_token_account::get_associated_token_address_with_program_id;
+use spl_associated_token_account_interface::address::get_associated_token_address_with_program_id;
 
 use serde::de::Visitor;
 use serde::{Deserializer, Serializer};
@@ -35,8 +35,8 @@ impl Default for TokenProgram {
 impl TokenProgram {
     pub fn pubkey(&self) -> Pubkey {
         match self {
-            TokenProgram::Token2020 => spl_token::ID,
-            TokenProgram::Token2022 => spl_token_2022::ID,
+            TokenProgram::Token2020 => spl_token_interface::ID,
+            TokenProgram::Token2022 => spl_token_2022_interface::ID,
             TokenProgram::Custom(pubkey) => *pubkey,
         }
     }
