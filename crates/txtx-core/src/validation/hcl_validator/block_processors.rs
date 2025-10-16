@@ -42,7 +42,6 @@ pub fn process_block(
         BlockType::Signer => process_signer(block),
         BlockType::Variable => process_variable(block, source_mapper),
         BlockType::Output => process_output(block),
-        BlockType::Secret => process_secret(block),
         BlockType::Action => process_action(block, addon_specs, source_mapper),
         BlockType::Flow => process_flow(block, source_mapper),
         BlockType::Addon | BlockType::Unknown => Ok(Vec::new()),
@@ -115,21 +114,9 @@ fn process_variable(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<C
 }
 
 fn process_output(block: &Block) -> Result<Vec<CollectedItem>, ValidationError> {
-    let name = block.labels.extract_name()
-        .ok_or(ValidationError::MissingLabel("output name"))?;
+    let name = block.labels.extract_name().ok_or(ValidationError::MissingLabel("output name"))?;
 
-    Ok(vec![
-        CollectedItem::Definition(DefinitionItem::Output(name.to_string()))
-    ])
-}
-
-fn process_secret(block: &Block) -> Result<Vec<CollectedItem>, ValidationError> {
-    let name = block.labels.extract_name()
-        .ok_or(ValidationError::MissingLabel("secret name"))?;
-
-    Ok(vec![
-        CollectedItem::Definition(DefinitionItem::Secret(name.to_string()))
-    ])
+    Ok(vec![CollectedItem::Definition(DefinitionItem::Output(name.to_string()))])
 }
 
 fn process_action(

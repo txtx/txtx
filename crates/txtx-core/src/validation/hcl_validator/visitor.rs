@@ -95,7 +95,6 @@ pub enum BlockType {
     Variable,
     Output,
     Flow,
-    Secret,
     Addon,
     Unknown,
 }
@@ -114,7 +113,6 @@ impl BlockType {
             "variable" => Self::Variable,
             "output" => Self::Output,
             "flow" => Self::Flow,
-            "secret" => Self::Secret,
             "addon" => Self::Addon,
             _ => Self::Unknown,
         }
@@ -152,7 +150,6 @@ pub enum DefinitionItem {
     Variable { name: String, position: Position },
     Signer { name: String, signer_type: String },
     Output(String),
-    Secret(String),
 }
 
 #[derive(Debug)]
@@ -343,9 +340,6 @@ impl ValidationState {
                 }
                 Output(name) => {
                     self.definitions.outputs.insert(name);
-                }
-                Secret(name) => {
-                    self.definitions.variables.insert(name);
                 }
             },
             Declaration(decl) => match decl {
