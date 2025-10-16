@@ -1,9 +1,10 @@
 [alias]
 txtx-install = "install --path crates/txtx-cli --features supervisor_ui --features ovm --locked --force"
-# test-hcl-validator = "test --no-default-features --package txtx-core --lib validation::hcl_validator::tests"
 test-validation-core = "test --no-default-features --package txtx-core --lib validation::hcl_validator::tests"
 test-validation-utils = "test --no-default-features --package txtx-test-utils"
 test-validation-all = "test --no-default-features --lib --tests --package txtx-core --package txtx-test-utils"
+
+run-builder-example = "run --example enhanced_builder_example --package txtx-test-utils"
 
 [build]
 rustflags = ["--cfg", "tokio_unstable"]
