@@ -1003,7 +1003,7 @@ impl<'a> Visit for ReferenceValidationVisitor<'a> {
             // Skip dependency tracking in post_condition blocks since they execute AFTER the action
             if !self.in_post_condition && parts.len() >= 2 {
                 match parts[0].as_str() {
-                    "var" | "variable" => {
+                    "variable" => {
                         self.dependencies.push(("variable".to_string(), parts[1].clone()));
                     }
                     "action" => {
