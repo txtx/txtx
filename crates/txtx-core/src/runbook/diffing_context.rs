@@ -76,7 +76,7 @@ pub struct PackageSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SigningCommandSnapshot {
     package_did: PackageDid,
-    construct_type: String,
+    construct_type: crate::types::ConstructType,
     construct_name: String,
     construct_addon: Option<String>,
     construct_location: FileLocation,
@@ -88,7 +88,7 @@ pub struct SigningCommandSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommandSnapshot {
     package_did: PackageDid,
-    construct_type: String,
+    construct_type: crate::types::ConstructType,
     construct_name: String,
     construct_location: FileLocation,
     construct_addon: Option<String>,
