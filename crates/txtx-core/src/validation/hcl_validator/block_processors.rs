@@ -82,7 +82,7 @@ fn process_variable(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<C
             // Use pattern matching to extract variable dependencies
             if let Expression::Traversal(traversal) = expr {
                 traversal.expr.as_variable()
-                    .filter(|name| matches!(name.as_str(), "var" | "variable"))
+                    .filter(|name| matches!(name.as_str(), "variable"))
                     .and_then(|_| traversal.operators.first())
                     .and_then(|op| match op.value() {
                         TraversalOperator::GetAttr(attr) => Some(attr.to_string()),
