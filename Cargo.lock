@@ -15178,6 +15178,7 @@ version = "0.3.11"
 dependencies = [
  "anchor-lang-idl",
  "borsh",
+ "bs58 0.5.1",
  "convert_case 0.6.0",
  "lazy_static",
  "serde",
