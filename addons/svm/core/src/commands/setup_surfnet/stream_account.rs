@@ -9,7 +9,7 @@ use txtx_addon_kit::{
 };
 use txtx_addon_network_svm_types::SvmValue;
 
-use crate::constants::RESET_ACCOUNT;
+use crate::constants::STREAM_ACCOUNT;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,7 +52,7 @@ impl SurfpoolStreamAccount {
         let mut account_resets = vec![];
 
         let account_reset_data = values
-            .get_value(RESET_ACCOUNT)
+            .get_value(STREAM_ACCOUNT)
             .map(|v| {
                 v.as_map().ok_or_else(|| diagnosed_error!("'stream_account' must be a map type"))
             })
