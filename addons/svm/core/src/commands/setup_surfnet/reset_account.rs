@@ -23,8 +23,8 @@ pub struct SurfpoolResetAccount {
 }
 
 impl SurfpoolResetAccount {
-    pub fn new(public_key: Pubkey, recursive: Option<bool>) -> Self {
-        Self { public_key, include_owned_accounts: recursive }
+    pub fn new(public_key: Pubkey, include_owned_accounts: Option<bool>) -> Self {
+        Self { public_key, include_owned_accounts }
     }
 
     pub fn from_map(map: &mut IndexMap<String, Value>) -> Result<Self, Diagnostic> {
@@ -36,15 +36,16 @@ impl SurfpoolResetAccount {
             })
             .ok_or_else(|| diagnosed_error!("missing required 'public_key'"))??;
 
-        let some_recursive = map.swap_remove("recursive");
-        let recursive = some_recursive
+        let some_include_owned_accounts = map.swap_remove("include_owned_accounts");
+        let include_owned_accounts = some_include_owned_accounts
             .map(|v| {
-                v.as_bool()
-                    .ok_or_else(|| diagnosed_error!("expected 'recursive' field to be a boolean"))
+                v.as_bool().ok_or_else(|| {
+                    diagnosed_error!("expected 'include_owned_accounts' field to be a boolean")
+                })
             })
             .transpose()?;
 
-        Ok(Self::new(public_key, recursive))
+        Ok(Self::new(public_key, include_owned_accounts))
     }
 
     pub fn parse_value_store(values: &ValueStore) -> Result<Vec<Self>, Diagnostic> {
