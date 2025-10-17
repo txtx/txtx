@@ -224,7 +224,7 @@ impl SignerImplementation for SvmSecretKey {
             },
         };
 
-        let keypair = Keypair::from_bytes(&secret_key_bytes).map_err(|e| {
+        let keypair = Keypair::try_from(secret_key_bytes.as_ref()).map_err(|e| {
             (signers.clone(), signer_state.clone(), diagnosed_error!("invalid secret key: {e}"))
         })?;
 
@@ -388,7 +388,7 @@ impl SignerImplementation for SvmSecretKey {
             .get_expected_buffer_bytes(SECRET_KEY)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
 
-        let keypair = Keypair::from_bytes(&secret_key_bytes).unwrap();
+        let keypair = Keypair::try_from(secret_key_bytes.as_ref()).unwrap();
 
         // value signed (partially, maybe) by another signer
         let previously_signed_blockhash = signer_state

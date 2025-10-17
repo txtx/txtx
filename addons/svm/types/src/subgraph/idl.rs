@@ -120,7 +120,7 @@ pub fn get_expected_type_from_idl_type_def_ty(
             }
             Type::object(ObjectDefinition::enum_type(props))
         }
-        IdlTypeDefTy::Type { alias } => todo!(),
+        IdlTypeDefTy::Type { alias: _ } => todo!(),
     };
     Ok(ty)
 }

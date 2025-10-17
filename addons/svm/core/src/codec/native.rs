@@ -74,7 +74,7 @@ impl NativeProgramArtifacts {
                 )
             })?;
 
-            let keypair = Keypair::from_bytes(&keypair_bytes).map_err(|e| {
+            let keypair = Keypair::try_from(keypair_bytes.as_ref()).map_err(|e| {
                 diagnosed_error!(
                     "invalid native program keypair at location {}: {}",
                     &keypair_path.to_string(),

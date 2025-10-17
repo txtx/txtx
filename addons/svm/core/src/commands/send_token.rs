@@ -242,17 +242,19 @@ impl CommandImplementation for SendToken {
             signer_pubkeys[0].clone()
         };
 
-        let source_token_address = spl_associated_token_account::get_associated_token_address(
-            &authority_pubkey,
-            &token_mint_address,
-        );
-        let recipient_token_address = spl_associated_token_account::get_associated_token_address(
-            &recipient,
-            &token_mint_address,
-        );
+        let source_token_address =
+            spl_associated_token_account_interface::address::get_associated_token_address(
+                &authority_pubkey,
+                &token_mint_address,
+            );
+        let recipient_token_address =
+            spl_associated_token_account_interface::address::get_associated_token_address(
+                &recipient,
+                &token_mint_address,
+            );
 
-        let mut instructions = VecDeque::from([spl_token::instruction::transfer(
-            &spl_token::id(),
+        let mut instructions = VecDeque::from([spl_token_interface::instruction::transfer(
+            &spl_token_interface::id(),
             &source_token_address,
             &recipient_token_address,
             &authority_pubkey,
@@ -292,11 +294,11 @@ impl CommandImplementation for SendToken {
             if args.get_bool(FUND_RECIPIENT).unwrap_or(false) {
                 is_funding_recipient = true;
                 instructions.push_front(
-                    spl_associated_token_account::instruction::create_associated_token_account(
+                    spl_associated_token_account_interface::instruction::create_associated_token_account(
                         &authority_pubkey,
                         &recipient,
                         &token_mint_address,
-                        &spl_token::id(),
+                        &spl_token_interface::id(),
                     ),
                 );
             } else {

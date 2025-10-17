@@ -418,7 +418,7 @@ impl DeploymentTransaction {
     pub fn get_keypairs(&self) -> Result<Vec<Keypair>, Diagnostic> {
         self.keypairs_bytes
             .iter()
-            .map(|b| Keypair::from_bytes(&b))
+            .map(|b| Keypair::try_from(b.as_ref()))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| diagnosed_error!("failed to decode keypair: {e}"))
     }
@@ -468,7 +468,7 @@ impl DeploymentTransaction {
                 keypair_bytes: temp_authority_keypair_bytes,
                 already_exists,
             } => {
-                let temp_authority_keypair = Keypair::from_bytes(&temp_authority_keypair_bytes)
+                let temp_authority_keypair = Keypair::try_from(temp_authority_keypair_bytes.as_ref())
                     .map_err(|e| {
                         diagnosed_error!("failed to deserialize temp authority keypair: {}", e)
                     })?;
@@ -1377,7 +1377,7 @@ impl UpgradeableProgramDeployer {
         }: &CloseTempAuthorityTransactionParts,
     ) -> Result<Option<Value>, Diagnostic> {
         let temp_upgrade_authority_keypair =
-            Keypair::from_bytes(&temp_authority_keypair_bytes).unwrap();
+            Keypair::try_from(temp_authority_keypair_bytes.as_ref()).unwrap();
         let temp_upgrade_authority_pubkey = temp_upgrade_authority_keypair.pubkey();
 
         // use processed commitment so we're sure to get the most recent balance
@@ -1640,7 +1640,7 @@ impl ProgramArtifacts {
     }
     pub fn keypair(&self) -> Option<Result<Keypair, Diagnostic>> {
         self.keypair_bytes().map(|bytes| {
-            Keypair::from_bytes(&bytes)
+            Keypair::try_from(bytes.as_ref())
                 .map_err(|e| diagnosed_error!("failed to deserialize keypair: {e}"))
         })
     }

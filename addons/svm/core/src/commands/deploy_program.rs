@@ -320,7 +320,7 @@ impl CommandImplementation for DeployProgram {
                                             ),
                                         )
                                     })?;
-                                    Keypair::from_bytes(&bytes).map_err(|e| {
+                                    Keypair::try_from(bytes.as_ref()).map_err(|e| {
                                         (
                                             signers.clone(),
                                             authority_signer_state.clone(),

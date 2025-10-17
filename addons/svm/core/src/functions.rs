@@ -5,7 +5,7 @@ use crate::{codec::utils::get_seeds_from_value, typing::anchor::types::Idl};
 use crate::constants::{DEFAULT_NATIVE_TARGET_PATH, DEFAULT_SHANK_IDL_PATH};
 use solana_pubkey::Pubkey;
 use solana_sdk_ids::system_program;
-use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
+use spl_associated_token_account_interface::instruction::create_associated_token_account_idempotent;
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{
@@ -23,6 +23,18 @@ use crate::{
         SVM_PUBKEY,
     },
 };
+
+pub const LAMPORTS_PER_SOL: u64 = 1_000_000_000;
+
+const LAMPORTS_PER_SOL_F64: f64 = LAMPORTS_PER_SOL as f64;
+
+pub fn sol_to_lamports(sol: f64) -> u64 {
+    (sol * LAMPORTS_PER_SOL_F64).round() as u64
+}
+
+pub fn lamports_to_sol(lamports: u64) -> f64 {
+    lamports as f64 / LAMPORTS_PER_SOL_F64
+}
 
 pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
     let checker = arg_checker_with_ctx(NAMESPACE.to_string());
@@ -709,7 +721,7 @@ impl FunctionImplementation for SolToLamports {
             }
             _ => unreachable!(),
         };
-        let lamports = solana_native_token::sol_to_lamports(sol);
+        let lamports = sol_to_lamports(sol);
         Ok(Value::integer(lamports as i128))
     }
 }
@@ -732,7 +744,7 @@ impl FunctionImplementation for LamportsToSol {
         arg_checker(fn_spec, args)?;
         let lamports = args.get(0).unwrap().as_uint().unwrap().map_err(|e| to_diag(fn_spec, e))?;
 
-        let sol = solana_native_token::lamports_to_sol(lamports);
+        let sol = lamports_to_sol(lamports);
         Ok(Value::float(sol))
     }
 }
@@ -805,7 +817,7 @@ impl FunctionImplementation for GetAssociatedTokenAccount {
         })?;
 
         let spl_associated_token_account =
-            spl_associated_token_account::get_associated_token_address(
+            spl_associated_token_account_interface::address::get_associated_token_address(
                 &wallet_address,
                 &token_mint_address,
             );

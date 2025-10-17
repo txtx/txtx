@@ -1,4 +1,3 @@
-use spl_token::solana_program;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 
 use crate::typing::anchor as anchor_lang_idl;
@@ -365,7 +364,7 @@ fn classic_idl_type_def_to_anchor_type_def(
 pub fn compute_discriminator(prefix: &str, input: &str) -> Vec<u8> {
     let prefixed_input = format!("{}:{}", prefix, input);
     let mut result = [0u8; 8];
-    result.copy_from_slice(&solana_program::hash::hash(prefixed_input.as_bytes()).to_bytes()[..8]);
+    result.copy_from_slice(&solana_sha256_hasher::hash(prefixed_input.as_bytes()).to_bytes()[..8]);
     let result = result.to_vec();
     result
 }
