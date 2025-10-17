@@ -251,7 +251,7 @@ pub async fn execute_runbook(
                     _ => unreachable!(),
                 }
             }
-        } else if construct.construct_type.eq("action") {
+        } else if construct.construct_type.eq(txtx_core::types::ConstructType::ACTION) {
             if let Some(ref inputs) = construct.inputs {
                 for (key, value) in inputs.iter() {
                     match value {

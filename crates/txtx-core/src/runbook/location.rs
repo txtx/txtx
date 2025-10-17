@@ -140,13 +140,15 @@ impl BlockContext {
 
     /// Get the block type as a string
     pub fn block_type(&self) -> &str {
+        use crate::types::ConstructType;
+
         match self {
-            BlockContext::Action(_) => "action",
-            BlockContext::Variable(_) => "variable",
-            BlockContext::Signer(_) => "signer",
-            BlockContext::Output(_) => "output",
-            BlockContext::Flow(_) => "flow",
-            BlockContext::Addon(_) => "addon",
+            BlockContext::Action(_) => ConstructType::ACTION,
+            BlockContext::Variable(_) => ConstructType::VARIABLE,
+            BlockContext::Signer(_) => ConstructType::SIGNER,
+            BlockContext::Output(_) => ConstructType::OUTPUT,
+            BlockContext::Flow(_) => ConstructType::FLOW,
+            BlockContext::Addon(_) => ConstructType::ADDON,
             BlockContext::Unknown => "unknown",
         }
     }

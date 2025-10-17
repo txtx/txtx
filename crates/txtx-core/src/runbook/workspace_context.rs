@@ -123,8 +123,10 @@ impl RunbookWorkspaceContext {
                 raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
 
             while let Some(block) = blocks.pop_front() {
+                use crate::types::ConstructType;
+
                 match block.ident.value().as_str() {
-                    "import" => {
+                    ConstructType::IMPORT => {
                         // imports are the only constructs that we need to process in this step
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
                             diagnostics.push(
@@ -193,7 +195,7 @@ impl RunbookWorkspaceContext {
                             execution_context,
                         );
                     }
-                    "variable" => {
+                    ConstructType::VARIABLE => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("variable name missing".into())
@@ -210,7 +212,7 @@ impl RunbookWorkspaceContext {
                             execution_context,
                         );
                     }
-                    "module" => {
+                    ConstructType::MODULE => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("module name missing".into())
@@ -227,7 +229,7 @@ impl RunbookWorkspaceContext {
                             execution_context,
                         );
                     }
-                    "output" => {
+                    ConstructType::OUTPUT => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("output name missing".into())
@@ -244,7 +246,7 @@ impl RunbookWorkspaceContext {
                             execution_context,
                         );
                     }
-                    "action" => {
+                    ConstructType::ACTION => {
                         let (Some(command_name), Some(namespaced_action)) =
                             (block.labels.get(0), block.labels.get(1))
                         else {
@@ -291,7 +293,7 @@ impl RunbookWorkspaceContext {
                             }
                         };
                     }
-                    "signer" => {
+                    ConstructType::SIGNER => {
                         let (Some(signer_name), Some(namespaced_signer_cmd)) =
                             (block.labels.get(0), block.labels.get(1))
                         else {
@@ -324,7 +326,7 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
-                    "runbook" => {
+                    ConstructType::RUNBOOK => {
                         let Some(runbook_name) = block.labels.get(0) else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("'runbook' syntax invalid".into())
@@ -387,7 +389,7 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
-                    "addon" => {
+                    ConstructType::ADDON => {
                         let Some(BlockLabel::String(addon_id)) = block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("addon name missing".into())
@@ -404,7 +406,7 @@ impl RunbookWorkspaceContext {
                             execution_context,
                         );
                     }
-                    "flow" => {}
+                    ConstructType::FLOW => {}
                     unknown => {
                         diagnostics.push(
                             Diagnostic::error_from_string(format!("unknown construct {}", unknown))

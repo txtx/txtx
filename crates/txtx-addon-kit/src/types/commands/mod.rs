@@ -667,13 +667,15 @@ pub enum CommandInstanceType {
 
 impl CommandInstanceType {
     pub fn to_ident(&self) -> &str {
+        use super::construct_type::ConstructType;
+
         match self {
-            CommandInstanceType::Variable => "variable",
-            CommandInstanceType::Output => "output",
-            CommandInstanceType::Action(_) => "action",
-            CommandInstanceType::Prompt => "prompt",
-            CommandInstanceType::Module => "module",
-            CommandInstanceType::Addon => "addon",
+            CommandInstanceType::Variable => ConstructType::VARIABLE,
+            CommandInstanceType::Output => ConstructType::OUTPUT,
+            CommandInstanceType::Action(_) => ConstructType::ACTION,
+            CommandInstanceType::Prompt => ConstructType::PROMPT,
+            CommandInstanceType::Module => ConstructType::MODULE,
+            CommandInstanceType::Addon => ConstructType::ADDON,
         }
     }
 }

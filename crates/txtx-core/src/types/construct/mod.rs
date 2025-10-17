@@ -19,15 +19,17 @@ pub enum PreConstructData {
 
 impl PreConstructData {
     pub fn construct_type(&self) -> &str {
+        use crate::types::ConstructType;
+
         match &self {
-            PreConstructData::Import(_) => "import",
-            PreConstructData::Variable(_) => "variable",
-            PreConstructData::Output(_) => "output",
-            PreConstructData::Module(_) => "module",
-            PreConstructData::Action(_) => "action",
-            PreConstructData::Signer(_) => "signer",
-            PreConstructData::Addon(_) => "addon",
-            PreConstructData::EmbeddedRunbook(_) => "runbook",
+            PreConstructData::Import(_) => ConstructType::IMPORT,
+            PreConstructData::Variable(_) => ConstructType::VARIABLE,
+            PreConstructData::Output(_) => ConstructType::OUTPUT,
+            PreConstructData::Module(_) => ConstructType::MODULE,
+            PreConstructData::Action(_) => ConstructType::ACTION,
+            PreConstructData::Signer(_) => ConstructType::SIGNER,
+            PreConstructData::Addon(_) => ConstructType::ADDON,
+            PreConstructData::EmbeddedRunbook(_) => ConstructType::RUNBOOK,
             PreConstructData::Root => unreachable!(),
         }
     }
