@@ -19,6 +19,7 @@ use crate::helpers::fs::FileLocation;
 pub mod block_id;
 pub mod cloud_interface;
 pub mod commands;
+pub mod construct_type;
 pub mod diagnostic_types;
 pub mod diagnostics;
 

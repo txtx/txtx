@@ -28,7 +28,8 @@ highway = "1.1.0"
 rand = "0.8.5"
 serde_json = "1"
 sha2 = "0.10.8"
-indexmap = { version = "2.2.6", features = ["serde"] } 
+indexmap = { version = "2.2.6", features = ["serde"] }
+strum = { version = "0.26", features = ["derive"] }
 wasm-bindgen = { version = "0.2.93", optional = true }
 wasm-bindgen-futures = { version = "0.4.41", optional = true }
 hmac = "0.12.0"
