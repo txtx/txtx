@@ -4,6 +4,7 @@ mod reset_account;
 pub mod set_account;
 mod set_program_authority;
 mod set_token_account;
+mod stream_account;
 mod tokens;
 
 use clone_program_account::SurfpoolProgramCloning;
@@ -24,7 +25,7 @@ use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 use txtx_addon_network_svm_types::{
     CLONE_PROGRAM_ACCOUNT, DEPLOY_PROGRAM, RESET_ACCOUNT, SET_ACCOUNT_MAP, SET_PROGRAM_AUTHORITY,
-    SET_TOKEN_ACCOUNT_MAP,
+    SET_TOKEN_ACCOUNT_MAP, STREAM_ACCOUNT,
 };
 
 use crate::commands::setup_surfnet::set_program_authority::SurfpoolSetProgramAuthority;
@@ -47,6 +48,7 @@ lazy_static! {
                      - `set_program_authority` - used to set the authority of a program.
                      - `deploy_program` - used to deploy a program (via a direct write to the account data rather than valid transactions) to the surfnet.
                      - `reset_account` - used to reset an account on the surfnet, removing it from the local cache to be pulled again from the upstream.
+                     - `stream_account` - used to stream account data from the mainnet RPC url to the surfnet so that the local account data always matches mainnet, optionally including all owned accounts.
 
                 "#},
                 implements_signing_capability: false,
@@ -115,6 +117,14 @@ lazy_static! {
                         tainting: false,
                         internal: false,
                         sensitive: false
+                    },
+                    stream_account: {
+                        documentation: "The account stream data to set.",
+                        typing: STREAM_ACCOUNT.clone(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
                     }
                 ],
                 outputs: [],
@@ -143,6 +153,10 @@ lazy_static! {
                         }
                         reset_account {
                             public_key = variable.some_pubkey
+                        }
+                        stream_account {
+                            public_key = variable.some_pubkey
+                            include_owned_accounts = true
                         }
                     }
                 "#},
@@ -236,6 +250,10 @@ impl CommandImplementation for SetupSurfpool {
 
             let resets = reset_account::SurfpoolResetAccount::parse_value_store(&values)?;
             reset_account::SurfpoolResetAccount::process_updates(resets, &rpc_client, &logger)
+                .await?;
+
+            let streams = stream_account::SurfpoolStreamAccount::parse_value_store(&values)?;
+            stream_account::SurfpoolStreamAccount::process_updates(streams, &rpc_client, &logger)
                 .await?;
 
             Ok(result)

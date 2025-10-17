@@ -9,11 +9,11 @@ use txtx_addon_kit::{
 };
 use txtx_addon_network_svm_types::SvmValue;
 
-use crate::constants::RESET_ACCOUNT;
+use crate::constants::STREAM_ACCOUNT;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SurfpoolResetAccount {
+pub struct SurfpoolStreamAccount {
     // Skipping serialization of public_key to avoid sending it in the request
     // as it is already included in the request parameters.
     #[serde(skip)]
@@ -22,7 +22,7 @@ pub struct SurfpoolResetAccount {
     pub include_owned_accounts: Option<bool>,
 }
 
-impl SurfpoolResetAccount {
+impl SurfpoolStreamAccount {
     pub fn new(public_key: Pubkey, include_owned_accounts: Option<bool>) -> Self {
         Self { public_key, include_owned_accounts }
     }
@@ -52,9 +52,9 @@ impl SurfpoolResetAccount {
         let mut account_resets = vec![];
 
         let account_reset_data = values
-            .get_value(RESET_ACCOUNT)
+            .get_value(STREAM_ACCOUNT)
             .map(|v| {
-                v.as_map().ok_or_else(|| diagnosed_error!("'reset_account' must be a map type"))
+                v.as_map().ok_or_else(|| diagnosed_error!("'stream_account' must be a map type"))
             })
             .transpose()?;
 
@@ -67,13 +67,13 @@ impl SurfpoolResetAccount {
             .map(|i| {
                 i.as_object()
                     .map(|o| o.clone())
-                    .ok_or(diagnosed_error!("'reset_account' must be a map type"))
+                    .ok_or(diagnosed_error!("'stream_account' must be a map type"))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
         for (i, account_reset) in account_reset_data.iter_mut().enumerate() {
-            let prefix = format!("failed to parse `reset_account` map #{}", i + 1);
-            let account = SurfpoolResetAccount::from_map(account_reset)
+            let prefix = format!("failed to parse `stream_account` map #{}", i + 1);
+            let account = SurfpoolStreamAccount::from_map(account_reset)
                 .map_err(|e| diagnosed_error!("{prefix}: {e}"))?;
 
             account_resets.push(account);
@@ -94,14 +94,14 @@ impl SurfpoolResetAccount {
     }
 
     fn rpc_method() -> &'static str {
-        "surfnet_resetAccount"
+        "surfnet_streamAccount"
     }
 
     fn update_status(&self, logger: &LogDispatcher, index: usize, total: usize) {
         logger.success_info(
-            "Account Reset",
+            "Streaming Account",
             &format!(
-                "Processed surfpool account reset #{}/{} for {}",
+                "Processed surfpool account streaming #{}/{} for {}",
                 index + 1,
                 total,
                 self.public_key.to_string()
