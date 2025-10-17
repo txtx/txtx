@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, Display, EnumString};
 
 /// Central definition of all txtx language construct types.
@@ -19,7 +20,8 @@ use strum::{AsRefStr, Display, EnumString};
 /// assert_eq!(construct.as_ref(), "action");
 /// assert_eq!(construct.to_string(), "action");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, Display, EnumString)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, AsRefStr, Display, EnumString)]
+#[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum ConstructType {
     Action,
@@ -93,6 +95,32 @@ impl ConstructType {
     }
 }
 
+/// Custom serde serializer for ConstructType that maintains string format compatibility.
+///
+/// This allows ConstructType to be stored internally as an enum while serializing
+/// to/from strings for JSON, databases, and APIs.
+pub fn serialize_construct_type<S>(ct: &ConstructType, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(ct.as_ref())
+}
+
+/// Custom serde deserializer for ConstructType that parses from string format.
+///
+/// This allows backward compatibility with existing serialized data that stores
+/// construct types as strings.
+pub fn deserialize_construct_type<'de, D>(deserializer: D) -> Result<ConstructType, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    use std::str::FromStr;
+
+    let s = String::deserialize(deserializer)?;
+    ConstructType::from_str(&s).map_err(serde::de::Error::custom)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,5 +161,33 @@ mod tests {
         assert!(all.contains(&"action"));
         assert!(all.contains(&"variable"));
         assert_eq!(all.len(), 10);
+    }
+
+    #[test]
+    fn test_serde_serialization() {
+        use serde_json;
+
+        let ct = ConstructType::Action;
+        let json = serde_json::to_string(&ct).unwrap();
+        assert_eq!(json, "\"action\"");
+
+        let ct = ConstructType::Variable;
+        let json = serde_json::to_string(&ct).unwrap();
+        assert_eq!(json, "\"variable\"");
+    }
+
+    #[test]
+    fn test_serde_deserialization() {
+        use serde_json;
+
+        let ct: ConstructType = serde_json::from_str("\"action\"").unwrap();
+        assert_eq!(ct, ConstructType::Action);
+
+        let ct: ConstructType = serde_json::from_str("\"variable\"").unwrap();
+        assert_eq!(ct, ConstructType::Variable);
+
+        // Invalid type should fail
+        let result: Result<ConstructType, _> = serde_json::from_str("\"invalid\"");
+        assert!(result.is_err());
     }
 }

@@ -456,7 +456,7 @@ impl RunbookWorkspaceContext {
             self.packages.get_mut(&package_id).expect("internal error: unable to retrieve package");
         let construct_id = ConstructId {
             package_id: package_id.clone(),
-            construct_type: "flow_input".into(),
+            construct_type: crate::types::ConstructType::Flow,  // Flow inputs are flow-related constructs
             construct_location: package_id.package_location.clone(),
             construct_name: input_name.to_string(),
         };
@@ -480,7 +480,7 @@ impl RunbookWorkspaceContext {
             self.packages.get_mut(&package_id).expect("internal error: unable to retrieve package");
         let construct_id = ConstructId {
             package_id: package_id.clone(),
-            construct_type: construct_data.construct_type().into(),
+            construct_type: construct_data.construct_type_enum(),
             construct_location,
             construct_name: construct_name.clone(),
         };
