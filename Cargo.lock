@@ -15174,7 +15174,7 @@ dependencies = [
 
 [[package]]
 name = "txtx-addon-network-svm-types"
-version = "0.3.9"
+version = "0.3.10"
 dependencies = [
  "anchor-lang-idl",
  "borsh",
