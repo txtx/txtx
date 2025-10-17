@@ -28,8 +28,10 @@ impl Verifier for EtherscanVerificationClient {
         address_bytes: &Vec<u8>,
     ) -> Result<Self, Diagnostic> {
         let address = Address::from_slice(address_bytes);
-        let mut client_builder =
-            EtherscanClient::builder().with_api_key(api_key).with_chain_id(chain.clone());
+        let mut client_builder = EtherscanClient::builder()
+            .with_api_key(api_key)
+            .chain(chain.clone())
+            .map_err(|e| diagnosed_error!("invalid chain: {}", e))?;
 
         if let Some(provider_url) = provider_url {
             client_builder = client_builder

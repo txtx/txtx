@@ -20,7 +20,7 @@ serde_json = { version = "1.0.113", features = ["arbitrary_precision"] }
 serde = "1"
 serde_derive = "1"
 async-recursion = "1"
-alloy = { version = "0.14", default-features = false, features = [
+alloy = { version = "1.0.41", default-features = false, features = [
   "consensus", 
   "dyn-abi", 
   "json-abi", 
@@ -34,17 +34,17 @@ alloy = { version = "0.14", default-features = false, features = [
   "reqwest-rustls-tls",
   "eip712"
 ]}
-alloy-chains = "0.1"
-alloy-primitives = { version = "0.8" }
-alloy-provider = { version = "0.14", default-features = false, features = ["debug-api"] }
-alloy-rpc-types = { version = "0.14", features = ["trace"] }
-alloy-signer-local = { version = "0.14", features = ["mnemonic"] }
+alloy-chains = "0.2.14"
+alloy-primitives = { version = "1.4.1" }
+alloy-provider = { version = "1.0.41", default-features = false, features = ["debug-api"] }
+alloy-rpc-types = { version = "1.0.41", features = ["trace"] }
+alloy-signer-local = { version = "1.0.41", features = ["mnemonic"] }
 thiserror = "1.0.62"
 toml = "0.5"
-foundry-block-explorers = "0.13.0"
-foundry-compilers-artifacts-solc = "0.14"
-foundry-compilers = "0.14"
-foundry-config = { version = "1.0.0", git = "https://github.com/txtx/foundry.git", branch = "master"}
+foundry-block-explorers = "0.22.0"
+foundry-compilers-artifacts-solc = "0.19.5"
+foundry-compilers = "0.19.5"
+foundry-config = { version = "1.4.2", git = "https://github.com/txtx/foundry.git", branch = "txtx-next"}
 semver = "1.0.26"
 
 [features]

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, path::PathBuf};
 
 use alloy::primitives::Address;
 use alloy_chains::Chain;
-use foundry_compilers::{multi::MultiCompilerParsedSource, Graph};
+use foundry_compilers::{multi::MultiCompilerParser, Graph};
 use foundry_compilers_artifacts_solc::Source;
 // use foundry_config::ethers_solc::{artifacts::Source, Graph};
 use txtx_addon_kit::{
@@ -231,7 +231,7 @@ impl SourcifyVerifyRequest {
         );
 
         // traverse the dependency graph to find all imports
-        let graph = Graph::<MultiCompilerParsedSource>::resolve_sources(&project.paths, sources)
+        let graph = Graph::<MultiCompilerParser>::resolve_sources(&project.paths, sources)
             .map_err(|e| diagnosed_error!("failed to resolve sources: {}", e))?;
 
         // get the imports for the contract target path
