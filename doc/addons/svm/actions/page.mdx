@@ -749,6 +749,7 @@ The following operations are supported:
  - `set_program_authority` - used to set the authority of a program.
  - `deploy_program` - used to deploy a program (via a direct write to the account data rather than valid transactions) to the surfnet.
  - `reset_account` - used to reset an account on the surfnet, removing it from the local cache to be pulled again from the upstream.
+ - `stream_account` - used to stream account data from the mainnet RPC url to the surfnet so that the local account data always matches mainnet, optionally including all owned accounts.
 
 
 
@@ -817,7 +818,14 @@ The following operations are supported:
   <Property name="reset_account" required="optional" type="map">
     The account reset data to set. This is a map type containing the keys:
   - **public_key**: The public key of the account to reset.
-  - **recursive**: Whether to recursively delete all accounts owned by this account. Default is false.
+  - **include_owned_accounts**: Whether to recursively delete all accounts owned by this account. Default is false.
+  </Property>
+
+
+  <Property name="stream_account" required="optional" type="map">
+    The account stream data to set. This is a map type containing the keys:
+  - **public_key**: The public key of the account to stream.
+  - **include_owned_accounts**: Whether to recursively stream all accounts owned by this account. Default is false.
   </Property>
 
 
@@ -893,6 +901,10 @@ action "setup" "svm::setup_surfnet" {
     }
     reset_account {
         public_key = variable.some_pubkey
+    }
+    stream_account {
+        public_key = variable.some_pubkey
+        include_owned_accounts = true
     }
 }
 
