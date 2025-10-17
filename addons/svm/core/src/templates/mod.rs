@@ -1,5 +1,6 @@
 use crate::codec::idl::IdlRef;
 use convert_case::{Case, Casing};
+use serde::{Deserialize, Serialize};
 
 pub fn get_interpolated_header_template(title: &str) -> String {
     return format!(
@@ -178,4 +179,95 @@ action "{program_name}_{event_slug}" "svm::deploy_subgraph" {{
         )
     };
     Ok(subgraph_runbook)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenesisEntry {
+    // Base58 pubkey string.
+    pub address: String,
+    // Filepath to the compiled program to embed into the genesis.
+    pub program: String,
+    // Whether the genesis program is upgradeable.
+    pub upgradeable: Option<bool>,
+}
+
+impl GenesisEntry {
+    pub fn get_deploy_template(&self) -> String {
+        format!(
+            r#"
+    deploy_program {{
+        program_id = "{}"
+        binary_path = "{}"
+        authority = svm::system_program_id()
+    }}
+"#,
+            self.address, self.program
+        )
+    }
+}
+
+pub fn get_interpolated_setup_surfnet_template(
+    genesis_accounts: &Vec<GenesisEntry>,
+) -> Option<String> {
+    if genesis_accounts.is_empty() {
+        return None;
+    }
+    let deployments = genesis_accounts
+        .iter()
+        .map(|entry| entry.get_deploy_template())
+        .collect::<Vec<_>>()
+        .join("\n");
+    Some(format!(
+        r#"
+action "setup_surfnet" "svm::setup_surfnet" {{
+    description = "Sets up a local Surfnet with genesis accounts"
+{}
+}}"#,
+        deployments
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_interpolated_setup_surfnet() {
+        let result = get_interpolated_setup_surfnet_template(&vec![]);
+        assert!(result.is_none(), "Expected None for empty genesis accounts");
+
+        let genesis_accounts = vec![
+            GenesisEntry {
+                address: "Address1".to_string(),
+                program: "Path/To/Program1.so".to_string(),
+                upgradeable: Some(true),
+            },
+            GenesisEntry {
+                address: "Address2".to_string(),
+                program: "Path/To/Program2.so".to_string(),
+                upgradeable: Some(false),
+            },
+        ];
+        let result = get_interpolated_setup_surfnet_template(&genesis_accounts);
+        assert!(result.is_some(), "Expected Some for non-empty genesis accounts");
+        let expected = r#"
+action "setup_surfnet" "svm::setup_surfnet" {
+    description = "Sets up a local Surfnet with genesis accounts"
+
+    deploy_program {
+        program_id = "Address1"
+        binary_path = "Path/To/Program1.so"
+        authority = svm::system_program_id()
+    }
+
+
+    deploy_program {
+        program_id = "Address2"
+        binary_path = "Path/To/Program2.so"
+        authority = svm::system_program_id()
+    }
+
+}
+"#;
+        assert_eq!(result.unwrap().trim(), expected.trim());
+    }
 }
