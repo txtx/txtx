@@ -48,7 +48,7 @@ convert_case = "0.6.0"
 solana-record-service-client = { git = "https://github.com/solana-foundation/solana-record-service.git", rev = "ecc5a1633c180d095ad9660c7d1ba7bc77ac5280" }
 # srs is using an old version of borsh, so we need to use the same version
 borsh = { version = "1.5.7", package = "borsh", features = ["std"] }
-kaigan = { git = "https://github.com/metaplex-foundation/kaigan.git", rev = "8b8f45da59f75e40167c8f7f5e46ff29e0865fe1", features = ["serde"] }
+kaigan = { version = "0.3.0", git = "https://github.com/metaplex-foundation/kaigan.git", rev = "8b8f45da59f75e40167c8f7f5e46ff29e0865fe1", features = ["serde"] }
 
 [dev-dependencies]
 txtx-test-utils = { path = "../../../crates/txtx-test-utils" }
