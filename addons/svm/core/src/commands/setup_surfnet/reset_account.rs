@@ -19,12 +19,12 @@ pub struct SurfpoolResetAccount {
     #[serde(skip)]
     pub public_key: Pubkey,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub recursive: Option<bool>,
+    pub include_owned_accounts: Option<bool>,
 }
 
 impl SurfpoolResetAccount {
     pub fn new(public_key: Pubkey, recursive: Option<bool>) -> Self {
-        Self { public_key, recursive }
+        Self { public_key, include_owned_accounts: recursive }
     }
 
     pub fn from_map(map: &mut IndexMap<String, Value>) -> Result<Self, Diagnostic> {
@@ -85,7 +85,7 @@ impl SurfpoolResetAccount {
         let pubkey = json![self.public_key.to_string()];
         let mut params = vec![pubkey];
 
-        if self.recursive.is_some() {
+        if self.include_owned_accounts.is_some() {
             let config = serde_json::to_value(&self).unwrap();
             params.push(config);
         }

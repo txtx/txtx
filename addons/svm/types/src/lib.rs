@@ -866,7 +866,7 @@ lazy_static! {
             optional: false,
             tainting: true
         },
-        recursive: {
+        include_owned_accounts: {
             documentation: "Whether to recursively delete all accounts owned by this account. Default is false.",
             typing: Type::bool(),
             optional: true,
