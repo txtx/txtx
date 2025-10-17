@@ -153,7 +153,7 @@ impl RunbookCollector {
     }
 
     fn extract_variable_reference(&self, traversal: &Traversal) -> Option<(String, String)> {
-        self.extract_reference_info(traversal, &["var", "variable"], 1)
+        self.extract_reference_info(traversal, &["variable"], 1)
             .map(|(name, _, path)| (name, path))
     }
 
