@@ -19,7 +19,12 @@ use crate::helpers::fs::FileLocation;
 pub mod block_id;
 pub mod cloud_interface;
 pub mod commands;
+pub mod diagnostic_types;
 pub mod diagnostics;
+
+// Re-export common diagnostic types for convenience
+pub use diagnostic_types::{DiagnosticLevel, DiagnosticSpan, RelatedLocation};
+
 pub mod embedded_runbooks;
 pub mod frontend;
 pub mod functions;
