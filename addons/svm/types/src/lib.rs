@@ -354,10 +354,63 @@ impl SvmValue {
     }
 
     pub fn to_keypair(value: &Value) -> Result<Keypair, Diagnostic> {
-        let bytes = value.to_be_bytes();
+        match value {
+            Value::String(s) => {
+                if is_hex(s) {
+                    let hex = decode_hex(s).map_err(|e| e.message)?;
+                    let bytes: [u8; 32] = hex[0..32]
+                        .try_into()
+                        .map_err(|e| format!("could not convert value to keypair: {e}"))?;
+                    return Ok(Keypair::new_from_array(bytes));
+                }
+                let decoded = bs58::decode(s)
+                    .into_vec()
+                    .map_err(|e| diagnosed_error!("could not convert value to keypair: {e}"))?;
 
-        Keypair::try_from(bytes.as_ref())
-            .map_err(|e| diagnosed_error!("could not convert value to keypair: {e}"))
+                if decoded.len() != 64 {
+                    return Err(diagnosed_error!(
+                        "could not convert value to keypair: decoded length must be 64; found {}",
+                        decoded.len()
+                    ));
+                }
+                let bytes: [u8; 32] = decoded[0..32]
+                    .try_into()
+                    .map_err(|e| diagnosed_error!("could not convert value to keypair: {e}"))?;
+                let kp = Keypair::new_from_array(bytes);
+                return Ok(kp);
+            }
+            Value::Array(values) => {
+                let mut bytes = Vec::with_capacity(values.len());
+                if values.len() != 64 {
+                    return Err(diagnosed_error!(
+                        "could not convert value to keypair: array length must be 64; found {}",
+                        values.len()
+                    ));
+                }
+                for v in values.iter() {
+                    let b = v
+                        .as_u8()
+                        .ok_or_else(|| {
+                            diagnosed_error!(
+                                "could not convert value to keypair: array contains non-u8 value"
+                            )
+                        })?
+                        .map_err(|e| diagnosed_error!("invalid u8 in keypair array: {e}"))?;
+                    bytes.push(b);
+                }
+                let bytes: [u8; 32] = bytes[0..32]
+                    .try_into()
+                    .map_err(|e| diagnosed_error!("could not convert value to keypair: {e}"))?;
+                return Ok(Keypair::new_from_array(bytes));
+            }
+            _ => {}
+        }
+        let bytes = value.to_be_bytes();
+        let bytes: [u8; 32] = bytes[0..32]
+            .try_into()
+            .map_err(|e| diagnosed_error!("could not convert value to keypair: {e}"))?;
+
+        Ok(Keypair::new_from_array(bytes))
     }
 
     pub fn pubkey(bytes: Vec<u8>) -> Value {
