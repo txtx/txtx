@@ -5,6 +5,7 @@ use kit::types::cloud_interface::CloudServiceContext;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::types::AddonJsonConverter;
 use kit::types::{ConstructDid, RunbookInstanceContext};
+use crate::types::ConstructType;
 use serde_json::{json, Value as JsonValue};
 use std::collections::{HashMap, HashSet, VecDeque};
 use txtx_addon_kit::hcl::structure::BlockLabel;
@@ -143,7 +144,7 @@ impl Runbook {
 
             while let Some(block) = blocks.pop_front() {
                 match block.ident.value().as_str() {
-                    "flow" => {
+                    ConstructType::FLOW => {
                         let Some(BlockLabel::String(name)) = block.labels.first() else {
                             continue;
                         };

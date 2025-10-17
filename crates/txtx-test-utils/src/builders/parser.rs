@@ -1,6 +1,7 @@
 use txtx_addon_kit::hcl::structure::Block;
 use txtx_addon_kit::helpers::hcl::RawHclContent;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
+use txtx_addon_kit::types::construct_type::ConstructType;
 
 /// Parsed block information for validation
 #[derive(Debug, Clone)]
@@ -31,7 +32,7 @@ pub fn parse_runbook_content(content: &str) -> Result<Vec<ParsedBlock>, Diagnost
 pub fn extract_signers(blocks: &[ParsedBlock]) -> Vec<String> {
     blocks
         .iter()
-        .filter(|b| b.block_type == "signer")
+        .filter(|b| b.block_type == ConstructType::SIGNER)
         .filter_map(|b| b.labels.first().cloned())
         .collect()
 }
@@ -40,7 +41,7 @@ pub fn extract_signers(blocks: &[ParsedBlock]) -> Vec<String> {
 pub fn extract_actions(blocks: &[ParsedBlock]) -> Vec<String> {
     blocks
         .iter()
-        .filter(|b| b.block_type == "action")
+        .filter(|b| b.block_type == ConstructType::ACTION)
         .filter_map(|b| b.labels.first().cloned())
         .collect()
 }

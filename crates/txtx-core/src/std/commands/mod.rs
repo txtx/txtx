@@ -16,6 +16,7 @@ use txtx_addon_kit::{
             CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
             CommandSpecification, PreCommandSpecification,
         },
+        construct_type::ConstructType,
         diagnostics::Diagnostic,
         types::Type,
         ConstructDid,
@@ -83,7 +84,7 @@ pub fn new_variable_specification() -> CommandSpecification {
     let command: PreCommandSpecification = define_command! {
         Variable => {
             name: "Variable",
-            matcher: "variable",
+            matcher: ConstructType::VARIABLE,
             documentation: "A construct designed to store a variable.",
             implements_signing_capability: false,
             implements_background_task_capability: false,
@@ -221,7 +222,7 @@ pub fn new_output_specification() -> CommandSpecification {
     let command = define_command! {
         Output => {
             name: "Output",
-            matcher: "output",
+            matcher: ConstructType::OUTPUT,
             documentation: "Read Construct attribute",
             implements_signing_capability: false,
             implements_background_task_capability: false,

@@ -3,7 +3,7 @@ use crate::runbook::{
     get_source_context_for_diagnostic, RunbookExecutionMode, RunbookWorkspaceContext,
     RuntimeContext,
 };
-use crate::types::{RunbookExecutionContext, RunbookSources};
+use crate::types::{ConstructType, RunbookExecutionContext, RunbookSources};
 use kit::constants::{RE_EXECUTE_COMMAND, THIRD_PARTY_SIGNATURE_STATUS};
 use kit::types::commands::{
     ConstructInstance, PostConditionEvaluationResult, PreConditionEvaluationResult,
@@ -77,7 +77,7 @@ pub async fn run_signers_evaluation(
         let instantiated = runbook_execution_context.is_signer_instantiated(&construct_did);
 
         let add_ctx_to_diag = add_ctx_to_diag(
-            "signer".to_string(),
+            ConstructType::SIGNER.into(),
             signer_instance.specification.matcher.clone(),
             signer_instance.name.clone(),
             signer_instance.namespace.clone(),

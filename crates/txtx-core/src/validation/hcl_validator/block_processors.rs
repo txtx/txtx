@@ -6,6 +6,7 @@ use txtx_addon_kit::hcl::{structure::{Block, BlockLabel}, Span};
 
 use crate::kit::types::commands::CommandSpecification;
 use crate::runbook::location::SourceMapper;
+use crate::types::ConstructType;
 use crate::validation::hcl_validator::visitor::{
     CollectedItem, DefinitionItem, DeclarationItem, BlockType, Position,
     ValidationError,
@@ -82,7 +83,7 @@ fn process_variable(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<C
             // Use pattern matching to extract variable dependencies
             if let Expression::Traversal(traversal) = expr {
                 traversal.expr.as_variable()
-                    .filter(|name| matches!(name.as_str(), "variable"))
+                    .filter(|name| name.as_str() == ConstructType::VARIABLE)
                     .and_then(|_| traversal.operators.first())
                     .and_then(|op| match op.value() {
                         TraversalOperator::GetAttr(attr) => Some(attr.to_string()),
@@ -104,7 +105,7 @@ fn process_variable(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<C
             position,
         }),
         CollectedItem::Dependencies {
-            entity_type: "variable".to_string(),
+            entity_type: ConstructType::VARIABLE.into(),
             entity_name: name.to_string(),
             depends_on: dependencies
         }
@@ -164,7 +165,7 @@ fn process_action(
             if !self.in_post_condition {
                 if let Expression::Traversal(traversal) = expr {
                     traversal.expr.as_variable()
-                        .filter(|name| name.as_str() == "action")
+                        .filter(|name| name.as_str() == ConstructType::ACTION)
                         .and_then(|_| traversal.operators.first())
                         .and_then(|op| match op.value() {
                             TraversalOperator::GetAttr(name) => Some(name.to_string()),
@@ -195,7 +196,7 @@ fn process_action(
 
     if !extractor.dependencies.is_empty() {
         items.push(CollectedItem::Dependencies {
-            entity_type: "action".to_string(),
+            entity_type: ConstructType::ACTION.into(),
             entity_name: name.to_string(),
             depends_on: extractor.dependencies,
         });

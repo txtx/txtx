@@ -1,3 +1,4 @@
+use txtx_addon_kit::types::construct_type::ConstructType;
 use txtx_test_utils::builders::parser::{
     extract_signers, find_action_references, find_env_references, find_signer_references,
     parse_runbook_content,
@@ -27,16 +28,16 @@ output "contract_address" {
     let blocks = parse_runbook_content(content).unwrap();
     assert_eq!(blocks.len(), 4);
 
-    assert_eq!(blocks[0].block_type, "addon");
+    assert_eq!(blocks[0].block_type, ConstructType::ADDON);
     assert_eq!(blocks[0].labels, vec!["evm", "ethereum"]);
 
-    assert_eq!(blocks[1].block_type, "signer");
+    assert_eq!(blocks[1].block_type, ConstructType::SIGNER);
     assert_eq!(blocks[1].labels, vec!["deployer", "evm::web_wallet"]);
 
-    assert_eq!(blocks[2].block_type, "action");
+    assert_eq!(blocks[2].block_type, ConstructType::ACTION);
     assert_eq!(blocks[2].labels, vec!["deploy", "evm::deploy_contract"]);
 
-    assert_eq!(blocks[3].block_type, "output");
+    assert_eq!(blocks[3].block_type, ConstructType::OUTPUT);
     assert_eq!(blocks[3].labels, vec!["contract_address"]);
 }
 

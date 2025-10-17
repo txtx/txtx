@@ -26,6 +26,7 @@ use txtx_addon_kit::{
 };
 
 use crate::eval::eval_expression;
+use crate::types::ConstructType;
 use crate::{
     eval::{self, ExpressionEvaluationStatus},
     std::StdAddon,
@@ -231,7 +232,7 @@ impl RuntimeContext {
         while let Some(block) = blocks.pop_front() {
             // parse addon blocks to load that addon
             match block.ident.value().as_str() {
-                "addon" => {
+                ConstructType::ADDON => {
                     let Some(BlockLabel::String(name)) = block.labels.first() else {
                         diagnostics.push(
                             Diagnostic::error_from_string("addon name missing".into())

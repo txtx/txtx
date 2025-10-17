@@ -5,6 +5,7 @@ use txtx_addon_kit::hcl::{
     visit::{visit_block, visit_expr, Visit},
     Span,
 };
+use crate::types::ConstructType;
 use super::location::{SourceLocation, SourceMapper, BlockContext};
 
 /// A comprehensive item collected from a runbook
@@ -153,7 +154,7 @@ impl RunbookCollector {
     }
 
     fn extract_variable_reference(&self, traversal: &Traversal) -> Option<(String, String)> {
-        self.extract_reference_info(traversal, &["variable"], 1)
+        self.extract_reference_info(traversal, &[ConstructType::VARIABLE], 1)
             .map(|(name, _, path)| (name, path))
     }
 
@@ -161,14 +162,14 @@ impl RunbookCollector {
         &self,
         traversal: &Traversal,
     ) -> Option<(String, Option<String>, String)> {
-        self.extract_reference_info(traversal, &["action"], 2).map(|(name, fields, path)| {
+        self.extract_reference_info(traversal, &[ConstructType::ACTION], 2).map(|(name, fields, path)| {
             let field = fields.get(1).cloned();
             (name, field, path)
         })
     }
 
     fn extract_signer_reference(&self, traversal: &Traversal) -> Option<(String, String)> {
-        self.extract_reference_info(traversal, &["signer"], 1).map(|(name, _, path)| (name, path))
+        self.extract_reference_info(traversal, &[ConstructType::SIGNER], 1).map(|(name, _, path)| (name, path))
     }
 }
 
@@ -191,7 +192,7 @@ impl Visit for RunbookCollector {
 
         // Create high-level items based on block type
         let item = match block_type {
-            "variable" if !labels.is_empty() => {
+            ConstructType::VARIABLE if !labels.is_empty() => {
                 self.current_context = Some(BlockContext::Variable(labels[0].clone()));
                 RunbookItem::VariableDef {
                     name: labels[0].clone(),
@@ -199,7 +200,7 @@ impl Visit for RunbookCollector {
                     raw: block.clone(),
                 }
             }
-            "action" if labels.len() >= 2 => {
+            ConstructType::ACTION if labels.len() >= 2 => {
                 self.current_context = Some(BlockContext::Action(labels[0].clone()));
                 let action_type = &labels[1];
                 let (namespace, action_name) =
@@ -214,7 +215,7 @@ impl Visit for RunbookCollector {
                     raw: block.clone(),
                 }
             }
-            "signer" if labels.len() >= 2 => {
+            ConstructType::SIGNER if labels.len() >= 2 => {
                 self.current_context = Some(BlockContext::Signer(labels[0].clone()));
                 RunbookItem::SignerDef {
                     name: labels[0].clone(),
@@ -223,7 +224,7 @@ impl Visit for RunbookCollector {
                     raw: block.clone(),
                 }
             }
-            "output" if !labels.is_empty() => {
+            ConstructType::OUTPUT if !labels.is_empty() => {
                 self.current_context = Some(BlockContext::Output(labels[0].clone()));
                 RunbookItem::OutputDef {
                     name: labels[0].clone(),
@@ -231,7 +232,7 @@ impl Visit for RunbookCollector {
                     raw: block.clone(),
                 }
             }
-            "flow" if !labels.is_empty() => {
+            ConstructType::FLOW if !labels.is_empty() => {
                 self.current_context = Some(BlockContext::Flow(labels[0].clone()));
                 RunbookItem::FlowDef {
                     name: labels[0].clone(),
@@ -469,7 +470,7 @@ impl RunbookItems {
     pub fn signer_references(&self) -> impl Iterator<Item = (&str, &SourceLocation)> + '_ {
         self.items.iter().filter_map(|item| match item {
             RunbookItem::SignerReference { name, location, .. } => Some((name.as_str(), location)),
-            RunbookItem::Attribute { key, value, location, .. } if key == "signer" => {
+            RunbookItem::Attribute { key, value, location, .. } if key == ConstructType::SIGNER => {
                 if let Expression::String(s) = value {
                     Some((s.as_str(), location))
                 } else {
