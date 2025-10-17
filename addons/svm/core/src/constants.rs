@@ -59,6 +59,7 @@ pub const TOKEN_MINT_ADDRESS: &str = "token_mint_address";
 pub const IS_FUNDING_RECIPIENT: &str = "is_funding_recipient";
 pub const SET_ACCOUNT: &str = "set_account";
 pub const RESET_ACCOUNT: &str = "reset_account";
+pub const STREAM_ACCOUNT: &str = "stream_account";
 pub const SET_TOKEN_ACCOUNT: &str = "set_token_account";
 pub const CLONE_PROGRAM_ACCOUNT: &str = "clone_program_account";
 pub const SET_PROGRAM_AUTHORITY: &str = "set_program_authority";
