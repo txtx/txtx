@@ -37,6 +37,31 @@ pub enum ConstructType {
 }
 
 impl ConstructType {
+    // Note: These constants duplicate the Strum `serialize_all = "lowercase"` configuration,
+    // but serve an important ergonomic purpose: they enable clean pattern matching against
+    // string variables without runtime enum conversion.
+    //
+    // Example usage:
+    //   match block_type_str {
+    //       ConstructType::ACTION => { ... }   // Clean, no runtime cost
+    //       ConstructType::VARIABLE => { ... }
+    //   }
+    //
+    // Without constants, we'd need verbose patterns:
+    //   match block_type_str {
+    //       s if s == ConstructType::Action.as_ref() => { ... }  // Less readable
+    //   }
+    //
+    // Or runtime enum conversion:
+    //   let construct = ConstructType::from_str(block_type_str)?;  // Runtime overhead
+    //   match construct { ... }
+    //
+    // Trade-offs:
+    //   Pro: Zero-cost pattern matching, clean syntax throughout codebase
+    //   Con: Duplication requires manual sync with Strum serialization
+    //
+    // Safety: Tests in this module verify constants match Strum serialization at compile time.
+
     /// String constant for action construct
     pub const ACTION: &'static str = "action";
     /// String constant for variable construct
@@ -153,6 +178,59 @@ mod tests {
         assert_eq!(ConstructType::ACTION, "action");
         assert_eq!(ConstructType::VARIABLE, "variable");
         assert_eq!(ConstructType::Action.as_str(), ConstructType::ACTION);
+    }
+
+    /// Critical test: Ensures string constants stay synchronized with Strum serialization.
+    ///
+    /// This test exists because we intentionally duplicate serialization information for
+    /// ergonomic reasons (see comment above const definitions). The duplication enables
+    /// zero-cost pattern matching like `match s { ConstructType::ACTION => ... }` without
+    /// requiring runtime enum conversion.
+    ///
+    /// This test catches any desync between:
+    /// 1. The `#[strum(serialize_all = "lowercase")]` attribute
+    /// 2. The manually defined `pub const ACTION: &'static str` constants
+    /// 3. The `as_str()` const fn implementation
+    ///
+    /// If this test fails, it means a constant was changed without updating Strum
+    /// serialization (or vice versa). Both must be kept in sync.
+    #[test]
+    fn test_constants_match_strum_serialization() {
+        // Each constant must exactly match what Strum serializes the enum to
+        assert_eq!(ConstructType::ACTION, ConstructType::Action.as_ref());
+        assert_eq!(ConstructType::VARIABLE, ConstructType::Variable.as_ref());
+        assert_eq!(ConstructType::OUTPUT, ConstructType::Output.as_ref());
+        assert_eq!(ConstructType::SIGNER, ConstructType::Signer.as_ref());
+        assert_eq!(ConstructType::ADDON, ConstructType::Addon.as_ref());
+        assert_eq!(ConstructType::MODULE, ConstructType::Module.as_ref());
+        assert_eq!(ConstructType::FLOW, ConstructType::Flow.as_ref());
+        assert_eq!(ConstructType::IMPORT, ConstructType::Import.as_ref());
+        assert_eq!(ConstructType::PROMPT, ConstructType::Prompt.as_ref());
+        assert_eq!(ConstructType::RUNBOOK, ConstructType::Runbook.as_ref());
+
+        // Also verify as_str() const fn matches (it uses the constants internally)
+        assert_eq!(ConstructType::Action.as_str(), ConstructType::ACTION);
+        assert_eq!(ConstructType::Variable.as_str(), ConstructType::VARIABLE);
+        assert_eq!(ConstructType::Output.as_str(), ConstructType::OUTPUT);
+        assert_eq!(ConstructType::Signer.as_str(), ConstructType::SIGNER);
+        assert_eq!(ConstructType::Addon.as_str(), ConstructType::ADDON);
+        assert_eq!(ConstructType::Module.as_str(), ConstructType::MODULE);
+        assert_eq!(ConstructType::Flow.as_str(), ConstructType::FLOW);
+        assert_eq!(ConstructType::Import.as_str(), ConstructType::IMPORT);
+        assert_eq!(ConstructType::Prompt.as_str(), ConstructType::PROMPT);
+        assert_eq!(ConstructType::Runbook.as_str(), ConstructType::RUNBOOK);
+
+        // Verify to_string() (from Display trait) also matches
+        assert_eq!(ConstructType::Action.to_string(), ConstructType::ACTION);
+        assert_eq!(ConstructType::Variable.to_string(), ConstructType::VARIABLE);
+        assert_eq!(ConstructType::Output.to_string(), ConstructType::OUTPUT);
+        assert_eq!(ConstructType::Signer.to_string(), ConstructType::SIGNER);
+        assert_eq!(ConstructType::Addon.to_string(), ConstructType::ADDON);
+        assert_eq!(ConstructType::Module.to_string(), ConstructType::MODULE);
+        assert_eq!(ConstructType::Flow.to_string(), ConstructType::FLOW);
+        assert_eq!(ConstructType::Import.to_string(), ConstructType::IMPORT);
+        assert_eq!(ConstructType::Prompt.to_string(), ConstructType::PROMPT);
+        assert_eq!(ConstructType::Runbook.to_string(), ConstructType::RUNBOOK);
     }
 
     #[test]

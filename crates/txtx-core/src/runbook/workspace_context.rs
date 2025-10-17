@@ -24,6 +24,7 @@ use txtx_addon_kit::types::stores::AddonDefaults;
 use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::AddonInstance;
 use txtx_addon_kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
+use crate::types::ConstructType;
 
 use super::{
     get_source_context_for_diagnostic, RunbookExecutionContext, RunbookGraphContext,
@@ -827,7 +828,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for outputs
-                if component.eq_ignore_ascii_case("output") {
+                if component.eq_ignore_ascii_case(ConstructType::OUTPUT) {
                     is_root = false;
                     let Some(output_name) = components.pop_front() else {
                         continue;
@@ -840,7 +841,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for variables
-                if component.eq_ignore_ascii_case("variable") {
+                if component.eq_ignore_ascii_case(ConstructType::VARIABLE) {
                     is_root = false;
                     let Some(input_name) = components.pop_front() else {
                         continue;
@@ -853,7 +854,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for actions
-                if component.eq_ignore_ascii_case("action") {
+                if component.eq_ignore_ascii_case(ConstructType::ACTION) {
                     is_root = false;
                     let Some(action_name) = components.pop_front() else {
                         continue;
@@ -867,7 +868,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for signers
-                if component.eq_ignore_ascii_case("signer") {
+                if component.eq_ignore_ascii_case(ConstructType::SIGNER) {
                     is_root = false;
                     let Some(signer_name) = components.pop_front() else {
                         continue;
@@ -880,7 +881,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for flows
-                if component.eq_ignore_ascii_case("flow") {
+                if component.eq_ignore_ascii_case(ConstructType::FLOW) {
                     is_root = false;
                     let Some(flow_input_name) = components.pop_front() else {
                         continue;
@@ -893,7 +894,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for embedded runbooks
-                if component.eq_ignore_ascii_case("runbook") {
+                if component.eq_ignore_ascii_case(ConstructType::RUNBOOK) {
                     is_root = false;
                     let Some(embedded_runbook_name) = components.pop_front() else {
                         continue;

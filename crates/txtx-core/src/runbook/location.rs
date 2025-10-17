@@ -317,9 +317,11 @@ mod tests {
 
     #[test]
     fn test_block_context_name() {
+        use crate::types::ConstructType;
+
         let ctx = BlockContext::Action("deploy".to_string());
         assert_eq!(ctx.name(), Some("deploy"));
-        assert_eq!(ctx.block_type(), "action");
+        assert_eq!(ctx.block_type(), ConstructType::ACTION);
 
         let ctx = BlockContext::Unknown;
         assert_eq!(ctx.name(), None);
