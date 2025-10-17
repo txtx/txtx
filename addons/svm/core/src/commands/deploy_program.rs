@@ -3,10 +3,8 @@ use std::str::FromStr;
 use std::vec;
 
 use solana_client::rpc_client::RpcClient;
-use bs58;
 use solana_commitment_config::CommitmentConfig;
 use solana_pubkey::Pubkey;
-use solana_keypair::Keypair;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
     DESCRIPTION, META_DESCRIPTION, NESTED_CONSTRUCT_COUNT, NESTED_CONSTRUCT_DID,
@@ -34,6 +32,7 @@ use txtx_addon_kit::types::types::{
 };
 use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
+use txtx_addon_network_svm_types::{SVM_KEYPAIR, SVM_PUBKEY};
 
 use crate::codec::idl::IdlRef;
 use crate::codec::send_transaction::send_transaction_background_task;
@@ -126,7 +125,7 @@ lazy_static! {
                     },
                     ephemeral_authority_secret_key: {
                         documentation: "An optional base-58 encoded keypair string to use as the temporary upgrade authority during deployment. If not provided, a new ephemeral keypair will be generated.",
-                        typing: Type::string(),
+                        typing: Type::addon(SVM_KEYPAIR),
                         optional: true,
                         tainting: false,
                         internal: true,
@@ -134,7 +133,7 @@ lazy_static! {
                     },
                     buffer_account_pubkey: {
                         documentation: "The public key of the buffer account to use to continue a failed deployment.",
-                        typing: Type::string(),
+                        typing: Type::addon(SVM_PUBKEY),
                         optional: true,
                         tainting: false,
                         internal: false,
@@ -305,42 +304,20 @@ impl CommandImplementation for DeployProgram {
                         )
                     })?,
                     None => {
-                        let temp_authority_keypair = match values
-                            .get_value(EPHEMERAL_AUTHORITY_SECRET_KEY)
-                        {
-                            Some(kp) => match kp.as_string() {
-                                Some(s) => {
-                                    let bytes = bs58::decode(s).into_vec().map_err(|e| {
-                                        (
-                                            signers.clone(),
-                                            authority_signer_state.clone(),
-                                            diagnosed_error!(
-                                                "ephemeral authority keypair must be a base-58 encoded string: {}",
-                                                e
-                                            ),
-                                        )
-                                    })?;
-                                    Keypair::try_from(bytes.as_ref()).map_err(|e| {
-                                        (
-                                            signers.clone(),
-                                            authority_signer_state.clone(),
-                                            diagnosed_error!(
-                                                "invalid ephemeral authority keypair bytes: {}",
-                                                e
-                                            ),
-                                        )
-                                    })?
-                                }
-                                None => {
-                                    return Err((
+                        let temp_authority_keypair =
+                            match values.get_value(EPHEMERAL_AUTHORITY_SECRET_KEY) {
+                                Some(kp) => SvmValue::to_keypair(kp).map_err(|e| {
+                                    (
                                         signers.clone(),
                                         authority_signer_state.clone(),
-                                        diagnosed_error!("provided ephemeral authority keypair must be a base-58 encoded string"),
-                                    ));
-                                }
-                            },
-                            None => UpgradeableProgramDeployer::create_temp_authority(),
-                        };
+                                        diagnosed_error!(
+                                            "invalid ephemeral authority keypair provided: {}",
+                                            e
+                                        ),
+                                    )
+                                })?,
+                                None => UpgradeableProgramDeployer::create_temp_authority(),
+                            };
 
                         authority_signer_state.insert_scoped_value(
                             &construct_did.to_string(),
