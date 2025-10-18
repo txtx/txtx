@@ -35,6 +35,7 @@ pub mod namespace;
 pub mod package;
 pub mod signers;
 pub mod stores;
+pub mod type_compatibility;
 pub mod types;
 
 pub const CACHED_NONCE: &str = "cached_nonce";

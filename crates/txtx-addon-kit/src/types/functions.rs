@@ -2,6 +2,7 @@ use super::{
     diagnostics::Diagnostic,
     function_errors::FunctionErrorRef,
     namespace::Namespace,
+    type_compatibility::TypeChecker,
     types::{Type, Value},
     AuthorizationContext,
 };
@@ -83,18 +84,7 @@ pub fn arg_checker_with_ctx(
                 })
             })?;
 
-            let type_matches = input.typing.iter().any(|typing| {
-                match (arg.get_type(), typing) {
-                    // Both are addons (any addon matches)
-                    (Type::Addon(_), Type::Addon(_)) => true,
-                    // Empty arrays always match
-                    (Type::Array(_), _) if arg.expect_array().is_empty() => true,
-                    // Array with null inner type (accepts any array)
-                    (_, Type::Array(inner)) if matches!(**inner, Type::Null(_)) => true,
-                    // Exact type match
-                    (arg_type, typing) => arg_type.eq(typing),
-                }
-            });
+            let type_matches = TypeChecker::matches_any(arg, &input.typing);
 
             if !type_matches {
                 return Err(FunctionErrorRef::TypeMismatch {
