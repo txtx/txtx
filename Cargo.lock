@@ -15105,6 +15105,7 @@ dependencies = [
  "log 0.4.27",
  "openssl",
  "openssl-sys",
+ "proptest",
  "rusqlite",
  "serde",
  "serde_derive",

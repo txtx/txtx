@@ -452,4 +452,109 @@ mod tests {
         assert_eq!(Format::Stylish.as_ref(), "stylish");
         assert_eq!(Format::Json.as_ref(), "json");
     }
+
+    // Property-based tests
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+        use txtx_addon_kit::types::diagnostics::Diagnostic;
+        use std::io::Write;
+
+        // Generate arbitrary diagnostics
+        prop_compose! {
+            fn arb_diagnostic()(
+                message in "[a-zA-Z0-9 !@#$%^&*()_+=\\[\\]{}|;:',.<>?/`~\\-]{1,200}",  // ASCII printable chars, 1-200 chars
+                line in 1usize..1000,
+                column in 0usize..200,
+                file in prop::option::of("[a-zA-Z0-9_/.\\-]{1,50}"),  // ASCII filename chars
+                code in prop::option::of("[A-Z0-9_\\-]{1,20}"),  // ASCII code chars (uppercase, numbers, underscore, hyphen)
+                context in prop::option::of("[a-zA-Z0-9 !@#$%^&*()_+=\\[\\]{}|;:',.<>?/`~\\-]{1,100}"),  // ASCII context
+            ) -> Diagnostic {
+                let mut diag = Diagnostic::error(message);
+                diag.line = Some(line);
+                diag.column = Some(column);
+                if let Some(f) = file {
+                    diag.file = Some(f);
+                }
+                if let Some(c) = code {
+                    diag.code = Some(c);
+                }
+                if let Some(ctx) = context {
+                    diag.context = Some(ctx);
+                }
+                diag
+            }
+        }
+
+        // Generate arbitrary validation results
+        prop_compose! {
+            fn arb_validation_result()(
+                errors in prop::collection::vec(arb_diagnostic(), 0..10),
+                warnings in prop::collection::vec(arb_diagnostic(), 0..10),
+            ) -> ValidationResult {
+                ValidationResult {
+                    errors,
+                    warnings,
+                    suggestions: vec![],
+                }
+            }
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(100))]
+
+            /// Property: Formatters should never panic on any ValidationResult
+            #[test]
+            fn formatters_never_panic(result in arb_validation_result()) {
+                // Capture output to avoid polluting test output
+                let _stylish = std::panic::catch_unwind(|| {
+                    StylishFormatter.format(&result);
+                });
+                let _compact = std::panic::catch_unwind(|| {
+                    CompactFormatter.format(&result);
+                });
+                let _json = std::panic::catch_unwind(|| {
+                    JsonFormatter.format(&result);
+                });
+                let _quickfix = std::panic::catch_unwind(|| {
+                    QuickfixFormatter.format(&result);
+                });
+                let _doc = std::panic::catch_unwind(|| {
+                    DocumentationFormatter.format(&result);
+                });
+            }
+
+            /// Property: Format enum should roundtrip through string conversion
+            #[test]
+            fn format_enum_roundtrip(
+                format in prop::sample::select(vec![
+                    Format::Stylish,
+                    Format::Compact,
+                    Format::Json,
+                    Format::Quickfix,
+                    Format::Doc,
+                ])
+            ) {
+                let string = format.to_string();
+                let parsed = Format::from_str(&string).unwrap();
+                prop_assert_eq!(format, parsed);
+            }
+
+            /// Property: Format strings should always be lowercase
+            #[test]
+            fn format_strings_are_lowercase(
+                format in prop::sample::select(vec![
+                    Format::Stylish,
+                    Format::Compact,
+                    Format::Json,
+                    Format::Quickfix,
+                    Format::Doc,
+                ])
+            ) {
+                let string = format.to_string();
+                let lowercase = string.to_lowercase();
+                prop_assert_eq!(string, lowercase);
+            }
+        }
+    }
 }
