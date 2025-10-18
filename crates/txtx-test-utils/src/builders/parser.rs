@@ -32,7 +32,7 @@ pub fn parse_runbook_content(content: &str) -> Result<Vec<ParsedBlock>, Diagnost
 pub fn extract_signers(blocks: &[ParsedBlock]) -> Vec<String> {
     blocks
         .iter()
-        .filter(|b| b.block_type == ConstructType::SIGNER)
+        .filter(|b| b.block_type == ConstructType::Signer)
         .filter_map(|b| b.labels.first().cloned())
         .collect()
 }
@@ -41,7 +41,7 @@ pub fn extract_signers(blocks: &[ParsedBlock]) -> Vec<String> {
 pub fn extract_actions(blocks: &[ParsedBlock]) -> Vec<String> {
     blocks
         .iter()
-        .filter(|b| b.block_type == ConstructType::ACTION)
+        .filter(|b| b.block_type == ConstructType::Action)
         .filter_map(|b| b.labels.first().cloned())
         .collect()
 }

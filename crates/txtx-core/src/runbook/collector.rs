@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use txtx_addon_kit::hcl::{
     expr::{Expression, Traversal, TraversalOperator},
-    structure::{Attribute, Block, BlockLabel, Body},
+    structure::{Attribute, Block, Body},
     visit::{visit_block, visit_expr, Visit},
     Span,
 };
@@ -154,7 +154,7 @@ impl RunbookCollector {
     }
 
     fn extract_variable_reference(&self, traversal: &Traversal) -> Option<(String, String)> {
-        self.extract_reference_info(traversal, &[ConstructType::VARIABLE], 1)
+        self.extract_reference_info(traversal, &[ConstructType::Variable.as_ref()], 1)
             .map(|(name, _, path)| (name, path))
     }
 
@@ -162,91 +162,89 @@ impl RunbookCollector {
         &self,
         traversal: &Traversal,
     ) -> Option<(String, Option<String>, String)> {
-        self.extract_reference_info(traversal, &[ConstructType::ACTION], 2).map(|(name, fields, path)| {
+        self.extract_reference_info(traversal, &[ConstructType::Action.as_ref()], 2).map(|(name, fields, path)| {
             let field = fields.get(1).cloned();
             (name, field, path)
         })
     }
 
     fn extract_signer_reference(&self, traversal: &Traversal) -> Option<(String, String)> {
-        self.extract_reference_info(traversal, &[ConstructType::SIGNER], 1).map(|(name, _, path)| (name, path))
+        self.extract_reference_info(traversal, &[ConstructType::Signer.as_ref()], 1).map(|(name, _, path)| (name, path))
     }
 }
 
 impl Visit for RunbookCollector {
     fn visit_block(&mut self, block: &Block) {
-        let block_type = block.ident.as_str();
-        let labels: Vec<String> = block
-            .labels
-            .iter()
-            .filter_map(|l| {
-                if let BlockLabel::String(s) = l {
-                    Some(s.value().to_string())
-                } else {
-                    None
-                }
-            })
-            .collect();
+        use txtx_addon_kit::types::typed_block::TypedBlock;
 
-        let location = self.make_location(block.span());
+        // Parse construct type once using TypedBlock
+        let typed_block = TypedBlock::new(block);
+        let labels = typed_block.string_labels();
+
+        let location = self.make_location(typed_block.span());
 
         // Create high-level items based on block type
-        let item = match block_type {
-            ConstructType::VARIABLE if !labels.is_empty() => {
-                self.current_context = Some(BlockContext::Variable(labels[0].clone()));
+        let item = match &typed_block.construct_type {
+            Ok(ConstructType::Variable) if !labels.is_empty() => {
+                let name = labels[0].to_string();
+                self.current_context = Some(BlockContext::Variable(name.clone()));
                 RunbookItem::VariableDef {
-                    name: labels[0].clone(),
+                    name,
                     location: location.clone(),
-                    raw: block.clone(),
+                    raw: typed_block.clone_inner(),
                 }
             }
-            ConstructType::ACTION if labels.len() >= 2 => {
-                self.current_context = Some(BlockContext::Action(labels[0].clone()));
-                let action_type = &labels[1];
+            Ok(ConstructType::Action) if labels.len() >= 2 => {
+                let name = labels[0].to_string();
+                self.current_context = Some(BlockContext::Action(name.clone()));
+                let action_type = labels[1];
                 let (namespace, action_name) =
-                    action_type.split_once("::").unwrap_or(("unknown", action_type.as_str()));
+                    action_type.split_once("::").unwrap_or(("unknown", action_type));
 
                 RunbookItem::ActionDef {
-                    name: labels[0].clone(),
-                    action_type: action_type.clone(),
+                    name,
+                    action_type: action_type.to_string(),
                     namespace: namespace.to_string(),
                     action_name: action_name.to_string(),
                     location: location.clone(),
-                    raw: block.clone(),
+                    raw: typed_block.clone_inner(),
                 }
             }
-            ConstructType::SIGNER if labels.len() >= 2 => {
-                self.current_context = Some(BlockContext::Signer(labels[0].clone()));
+            Ok(ConstructType::Signer) if labels.len() >= 2 => {
+                let name = labels[0].to_string();
+                self.current_context = Some(BlockContext::Signer(name.clone()));
                 RunbookItem::SignerDef {
-                    name: labels[0].clone(),
-                    signer_type: labels[1].clone(),
+                    name,
+                    signer_type: labels[1].to_string(),
                     location: location.clone(),
-                    raw: block.clone(),
+                    raw: typed_block.clone_inner(),
                 }
             }
-            ConstructType::OUTPUT if !labels.is_empty() => {
-                self.current_context = Some(BlockContext::Output(labels[0].clone()));
+            Ok(ConstructType::Output) if !labels.is_empty() => {
+                let name = labels[0].to_string();
+                self.current_context = Some(BlockContext::Output(name.clone()));
                 RunbookItem::OutputDef {
-                    name: labels[0].clone(),
+                    name,
                     location: location.clone(),
-                    raw: block.clone(),
+                    raw: typed_block.clone_inner(),
                 }
             }
-            ConstructType::FLOW if !labels.is_empty() => {
-                self.current_context = Some(BlockContext::Flow(labels[0].clone()));
+            Ok(ConstructType::Flow) if !labels.is_empty() => {
+                let name = labels[0].to_string();
+                self.current_context = Some(BlockContext::Flow(name.clone()));
                 RunbookItem::FlowDef {
-                    name: labels[0].clone(),
+                    name,
                     location: location.clone(),
-                    raw: block.clone(),
+                    raw: typed_block.clone_inner(),
                 }
             }
             _ => {
                 // Unknown or addon blocks
                 RunbookItem::RawBlock {
-                    block_type: block_type.to_string(),
-                    labels,
+                    block_type: typed_block.ident_str().to_string(),
+                    labels: labels.iter().map(|s| s.to_string()).collect(),
                     location,
-                    raw: block.clone(),
+                    raw: typed_block.clone_inner(),
                 }
             }
         };
@@ -470,7 +468,7 @@ impl RunbookItems {
     pub fn signer_references(&self) -> impl Iterator<Item = (&str, &SourceLocation)> + '_ {
         self.items.iter().filter_map(|item| match item {
             RunbookItem::SignerReference { name, location, .. } => Some((name.as_str(), location)),
-            RunbookItem::Attribute { key, value, location, .. } if key == ConstructType::SIGNER => {
+            RunbookItem::Attribute { key, value, location, .. } if key == ConstructType::Signer.as_ref() => {
                 if let Expression::String(s) = value {
                     Some((s.as_str(), location))
                 } else {

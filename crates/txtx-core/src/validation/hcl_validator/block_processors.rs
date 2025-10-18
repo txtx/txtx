@@ -83,7 +83,7 @@ fn process_variable(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<C
             // Use pattern matching to extract variable dependencies
             if let Expression::Traversal(traversal) = expr {
                 traversal.expr.as_variable()
-                    .filter(|name| name.as_str() == ConstructType::VARIABLE)
+                    .filter(|name| name.as_str() == ConstructType::Variable.as_ref())
                     .and_then(|_| traversal.operators.first())
                     .and_then(|op| match op.value() {
                         TraversalOperator::GetAttr(attr) => Some(attr.to_string()),
@@ -105,7 +105,7 @@ fn process_variable(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<C
             position,
         }),
         CollectedItem::Dependencies {
-            entity_type: ConstructType::VARIABLE.into(),
+            entity_type: ConstructType::Variable.to_string(),
             entity_name: name.to_string(),
             depends_on: dependencies
         }
@@ -165,7 +165,7 @@ fn process_action(
             if !self.in_post_condition {
                 if let Expression::Traversal(traversal) = expr {
                     traversal.expr.as_variable()
-                        .filter(|name| name.as_str() == ConstructType::ACTION)
+                        .filter(|name| name.as_str() == ConstructType::Action.as_ref())
                         .and_then(|_| traversal.operators.first())
                         .and_then(|op| match op.value() {
                             TraversalOperator::GetAttr(name) => Some(name.to_string()),
@@ -196,7 +196,7 @@ fn process_action(
 
     if !extractor.dependencies.is_empty() {
         items.push(CollectedItem::Dependencies {
-            entity_type: ConstructType::ACTION.into(),
+            entity_type: ConstructType::Action.to_string(),
             entity_name: name.to_string(),
             depends_on: extractor.dependencies,
         });

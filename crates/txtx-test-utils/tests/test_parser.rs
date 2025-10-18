@@ -28,16 +28,16 @@ output "contract_address" {
     let blocks = parse_runbook_content(content).unwrap();
     assert_eq!(blocks.len(), 4);
 
-    assert_eq!(blocks[0].block_type, ConstructType::ADDON);
+    assert_eq!(blocks[0].block_type, ConstructType::Addon);
     assert_eq!(blocks[0].labels, vec!["evm", "ethereum"]);
 
-    assert_eq!(blocks[1].block_type, ConstructType::SIGNER);
+    assert_eq!(blocks[1].block_type, ConstructType::Signer);
     assert_eq!(blocks[1].labels, vec!["deployer", "evm::web_wallet"]);
 
-    assert_eq!(blocks[2].block_type, ConstructType::ACTION);
+    assert_eq!(blocks[2].block_type, ConstructType::Action);
     assert_eq!(blocks[2].labels, vec!["deploy", "evm::deploy_contract"]);
 
-    assert_eq!(blocks[3].block_type, ConstructType::OUTPUT);
+    assert_eq!(blocks[3].block_type, ConstructType::Output);
     assert_eq!(blocks[3].labels, vec!["contract_address"]);
 }
 

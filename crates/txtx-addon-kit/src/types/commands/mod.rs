@@ -669,12 +669,12 @@ pub enum CommandInstanceType {
 impl CommandInstanceType {
     pub fn to_ident(&self) -> &str {
         match self {
-            CommandInstanceType::Variable => ConstructType::VARIABLE,
-            CommandInstanceType::Output => ConstructType::OUTPUT,
-            CommandInstanceType::Action(_) => ConstructType::ACTION,
-            CommandInstanceType::Prompt => ConstructType::PROMPT,
-            CommandInstanceType::Module => ConstructType::MODULE,
-            CommandInstanceType::Addon => ConstructType::ADDON,
+            CommandInstanceType::Variable => ConstructType::Variable.into(),
+            CommandInstanceType::Output => ConstructType::Output.into(),
+            CommandInstanceType::Action(_) => ConstructType::Action.into(),
+            CommandInstanceType::Prompt => ConstructType::Prompt.into(),
+            CommandInstanceType::Module => ConstructType::Module.into(),
+            CommandInstanceType::Addon => ConstructType::Addon.into(),
         }
     }
 }
@@ -929,7 +929,7 @@ impl CommandInstance {
             .check(&self.name, &self.specification.inputs)?;
 
         let spec = &self.specification;
-        if spec.matcher != ConstructType::OUTPUT {
+        if spec.matcher != ConstructType::Output.as_ref() {
             let mut actions = (spec.check_executability)(
                 &construct_did,
                 &self.name,

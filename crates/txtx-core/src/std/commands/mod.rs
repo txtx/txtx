@@ -84,7 +84,7 @@ pub fn new_variable_specification() -> CommandSpecification {
     let command: PreCommandSpecification = define_command! {
         Variable => {
             name: "Variable",
-            matcher: ConstructType::VARIABLE,
+            matcher: ConstructType::Variable.to_string(),
             documentation: "A construct designed to store a variable.",
             implements_signing_capability: false,
             implements_background_task_capability: false,
@@ -222,7 +222,7 @@ pub fn new_output_specification() -> CommandSpecification {
     let command = define_command! {
         Output => {
             name: "Output",
-            matcher: ConstructType::OUTPUT,
+            matcher: ConstructType::Output.to_string(),
             documentation: "Read Construct attribute",
             implements_signing_capability: false,
             implements_background_task_capability: false,

@@ -465,7 +465,7 @@ pub async fn run_action(
         commands: addon.build_command_lookup(),
         signers: addon.build_signer_lookup(),
     };
-    let block = Block::new(Ident::new(ConstructType::ACTION));
+    let block = Block::new(Ident::new(ConstructType::Action.as_ref()));
     let construct_did = Did::zero();
     let command_id = CommandId::Action(command_name.into());
     let package_id = PackageId::zero();

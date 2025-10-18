@@ -107,12 +107,12 @@ enum EntityType {
 impl BlockType {
     fn from_str(s: &str) -> Self {
         match s {
-            ConstructType::ACTION => Self::Action,
-            ConstructType::SIGNER => Self::Signer,
-            ConstructType::VARIABLE => Self::Variable,
-            ConstructType::OUTPUT => Self::Output,
-            ConstructType::FLOW => Self::Flow,
-            ConstructType::ADDON => Self::Addon,
+            "action" => Self::Action,    // ConstructType::Action
+            "signer" => Self::Signer,    // ConstructType::Signer
+            "variable" => Self::Variable, // ConstructType::Variable
+            "output" => Self::Output,    // ConstructType::Output
+            "flow" => Self::Flow,        // ConstructType::Flow
+            "addon" => Self::Addon,      // ConstructType::Addon
             _ => Self::Unknown,
         }
     }
@@ -298,8 +298,8 @@ impl ValidationState {
             Dependencies { entity_type, entity_name, depends_on } => {
                 // Add dependency edges using iterator and match
                 if let Some(graph) = match entity_type.as_str() {
-                    ConstructType::VARIABLE => Some(&mut self.dependency_graphs.variables),
-                    ConstructType::ACTION => Some(&mut self.dependency_graphs.actions),
+                    "variable" => Some(&mut self.dependency_graphs.variables), // ConstructType::Variable
+                    "action" => Some(&mut self.dependency_graphs.actions),     // ConstructType::Action
                     _ => None,
                 } {
                     depends_on.into_iter()
@@ -324,11 +324,11 @@ impl<'a> ValidationPhaseHandler<'a> {
         }
 
         match parts[0].as_str() {
-            ConstructType::VARIABLE => self.validate_variable_reference(parts, position),
-            ConstructType::ACTION => self.validate_action_reference(parts, position),
-            ConstructType::SIGNER => self.validate_signer_reference(parts, position),
-            ConstructType::OUTPUT => self.validate_output_reference(parts, position),
-            ConstructType::FLOW => self.validate_flow_reference(parts, position),
+            "variable" => self.validate_variable_reference(parts, position), // ConstructType::Variable
+            "action" => self.validate_action_reference(parts, position),     // ConstructType::Action
+            "signer" => self.validate_signer_reference(parts, position),     // ConstructType::Signer
+            "output" => self.validate_output_reference(parts, position),     // ConstructType::Output
+            "flow" => self.validate_flow_reference(parts, position),         // ConstructType::Flow
             _ => Ok(()),
         }
     }
@@ -341,7 +341,7 @@ impl<'a> ValidationPhaseHandler<'a> {
         let name = &parts[1];
         if !self.state.definitions.variables.contains(name) {
             return Err(ValidationError::UndefinedReference {
-                construct_type: ConstructType::VARIABLE.into(),
+                construct_type: ConstructType::Variable.to_string(),
                 name: name.to_string(),
             });
         }
@@ -355,7 +355,7 @@ impl<'a> ValidationPhaseHandler<'a> {
                 // Check if action exists and get its declaration
                 let action = self.state.declarations.actions.get(name)
                     .ok_or_else(|| ValidationError::UndefinedReference {
-                        construct_type: ConstructType::ACTION.into(),
+                        construct_type: ConstructType::Action.to_string(),
                         name: name.to_string(),
                     })?;
 
@@ -389,7 +389,7 @@ impl<'a> ValidationPhaseHandler<'a> {
         let name = &parts[1];
         if !self.state.definitions.signers.contains_key(name) {
             return Err(ValidationError::UndefinedReference {
-                construct_type: ConstructType::SIGNER.into(),
+                construct_type: ConstructType::Signer.to_string(),
                 name: name.to_string(),
             });
         }
@@ -404,7 +404,7 @@ impl<'a> ValidationPhaseHandler<'a> {
         let name = &parts[1];
         if !self.state.definitions.outputs.contains(name) {
             return Err(ValidationError::UndefinedReference {
-                construct_type: ConstructType::OUTPUT.into(),
+                construct_type: ConstructType::Output.to_string(),
                 name: name.to_string(),
             });
         }
@@ -511,13 +511,13 @@ impl<'a> HclValidationVisitor<'a> {
         match (positions.first(), positions.last()) {
             (Some(&first_pos), Some(&last_pos)) => {
                 let construct_type = match dependency_type {
-                    DependencyType::Variable => ConstructType::VARIABLE,
-                    DependencyType::Action => ConstructType::ACTION,
+                    DependencyType::Variable => ConstructType::Variable,
+                    DependencyType::Action => ConstructType::Action,
                 };
 
                 // Always report at the first position
                 let error = ValidationError::CircularDependency {
-                    construct_type: construct_type.into(),
+                    construct_type: construct_type.to_string(),
                     cycle: cycle.clone(),
                 };
                 self.add_error(error, first_pos);
@@ -525,7 +525,7 @@ impl<'a> HclValidationVisitor<'a> {
                 // Only report at last position if it's different from first
                 if first_pos.line != last_pos.line || first_pos.column != last_pos.column {
                     let error = ValidationError::CircularDependency {
-                        construct_type: construct_type.into(),
+                        construct_type: construct_type.to_string(),
                         cycle,
                     };
                     self.add_error(error, last_pos);
@@ -534,12 +534,12 @@ impl<'a> HclValidationVisitor<'a> {
             _ => {
                 // Fallback when we can't determine positions
                 let construct_type = match dependency_type {
-                    DependencyType::Variable => ConstructType::VARIABLE,
-                    DependencyType::Action => ConstructType::ACTION,
+                    DependencyType::Variable => ConstructType::Variable,
+                    DependencyType::Action => ConstructType::Action,
                 };
 
                 let error = ValidationError::CircularDependency {
-                    construct_type: construct_type.into(),
+                    construct_type: construct_type.to_string(),
                     cycle,
                 };
                 // Report at a default position rather than silently failing
@@ -630,8 +630,8 @@ impl<'a> HclValidationVisitor<'a> {
 
                 dependencies.into_iter()
                     .filter(|(dep_type, _)| match entity_type {
-                        EntityType::Variable => dep_type == ConstructType::VARIABLE,
-                        EntityType::Action => dep_type == ConstructType::ACTION,
+                        EntityType::Variable => dep_type == ConstructType::Variable.as_ref(),
+                        EntityType::Action => dep_type == ConstructType::Action.as_ref(),
                     })
                     .for_each(|(_, dep_name)| graph.add_edge(&entity_name, dep_name));
             }
@@ -924,7 +924,7 @@ impl<'a> Visit for ReferenceValidationVisitor<'a> {
             }
 
             // Collect flow input references
-            if parts.len() >= 2 && parts[0] == ConstructType::FLOW {
+            if parts.len() >= 2 && parts[0] == ConstructType::Flow.as_ref() {
                 let context = match &self.current_entity {
                     Some((EntityType::Action, name)) => BlockContext::Action(name.clone()),
                     Some((EntityType::Variable, name)) => BlockContext::Variable(name.clone()),
@@ -947,11 +947,11 @@ impl<'a> Visit for ReferenceValidationVisitor<'a> {
             // Skip dependency tracking in post_condition blocks since they execute AFTER the action
             if !self.in_post_condition && parts.len() >= 2 {
                 match parts[0].as_str() {
-                    ConstructType::VARIABLE => {
-                        self.dependencies.push((ConstructType::VARIABLE.into(), parts[1].clone()));
+                    "variable" => { // ConstructType::Variable
+                        self.dependencies.push((ConstructType::Variable.to_string(), parts[1].clone()));
                     }
-                    ConstructType::ACTION => {
-                        self.dependencies.push((ConstructType::ACTION.into(), parts[1].clone()));
+                    "action" => { // ConstructType::Action
+                        self.dependencies.push((ConstructType::Action.to_string(), parts[1].clone()));
                     }
                     _ => {}
                 }

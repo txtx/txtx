@@ -5,7 +5,6 @@ use kit::types::cloud_interface::CloudServiceContext;
 use kit::types::frontend::ActionItemRequestType;
 use kit::types::types::AddonJsonConverter;
 use kit::types::{ConstructDid, RunbookInstanceContext};
-use crate::types::ConstructType;
 use serde_json::{json, Value as JsonValue};
 use std::collections::{HashMap, HashSet, VecDeque};
 use txtx_addon_kit::hcl::structure::BlockLabel;
@@ -140,12 +139,13 @@ impl Runbook {
                 PackageId::from_file(&location, &self.runbook_id, &package_name).map_err(|e| e)?;
             package_ids.push(package_id.clone());
 
-            let mut blocks = raw_content.into_blocks().map_err(|diag| diag.location(&location))?;
+            let mut blocks = raw_content.into_typed_blocks().map_err(|diag| diag.location(&location))?;
 
-            while let Some(block) = blocks.pop_front() {
-                match block.ident.value().as_str() {
-                    ConstructType::FLOW => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+            while let Some(typed_block) = blocks.pop_front() {
+                use crate::types::ConstructType;
+                match &typed_block.construct_type {
+                    Ok(ConstructType::Flow) => {
+                        let Some(BlockLabel::String(name)) = typed_block.labels.first() else {
                             continue;
                         };
                         let flow_name = name.to_string();
@@ -154,7 +154,7 @@ impl Runbook {
                             &self.runbook_id,
                             &current_top_level_value_store,
                         );
-                        flow_map.push((flow_context, block.body.attributes().cloned().collect()));
+                        flow_map.push((flow_context, typed_block.body.attributes().cloned().collect()));
                     }
                     _ => {}
                 }
