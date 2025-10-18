@@ -37,6 +37,7 @@ use super::{
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
         ProvidedInputResponse, ReviewedInputResponse,
     },
+    namespace::Namespace,
     signers::{
         consolidate_nested_execution_result, consolidate_signer_activate_future_result,
         consolidate_signer_future_result, return_synchronous, PrepareSignedNestedExecutionResult,
@@ -685,7 +686,7 @@ pub struct CommandInstance {
     pub name: String,
     pub block: Block,
     pub package_id: PackageId,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub typing: CommandInstanceType,
 }
 pub enum CommandExecutionStatus {
@@ -1508,7 +1509,7 @@ pub fn add_ctx_to_diag(
     command_type: String,
     matcher: String,
     command_instance_name: String,
-    namespace: String,
+    namespace: Namespace,
 ) -> impl Fn(&Diagnostic) -> Diagnostic {
     let diag_with_command_ctx = move |diag: &Diagnostic| -> Diagnostic {
         let mut diag = diag.clone();

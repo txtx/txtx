@@ -13,6 +13,7 @@ use super::{
     commands::{
         CommandExecutionResult, CommandInput, CommandInputsEvaluationResult, CommandOutput,
     },
+    namespace::Namespace,
     diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
@@ -314,7 +315,7 @@ pub struct SignerInstance {
     pub name: String,
     pub block: Block,
     pub package_id: PackageId,
-    pub namespace: String,
+    pub namespace: Namespace,
 }
 
 impl SignerInstance {

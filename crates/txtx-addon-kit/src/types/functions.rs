@@ -1,6 +1,7 @@
 use super::{
     diagnostics::Diagnostic,
     function_errors::FunctionErrorRef,
+    namespace::Namespace,
     types::{Type, Value},
     AuthorizationContext,
 };
@@ -51,11 +52,11 @@ pub trait FunctionImplementation {
 }
 
 pub fn fn_diag_with_ctx(
-    namespace: String,
+    namespace: Namespace,
 ) -> impl Fn(&FunctionSpecification, String) -> Diagnostic {
     let fn_diag_with_ctx = move |fn_spec: &FunctionSpecification, e: String| -> Diagnostic {
         FunctionErrorRef::ExecutionError {
-            namespace: &namespace,
+            namespace: namespace.as_str(),
             function: &fn_spec.name,
             message: &e,
         }
@@ -65,7 +66,7 @@ pub fn fn_diag_with_ctx(
 }
 
 pub fn arg_checker_with_ctx(
-    namespace: String,
+    namespace: Namespace,
 ) -> impl Fn(&FunctionSpecification, &Vec<Value>) -> Result<(), Diagnostic> {
     let fn_checker =
         move |fn_spec: &FunctionSpecification, args: &Vec<Value>| -> Result<(), Diagnostic> {
@@ -105,7 +106,7 @@ pub fn arg_checker_with_ctx(
                         if !has_type_match {
                             let arg_type = arg.get_type();
                             return Err(FunctionErrorRef::TypeMismatch {
-                                namespace: &namespace,
+                                namespace: namespace.as_str(),
                                 function: &fn_spec.name,
                                 position: i + 1,
                                 name: &input.name,
@@ -116,7 +117,7 @@ pub fn arg_checker_with_ctx(
                         }
                     } else {
                         return Err(FunctionErrorRef::MissingArgument {
-                            namespace: &namespace,
+                            namespace: namespace.as_str(),
                             function: &fn_spec.name,
                             position: i + 1,
                             name: &input.name,

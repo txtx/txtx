@@ -8,6 +8,7 @@ use crate::{
 use super::{
     block_id::BlockId,
     diagnostics::Diagnostic,
+    namespace::Namespace,
     types::{Type, Value},
     ConstructDid, Did,
 };
@@ -118,8 +119,8 @@ impl LogEvent {
 
     pub fn namespace(&self) -> &str {
         match self {
-            LogEvent::Static(event) => &event.namespace,
-            LogEvent::Transient(event) => &event.namespace,
+            LogEvent::Static(event) => event.namespace.as_str(),
+            LogEvent::Transient(event) => event.namespace.as_str(),
         }
     }
 }
@@ -130,7 +131,7 @@ pub struct StaticLogEvent {
     pub level: LogLevel,
     pub uuid: Uuid,
     pub details: LogDetails,
-    pub namespace: String,
+    pub namespace: Namespace,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,7 +155,7 @@ pub struct TransientLogEvent {
     pub level: LogLevel,
     pub uuid: Uuid,
     pub status: TransientLogEventStatus,
-    pub namespace: String,
+    pub namespace: Namespace,
 }
 
 impl TransientLogEvent {
@@ -186,7 +187,7 @@ impl TransientLogEvent {
         uuid: Uuid,
         summary: impl ToString,
         message: impl ToString,
-        namespace: impl ToString,
+        namespace: impl Into<Namespace>,
     ) -> Self {
         TransientLogEvent {
             level: LogLevel::Info,
@@ -195,7 +196,7 @@ impl TransientLogEvent {
                 message: message.to_string(),
                 summary: summary.to_string(),
             }),
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
         }
     }
 
@@ -203,7 +204,7 @@ impl TransientLogEvent {
         uuid: Uuid,
         summary: impl ToString,
         message: impl ToString,
-        namespace: impl ToString,
+        namespace: impl Into<Namespace>,
     ) -> Self {
         TransientLogEvent {
             level: LogLevel::Info,
@@ -212,7 +213,7 @@ impl TransientLogEvent {
                 message: message.to_string(),
                 summary: summary.to_string(),
             }),
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
         }
     }
 
@@ -220,7 +221,7 @@ impl TransientLogEvent {
         uuid: Uuid,
         summary: impl ToString,
         message: impl ToString,
-        namespace: impl ToString,
+        namespace: impl Into<Namespace>,
     ) -> Self {
         TransientLogEvent {
             level: LogLevel::Error,
@@ -229,19 +230,19 @@ impl TransientLogEvent {
                 message: message.to_string(),
                 summary: summary.to_string(),
             }),
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
         }
     }
 }
 
 pub struct LogDispatcher {
     uuid: Uuid,
-    namespace: String,
+    namespace: Namespace,
     tx: channel::Sender<BlockEvent>,
 }
 impl LogDispatcher {
     pub fn new(uuid: Uuid, namespace: &str, tx: &channel::Sender<BlockEvent>) -> Self {
-        LogDispatcher { uuid, namespace: format!("txtx::{}", namespace), tx: tx.clone() }
+        LogDispatcher { uuid, namespace: Namespace::custom(format!("txtx::{}", namespace)), tx: tx.clone() }
     }
 
     fn log_static(&self, level: LogLevel, summary: impl ToString, message: impl ToString) {
@@ -307,7 +308,7 @@ impl BlockEvent {
     pub fn static_log(
         level: LogLevel,
         uuid: Uuid,
-        namespace: String,
+        namespace: Namespace,
         summary: impl ToString,
         message: impl ToString,
     ) -> Self {
@@ -1989,7 +1990,7 @@ impl InputOption {
 pub struct ProvidePublicKeyRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub message: String,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
 }
 
@@ -2003,7 +2004,7 @@ pub struct ProvideSignedTransactionRequest {
     pub only_approval_needed: bool,
     pub payload: Value,
     pub formatted_payload: Option<Value>,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
 }
 
@@ -2016,7 +2017,7 @@ impl ProvideSignedTransactionRequest {
             skippable: false,
             payload: payload.clone(),
             formatted_payload: None,
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
             network_id: network_id.to_string(),
             only_approval_needed: false,
         }
@@ -2057,7 +2058,7 @@ impl ProvideSignedTransactionRequest {
 pub struct VerifyThirdPartySignatureRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub signer_uuid: ConstructDid,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
     pub signer_name: String,
     pub third_party_name: String,
@@ -2082,7 +2083,7 @@ impl VerifyThirdPartySignatureRequest {
             signer_name: signer_name.to_string(),
             third_party_name: third_party_name.to_string(),
             url: url.to_string(),
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
             network_id: network_id.to_string(),
             payload: payload.clone(),
             formatted_payload: None,
@@ -2112,7 +2113,7 @@ pub struct SendTransactionRequest {
     pub expected_signer_address: Option<String>,
     pub payload: Value,
     pub formatted_payload: Option<Value>,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
 }
 
@@ -2124,7 +2125,7 @@ impl SendTransactionRequest {
             expected_signer_address: None,
             payload: payload.clone(),
             formatted_payload: None,
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
             network_id: network_id.to_string(),
         }
     }
@@ -2155,7 +2156,7 @@ pub struct ProvideSignedMessageRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub signer_uuid: ConstructDid,
     pub message: Value,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
 }
 

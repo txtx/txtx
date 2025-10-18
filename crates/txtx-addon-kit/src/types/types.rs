@@ -15,7 +15,7 @@ use crate::helpers::hcl::{
     visit_optional_untyped_attribute,
 };
 use crate::types::frontend::{LogDetails, LogEvent, StaticLogEvent};
-use crate::types::ConstructDid;
+use crate::types::{namespace::Namespace, ConstructDid};
 
 use super::diagnostics::Diagnostic;
 use super::{Did, EvaluatableInput};
@@ -256,6 +256,7 @@ impl RunbookCompleteAdditionalInfo {
 
 impl Into<Vec<LogEvent>> for RunbookCompleteAdditionalInfo {
     fn into(self) -> Vec<LogEvent> {
+        let namespace: Namespace = self.construct_name.into();
         self.details
             .split("\n")
             .filter_map(|line| {
@@ -270,7 +271,7 @@ impl Into<Vec<LogEvent>> for RunbookCompleteAdditionalInfo {
                             summary: self.title.clone(),
                         },
                         uuid: self.construct_did.as_uuid(),
-                        namespace: self.construct_name.clone(),
+                        namespace: namespace.clone(),
                     }))
                 }
             })

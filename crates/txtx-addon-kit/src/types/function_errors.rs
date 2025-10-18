@@ -1,19 +1,20 @@
 use std::fmt;
 
-use super::types::Type;
 use super::diagnostics::Diagnostic;
+use super::namespace::Namespace;
+use super::types::Type;
 
 /// Structured error types for function execution and validation (owned version)
 #[derive(Debug, Clone)]
 pub enum FunctionError {
     MissingArgument {
-        namespace: String,
+        namespace: Namespace,
         function: String,
         position: usize,
         name: String,
     },
     TypeMismatch {
-        namespace: String,
+        namespace: Namespace,
         function: String,
         position: usize,
         name: String,
@@ -21,7 +22,7 @@ pub enum FunctionError {
         found: Type,
     },
     ExecutionError {
-        namespace: String,
+        namespace: Namespace,
         function: String,
         message: String,
     },
@@ -114,7 +115,7 @@ impl<'a> From<FunctionErrorRef<'a>> for FunctionError {
         match err {
             FunctionErrorRef::MissingArgument { namespace, function, position, name } => {
                 FunctionError::MissingArgument {
-                    namespace: namespace.to_string(),
+                    namespace: namespace.into(),
                     function: function.to_string(),
                     position,
                     name: name.to_string(),
@@ -122,7 +123,7 @@ impl<'a> From<FunctionErrorRef<'a>> for FunctionError {
             }
             FunctionErrorRef::TypeMismatch { namespace, function, position, name, expected, found } => {
                 FunctionError::TypeMismatch {
-                    namespace: namespace.to_string(),
+                    namespace: namespace.into(),
                     function: function.to_string(),
                     position,
                     name: name.to_string(),
@@ -132,7 +133,7 @@ impl<'a> From<FunctionErrorRef<'a>> for FunctionError {
             }
             FunctionErrorRef::ExecutionError { namespace, function, message } => {
                 FunctionError::ExecutionError {
-                    namespace: namespace.to_string(),
+                    namespace: namespace.into(),
                     function: function.to_string(),
                     message: message.to_string(),
                 }

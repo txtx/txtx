@@ -10,6 +10,7 @@ use super::{
         PreConditionEvaluatableInput,
     },
     diagnostics::Diagnostic,
+    namespace::Namespace,
     package::Package,
     signers::{SignerInstance, SignersState},
     stores::ValueStore,
@@ -246,7 +247,7 @@ pub struct EmbeddedRunbookValueInputSpecification {
 pub struct EmbeddedRunbookSignerInputSpecification {
     pub name: String,
     pub documentation: String,
-    pub namespace: String,
+    pub namespace: Namespace,
 }
 
 pub type SignerName = String;
