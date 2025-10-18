@@ -494,12 +494,12 @@ output "key" {
             .signer("deployer", "evm::private_key", vec![("private_key", "0x123")])
             // Action 1 references action2 (forward reference)
             .action("action1", "evm::send_eth")
-            .input("from", "signer.deployer.address")
-            .input("to", "action.action2.contract_address") // Forward ref
-            .input("value", "1000")
+            .input("signer", "signer.deployer")
+            .input("recipient_address", "action.action2.contract_address") // Forward ref
+            .input("amount", "1000")
             // Action 2 defined after action1
             .action("action2", "evm::deploy_contract")
-            .input("contract", "\"Token.sol\"")
+            .input("contract", r#"{"bytecode": "0x6080604052"}"#)
             .input("signer", "signer.deployer");
 
         let result = builder.validate();
@@ -948,8 +948,7 @@ output "result" {
             .addon("evm", vec![])
             .signer("deployer", "evm::private_key", vec![("private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")])
             .action("deploy", "evm::deploy_contract")
-                .input("contract", "MyContract")
-                .input("contract_abi", "[{\"type\":\"constructor\"}]")
+                .input("contract", r#"{"bytecode": "0x6080604052", "abi": "[{\"type\":\"constructor\"}]"}"#)
                 .input("signer", "signer.deployer")
             .output("address", "action.deploy.contract_address");
 
@@ -961,9 +960,9 @@ output "result" {
             .addon("evm", vec![])
             .signer("sender", "evm::private_key", vec![("private_key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")])
             .action("send", "evm::send_eth")
-                .input("from", "signer.sender.address")
-                .input("to", "0x1234567890123456789012345678901234567890")
-                .input("value", "1000")
+                .input("signer", "signer.sender")
+                .input("recipient_address", "0x1234567890123456789012345678901234567890")
+                .input("amount", "1000")
             .output("invalid", "action.send.contract_address");  // send_eth doesn't have contract_address!
 
         let result2 = builder2.validate();
