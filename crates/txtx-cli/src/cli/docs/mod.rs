@@ -33,7 +33,7 @@ pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Res
     let svm: Box<dyn Addon> = Box::new(SvmNetworkAddon::new());
     let telegram: Box<dyn Addon> = Box::new(TelegramAddon::new());
 
-    let mut addons = vec![&std, &evm, &svm, &telegram];
+    let addons = vec![&std, &evm, &svm, &telegram];
     #[cfg(feature = "ovm")]
     let ovm: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
     #[cfg(feature = "ovm")]
