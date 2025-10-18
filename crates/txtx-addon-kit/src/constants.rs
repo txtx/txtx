@@ -1,27 +1,67 @@
-// Signers
-pub const SIGNED_MESSAGE_BYTES: &str = "signed_message_bytes";
-pub const SIGNED_TRANSACTION_BYTES: &str = "signed_transaction_bytes";
-pub const TX_HASH: &str = "tx_hash";
-pub const SIGNATURE_APPROVED: &str = "signature_approved";
-pub const SIGNATURE_SKIPPABLE: &str = "signature_skippable";
-pub const PROVIDE_PUBLIC_KEY_ACTION_RESULT: &str = "provide_public_key_action_result";
-pub const NESTED_CONSTRUCT_DID: &str = "nested_construct_did";
-pub const NESTED_CONSTRUCT_INDEX: &str = "nested_construct_index";
-pub const NESTED_CONSTRUCT_COUNT: &str = "nested_construct_count";
-pub const DESCRIPTION: &str = "description";
-pub const DEPENDS_ON: &str = "depends_on";
-pub const META_DESCRIPTION: &str = "meta_description";
-pub const MARKDOWN: &str = "markdown";
-pub const MARKDOWN_FILEPATH: &str = "markdown_filepath";
-pub const PRE_CONDITION: &str = "pre_condition";
-pub const POST_CONDITION: &str = "post_condition";
+use strum_macros::{AsRefStr, Display, EnumString, IntoStaticStr};
 
-pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
-pub const CHECKED_ADDRESS: &str = "checked_address";
-pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
-pub const IS_BALANCE_CHECKED: &str = "is_balance_checked";
-pub const ACTION_ITEM_BEGIN_FLOW: &str = "begin_flow";
-pub const RE_EXECUTE_COMMAND: &str = "re_execute_command";
+/// Keys related to signer operations and signatures
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, Display, EnumString, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
+pub enum SignerKey {
+    SignedMessageBytes,
+    SignedTransactionBytes,
+    TxHash,
+    SignatureApproved,
+    SignatureSkippable,
+    ProvidePublicKeyActionResult,
+}
 
-pub const THIRD_PARTY_SIGNATURE_STATUS: &str = "third_party_signature_status";
-pub const RUNBOOK_COMPLETE_ADDITIONAL_INFO: &str = "runbook_complete_additional_info";
+/// Keys related to action items
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, Display, EnumString, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
+pub enum ActionItemKey {
+    #[strum(serialize = "check_address")]
+    CheckAddress,
+    #[strum(serialize = "checked_address")]
+    CheckedAddress,
+    #[strum(serialize = "check_balance")]
+    CheckBalance,
+    #[strum(serialize = "is_balance_checked")]
+    IsBalanceChecked,
+    #[strum(serialize = "begin_flow")]
+    BeginFlow,
+    #[strum(serialize = "re_execute_command")]
+    ReExecuteCommand,
+}
+
+/// Keys related to nested constructs
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, Display, EnumString, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
+pub enum NestedConstructKey {
+    NestedConstructDid,
+    NestedConstructIndex,
+    NestedConstructCount,
+}
+
+/// Keys related to documentation and metadata
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, Display, EnumString, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
+pub enum DocumentationKey {
+    Description,
+    DependsOn,
+    MetaDescription,
+    Markdown,
+    MarkdownFilepath,
+}
+
+/// Keys related to conditions (pre/post)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, Display, EnumString, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
+pub enum ConditionKey {
+    PreCondition,
+    PostCondition,
+}
+
+/// Keys related to runbook execution
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, Display, EnumString, IntoStaticStr)]
+#[strum(serialize_all = "snake_case")]
+pub enum RunbookKey {
+    ThirdPartySignatureStatus,
+    RunbookCompleteAdditionalInfo,
+}

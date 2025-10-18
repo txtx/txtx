@@ -1,7 +1,7 @@
 use std::{borrow::BorrowMut, collections::BTreeMap, fmt::Display};
 
 use crate::{
-    constants::ACTION_ITEM_BEGIN_FLOW,
+    constants::ActionItemKey,
     types::{stores::AddonDefaults, types::RunbookCompleteAdditionalInfo},
 };
 
@@ -1118,7 +1118,7 @@ impl Actions {
                         name: flow_name.to_string(),
                         description: flow_description.clone(),
                     })
-                    .to_request("", ACTION_ITEM_BEGIN_FLOW)
+                    .to_request("", ActionItemKey::BeginFlow.as_ref())
                     .with_status(ActionItemStatus::Success(None))],
                     allow_batch_completion: false,
                 }],

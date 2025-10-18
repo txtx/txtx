@@ -1,7 +1,4 @@
-use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, CHECKED_ADDRESS, IS_BALANCE_CHECKED,
-    PROVIDE_PUBLIC_KEY_ACTION_RESULT,
-};
+use crate::constants::{ActionItemKey, SignerKey};
 use crate::helpers::hcl::visit_optional_untyped_attribute;
 use crate::types::stores::ValueStore;
 use futures::future;
@@ -385,7 +382,7 @@ impl SignerInstance {
                     match payload {
                         ActionItemResponseType::ProvidePublicKey(update) => {
                             values.insert(
-                                PROVIDE_PUBLIC_KEY_ACTION_RESULT,
+                                SignerKey::ProvidePublicKeyActionResult.as_ref(),
                                 Value::string(update.public_key.clone()),
                             );
                         }
@@ -397,20 +394,20 @@ impl SignerInstance {
                                 if let Some(signer_did) = &request.construct_did {
                                     let mut signer_state =
                                         signers.pop_signer_state(signer_did).unwrap();
-                                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
+                                    if request.internal_key == ActionItemKey::CheckAddress.as_ref() {
                                         if response.value_checked {
                                             let data = request
                                                 .action_type
                                                 .as_review_input()
                                                 .expect("review input action item");
                                             signer_state.insert(
-                                                CHECKED_ADDRESS,
+                                                ActionItemKey::CheckedAddress.as_ref(),
                                                 Value::string(data.value.to_string()),
                                             );
                                         }
-                                    } else if request.internal_key == ACTION_ITEM_CHECK_BALANCE {
+                                    } else if request.internal_key == ActionItemKey::CheckBalance.as_ref() {
                                         signer_state.insert(
-                                            IS_BALANCE_CHECKED,
+                                            ActionItemKey::IsBalanceChecked.as_ref(),
                                             Value::bool(response.value_checked),
                                         );
                                     }

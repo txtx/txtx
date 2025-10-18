@@ -1,5 +1,5 @@
 use crate::{
-    constants::RE_EXECUTE_COMMAND,
+    constants::ActionItemKey,
     indoc,
     types::{commands::CommandExecutionResult, frontend::LogDispatcher, types::ObjectProperty},
 };
@@ -149,10 +149,10 @@ pub fn evaluate_post_conditions(
                     execution_results
                         .outputs
                         .insert(POST_CONDITION_ATTEMPTS.into(), Value::Integer(attempts + 1));
-                    execution_results.outputs.insert(RE_EXECUTE_COMMAND.into(), Value::bool(true));
+                    execution_results.outputs.insert(ActionItemKey::ReExecuteCommand.as_ref().into(), Value::bool(true));
                     return Ok(PostConditionEvaluationResult::Retry(post_condition.backoff));
                 } else {
-                    execution_results.outputs.entry(RE_EXECUTE_COMMAND.into()).and_modify(|v| {
+                    execution_results.outputs.entry(ActionItemKey::ReExecuteCommand.as_ref().into()).and_modify(|v| {
                         *v = Value::bool(false);
                     });
                 }
@@ -193,7 +193,7 @@ pub fn evaluate_post_conditions(
                 PostConditionBehavior::Continue => {}
             }
         } else {
-            execution_results.outputs.entry(RE_EXECUTE_COMMAND.into()).and_modify(|v| {
+            execution_results.outputs.entry(ActionItemKey::ReExecuteCommand.as_ref().into()).and_modify(|v| {
                 *v = Value::bool(false);
             });
         }

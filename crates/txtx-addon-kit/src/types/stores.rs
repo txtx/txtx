@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 
 use crate::{
-    constants::{MARKDOWN, MARKDOWN_FILEPATH, THIRD_PARTY_SIGNATURE_STATUS},
+    constants::{DocumentationKey, RunbookKey},
     types::{types::ThirdPartySignatureStatus, AuthorizationContext},
 };
 
@@ -346,10 +346,10 @@ impl ValueStore {
     ) -> Result<Option<String>, Diagnostic> {
         let markdown = self
             .inputs
-            .get_value(MARKDOWN)
+            .get_value(DocumentationKey::Markdown.as_ref())
             .and_then(|v| v.as_string().map(|s| s.to_string()))
             .or_else(|| {
-                self.defaults.get_value(MARKDOWN).and_then(|v| v.as_string().map(|s| s.to_string()))
+                self.defaults.get_value(DocumentationKey::Markdown.as_ref()).and_then(|v| v.as_string().map(|s| s.to_string()))
             });
 
         if markdown.is_some() {
@@ -358,8 +358,8 @@ impl ValueStore {
 
         let Some(markdown_filepath) = self
             .inputs
-            .get_string(MARKDOWN_FILEPATH)
-            .or_else(|| self.defaults.get_string(MARKDOWN_FILEPATH))
+            .get_string(DocumentationKey::MarkdownFilepath.as_ref())
+            .or_else(|| self.defaults.get_string(DocumentationKey::MarkdownFilepath.as_ref()))
         else {
             return Ok(None);
         };
@@ -660,7 +660,7 @@ impl ValueMap {
 
     pub fn get_third_party_signature_status(&self) -> Option<ThirdPartySignatureStatus> {
         self.store
-            .get(THIRD_PARTY_SIGNATURE_STATUS)
+            .get(RunbookKey::ThirdPartySignatureStatus.as_ref())
             .and_then(|v| v.as_third_party_signature_status())
     }
 
