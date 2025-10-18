@@ -143,12 +143,12 @@ impl BlockContext {
         use crate::types::ConstructType;
 
         match self {
-            BlockContext::Action(_) => ConstructType::ACTION,
-            BlockContext::Variable(_) => ConstructType::VARIABLE,
-            BlockContext::Signer(_) => ConstructType::SIGNER,
-            BlockContext::Output(_) => ConstructType::OUTPUT,
-            BlockContext::Flow(_) => ConstructType::FLOW,
-            BlockContext::Addon(_) => ConstructType::ADDON,
+            BlockContext::Action(_) => ConstructType::Action.into(),
+            BlockContext::Variable(_) => ConstructType::Variable.into(),
+            BlockContext::Signer(_) => ConstructType::Signer.into(),
+            BlockContext::Output(_) => ConstructType::Output.into(),
+            BlockContext::Flow(_) => ConstructType::Flow.into(),
+            BlockContext::Addon(_) => ConstructType::Addon.into(),
             BlockContext::Unknown => "unknown",
         }
     }
@@ -321,7 +321,7 @@ mod tests {
 
         let ctx = BlockContext::Action("deploy".to_string());
         assert_eq!(ctx.name(), Some("deploy"));
-        assert_eq!(ctx.block_type(), ConstructType::ACTION);
+        assert_eq!(ctx.block_type(), ConstructType::Action);
 
         let ctx = BlockContext::Unknown;
         assert_eq!(ctx.name(), None);

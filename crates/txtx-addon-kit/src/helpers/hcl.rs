@@ -281,6 +281,19 @@ impl RawHclContent {
         Ok(content.into_blocks().into_iter().collect::<VecDeque<Block>>())
     }
 
+    /// Parse the HCL content into OwnedTypedBlocks with construct types resolved at parse time.
+    ///
+    /// This is the preferred method for parsing blocks as it provides type-safe access
+    /// to construct types (Action, Variable, etc.) instead of string matching.
+    ///
+    /// Returns owned typed blocks that can be consumed via iteration.
+    pub fn into_typed_blocks(&self) -> Result<VecDeque<crate::types::typed_block::OwnedTypedBlock>, Diagnostic> {
+        Ok(self.into_blocks()?
+            .into_iter()
+            .map(crate::types::typed_block::OwnedTypedBlock::new)
+            .collect())
+    }
+
     pub fn into_block_instance(&self) -> Result<Block, Diagnostic> {
         let mut blocks = self.into_blocks()?;
         if blocks.len() != 1 {

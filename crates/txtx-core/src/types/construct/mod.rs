@@ -43,14 +43,14 @@ impl PreConstructData {
         use crate::types::ConstructType;
 
         match &self {
-            PreConstructData::Import(_) => ConstructType::IMPORT,
-            PreConstructData::Variable(_) => ConstructType::VARIABLE,
-            PreConstructData::Output(_) => ConstructType::OUTPUT,
-            PreConstructData::Module(_) => ConstructType::MODULE,
-            PreConstructData::Action(_) => ConstructType::ACTION,
-            PreConstructData::Signer(_) => ConstructType::SIGNER,
-            PreConstructData::Addon(_) => ConstructType::ADDON,
-            PreConstructData::EmbeddedRunbook(_) => ConstructType::RUNBOOK,
+            PreConstructData::Import(_) => ConstructType::Import.into(),
+            PreConstructData::Variable(_) => ConstructType::Variable.into(),
+            PreConstructData::Output(_) => ConstructType::Output.into(),
+            PreConstructData::Module(_) => ConstructType::Module.into(),
+            PreConstructData::Action(_) => ConstructType::Action.into(),
+            PreConstructData::Signer(_) => ConstructType::Signer.into(),
+            PreConstructData::Addon(_) => ConstructType::Addon.into(),
+            PreConstructData::EmbeddedRunbook(_) => ConstructType::Runbook.into(),
             PreConstructData::Root => unreachable!(),
         }
     }

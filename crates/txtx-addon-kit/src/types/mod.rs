@@ -20,6 +20,7 @@ pub mod block_id;
 pub mod cloud_interface;
 pub mod commands;
 pub mod construct_type;
+pub mod typed_block;
 pub mod diagnostic_types;
 pub mod diagnostics;
 

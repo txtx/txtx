@@ -77,7 +77,7 @@ pub async fn run_signers_evaluation(
         let instantiated = runbook_execution_context.is_signer_instantiated(&construct_did);
 
         let add_ctx_to_diag = add_ctx_to_diag(
-            ConstructType::SIGNER.into(),
+            ConstructType::Signer.to_string(),
             signer_instance.specification.matcher.clone(),
             signer_instance.name.clone(),
             signer_instance.namespace.clone(),
