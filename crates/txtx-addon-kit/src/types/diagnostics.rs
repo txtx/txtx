@@ -1,6 +1,7 @@
 use std::{fmt::Display, ops::Range};
 
 use hcl_edit::{expr::Expression, structure::Block};
+use serde::{Deserialize, Serialize};
 
 use crate::helpers::fs::FileLocation;
 
