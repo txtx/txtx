@@ -39,20 +39,20 @@ pub enum Severity {
 }
 
 /// Input-specific context within a validation check
-pub struct InputInfo<'a> {
-    pub name: &'a str,
-    pub full_name: &'a str,
+pub struct InputInfo {
+    pub name: String,
+    pub full_name: String,
 }
 
 /// Context passed to validation rules
-pub struct ValidationContext<'env, 'content> {
-    pub manifest: &'env WorkspaceManifest,
-    pub environment: Option<&'env str>,
-    pub effective_inputs: &'env HashMap<String, String>,
-    pub cli_inputs: &'env [(String, String)],
-    pub content: &'content str,
-    pub file_path: &'content str,
-    pub input: InputInfo<'content>,
+pub struct ValidationContext {
+    pub manifest: WorkspaceManifest,
+    pub environment: Option<String>,
+    pub effective_inputs: HashMap<String, String>,
+    pub cli_inputs: Vec<(String, String)>,
+    pub content: String,
+    pub file_path: String,
+    pub input: InputInfo,
 }
 
 // ============================================================================
@@ -68,11 +68,11 @@ const SENSITIVE_PATTERNS: &[&str] = &["password", "secret", "key", "token", "cre
 type RuleFn = fn(&ValidationContext) -> Option<ValidationIssue>;
 
 fn validate_input_defined(ctx: &ValidationContext) -> Option<ValidationIssue> {
-    if ctx.effective_inputs.contains_key(ctx.input.name) {
+    if ctx.effective_inputs.contains_key(&ctx.input.name) {
         return None;
     }
 
-    let env_name = ctx.environment.unwrap_or("global");
+    let env_name = ctx.environment.as_deref().unwrap_or("global");
     Some(ValidationIssue {
         rule: CliRuleId::InputDefined,
         severity: Severity::Error,
@@ -121,11 +121,11 @@ fn validate_naming_convention(ctx: &ValidationContext) -> Option<ValidationIssue
 }
 
 fn validate_cli_override(ctx: &ValidationContext) -> Option<ValidationIssue> {
-    if !ctx.effective_inputs.contains_key(ctx.input.name) {
+    if !ctx.effective_inputs.contains_key(&ctx.input.name) {
         return None;
     }
 
-    let is_overridden = ctx.cli_inputs.iter().any(|(k, _)| k == ctx.input.name);
+    let is_overridden = ctx.cli_inputs.iter().any(|(k, _)| k == &ctx.input.name);
     if is_overridden {
         Some(ValidationIssue {
             rule: CliRuleId::CliInputOverride,
