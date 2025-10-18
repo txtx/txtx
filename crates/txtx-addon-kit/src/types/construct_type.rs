@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use strum::{AsRefStr, Display, EnumString};
+use strum::{AsRefStr, Display, EnumIter, EnumString, IntoStaticStr};
 
 /// Central definition of all txtx language construct types.
 ///
@@ -16,11 +16,27 @@ use strum::{AsRefStr, Display, EnumString};
 /// let construct = ConstructType::from_str("action").unwrap();
 /// assert_eq!(construct, ConstructType::Action);
 ///
-/// // Convert to string
-/// assert_eq!(construct.as_ref(), "action");
-/// assert_eq!(construct.to_string(), "action");
+/// // Convert to string (multiple ways provided by Strum)
+/// assert_eq!(construct.as_ref(), "action");           // AsRefStr
+/// assert_eq!(construct.to_string(), "action");        // Display
+/// let s: &'static str = construct.into();             // IntoStaticStr
+/// assert_eq!(s, "action");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, AsRefStr, Display, EnumString)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    AsRefStr,      // Provides as_ref() -> &str
+    Display,       // Provides to_string()
+    EnumString,    // Provides from_str()
+    IntoStaticStr, // Provides into() -> &'static str
+    EnumIter,      // Provides iter() over all variants
+)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum ConstructType {
@@ -36,120 +52,91 @@ pub enum ConstructType {
     Runbook,
 }
 
+// Macro to generate string constants with reduced duplication.
+// These constants enable clean pattern matching against string variables without
+// runtime enum conversion: `match s { ConstructType::ACTION => ... }`
+//
+// Note: An alternative idiomatic approach is to parse strings at boundaries:
+//   let construct = ConstructType::from_str(s)?;
+//   match construct { ConstructType::Action => ... }
+// This provides stronger type safety but requires error handling.
+macro_rules! construct_constants {
+    ($($name:ident => $value:expr),* $(,)?) => {
+        impl ConstructType {
+            $(
+                #[doc = concat!("String constant for ", $value, " construct")]
+                pub const $name: &'static str = $value;
+            )*
+        }
+    };
+}
+
+construct_constants! {
+    ACTION => "action",
+    VARIABLE => "variable",
+    OUTPUT => "output",
+    SIGNER => "signer",
+    ADDON => "addon",
+    MODULE => "module",
+    FLOW => "flow",
+    IMPORT => "import",
+    PROMPT => "prompt",
+    RUNBOOK => "runbook",
+}
+
 impl ConstructType {
-    // Note: These constants duplicate the Strum `serialize_all = "lowercase"` configuration,
-    // but serve an important ergonomic purpose: they enable clean pattern matching against
-    // string variables without runtime enum conversion.
-    //
-    // Example usage:
-    //   match block_type_str {
-    //       ConstructType::ACTION => { ... }   // Clean, no runtime cost
-    //       ConstructType::VARIABLE => { ... }
-    //   }
-    //
-    // Without constants, we'd need verbose patterns:
-    //   match block_type_str {
-    //       s if s == ConstructType::Action.as_ref() => { ... }  // Less readable
-    //   }
-    //
-    // Or runtime enum conversion:
-    //   let construct = ConstructType::from_str(block_type_str)?;  // Runtime overhead
-    //   match construct { ... }
-    //
-    // Trade-offs:
-    //   Pro: Zero-cost pattern matching, clean syntax throughout codebase
-    //   Con: Duplication requires manual sync with Strum serialization
-    //
-    // Safety: Tests in this module verify constants match Strum serialization at compile time.
-
-    /// String constant for action construct
-    pub const ACTION: &'static str = "action";
-    /// String constant for variable construct
-    pub const VARIABLE: &'static str = "variable";
-    /// String constant for output construct
-    pub const OUTPUT: &'static str = "output";
-    /// String constant for signer construct
-    pub const SIGNER: &'static str = "signer";
-    /// String constant for addon construct
-    pub const ADDON: &'static str = "addon";
-    /// String constant for module construct
-    pub const MODULE: &'static str = "module";
-    /// String constant for flow construct
-    pub const FLOW: &'static str = "flow";
-    /// String constant for import construct
-    pub const IMPORT: &'static str = "import";
-    /// String constant for prompt construct
-    pub const PROMPT: &'static str = "prompt";
-    /// String constant for runbook construct
-    pub const RUNBOOK: &'static str = "runbook";
-
     /// Get the string representation as a static string slice.
     ///
-    /// This is equivalent to `as_ref()` but as a const fn.
+    /// This is a const fn version of `as_ref()` for use in const contexts.
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Self::Action => Self::ACTION,
-            Self::Variable => Self::VARIABLE,
-            Self::Output => Self::OUTPUT,
-            Self::Signer => Self::SIGNER,
-            Self::Addon => Self::ADDON,
-            Self::Module => Self::MODULE,
-            Self::Flow => Self::FLOW,
-            Self::Import => Self::IMPORT,
-            Self::Prompt => Self::PROMPT,
-            Self::Runbook => Self::RUNBOOK,
+            Self::Action => "action",
+            Self::Variable => "variable",
+            Self::Output => "output",
+            Self::Signer => "signer",
+            Self::Addon => "addon",
+            Self::Module => "module",
+            Self::Flow => "flow",
+            Self::Import => "import",
+            Self::Prompt => "prompt",
+            Self::Runbook => "runbook",
         }
     }
 
-    /// Returns an array of all valid construct type strings.
+    /// Returns an iterator over all construct type variants.
     ///
     /// Useful for validation and error messages.
-    pub const fn all() -> &'static [&'static str] {
-        &[
-            Self::ACTION,
-            Self::VARIABLE,
-            Self::OUTPUT,
-            Self::SIGNER,
-            Self::ADDON,
-            Self::MODULE,
-            Self::FLOW,
-            Self::IMPORT,
-            Self::PROMPT,
-            Self::RUNBOOK,
-        ]
+    ///
+    /// # Example
+    /// ```
+    /// use txtx_addon_kit::types::construct_type::ConstructType;
+    /// let count = ConstructType::all().count();
+    /// assert_eq!(count, 10);
+    /// ```
+    pub fn all() -> impl Iterator<Item = Self> {
+        use strum::IntoEnumIterator;
+        Self::iter()
+    }
+
+    /// Returns a Vec of all valid construct type strings.
+    ///
+    /// # Example
+    /// ```
+    /// use txtx_addon_kit::types::construct_type::ConstructType;
+    /// let strings = ConstructType::all_str();
+    /// assert!(strings.contains(&"action"));
+    /// ```
+    pub fn all_str() -> Vec<&'static str> {
+        Self::all().map(|ct| ct.into()).collect()
     }
 }
 
-/// Custom serde serializer for ConstructType that maintains string format compatibility.
-///
-/// This allows ConstructType to be stored internally as an enum while serializing
-/// to/from strings for JSON, databases, and APIs.
-pub fn serialize_construct_type<S>(ct: &ConstructType, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serializer.serialize_str(ct.as_ref())
-}
-
-/// Custom serde deserializer for ConstructType that parses from string format.
-///
-/// This allows backward compatibility with existing serialized data that stores
-/// construct types as strings.
-pub fn deserialize_construct_type<'de, D>(deserializer: D) -> Result<ConstructType, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::Deserialize;
-    use std::str::FromStr;
-
-    let s = String::deserialize(deserializer)?;
-    ConstructType::from_str(&s).map_err(serde::de::Error::custom)
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::str::FromStr;
+    use strum::IntoEnumIterator;
 
     #[test]
     fn test_from_str() {
@@ -174,6 +161,14 @@ mod tests {
     }
 
     #[test]
+    fn test_into_static_str() {
+        let s: &'static str = ConstructType::Action.into();
+        assert_eq!(s, "action");
+        let s: &'static str = ConstructType::Variable.into();
+        assert_eq!(s, "variable");
+    }
+
+    #[test]
     fn test_constants() {
         assert_eq!(ConstructType::ACTION, "action");
         assert_eq!(ConstructType::VARIABLE, "variable");
@@ -182,18 +177,8 @@ mod tests {
 
     /// Critical test: Ensures string constants stay synchronized with Strum serialization.
     ///
-    /// This test exists because we intentionally duplicate serialization information for
-    /// ergonomic reasons (see comment above const definitions). The duplication enables
-    /// zero-cost pattern matching like `match s { ConstructType::ACTION => ... }` without
-    /// requiring runtime enum conversion.
-    ///
-    /// This test catches any desync between:
-    /// 1. The `#[strum(serialize_all = "lowercase")]` attribute
-    /// 2. The manually defined `pub const ACTION: &'static str` constants
-    /// 3. The `as_str()` const fn implementation
-    ///
-    /// If this test fails, it means a constant was changed without updating Strum
-    /// serialization (or vice versa). Both must be kept in sync.
+    /// This verifies that the macro-generated constants, the as_str() const fn,
+    /// and Strum's derived traits all produce consistent string representations.
     #[test]
     fn test_constants_match_strum_serialization() {
         // Each constant must exactly match what Strum serializes the enum to
@@ -208,7 +193,7 @@ mod tests {
         assert_eq!(ConstructType::PROMPT, ConstructType::Prompt.as_ref());
         assert_eq!(ConstructType::RUNBOOK, ConstructType::Runbook.as_ref());
 
-        // Also verify as_str() const fn matches (it uses the constants internally)
+        // Verify as_str() const fn matches
         assert_eq!(ConstructType::Action.as_str(), ConstructType::ACTION);
         assert_eq!(ConstructType::Variable.as_str(), ConstructType::VARIABLE);
         assert_eq!(ConstructType::Output.as_str(), ConstructType::OUTPUT);
@@ -220,7 +205,7 @@ mod tests {
         assert_eq!(ConstructType::Prompt.as_str(), ConstructType::PROMPT);
         assert_eq!(ConstructType::Runbook.as_str(), ConstructType::RUNBOOK);
 
-        // Verify to_string() (from Display trait) also matches
+        // Verify to_string() (from Display trait) matches
         assert_eq!(ConstructType::Action.to_string(), ConstructType::ACTION);
         assert_eq!(ConstructType::Variable.to_string(), ConstructType::VARIABLE);
         assert_eq!(ConstructType::Output.to_string(), ConstructType::OUTPUT);
@@ -235,10 +220,26 @@ mod tests {
 
     #[test]
     fn test_all() {
-        let all = ConstructType::all();
+        let all: Vec<_> = ConstructType::all().collect();
+        assert_eq!(all.len(), 10);
+        assert!(all.contains(&ConstructType::Action));
+        assert!(all.contains(&ConstructType::Variable));
+    }
+
+    #[test]
+    fn test_all_str() {
+        let all = ConstructType::all_str();
+        assert_eq!(all.len(), 10);
         assert!(all.contains(&"action"));
         assert!(all.contains(&"variable"));
-        assert_eq!(all.len(), 10);
+    }
+
+    #[test]
+    fn test_enum_iter() {
+        let all_types: Vec<_> = ConstructType::iter().collect();
+        assert_eq!(all_types.len(), 10);
+        assert_eq!(all_types[0], ConstructType::Action);
+        assert_eq!(all_types[9], ConstructType::Runbook);
     }
 
     #[test]
