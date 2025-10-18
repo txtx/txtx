@@ -33,21 +33,21 @@ pub struct FunctionSpecification {
 }
 
 type FunctionRunner =
-    fn(&FunctionSpecification, &AuthorizationContext, &Vec<Value>) -> Result<Value, Diagnostic>;
+    fn(&FunctionSpecification, &AuthorizationContext, &[Value]) -> Result<Value, Diagnostic>;
 type FunctionChecker =
-    fn(&FunctionSpecification, &AuthorizationContext, &Vec<Type>) -> Result<Type, Diagnostic>;
+    fn(&FunctionSpecification, &AuthorizationContext, &[Type]) -> Result<Type, Diagnostic>;
 
 pub trait FunctionImplementation {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic>;
 
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        _args: &[Value],
     ) -> Result<Value, Diagnostic>;
 }
 
@@ -67,66 +67,47 @@ pub fn fn_diag_with_ctx(
 
 pub fn arg_checker_with_ctx(
     namespace: Namespace,
-) -> impl Fn(&FunctionSpecification, &Vec<Value>) -> Result<(), Diagnostic> {
-    let fn_checker =
-        move |fn_spec: &FunctionSpecification, args: &Vec<Value>| -> Result<(), Diagnostic> {
-            for (i, input) in fn_spec.inputs.iter().enumerate() {
-                if !input.optional {
-                    if let Some(arg) = args.get(i) {
-                        let mut has_type_match = false;
-                        for typing in input.typing.iter() {
-                            let arg_type = arg.get_type();
-                            // special case if both are addons: we don't want to be so strict that
-                            // we check the addon id here
-                            if let Type::Addon(_) = arg_type {
-                                if let Type::Addon(_) = typing {
-                                    has_type_match = true;
-                                    break;
-                                }
-                            }
-                            // special case for empty arrays
-                            if let Type::Array(_) = arg_type {
-                                if arg.expect_array().len() == 0 {
-                                    has_type_match = true;
-                                    break;
-                                }
-                            }
-                            // we don't have an "any" type, so if the array is of type null, we won't check types
-                            if let Type::Array(inner) = typing {
-                                if let Type::Null(_) = **inner {
-                                    has_type_match = true;
-                                    break;
-                                }
-                            }
-                            if arg_type.eq(typing) {
-                                has_type_match = true;
-                                break;
-                            }
-                        }
-                        if !has_type_match {
-                            let arg_type = arg.get_type();
-                            return Err(FunctionErrorRef::TypeMismatch {
-                                namespace: namespace.as_str(),
-                                function: &fn_spec.name,
-                                position: i + 1,
-                                name: &input.name,
-                                expected: &input.typing,
-                                found: &arg_type,
-                            }
-                            .into());
-                        }
-                    } else {
-                        return Err(FunctionErrorRef::MissingArgument {
-                            namespace: namespace.as_str(),
-                            function: &fn_spec.name,
-                            position: i + 1,
-                            name: &input.name,
-                        }
-                        .into());
-                    }
-                }
+) -> impl Fn(&FunctionSpecification, &[Value]) -> Result<(), Diagnostic> {
+    move |fn_spec, args| {
+        for (i, input) in fn_spec.inputs.iter().enumerate() {
+            if input.optional {
+                continue;
             }
-            Ok(())
-        };
-    return fn_checker;
+
+            let arg = args.get(i).ok_or_else(|| {
+                Diagnostic::from(FunctionErrorRef::MissingArgument {
+                    namespace: namespace.as_str(),
+                    function: &fn_spec.name,
+                    position: i + 1,
+                    name: &input.name,
+                })
+            })?;
+
+            let type_matches = input.typing.iter().any(|typing| {
+                match (arg.get_type(), typing) {
+                    // Both are addons (any addon matches)
+                    (Type::Addon(_), Type::Addon(_)) => true,
+                    // Empty arrays always match
+                    (Type::Array(_), _) if arg.expect_array().is_empty() => true,
+                    // Array with null inner type (accepts any array)
+                    (_, Type::Array(inner)) if matches!(**inner, Type::Null(_)) => true,
+                    // Exact type match
+                    (arg_type, typing) => arg_type.eq(typing),
+                }
+            });
+
+            if !type_matches {
+                return Err(FunctionErrorRef::TypeMismatch {
+                    namespace: namespace.as_str(),
+                    function: &fn_spec.name,
+                    position: i + 1,
+                    name: &input.name,
+                    expected: &input.typing,
+                    found: &arg.get_type(),
+                }
+                .into());
+            }
+        }
+        Ok(())
+    }
 }
