@@ -1,0 +1,45 @@
+default_job = "build_no_supervisor"
+
+[jobs.build_no_supervisor]
+command = ["cargo", "build", "--package", "txtx-cli", "--release", "--no-default-features", "--features", "cli" ]
+
+[jobs.test_linter]
+command = [
+    "cargo", "test",
+    "--package", "txtx-cli",
+    "--no-default-features",
+    "--features", "cli",
+    "--test", "linter_tests_builder",
+    "--",
+    "--nocapture"
+]
+need_stdout = true
+analyzer = "cargo_test"
+
+[jobs.test_linter_trace]
+command = [
+    "cargo", "test",
+    "--package", "txtx-cli",
+    "--no-default-features",
+    "--features", "cli",
+    "--test", "linter_tests_builder",
+    "--",
+    "--nocapture"
+]
+env.RUST_BACKTRACE = "1"
+need_stdout = true
+analyzer = "cargo_test"
+
+[jobs.test_linter_full]
+command = [
+    "cargo", "test",
+    "--package", "txtx-cli",
+    "--no-default-features",
+    "--features", "cli",
+    "--test", "linter_tests_builder",
+    "--",
+    "--nocapture"
+]
+env.RUST_BACKTRACE = "full"
+need_stdout = true
+analyzer = "cargo_test"
