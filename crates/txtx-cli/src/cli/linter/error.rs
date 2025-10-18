@@ -23,17 +23,9 @@ pub enum LinterError {
     #[error("Failed to resolve runbook sources: {0}")]
     RunbookResolution(String),
 
-    /// Validation errors occurred during linting
-    #[error("Validation failed: {0}")]
-    Validation(String),
-
     /// IO error occurred during file operations
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-
-    /// Failed to parse runbook content
-    #[error("Failed to parse runbook: {0}")]
-    Parse(String),
 
     /// Configuration file already exists
     #[error("Configuration file {0} already exists")]

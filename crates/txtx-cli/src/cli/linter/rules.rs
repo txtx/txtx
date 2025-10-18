@@ -185,11 +185,6 @@ pub fn get_default_rules() -> &'static [RuleFn] {
     ]
 }
 
-/// Get strict validation rules (same as default for now)
-pub fn get_strict_rules() -> &'static [RuleFn] {
-    get_default_rules()
-}
-
 /// Run all rules against a context and collect issues
 pub fn validate_all(ctx: &ValidationContext, rules: &[RuleFn]) -> Vec<ValidationIssue> {
     rules.iter().filter_map(|rule| rule(ctx)).collect()

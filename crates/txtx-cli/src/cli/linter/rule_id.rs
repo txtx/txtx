@@ -71,15 +71,6 @@ impl CliRuleIdentifier {
             Self::External(name) => name.as_str(),
         }
     }
-
-    /// Get the addon scope for this rule
-    pub fn addon_scope(&self) -> AddonScope {
-        match self {
-            Self::Cli(id) => id.addon_scope(),
-            Self::Core(id) => id.addon_scope(),
-            Self::External(_) => AddonScope::Global, // Default for now
-        }
-    }
 }
 
 impl fmt::Display for CliRuleIdentifier {
