@@ -1,4 +1,13 @@
 //! Block processing for HCL validation.
+//!
+//! # C4 Architecture Annotations
+//! @c4-component Block Processors
+//! @c4-container Validation Core
+//! @c4-description Processes individual HCL blocks during collection phase
+//! @c4-technology Rust (hcl-edit structure)
+//! @c4-responsibility Extract definitions from signer/variable/output blocks
+//! @c4-responsibility Extract declarations from action/flow blocks
+//! @c4-responsibility Build dependency information for cycle detection
 
 use std::collections::HashMap;
 

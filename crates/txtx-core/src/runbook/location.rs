@@ -11,9 +11,7 @@
 //! @c4-responsibility Track source locations (file, line, column) across the codebase
 //! @c4-responsibility Convert byte offsets to line/column positions
 //! @c4-responsibility Provide context about where references appear in HCL structure
-//! @c4-relationship "Used by" "Runbook Collector"
 //! @c4-relationship "Used by" "HCL Validator"
-//! @c4-relationship "Used by" "Variable Extractor"
 
 use std::ops::Range;
 

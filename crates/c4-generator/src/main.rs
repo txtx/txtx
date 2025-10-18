@@ -18,7 +18,7 @@ struct Component {
 fn main() {
     let project_root = std::env::current_dir().expect("Failed to get current directory");
     let crates_dir = project_root.join("crates");
-    let output_file = project_root.join("docs/architecture/linter/workspace-generated.dsl");
+    let output_file = project_root.join("docs/architecture/workspace.dsl");
 
     eprintln!("🔍 Scanning for C4 annotations in Rust code...");
 
@@ -121,9 +121,8 @@ fn generate_dsl(components: &HashMap<String, Component>) -> String {
     let mut dsl = String::new();
 
     dsl.push_str("# Auto-generated from C4 annotations in Rust source code\n");
-    dsl.push_str("# DO NOT EDIT - Regenerate with: just arch-c4\n");
-    dsl.push_str("# For hand-written architecture including dynamic views, see workspace.dsl\n\n");
-    dsl.push_str("workspace \"txtx Linter Architecture (Generated from Code)\" \"Auto-generated from C4 annotations in Rust source\" {\n\n");
+    dsl.push_str("# DO NOT EDIT - Regenerate with: just arch-c4\n\n");
+    dsl.push_str("workspace \"txtx Validation Architecture (Generated from Code)\" \"Auto-generated from C4 annotations in Rust source\" {\n\n");
     dsl.push_str("    model {\n");
     dsl.push_str("        user = person \"Developer\" \"Writes txtx runbooks and manifests\"\n\n");
     dsl.push_str("        txtxSystem = softwareSystem \"txtx CLI\" \"Command-line tool for runbook execution and validation\" {\n");

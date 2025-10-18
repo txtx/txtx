@@ -2,6 +2,15 @@
 //!
 //! This module contains validation logic that is shared between the collection
 //! phase (block_processors) and the validation phase (visitor).
+//!
+//! # C4 Architecture Annotations
+//! @c4-component Validation Helpers
+//! @c4-container Validation Core
+//! @c4-description Shared validation utilities used across validation phases
+//! @c4-technology Rust
+//! @c4-responsibility Validate action namespace::action format
+//! @c4-responsibility Look up and validate action specifications
+//! @c4-responsibility Identify framework-specific inherited properties
 
 use std::collections::HashMap;
 use txtx_addon_kit::constants::{

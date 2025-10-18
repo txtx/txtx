@@ -1,3 +1,14 @@
+//! Core validation result types and data structures
+//!
+//! # C4 Architecture Annotations
+//! @c4-component Validation Result Types
+//! @c4-container Validation Core
+//! @c4-description Defines core data structures for validation results
+//! @c4-technology Rust
+//! @c4-responsibility Define ValidationResult aggregating errors, warnings, suggestions
+//! @c4-responsibility Track input references with line/column locations
+//! @c4-responsibility Map error locations from combined files to original sources
+
 use serde::{Deserialize, Serialize};
 use super::file_boundary::FileBoundaryMap;
 

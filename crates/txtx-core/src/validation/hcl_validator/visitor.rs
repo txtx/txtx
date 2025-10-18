@@ -15,6 +15,19 @@
 //! let content = "variable \"foo\" { default = \"bar\" }";
 //! let refs = validate_with_hcl(content, &mut result, "main.tx").unwrap();
 //! ```
+//!
+//! # C4 Architecture Annotations
+//! @c4-component HCL Validation Visitor
+//! @c4-container Validation Core
+//! @c4-description Two-phase visitor pattern implementation for HCL validation
+//! @c4-technology Rust (hcl-edit visitor trait)
+//! @c4-responsibility Phase 1: Collect all block definitions and declarations
+//! @c4-responsibility Phase 2: Validate references and dependency constraints
+//! @c4-responsibility Extract and validate action parameters against specifications
+//! @c4-responsibility Track input references for manifest validation
+//! @c4-relationship "Uses" "Dependency Graph"
+//! @c4-relationship "Uses" "Block Processors"
+//! @c4-relationship "Uses" "Validation Helpers"
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};

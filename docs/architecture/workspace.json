@@ -1,0 +1,452 @@
+{
+  "configuration" : { },
+  "description" : "Auto-generated from C4 annotations in Rust source",
+  "documentation" : { },
+  "id" : 1,
+  "lastModifiedAgent" : "structurizr-ui",
+  "lastModifiedDate" : "2025-10-18T09:35:10Z",
+  "model" : {
+    "people" : [ {
+      "description" : "Writes txtx runbooks and manifests",
+      "id" : "1",
+      "location" : "Unspecified",
+      "name" : "Developer",
+      "properties" : {
+        "structurizr.dsl.identifier" : "user"
+      },
+      "tags" : "Element,Person"
+    } ],
+    "softwareSystems" : [ {
+      "containers" : [ {
+        "components" : [ {
+          "description" : "Extracts and converts HCL parse diagnostics",
+          "documentation" : { },
+          "id" : "4",
+          "name" : "HCL Diagnostics",
+          "properties" : {
+            "structurizr.dsl.identifier" : "hcl_diagnostics"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust (hcl-edit)"
+        }, {
+          "description" : "Central state management for all validation operations",
+          "documentation" : { },
+          "id" : "5",
+          "name" : "ValidationContext",
+          "properties" : {
+            "structurizr.dsl.identifier" : "validationcontext"
+          },
+          "relationships" : [ {
+            "description" : "Delegates to",
+            "destinationId" : "8",
+            "id" : "19",
+            "sourceId" : "5",
+            "tags" : "Relationship"
+          }, {
+            "description" : "Delegates to",
+            "destinationId" : "15",
+            "id" : "20",
+            "sourceId" : "5",
+            "tags" : "Relationship"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Rust"
+        }, {
+          "description" : "Custom validation rules for naming, security, and production requirements",
+          "documentation" : { },
+          "id" : "6",
+          "name" : "Linter Rules",
+          "properties" : {
+            "structurizr.dsl.identifier" : "linter_rules"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust"
+        }, {
+          "description" : "Defines core data structures for validation results",
+          "documentation" : { },
+          "id" : "7",
+          "name" : "Validation Result Types",
+          "properties" : {
+            "structurizr.dsl.identifier" : "validation_result_types"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust"
+        }, {
+          "description" : "Validates HCL syntax, block structure, and references",
+          "documentation" : { },
+          "id" : "8",
+          "name" : "HCL Validator",
+          "properties" : {
+            "structurizr.dsl.identifier" : "hcl_validator"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust (hcl-edit)"
+        }, {
+          "description" : "Type-safe rule identification for validation rules",
+          "documentation" : { },
+          "id" : "9",
+          "name" : "Rule Identification System",
+          "properties" : {
+            "structurizr.dsl.identifier" : "rule_identification_system"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust"
+        }, {
+          "description" : "High-level API for validating runbook files",
+          "documentation" : { },
+          "id" : "10",
+          "name" : "Runbook Validator",
+          "properties" : {
+            "structurizr.dsl.identifier" : "runbook_validator"
+          },
+          "relationships" : [ {
+            "description" : "Uses",
+            "destinationId" : "8",
+            "id" : "25",
+            "sourceId" : "10",
+            "tags" : "Relationship"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Rust"
+        }, {
+          "description" : "Two-phase visitor pattern implementation for HCL validation",
+          "documentation" : { },
+          "id" : "11",
+          "name" : "HCL Validation Visitor",
+          "properties" : {
+            "structurizr.dsl.identifier" : "hcl_validation_visitor"
+          },
+          "relationships" : [ {
+            "description" : "Uses",
+            "destinationId" : "12",
+            "id" : "26",
+            "sourceId" : "11",
+            "tags" : "Relationship"
+          }, {
+            "description" : "Uses",
+            "destinationId" : "16",
+            "id" : "27",
+            "sourceId" : "11",
+            "tags" : "Relationship"
+          }, {
+            "description" : "Uses",
+            "destinationId" : "13",
+            "id" : "28",
+            "sourceId" : "11",
+            "tags" : "Relationship"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Rust (hcl-edit visitor trait)"
+        }, {
+          "description" : "Detects circular dependencies in variables and actions",
+          "documentation" : { },
+          "id" : "12",
+          "name" : "Dependency Graph",
+          "properties" : {
+            "structurizr.dsl.identifier" : "dependency_graph"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust (graph algorithms)"
+        }, {
+          "description" : "Shared validation utilities used across validation phases",
+          "documentation" : { },
+          "id" : "13",
+          "name" : "Validation Helpers",
+          "properties" : {
+            "structurizr.dsl.identifier" : "validation_helpers"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust"
+        }, {
+          "description" : "Normalizes multi-file runbooks to single-file for validation",
+          "documentation" : { },
+          "id" : "14",
+          "name" : "FileBoundaryMapper",
+          "properties" : {
+            "structurizr.dsl.identifier" : "fileboundarymapper"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust"
+        }, {
+          "description" : "Validates runbook inputs against workspace manifests",
+          "documentation" : { },
+          "id" : "15",
+          "name" : "Manifest Validator",
+          "properties" : {
+            "structurizr.dsl.identifier" : "manifest_validator"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust"
+        }, {
+          "description" : "Processes individual HCL blocks during collection phase",
+          "documentation" : { },
+          "id" : "16",
+          "name" : "Block Processors",
+          "properties" : {
+            "structurizr.dsl.identifier" : "block_processors"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Rust (hcl-edit structure)"
+        } ],
+        "description" : "Container for Validation Core components",
+        "documentation" : { },
+        "id" : "3",
+        "name" : "Validation Core",
+        "properties" : {
+          "structurizr.dsl.identifier" : "validation_core"
+        },
+        "tags" : "Element,Container",
+        "technology" : "Rust"
+      }, {
+        "components" : [ {
+          "description" : "Shared location tracking and span-to-position mapping",
+          "documentation" : { },
+          "id" : "18",
+          "name" : "SourceLocationMapper",
+          "properties" : {
+            "structurizr.dsl.identifier" : "sourcelocationmapper"
+          },
+          "relationships" : [ {
+            "description" : "Used by",
+            "destinationId" : "8",
+            "id" : "21",
+            "sourceId" : "18",
+            "tags" : "Relationship"
+          }, {
+            "description" : "Used by",
+            "destinationId" : "3",
+            "id" : "22",
+            "linkedRelationshipId" : "21",
+            "sourceId" : "18"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Rust"
+        } ],
+        "description" : "Container for Runbook Core components",
+        "documentation" : { },
+        "id" : "17",
+        "name" : "Runbook Core",
+        "properties" : {
+          "structurizr.dsl.identifier" : "runbook_core"
+        },
+        "relationships" : [ {
+          "description" : "Used by",
+          "destinationId" : "8",
+          "id" : "23",
+          "linkedRelationshipId" : "21",
+          "sourceId" : "17"
+        }, {
+          "description" : "Used by",
+          "destinationId" : "3",
+          "id" : "24",
+          "linkedRelationshipId" : "21",
+          "sourceId" : "17"
+        } ],
+        "tags" : "Element,Container",
+        "technology" : "Rust"
+      } ],
+      "description" : "Command-line tool for runbook execution and validation",
+      "documentation" : { },
+      "id" : "2",
+      "location" : "Unspecified",
+      "name" : "txtx CLI",
+      "properties" : {
+        "structurizr.dsl.identifier" : "txtxsystem"
+      },
+      "tags" : "Element,Software System"
+    } ]
+  },
+  "name" : "txtx Validation Architecture (Generated from Code)",
+  "properties" : {
+    "structurizr.dsl" : "IyBBdXRvLWdlbmVyYXRlZCBmcm9tIEM0IGFubm90YXRpb25zIGluIFJ1c3Qgc291cmNlIGNvZGUKIyBETyBOT1QgRURJVCAtIFJlZ2VuZXJhdGUgd2l0aDoganVzdCBhcmNoLWM0Cgp3b3Jrc3BhY2UgInR4dHggVmFsaWRhdGlvbiBBcmNoaXRlY3R1cmUgKEdlbmVyYXRlZCBmcm9tIENvZGUpIiAiQXV0by1nZW5lcmF0ZWQgZnJvbSBDNCBhbm5vdGF0aW9ucyBpbiBSdXN0IHNvdXJjZSIgewoKICAgIG1vZGVsIHsKICAgICAgICB1c2VyID0gcGVyc29uICJEZXZlbG9wZXIiICJXcml0ZXMgdHh0eCBydW5ib29rcyBhbmQgbWFuaWZlc3RzIgoKICAgICAgICB0eHR4U3lzdGVtID0gc29mdHdhcmVTeXN0ZW0gInR4dHggQ0xJIiAiQ29tbWFuZC1saW5lIHRvb2wgZm9yIHJ1bmJvb2sgZXhlY3V0aW9uIGFuZCB2YWxpZGF0aW9uIiB7CgogICAgICAgICAgICB2YWxpZGF0aW9uX2NvcmUgPSBjb250YWluZXIgIlZhbGlkYXRpb24gQ29yZSIgIkNvbnRhaW5lciBmb3IgVmFsaWRhdGlvbiBDb3JlIGNvbXBvbmVudHMiICJSdXN0IiB7CiAgICAgICAgICAgICAgICBoY2xfZGlhZ25vc3RpY3MgPSBjb21wb25lbnQgIkhDTCBEaWFnbm9zdGljcyIgIkV4dHJhY3RzIGFuZCBjb252ZXJ0cyBIQ0wgcGFyc2UgZGlhZ25vc3RpY3MiICJSdXN0IChoY2wtZWRpdCkiCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogRXh0cmFjdCBkaWFnbm9zdGljcyBmcm9tIEhDTCBwYXJzZSBlcnJvcnMKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBDb252ZXJ0IGJldHdlZW4gYnl0ZSBvZmZzZXRzIGFuZCBsaW5lL2NvbHVtbiBwb3NpdGlvbnMKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBQcm92aWRlIGludGVncmF0ZWQgZGlhZ25vc3RpYyBmb3JtYXQgZm9yIExTUC9DTEkKICAgICAgICAgICAgICAgIHZhbGlkYXRpb25jb250ZXh0ID0gY29tcG9uZW50ICJWYWxpZGF0aW9uQ29udGV4dCIgIkNlbnRyYWwgc3RhdGUgbWFuYWdlbWVudCBmb3IgYWxsIHZhbGlkYXRpb24gb3BlcmF0aW9ucyIgIlJ1c3QiCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogTWFuYWdlIHZhbGlkYXRpb24gc3RhdGUgYWNyb3NzIGFsbCB2YWxpZGF0aW9uIGxheWVycwogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IENvbXB1dGUgZWZmZWN0aXZlIGlucHV0cyBmcm9tIG1hbmlmZXN0ICsgZW52aXJvbm1lbnQgKyBDTEkKICAgICAgICAgICAgICAgIGxpbnRlcl9ydWxlcyA9IGNvbXBvbmVudCAiTGludGVyIFJ1bGVzIiAiQ3VzdG9tIHZhbGlkYXRpb24gcnVsZXMgZm9yIG5hbWluZywgc2VjdXJpdHksIGFuZCBwcm9kdWN0aW9uIHJlcXVpcmVtZW50cyIgIlJ1c3QiCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogQ2hlY2sgaW5wdXQgbmFtaW5nIGNvbnZlbnRpb25zIChoeXBoZW5zLCB1cHBlcmNhc2UpCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogRGV0ZWN0IHNlbnNpdGl2ZSBkYXRhIHBhdHRlcm5zCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogV2FybiBhYm91dCBDTEkgb3ZlcnJpZGVzIGFuZCBkZWZhdWx0IHZhbHVlcwogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IEVuZm9yY2UgcHJvZHVjdGlvbiBlbnZpcm9ubWVudCByZXF1aXJlbWVudHMKICAgICAgICAgICAgICAgIHZhbGlkYXRpb25fcmVzdWx0X3R5cGVzID0gY29tcG9uZW50ICJWYWxpZGF0aW9uIFJlc3VsdCBUeXBlcyIgIkRlZmluZXMgY29yZSBkYXRhIHN0cnVjdHVyZXMgZm9yIHZhbGlkYXRpb24gcmVzdWx0cyIgIlJ1c3QiCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogRGVmaW5lIFZhbGlkYXRpb25SZXN1bHQgYWdncmVnYXRpbmcgZXJyb3JzLCB3YXJuaW5ncywgc3VnZ2VzdGlvbnMKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBUcmFjayBpbnB1dCByZWZlcmVuY2VzIHdpdGggbGluZS9jb2x1bW4gbG9jYXRpb25zCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogTWFwIGVycm9yIGxvY2F0aW9ucyBmcm9tIGNvbWJpbmVkIGZpbGVzIHRvIG9yaWdpbmFsIHNvdXJjZXMKICAgICAgICAgICAgICAgIGhjbF92YWxpZGF0b3IgPSBjb21wb25lbnQgIkhDTCBWYWxpZGF0b3IiICJWYWxpZGF0ZXMgSENMIHN5bnRheCwgYmxvY2sgc3RydWN0dXJlLCBhbmQgcmVmZXJlbmNlcyIgIlJ1c3QgKGhjbC1lZGl0KSIKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBUd28tcGhhc2UgdmFsaWRhdGlvbjogY29sbGVjdCBkZWZpbml0aW9ucywgdGhlbiB2YWxpZGF0ZSByZWZlcmVuY2VzCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogRGV0ZWN0IGNpcmN1bGFyIGRlcGVuZGVuY2llcyBpbiB2YXJpYWJsZXMgYW5kIGFjdGlvbnMKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBWYWxpZGF0ZSBhY3Rpb24gb3V0cHV0cywgc2lnbmVycywgdmFyaWFibGVzLCBhbmQgZmxvdyBpbnB1dHMKICAgICAgICAgICAgICAgIHJ1bGVfaWRlbnRpZmljYXRpb25fc3lzdGVtID0gY29tcG9uZW50ICJSdWxlIElkZW50aWZpY2F0aW9uIFN5c3RlbSIgIlR5cGUtc2FmZSBydWxlIGlkZW50aWZpY2F0aW9uIGZvciB2YWxpZGF0aW9uIHJ1bGVzIiAiUnVzdCIKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBJZGVudGlmeSBjb3JlIGFuZCBleHRlcm5hbCB2YWxpZGF0aW9uIHJ1bGVzCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogRGV0ZXJtaW5lIHJ1bGUgYXBwbGljYWJpbGl0eSBiYXNlZCBvbiBhZGRvbiBzY29wZQogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IFByb3ZpZGUgcnVsZSBtZXRhZGF0YSAoZGVzY3JpcHRpb24sIHN0cmluZyByZXByZXNlbnRhdGlvbikKICAgICAgICAgICAgICAgIHJ1bmJvb2tfdmFsaWRhdG9yID0gY29tcG9uZW50ICJSdW5ib29rIFZhbGlkYXRvciIgIkhpZ2gtbGV2ZWwgQVBJIGZvciB2YWxpZGF0aW5nIHJ1bmJvb2sgZmlsZXMiICJSdXN0IgogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IFJvdXRlIHZhbGlkYXRpb24gdG8gQmFzaWNIY2xWYWxpZGF0b3Igb3IgRnVsbEhjbFZhbGlkYXRvciBiYXNlZCBvbiBjb25maWcKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBNYW5hZ2UgYWRkb24gc3BlY2lmaWNhdGlvbnMgZm9yIHZhbGlkYXRpb24KICAgICAgICAgICAgICAgIGhjbF92YWxpZGF0aW9uX3Zpc2l0b3IgPSBjb21wb25lbnQgIkhDTCBWYWxpZGF0aW9uIFZpc2l0b3IiICJUd28tcGhhc2UgdmlzaXRvciBwYXR0ZXJuIGltcGxlbWVudGF0aW9uIGZvciBIQ0wgdmFsaWRhdGlvbiIgIlJ1c3QgKGhjbC1lZGl0IHZpc2l0b3IgdHJhaXQpIgogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IFBoYXNlIDE6IENvbGxlY3QgYWxsIGJsb2NrIGRlZmluaXRpb25zIGFuZCBkZWNsYXJhdGlvbnMKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBQaGFzZSAyOiBWYWxpZGF0ZSByZWZlcmVuY2VzIGFuZCBkZXBlbmRlbmN5IGNvbnN0cmFpbnRzCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogRXh0cmFjdCBhbmQgdmFsaWRhdGUgYWN0aW9uIHBhcmFtZXRlcnMgYWdhaW5zdCBzcGVjaWZpY2F0aW9ucwogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IFRyYWNrIGlucHV0IHJlZmVyZW5jZXMgZm9yIG1hbmlmZXN0IHZhbGlkYXRpb24KICAgICAgICAgICAgICAgIGRlcGVuZGVuY3lfZ3JhcGggPSBjb21wb25lbnQgIkRlcGVuZGVuY3kgR3JhcGgiICJEZXRlY3RzIGNpcmN1bGFyIGRlcGVuZGVuY2llcyBpbiB2YXJpYWJsZXMgYW5kIGFjdGlvbnMiICJSdXN0IChncmFwaCBhbGdvcml0aG1zKSIKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBCdWlsZCBkZXBlbmRlbmN5IGdyYXBocyBmcm9tIGNvbGxlY3RlZCBpdGVtcwogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IEZpbmQgYWxsIGN5Y2xlcyB1c2luZyBkZXB0aC1maXJzdCBzZWFyY2gKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBQcm92aWRlIHByZWNpc2UgY3ljbGUgcGF0aHMgZm9yIGVycm9yIHJlcG9ydGluZwogICAgICAgICAgICAgICAgdmFsaWRhdGlvbl9oZWxwZXJzID0gY29tcG9uZW50ICJWYWxpZGF0aW9uIEhlbHBlcnMiICJTaGFyZWQgdmFsaWRhdGlvbiB1dGlsaXRpZXMgdXNlZCBhY3Jvc3MgdmFsaWRhdGlvbiBwaGFzZXMiICJSdXN0IgogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IFZhbGlkYXRlIGFjdGlvbiBuYW1lc3BhY2U6OmFjdGlvbiBmb3JtYXQKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBMb29rIHVwIGFuZCB2YWxpZGF0ZSBhY3Rpb24gc3BlY2lmaWNhdGlvbnMKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBJZGVudGlmeSBmcmFtZXdvcmstc3BlY2lmaWMgaW5oZXJpdGVkIHByb3BlcnRpZXMKICAgICAgICAgICAgICAgIGZpbGVib3VuZGFyeW1hcHBlciA9IGNvbXBvbmVudCAiRmlsZUJvdW5kYXJ5TWFwcGVyIiAiTm9ybWFsaXplcyBtdWx0aS1maWxlIHJ1bmJvb2tzIHRvIHNpbmdsZS1maWxlIGZvciB2YWxpZGF0aW9uIiAiUnVzdCIKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBUcmFjayB3aGljaCBsaW5lcyBpbiBjb25jYXRlbmF0ZWQgY29udGVudCBiZWxvbmcgdG8gd2hpY2ggZmlsZXMKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBNYXAgZXJyb3IgbGluZSBudW1iZXJzIGJhY2sgdG8gb3JpZ2luYWwgc291cmNlIGZpbGVzCiAgICAgICAgICAgICAgICBtYW5pZmVzdF92YWxpZGF0b3IgPSBjb21wb25lbnQgIk1hbmlmZXN0IFZhbGlkYXRvciIgIlZhbGlkYXRlcyBydW5ib29rIGlucHV0cyBhZ2FpbnN0IHdvcmtzcGFjZSBtYW5pZmVzdHMiICJSdXN0IgogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IENoZWNrIHRoYXQgZW52aXJvbm1lbnQgdmFyaWFibGVzIGFuZCBpbnB1dHMgYXJlIHByb3Blcmx5IGRlZmluZWQKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBWYWxpZGF0ZSBpbnB1dCByZWZlcmVuY2VzIGFnYWluc3QgbWFuaWZlc3QgZW52aXJvbm1lbnRzCiAgICAgICAgICAgICAgICBibG9ja19wcm9jZXNzb3JzID0gY29tcG9uZW50ICJCbG9jayBQcm9jZXNzb3JzIiAiUHJvY2Vzc2VzIGluZGl2aWR1YWwgSENMIGJsb2NrcyBkdXJpbmcgY29sbGVjdGlvbiBwaGFzZSIgIlJ1c3QgKGhjbC1lZGl0IHN0cnVjdHVyZSkiCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogRXh0cmFjdCBkZWZpbml0aW9ucyBmcm9tIHNpZ25lci92YXJpYWJsZS9vdXRwdXQgYmxvY2tzCiAgICAgICAgICAgICAgICAvLyBSZXNwb25zaWJpbGl0eTogRXh0cmFjdCBkZWNsYXJhdGlvbnMgZnJvbSBhY3Rpb24vZmxvdyBibG9ja3MKICAgICAgICAgICAgICAgIC8vIFJlc3BvbnNpYmlsaXR5OiBCdWlsZCBkZXBlbmRlbmN5IGluZm9ybWF0aW9uIGZvciBjeWNsZSBkZXRlY3Rpb24KICAgICAgICAgICAgfQoKICAgICAgICAgICAgcnVuYm9va19jb3JlID0gY29udGFpbmVyICJSdW5ib29rIENvcmUiICJDb250YWluZXIgZm9yIFJ1bmJvb2sgQ29yZSBjb21wb25lbnRzIiAiUnVzdCIgewogICAgICAgICAgICAgICAgc291cmNlbG9jYXRpb25tYXBwZXIgPSBjb21wb25lbnQgIlNvdXJjZUxvY2F0aW9uTWFwcGVyIiAiU2hhcmVkIGxvY2F0aW9uIHRyYWNraW5nIGFuZCBzcGFuLXRvLXBvc2l0aW9uIG1hcHBpbmciICJSdXN0IgogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IFRyYWNrIHNvdXJjZSBsb2NhdGlvbnMgKGZpbGUsIGxpbmUsIGNvbHVtbikgYWNyb3NzIHRoZSBjb2RlYmFzZQogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IENvbnZlcnQgYnl0ZSBvZmZzZXRzIHRvIGxpbmUvY29sdW1uIHBvc2l0aW9ucwogICAgICAgICAgICAgICAgLy8gUmVzcG9uc2liaWxpdHk6IFByb3ZpZGUgY29udGV4dCBhYm91dCB3aGVyZSByZWZlcmVuY2VzIGFwcGVhciBpbiBIQ0wgc3RydWN0dXJlCiAgICAgICAgICAgIH0KICAgICAgICB9CgogICAgICAgIC8vIFJlbGF0aW9uc2hpcHMKICAgICAgICB2YWxpZGF0aW9uY29udGV4dCAtPiBoY2xfdmFsaWRhdG9yICJEZWxlZ2F0ZXMgdG8iCiAgICAgICAgdmFsaWRhdGlvbmNvbnRleHQgLT4gbWFuaWZlc3RfdmFsaWRhdG9yICJEZWxlZ2F0ZXMgdG8iCiAgICAgICAgc291cmNlbG9jYXRpb25tYXBwZXIgLT4gaGNsX3ZhbGlkYXRvciAiVXNlZCBieSIKICAgICAgICBydW5ib29rX3ZhbGlkYXRvciAtPiBoY2xfdmFsaWRhdG9yICJVc2VzIgogICAgICAgIGhjbF92YWxpZGF0aW9uX3Zpc2l0b3IgLT4gZGVwZW5kZW5jeV9ncmFwaCAiVXNlcyIKICAgICAgICBoY2xfdmFsaWRhdGlvbl92aXNpdG9yIC0+IGJsb2NrX3Byb2Nlc3NvcnMgIlVzZXMiCiAgICAgICAgaGNsX3ZhbGlkYXRpb25fdmlzaXRvciAtPiB2YWxpZGF0aW9uX2hlbHBlcnMgIlVzZXMiCiAgICB9CgogICAgdmlld3MgewogICAgICAgIHN5c3RlbUNvbnRleHQgdHh0eFN5c3RlbSAiU3lzdGVtQ29udGV4dCIgewogICAgICAgICAgICBpbmNsdWRlICoKICAgICAgICAgICAgYXV0b0xheW91dCBscgogICAgICAgIH0KCiAgICAgICAgY29tcG9uZW50IHZhbGlkYXRpb25fY29yZSB7CiAgICAgICAgICAgIGluY2x1ZGUgKgogICAgICAgICAgICBhdXRvTGF5b3V0IHRiCiAgICAgICAgICAgIHRpdGxlICJWYWxpZGF0aW9uIENvcmUiCiAgICAgICAgfQoKICAgICAgICBjb21wb25lbnQgcnVuYm9va19jb3JlIHsKICAgICAgICAgICAgaW5jbHVkZSAqCiAgICAgICAgICAgIGF1dG9MYXlvdXQgdGIKICAgICAgICAgICAgdGl0bGUgIlJ1bmJvb2sgQ29yZSIKICAgICAgICB9CgogICAgICAgIHN0eWxlcyB7CiAgICAgICAgICAgIGVsZW1lbnQgIlNvZnR3YXJlIFN5c3RlbSIgewogICAgICAgICAgICAgICAgYmFja2dyb3VuZCAjMTE2OGJkCiAgICAgICAgICAgICAgICBjb2xvciAjZmZmZmZmCiAgICAgICAgICAgIH0KICAgICAgICAgICAgZWxlbWVudCAiQ29udGFpbmVyIiB7CiAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kICM0MzhkZDUKICAgICAgICAgICAgICAgIGNvbG9yICNmZmZmZmYKICAgICAgICAgICAgfQogICAgICAgICAgICBlbGVtZW50ICJDb21wb25lbnQiIHsKICAgICAgICAgICAgICAgIGJhY2tncm91bmQgIzg1YmJmMAogICAgICAgICAgICAgICAgY29sb3IgIzAwMDAwMAogICAgICAgICAgICB9CiAgICAgICAgICAgIGVsZW1lbnQgIlBlcnNvbiIgewogICAgICAgICAgICAgICAgc2hhcGUgcGVyc29uCiAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kICMwODQyN2IKICAgICAgICAgICAgICAgIGNvbG9yICNmZmZmZmYKICAgICAgICAgICAgfQogICAgICAgIH0KCiAgICAgICAgdGhlbWUgZGVmYXVsdAogICAgfQp9"
+  },
+  "views" : {
+    "componentViews" : [ {
+      "automaticLayout" : {
+        "applied" : true,
+        "edgeSeparation" : 0,
+        "implementation" : "Graphviz",
+        "nodeSeparation" : 300,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 300,
+        "vertices" : false
+      },
+      "containerId" : "3",
+      "dimensions" : {
+        "height" : 1411,
+        "width" : 6870
+      },
+      "elements" : [ {
+        "id" : "4",
+        "x" : 3949,
+        "y" : 185
+      }, {
+        "id" : "5",
+        "x" : 5449,
+        "y" : 185
+      }, {
+        "id" : "6",
+        "x" : 2449,
+        "y" : 185
+      }, {
+        "id" : "7",
+        "x" : 1699,
+        "y" : 185
+      }, {
+        "id" : "8",
+        "x" : 3199,
+        "y" : 785
+      }, {
+        "id" : "9",
+        "x" : 949,
+        "y" : 185
+      }, {
+        "id" : "10",
+        "x" : 3199,
+        "y" : 185
+      }, {
+        "id" : "11",
+        "x" : 6199,
+        "y" : 185
+      }, {
+        "id" : "12",
+        "x" : 5449,
+        "y" : 785
+      }, {
+        "id" : "13",
+        "x" : 6199,
+        "y" : 785
+      }, {
+        "id" : "14",
+        "x" : 4699,
+        "y" : 185
+      }, {
+        "id" : "15",
+        "x" : 3949,
+        "y" : 785
+      }, {
+        "id" : "16",
+        "x" : 4699,
+        "y" : 785
+      }, {
+        "id" : "17",
+        "x" : 199,
+        "y" : 185
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "generatedKey" : true,
+      "key" : "Component-001",
+      "order" : 2,
+      "relationships" : [ {
+        "id" : "19",
+        "vertices" : [ {
+          "x" : 5299,
+          "y" : 485
+        }, {
+          "x" : 3799,
+          "y" : 785
+        } ]
+      }, {
+        "id" : "20"
+      }, {
+        "id" : "23",
+        "vertices" : [ {
+          "x" : 770,
+          "y" : 485
+        } ]
+      }, {
+        "id" : "25"
+      }, {
+        "id" : "26"
+      }, {
+        "id" : "27"
+      }, {
+        "id" : "28"
+      } ],
+      "title" : "Validation Core"
+    }, {
+      "automaticLayout" : {
+        "applied" : true,
+        "edgeSeparation" : 0,
+        "implementation" : "Graphviz",
+        "nodeSeparation" : 300,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 300,
+        "vertices" : false
+      },
+      "containerId" : "17",
+      "dimensions" : {
+        "height" : 1320,
+        "width" : 890
+      },
+      "elements" : [ {
+        "id" : "3",
+        "x" : 220,
+        "y" : 785
+      }, {
+        "id" : "18",
+        "x" : 220,
+        "y" : 185
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "generatedKey" : true,
+      "key" : "Component-002",
+      "order" : 3,
+      "relationships" : [ {
+        "id" : "22"
+      } ],
+      "title" : "Runbook Core"
+    } ],
+    "configuration" : {
+      "branding" : { },
+      "lastSavedView" : "Component-001",
+      "metadataSymbols" : "SquareBrackets",
+      "styles" : {
+        "elements" : [ {
+          "background" : "#1168bd",
+          "color" : "#ffffff",
+          "tag" : "Software System"
+        }, {
+          "background" : "#438dd5",
+          "color" : "#ffffff",
+          "tag" : "Container"
+        }, {
+          "background" : "#85bbf0",
+          "color" : "#000000",
+          "tag" : "Component"
+        }, {
+          "background" : "#08427b",
+          "color" : "#ffffff",
+          "shape" : "Person",
+          "tag" : "Person"
+        } ]
+      },
+      "terminology" : { },
+      "themes" : [ "https://static.structurizr.com/themes/default/theme.json" ]
+    },
+    "systemContextViews" : [ {
+      "automaticLayout" : {
+        "applied" : true,
+        "edgeSeparation" : 0,
+        "implementation" : "Graphviz",
+        "nodeSeparation" : 300,
+        "rankDirection" : "LeftRight",
+        "rankSeparation" : 300,
+        "vertices" : false
+      },
+      "dimensions" : {
+        "height" : 700,
+        "width" : 850
+      },
+      "elements" : [ {
+        "id" : "2",
+        "x" : 200,
+        "y" : 165
+      } ],
+      "enterpriseBoundaryVisible" : true,
+      "key" : "SystemContext",
+      "order" : 1,
+      "softwareSystemId" : "2"
+    } ]
+  }
+}

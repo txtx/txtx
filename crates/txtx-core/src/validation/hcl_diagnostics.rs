@@ -2,6 +2,15 @@
 //!
 //! This module provides functionality to extract diagnostics from HCL parsing
 //! and convert them to a format suitable for LSP and other consumers.
+//!
+//! # C4 Architecture Annotations
+//! @c4-component HCL Diagnostics
+//! @c4-container Validation Core
+//! @c4-description Extracts and converts HCL parse diagnostics
+//! @c4-technology Rust (hcl-edit)
+//! @c4-responsibility Extract diagnostics from HCL parse errors
+//! @c4-responsibility Convert between byte offsets and line/column positions
+//! @c4-responsibility Provide integrated diagnostic format for LSP/CLI
 
 use super::types::ValidationResult;
 use txtx_addon_kit::types::diagnostics::Diagnostic;

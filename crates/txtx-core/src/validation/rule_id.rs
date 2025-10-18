@@ -2,6 +2,15 @@
 //!
 //! This module provides enums and types for identifying validation rules
 //! in a type-safe manner, replacing string-based identification.
+//!
+//! # C4 Architecture Annotations
+//! @c4-component Rule Identification System
+//! @c4-container Validation Core
+//! @c4-description Type-safe rule identification for validation rules
+//! @c4-technology Rust
+//! @c4-responsibility Identify core and external validation rules
+//! @c4-responsibility Determine rule applicability based on addon scope
+//! @c4-responsibility Provide rule metadata (description, string representation)
 
 use std::collections::HashSet;
 use std::fmt;

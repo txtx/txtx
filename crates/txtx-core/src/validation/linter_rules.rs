@@ -2,6 +2,16 @@
 //!
 //! These rules provide additional validation beyond the basic manifest validation,
 //! including naming conventions, security checks, and production requirements.
+//!
+//! # C4 Architecture Annotations
+//! @c4-component Linter Rules
+//! @c4-container Validation Core
+//! @c4-description Custom validation rules for naming, security, and production requirements
+//! @c4-technology Rust
+//! @c4-responsibility Check input naming conventions (hyphens, uppercase)
+//! @c4-responsibility Detect sensitive data patterns
+//! @c4-responsibility Warn about CLI overrides and default values
+//! @c4-responsibility Enforce production environment requirements
 
 use super::manifest_validator::{
     ManifestValidationContext, ManifestValidationRule, ValidationOutcome,

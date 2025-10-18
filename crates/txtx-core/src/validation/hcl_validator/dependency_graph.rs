@@ -1,3 +1,14 @@
+//! Dependency graph for circular dependency detection
+//!
+//! # C4 Architecture Annotations
+//! @c4-component Dependency Graph
+//! @c4-container Validation Core
+//! @c4-description Detects circular dependencies in variables and actions
+//! @c4-technology Rust (graph algorithms)
+//! @c4-responsibility Build dependency graphs from collected items
+//! @c4-responsibility Find all cycles using depth-first search
+//! @c4-responsibility Provide precise cycle paths for error reporting
+
 use std::collections::{HashMap, HashSet};
 
 /// A graph structure for tracking dependencies and detecting cycles

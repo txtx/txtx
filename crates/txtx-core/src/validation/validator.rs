@@ -1,4 +1,13 @@
 //! High-level validation API for runbook files
+//!
+//! # C4 Architecture Annotations
+//! @c4-component Runbook Validator
+//! @c4-container Validation Core
+//! @c4-description High-level API for validating runbook files
+//! @c4-technology Rust
+//! @c4-responsibility Route validation to BasicHclValidator or FullHclValidator based on config
+//! @c4-responsibility Manage addon specifications for validation
+//! @c4-relationship "Uses" "HCL Validator"
 
 use super::hcl_validator::{BasicHclValidator, FullHclValidator};
 use super::types::ValidationResult;
