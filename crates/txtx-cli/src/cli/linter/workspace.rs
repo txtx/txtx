@@ -17,6 +17,7 @@ use txtx_core::manifest::file::{read_runbook_from_location, read_runbooks_from_m
 use txtx_core::validation::{ValidationResult, FileBoundaryMap};
 
 use super::config::LinterConfig;
+use super::error::LinterError;
 use super::validator::Linter;
 
 /// @c4-component WorkspaceAnalyzer
@@ -28,7 +29,12 @@ pub struct WorkspaceAnalyzer {
 }
 
 impl WorkspaceAnalyzer {
-    pub fn new(config: &LinterConfig) -> Result<Self, String> {
+    /// Create a new workspace analyzer with the given configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LinterError::ManifestLoad` if an explicit manifest path is provided but cannot be loaded.
+    pub fn new(config: &LinterConfig) -> Result<Self, LinterError> {
         let manifest = Self::resolve_manifest(&config.manifest_path)?;
         Ok(Self { config: config.clone(), manifest })
     }
@@ -37,18 +43,20 @@ impl WorkspaceAnalyzer {
     /// 1. Using explicitly provided manifest path if available
     /// 2. Searching upward from current directory for txtx.yml
     /// 3. Returning None if no manifest found (will use simple validation)
-    fn resolve_manifest(explicit_path: &Option<PathBuf>) -> Result<Option<WorkspaceManifest>, String> {
+    fn resolve_manifest(explicit_path: &Option<PathBuf>) -> Result<Option<WorkspaceManifest>, LinterError> {
         // If explicit path provided, use it
         if let Some(path) = explicit_path {
             let location = FileLocation::from_path(path.clone());
             return WorkspaceManifest::from_location(&location)
                 .map(Some)
-                .map_err(|e| format!("Failed to load manifest from {}: {}", path.display(), e));
+                .map_err(|e| LinterError::ManifestLoad {
+                    path: path.clone(),
+                    message: e.to_string(),
+                });
         }
 
         // Try to find manifest by searching upward
-        let current_dir = env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {}", e))?;
+        let current_dir = env::current_dir()?;
 
         Ok(Self::find_manifest_upward(&current_dir)
             .and_then(|manifest_path| {
@@ -84,7 +92,12 @@ impl WorkspaceAnalyzer {
         .find(|path| path.exists())
     }
 
-    pub fn analyze_runbook(&self, name: &str) -> Result<ValidationResult, String> {
+    /// Analyze a specific runbook by name and return validation results.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LinterError` if the runbook cannot be found or validated.
+    pub fn analyze_runbook(&self, name: &str) -> Result<ValidationResult, LinterError> {
         let runbook_sources = self.resolve_runbook_sources(name)?;
         self.validate_sources(runbook_sources)
     }
@@ -96,8 +109,11 @@ impl WorkspaceAnalyzer {
     ///
     /// # Returns
     /// * `Ok(RunbookSources)` - The resolved runbook sources
-    /// * `Err(String)` - An error message if the runbook cannot be found or loaded
-    pub fn resolve_runbook_sources(&self, name: &str) -> Result<txtx_core::runbook::RunbookSources, String> {
+    ///
+    /// # Errors
+    /// * `LinterError::RunbookNotFound` - If the runbook cannot be found
+    /// * `LinterError::RunbookResolution` - If the runbook cannot be loaded
+    pub fn resolve_runbook_sources(&self, name: &str) -> Result<txtx_core::runbook::RunbookSources, LinterError> {
         // First, check if it's a direct file path
         let path = PathBuf::from(name);
         if path.exists() {
@@ -107,7 +123,7 @@ impl WorkspaceAnalyzer {
                 &None,
                 &self.config.environment,
                 Some(name),
-            )?;
+            ).map_err(|e| LinterError::RunbookResolution(e))?;
             return Ok(sources);
         }
 
@@ -118,12 +134,12 @@ impl WorkspaceAnalyzer {
                     manifest,
                     &self.config.environment,
                     None,
-                )?;
+                ).map_err(|e| LinterError::Other(e))?;
 
                 runbooks.into_iter()
                     .find(|(id, (_, _, runbook_name, _))| runbook_name == name || id == name)
                     .map(|(_, (_, sources, _, _))| sources)
-                    .ok_or_else(|| format!("Runbook '{}' not found in manifest", name))
+                    .ok_or_else(|| LinterError::RunbookNotFound(name.to_string()))
             },
             None => {
                 // No manifest - try to find the file in standard locations
@@ -147,12 +163,12 @@ impl WorkspaceAnalyzer {
                     .map(|(_, _, sources)| sources)
                     .ok()
                 })
-                .ok_or_else(|| format!("Runbook '{}' not found. Searched in current directory and 'runbooks' subdirectory.", name))
+                .ok_or_else(|| LinterError::RunbookNotFound(name.to_string()))
             }
         }
     }
 
-    fn validate_sources(&self, runbook_sources: txtx_core::runbook::RunbookSources) -> Result<ValidationResult, String> {
+    fn validate_sources(&self, runbook_sources: txtx_core::runbook::RunbookSources) -> Result<ValidationResult, LinterError> {
         let linter = Linter::with_defaults();
 
         // For multi-file runbooks, we need to validate all files together so they can
@@ -202,15 +218,22 @@ impl WorkspaceAnalyzer {
         }
     }
 
-    pub fn analyze_all(&self) -> Result<Vec<ValidationResult>, String> {
+    /// Analyze all runbooks in the workspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LinterError` if no manifest is found or if any runbook cannot be validated.
+    pub fn analyze_all(&self) -> Result<Vec<ValidationResult>, LinterError> {
         let manifest = self.manifest.as_ref()
-            .ok_or_else(|| "No manifest found. Unable to lint all runbooks. Please specify a manifest with --manifest-file-path or ensure txtx.yml exists in your project.".to_string())?;
+            .ok_or_else(|| LinterError::Other(
+                "No manifest found. Unable to lint all runbooks. Please specify a manifest with --manifest-file-path or ensure txtx.yml exists in your project.".to_string()
+            ))?;
 
         let runbooks = read_runbooks_from_manifest(
             manifest,
             &self.config.environment,
             None,
-        )?;
+        ).map_err(|e| LinterError::Other(e))?;
 
         let results: Vec<ValidationResult> = runbooks
             .into_iter()
@@ -449,7 +472,10 @@ runbooks: []"#);
 
         let result = analyzer.resolve_runbook_sources("nonexistent");
         assert!(result.is_err(), "Should fail when runbook not found");
-        assert!(result.unwrap_err().contains("not found"), "Error should mention 'not found'");
+        match result.unwrap_err() {
+            LinterError::RunbookNotFound(_) => {}, // Expected
+            other => panic!("Expected RunbookNotFound error, got: {:?}", other),
+        }
     }
 
     // ===== Original Tests =====

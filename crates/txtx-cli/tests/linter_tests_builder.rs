@@ -93,9 +93,41 @@ macro_rules! assert_min_errors {
     };
 }
 
+// Type-safe error code assertions
+macro_rules! assert_has_error_code {
+    ($result:expr, $code:expr) => {
+        assert!(!$result.success, "Expected validation to fail");
+        assert!(
+            $result.errors.iter().any(|e| e.code.as_deref() == Some($code)),
+            "Expected error with code '{}', but got codes: {:?}",
+            $code,
+            error_codes(&$result)
+        );
+    };
+}
+
+macro_rules! assert_has_warning_code {
+    ($result:expr, $code:expr) => {
+        assert!(
+            $result.warnings.iter().any(|w| w.code.as_deref() == Some($code)),
+            "Expected warning with code '{}', but got codes: {:?}",
+            $code,
+            warning_codes(&$result)
+        );
+    };
+}
+
 // Helper functions - defined at top level to be accessible from all test modules
 pub fn error_messages(result: &ValidationResult) -> Vec<&str> {
     result.errors.iter().map(|e| e.message.as_str()).collect()
+}
+
+pub fn error_codes(result: &ValidationResult) -> Vec<Option<&str>> {
+    result.errors.iter().map(|e| e.code.as_deref()).collect()
+}
+
+pub fn warning_codes(result: &ValidationResult) -> Vec<Option<&str>> {
+    result.warnings.iter().map(|w| w.code.as_deref()).collect()
 }
 
 pub fn evm_builder_with_signer() -> RunbookBuilder {
@@ -371,6 +403,7 @@ output "key" {
         // Should fail - API_KEY is missing
         assert!(!result.success);
         assert_validation_error!(result, "API_KEY");
+        assert_has_error_code!(result, "undefined_input");
 
         // Part 2: Variable can be resolved when env var is present
         let result2 = RunbookBuilder::new()

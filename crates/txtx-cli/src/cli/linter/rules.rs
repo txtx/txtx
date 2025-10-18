@@ -3,6 +3,7 @@
 use super::rule_id::CliRuleId;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use strum::{AsRefStr, Display, EnumIter, EnumString, IntoStaticStr};
 use txtx_core::manifest::WorkspaceManifest;
 
 // ============================================================================
@@ -19,7 +20,19 @@ pub struct ValidationIssue {
     pub example: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    AsRefStr,      // Provides as_ref() -> &str
+    Display,       // Provides to_string()
+    EnumString,    // Provides from_str()
+    IntoStaticStr, // Provides into() -> &'static str
+    EnumIter,      // Provides iter() over all variants
+)]
+#[strum(serialize_all = "lowercase")]
 pub enum Severity {
     Error,
     Warning,
@@ -180,4 +193,43 @@ pub fn get_strict_rules() -> &'static [RuleFn] {
 /// Run all rules against a context and collect issues
 pub fn validate_all(ctx: &ValidationContext, rules: &[RuleFn]) -> Vec<ValidationIssue> {
     rules.iter().filter_map(|rule| rule(ctx)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_severity_display() {
+        assert_eq!(Severity::Error.to_string(), "error");
+        assert_eq!(Severity::Warning.to_string(), "warning");
+    }
+
+    #[test]
+    fn test_severity_from_str() {
+        // Test successful parsing
+        assert_eq!(Severity::from_str("error").unwrap(), Severity::Error);
+        assert_eq!(Severity::from_str("warning").unwrap(), Severity::Warning);
+
+        // Test invalid input
+        assert!(Severity::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_severity_iteration() {
+        use strum::IntoEnumIterator;
+
+        let all_severities: Vec<Severity> = Severity::iter().collect();
+        assert_eq!(all_severities.len(), 2);
+        assert!(all_severities.contains(&Severity::Error));
+        assert!(all_severities.contains(&Severity::Warning));
+    }
+
+    #[test]
+    fn test_severity_as_ref() {
+        // Test AsRefStr trait
+        assert_eq!(Severity::Error.as_ref(), "error");
+        assert_eq!(Severity::Warning.as_ref(), "warning");
+    }
 }
