@@ -61,24 +61,6 @@ struct Opts {
     command: Command,
 }
 
-/// Output format for lint results
-#[derive(Debug, Clone, PartialEq, clap::ValueEnum)]
-pub enum LintOutputFormat {
-    /// Auto-detect based on terminal
-    Auto,
-    /// Stylish format (default)
-    Stylish,
-    /// Pretty format
-    Pretty,
-    /// Compact format
-    Compact,
-    /// JSON format
-    Json,
-    /// Quickfix format
-    Quickfix,
-    /// Documentation format
-    Doc,
-}
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
 enum Command {
@@ -177,8 +159,8 @@ pub struct LintRunbook {
     #[arg(long = "input")]
     pub inputs: Vec<String>,
     /// Output format
-    #[arg(long = "format", short = 'f', default_value = "auto")]
-    pub format: LintOutputFormat,
+    #[arg(long = "format", short = 'f', default_value = "stylish")]
+    pub format: linter::Format,
     /// Path to linter config file
     #[arg(long = "config")]
     pub config: Option<String>,
