@@ -1,13 +1,5 @@
 //! Manifest validation functionality
 //!
-//! # C4 Architecture Annotations
-//! @c4-component Manifest Validator
-//! @c4-container Validation Core
-//! @c4-description Validates runbook inputs against workspace manifests
-//! @c4-technology Rust
-//! @c4-responsibility Check that environment variables and inputs are properly defined
-//! @c4-responsibility Validate input references against manifest environments
-//!
 //! This module provides validation of runbook inputs against workspace manifests,
 //! checking that environment variables and inputs are properly defined.
 
