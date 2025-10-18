@@ -8,6 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Value as JsonValue};
 use std::collections::VecDeque;
 use std::fmt::{self, Debug};
+use strum_macros::Display as StrumDisplay;
 
 use crate::helpers::hcl::{
     collect_constructs_references_from_block, collect_constructs_references_from_expression,
@@ -1021,17 +1022,26 @@ impl fmt::Debug for AddonData {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, StrumDisplay)]
 pub enum Type {
+    #[strum(serialize = "bool")]
     Bool,
     Null(Option<Box<Type>>),
+    #[strum(serialize = "integer")]
     Integer,
+    #[strum(serialize = "float")]
     Float,
+    #[strum(serialize = "string")]
     String,
+    #[strum(serialize = "buffer")]
     Buffer,
+    #[strum(to_string = "object")]
     Object(ObjectDefinition),
+    #[strum(to_string = "addon({0})")]
     Addon(String),
+    #[strum(to_string = "array[{0}]")]
     Array(Box<Type>),
+    #[strum(to_string = "map")]
     Map(ObjectDefinition),
 }
 
@@ -1275,6 +1285,7 @@ impl Type {
     }
 }
 
+// Custom to_string() needed because Null has a parameterized inner type
 impl Type {
     pub fn to_string(&self) -> String {
         match self {

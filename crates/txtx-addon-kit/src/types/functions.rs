@@ -1,5 +1,6 @@
 use super::{
     diagnostics::Diagnostic,
+    function_errors::FunctionErrorRef,
     types::{Type, Value},
     AuthorizationContext,
 };
@@ -53,7 +54,12 @@ pub fn fn_diag_with_ctx(
     namespace: String,
 ) -> impl Fn(&FunctionSpecification, String) -> Diagnostic {
     let fn_diag_with_ctx = move |fn_spec: &FunctionSpecification, e: String| -> Diagnostic {
-        Diagnostic::error_from_string(format!("function '{}::{}': {}", namespace, fn_spec.name, e))
+        FunctionErrorRef::ExecutionError {
+            namespace: &namespace,
+            function: &fn_spec.name,
+            message: &e,
+        }
+        .into()
     };
     return fn_diag_with_ctx;
 }
@@ -97,30 +103,25 @@ pub fn arg_checker_with_ctx(
                             }
                         }
                         if !has_type_match {
-                            let expected_types = input
-                                .typing
-                                .iter()
-                                .map(|t| t.to_string())
-                                .collect::<Vec<String>>()
-                                .join(",");
-                            return Err(Diagnostic::error_from_string(format!(
-                            "function '{}::{}' argument #{} ({}) should be of type ({}), found {}",
-                            namespace,
-                            fn_spec.name,
-                            i + 1,
-                            input.name,
-                            expected_types,
-                            arg.get_type().to_string()
-                        )));
+                            let arg_type = arg.get_type();
+                            return Err(FunctionErrorRef::TypeMismatch {
+                                namespace: &namespace,
+                                function: &fn_spec.name,
+                                position: i + 1,
+                                name: &input.name,
+                                expected: &input.typing,
+                                found: &arg_type,
+                            }
+                            .into());
                         }
                     } else {
-                        return Err(Diagnostic::error_from_string(format!(
-                            "function '{}::{}' missing required argument #{} ({})",
-                            namespace,
-                            fn_spec.name,
-                            i + 1,
-                            input.name,
-                        )));
+                        return Err(FunctionErrorRef::MissingArgument {
+                            namespace: &namespace,
+                            function: &fn_spec.name,
+                            position: i + 1,
+                            name: &input.name,
+                        }
+                        .into());
                     }
                 }
             }
