@@ -453,6 +453,72 @@ mod tests {
         assert_eq!(Format::Json.as_ref(), "json");
     }
 
+    #[test]
+    fn test_format_location_with_line_and_column() {
+        // Arrange
+        let file = "test.tx";
+        let line = Some(10);
+        let column = Some(5);
+
+        // Act
+        let result = format_location(file, line, column);
+
+        // Assert
+        assert_eq!(result, "test.tx:10:5");
+    }
+
+    #[test]
+    fn test_format_location_with_line_only() {
+        // Arrange
+        let file = "test.tx";
+        let line = Some(10);
+        let column = None;
+
+        // Act
+        let result = format_location(file, line, column);
+
+        // Assert
+        assert_eq!(result, "test.tx:10");
+    }
+
+    #[test]
+    fn test_format_location_with_no_position() {
+        // Arrange
+        let file = "test.tx";
+        let line = None;
+        let column = None;
+
+        // Act
+        let result = format_location(file, line, column);
+
+        // Assert
+        assert_eq!(result, "test.tx");
+    }
+
+    #[test]
+    fn test_estimate_token_length_with_quoted_identifier() {
+        // Arrange
+        let message = "Undefined variable 'test_var' in expression";
+
+        // Act
+        let length = estimate_token_length(message);
+
+        // Assert
+        assert_eq!(length, 8); // Length of "test_var"
+    }
+
+    #[test]
+    fn test_estimate_token_length_without_quotes() {
+        // Arrange
+        let message = "Syntax error in expression";
+
+        // Act
+        let length = estimate_token_length(message);
+
+        // Assert
+        assert_eq!(length, 8); // Default length
+    }
+
     // Property-based tests
     mod proptests {
         use super::*;
@@ -506,22 +572,83 @@ mod tests {
             /// Property: Formatters should never panic on any ValidationResult
             #[test]
             fn formatters_never_panic(result in arb_validation_result()) {
-                // Capture output to avoid polluting test output
-                let _stylish = std::panic::catch_unwind(|| {
+                // Test each formatter doesn't panic
+                assert!(std::panic::catch_unwind(|| {
                     StylishFormatter.format(&result);
-                });
-                let _compact = std::panic::catch_unwind(|| {
+                }).is_ok(), "StylishFormatter should not panic");
+
+                assert!(std::panic::catch_unwind(|| {
                     CompactFormatter.format(&result);
-                });
-                let _json = std::panic::catch_unwind(|| {
+                }).is_ok(), "CompactFormatter should not panic");
+
+                assert!(std::panic::catch_unwind(|| {
                     JsonFormatter.format(&result);
-                });
-                let _quickfix = std::panic::catch_unwind(|| {
+                }).is_ok(), "JsonFormatter should not panic");
+
+                assert!(std::panic::catch_unwind(|| {
                     QuickfixFormatter.format(&result);
-                });
-                let _doc = std::panic::catch_unwind(|| {
+                }).is_ok(), "QuickfixFormatter should not panic");
+
+                assert!(std::panic::catch_unwind(|| {
                     DocumentationFormatter.format(&result);
-                });
+                }).is_ok(), "DocumentationFormatter should not panic");
+            }
+
+            /// Property: format_location should handle all combinations of line/column
+            #[test]
+            fn format_location_handles_all_combinations(
+                file in "[a-zA-Z0-9_/.\\-]{1,50}",
+                line in prop::option::of(1usize..10000),
+                column in prop::option::of(0usize..500)
+            ) {
+                // Act
+                let result = format_location(&file, line, column);
+
+                // Assert - verify format based on what was provided
+                match (line, column) {
+                    (Some(l), Some(c)) => {
+                        prop_assert_eq!(result, format!("{}:{}:{}", file, l, c));
+                    }
+                    (Some(l), None) => {
+                        prop_assert_eq!(result, format!("{}:{}", file, l));
+                    }
+                    _ => {
+                        prop_assert_eq!(result, file);
+                    }
+                }
+            }
+
+            /// Property: estimate_token_length should find quoted strings or return default
+            #[test]
+            fn estimate_token_length_finds_quoted_strings(
+                prefix in "[a-zA-Z ]{0,50}",
+                token in "[a-zA-Z0-9_]{1,30}",
+                suffix in "[a-zA-Z ]{0,50}"
+            ) {
+                // Arrange - create message with quoted token
+                let message = format!("{}'{}'{}", prefix, token, suffix);
+
+                // Act
+                let length = estimate_token_length(&message);
+
+                // Assert
+                prop_assert_eq!(length, token.len(),
+                    "Should return length of quoted token '{}'", token);
+            }
+
+            /// Property: estimate_token_length returns default for unquoted messages
+            #[test]
+            fn estimate_token_length_default_for_unquoted(
+                message in "[a-zA-Z0-9 ]{1,100}"
+            ) {
+                // Skip if message accidentally contains quotes
+                prop_assume!(!message.contains('\''));
+
+                // Act
+                let length = estimate_token_length(&message);
+
+                // Assert
+                prop_assert_eq!(length, 8, "Should return default length for unquoted message");
             }
 
             /// Property: Format enum should roundtrip through string conversion
