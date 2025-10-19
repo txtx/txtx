@@ -444,7 +444,7 @@ pub struct ActionItemRequestUpdate {
 #[derive(Debug, Clone, Serialize)]
 pub enum ActionItemRequestUpdateIdentifier {
     Id(BlockId),
-    ConstructDidWithKey((ConstructDid, String)),
+    ConstructDidWithKey((ConstructDid, ActionItemKey)),
 }
 
 impl ActionItemRequestUpdate {
@@ -455,11 +455,11 @@ impl ActionItemRequestUpdate {
             action_type: None,
         }
     }
-    pub fn from_context(construct_did: &ConstructDid, internal_key: &str) -> Self {
+    pub fn from_context(construct_did: &ConstructDid, internal_key: ActionItemKey) -> Self {
         ActionItemRequestUpdate {
             id: ActionItemRequestUpdateIdentifier::ConstructDidWithKey((
                 construct_did.clone(),
-                internal_key.to_string(),
+                internal_key,
             )),
             action_status: None,
             action_type: None,
@@ -744,7 +744,7 @@ impl ErrorPanelData {
             let mut action = ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
                 diagnostic: diag.clone(),
             })
-            .to_request("", "diagnostic")
+            .to_request("", ActionItemKey::Diagnostic)
             .with_status(ActionItemStatus::Error(diag.clone()));
 
             action.index = (i + 1) as u16;
@@ -918,13 +918,13 @@ pub struct ActionItemRequest {
     pub markdown: Option<String>,
     pub action_status: ActionItemStatus,
     pub action_type: ActionItemRequestType,
-    pub internal_key: String,
+    pub internal_key: ActionItemKey,
 }
 
 impl ActionItemRequest {
     fn new(
         construct_instance_name: &str,
-        internal_key: &str,
+        internal_key: ActionItemKey,
         action_type: ActionItemRequestType,
     ) -> Self {
         let mut req = ActionItemRequest {
@@ -937,7 +937,7 @@ impl ActionItemRequest {
             markdown: None,
             action_status: ActionItemStatus::Todo,
             action_type,
-            internal_key: internal_key.to_string(),
+            internal_key,
         };
         req.recompute_id();
         req
@@ -1118,7 +1118,7 @@ impl Actions {
                         name: flow_name.to_string(),
                         description: flow_description.clone(),
                     })
-                    .to_request("", ActionItemKey::BeginFlow.as_ref())
+                    .to_request("", ActionItemKey::BeginFlow)
                     .with_status(ActionItemStatus::Success(None))],
                     allow_batch_completion: false,
                 }],
@@ -1553,7 +1553,7 @@ impl ActionItemRequestType {
     pub fn to_request(
         self,
         construct_instance_name: &str,
-        internal_key: &str,
+        internal_key: ActionItemKey,
     ) -> ActionItemRequest {
         ActionItemRequest::new(construct_instance_name, internal_key, self)
     }
@@ -2311,5 +2311,67 @@ impl SupervisorAddonData {
     pub fn new(addon_name: &str, addon_defaults: &AddonDefaults) -> Self {
         let rpc_api_url = addon_defaults.store.get_string("rpc_api_url").map(|s| s.to_string());
         Self { addon_name: addon_name.to_string(), rpc_api_url }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_action_item_request_serialization_compatibility() {
+        // Test that ActionItemRequest with ActionItemKey enum serializes correctly
+        let request = ActionItemRequest::new(
+            "test-action",
+            ActionItemKey::CheckAddress,
+            ActionItemRequestType::ValidateModal,
+        );
+
+        let json = serde_json::to_string(&request).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // Verify the internal_key is serialized as "check_address" string
+        assert_eq!(
+            parsed["internalKey"].as_str().unwrap(),
+            "check_address",
+            "ActionItemKey::CheckAddress should serialize to \"check_address\""
+        );
+
+        // Test deserialization back to the struct
+        let deserialized: ActionItemRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            deserialized.internal_key,
+            ActionItemKey::CheckAddress,
+            "Should deserialize back to the correct enum variant"
+        );
+    }
+
+    #[test]
+    fn test_action_item_key_all_variants() {
+        // Test all ActionItemKey variants serialize to their expected string values
+        let test_cases = vec![
+            (ActionItemKey::CheckAddress, "check_address"),
+            (ActionItemKey::CheckedAddress, "checked_address"),
+            (ActionItemKey::CheckBalance, "check_balance"),
+            (ActionItemKey::IsBalanceChecked, "is_balance_checked"),
+            (ActionItemKey::BeginFlow, "begin_flow"),
+            (ActionItemKey::ReExecuteCommand, "re_execute_command"),
+            (ActionItemKey::Diagnostic, "diagnostic"),
+        ];
+
+        for (key, expected) in test_cases {
+            let json = serde_json::to_string(&key).unwrap();
+            let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+            assert_eq!(
+                parsed.as_str().unwrap(),
+                expected,
+                "ActionItemKey::{:?} should serialize to \"{}\"", key, expected
+            );
+
+            // Test round-trip
+            let deserialized: ActionItemKey = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, key, "Should deserialize back to the same variant");
+        }
     }
 }

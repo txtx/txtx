@@ -394,22 +394,26 @@ impl SignerInstance {
                                 if let Some(signer_did) = &request.construct_did {
                                     let mut signer_state =
                                         signers.pop_signer_state(signer_did).unwrap();
-                                    if request.internal_key == ActionItemKey::CheckAddress.as_ref() {
-                                        if response.value_checked {
-                                            let data = request
-                                                .action_type
-                                                .as_review_input()
-                                                .expect("review input action item");
+                                    match request.internal_key {
+                                        ActionItemKey::CheckAddress => {
+                                            if response.value_checked {
+                                                let data = request
+                                                    .action_type
+                                                    .as_review_input()
+                                                    .expect("review input action item");
+                                                signer_state.insert(
+                                                    ActionItemKey::CheckedAddress.as_ref(),
+                                                    Value::string(data.value.to_string()),
+                                                );
+                                            }
+                                        }
+                                        ActionItemKey::CheckBalance => {
                                             signer_state.insert(
-                                                ActionItemKey::CheckedAddress.as_ref(),
-                                                Value::string(data.value.to_string()),
+                                                ActionItemKey::IsBalanceChecked.as_ref(),
+                                                Value::bool(response.value_checked),
                                             );
                                         }
-                                    } else if request.internal_key == ActionItemKey::CheckBalance.as_ref() {
-                                        signer_state.insert(
-                                            ActionItemKey::IsBalanceChecked.as_ref(),
-                                            Value::bool(response.value_checked),
-                                        );
+                                        _ => {} // Handle other cases
                                     }
                                     signers.push_signer_state(signer_state);
                                 }
