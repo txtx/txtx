@@ -28,7 +28,27 @@ pub struct Diagnostic {
     pub parent_diagnostic: Option<Box<Diagnostic>>,
 }
 
+impl Default for Diagnostic {
+    fn default() -> Self {
+        Self {
+            span: None,
+            span_range: None,
+            location: None,
+            message: String::new(),
+            level: DiagnosticLevel::Error,
+            documentation: None,
+            example: None,
+            parent_diagnostic: None,
+        }
+    }
+}
+
 impl Diagnostic {
+    /// Create a diagnostic with the specified level and message
+    pub fn with_level(level: DiagnosticLevel, message: String) -> Self {
+        Self { message, level, ..Default::default() }
+    }
+
     pub fn error_from_expression(
         _block: &Block,
         _expr: Option<&Expression>,
@@ -54,63 +74,15 @@ impl Diagnostic {
     }
 
     pub fn error_from_string(message: String) -> Diagnostic {
-        Diagnostic {
-            level: DiagnosticLevel::Error,
-            message,
-            code: None,
-            span: None,
-            span_range: None,
-            location: None,
-            file: None,
-            line: None,
-            column: None,
-            context: None,
-            related_locations: Vec::new(),
-            documentation: None,
-            suggestion: None,
-            example: None,
-            parent_diagnostic: None,
-        }
+        Self::with_level(DiagnosticLevel::Error, message)
     }
 
     pub fn warning_from_string(message: String) -> Diagnostic {
-        Diagnostic {
-            level: DiagnosticLevel::Warning,
-            message,
-            code: None,
-            span: None,
-            span_range: None,
-            location: None,
-            file: None,
-            line: None,
-            column: None,
-            context: None,
-            related_locations: Vec::new(),
-            documentation: None,
-            suggestion: None,
-            example: None,
-            parent_diagnostic: None,
-        }
+        Self::with_level(DiagnosticLevel::Warning, message)
     }
 
     pub fn note_from_string(message: String) -> Diagnostic {
-        Diagnostic {
-            level: DiagnosticLevel::Note,
-            message,
-            code: None,
-            span: None,
-            span_range: None,
-            location: None,
-            file: None,
-            line: None,
-            column: None,
-            context: None,
-            related_locations: Vec::new(),
-            documentation: None,
-            suggestion: None,
-            example: None,
-            parent_diagnostic: None,
-        }
+        Self::with_level(DiagnosticLevel::Note, message)
     }
 
     // Builder methods
