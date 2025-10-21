@@ -28,6 +28,8 @@ pub struct FlowContext {
     pub top_level_inputs: ValueStore,
     /// The evaluated inputs to this flow
     pub evaluated_inputs: ValueStore,
+    /// Whether to skip the execution of this flow
+    pub skip: bool,
 }
 
 impl FlowContext {
@@ -43,6 +45,7 @@ impl FlowContext {
             execution_context,
             top_level_inputs: top_level_inputs.clone(),
             evaluated_inputs: ValueStore::new(name, &Did::zero()),
+            skip: false,
         };
         running_context.index_top_level_inputs(top_level_inputs);
         running_context
@@ -88,6 +91,8 @@ impl FlowContext {
                 ExpressionEvaluationStatus::CompleteOk(value) => {
                     if attr.key.to_string().eq("description") {
                         self.description = Some(value.to_string());
+                    } else if attr.key.to_string().eq("skip") {
+                        self.skip = value.as_bool().unwrap_or(false);
                     } else {
                         self.index_flow_input(&attr.key, value, &package_id);
                     }

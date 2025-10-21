@@ -45,7 +45,7 @@ pub struct Runbook {
     /// The runtime context keeps track of all the functions, commands, and signing commands in scope during execution
     pub runtime_context: RuntimeContext,
     /// Running contexts
-    pub flow_contexts: Vec<FlowContext>,
+    flow_contexts: Vec<FlowContext>,
     /// The supervision context keeps track of the supervision settings the runbook is executing under
     pub supervision_context: RunbookSupervisionContext,
     /// Source files
