@@ -1,6 +1,7 @@
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{arg_checker_with_ctx, fn_diag_with_ctx, FunctionSpecification},
+    namespace::Namespace,
     types::Value,
 };
 
@@ -8,12 +9,12 @@ use crate::constants::NAMESPACE;
 
 pub mod opcodes;
 
-pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
-    let checker = arg_checker_with_ctx(NAMESPACE.to_string());
+pub fn arg_checker(fn_spec: &FunctionSpecification, args: &[Value]) -> Result<(), Diagnostic> {
+    let checker = arg_checker_with_ctx(Namespace::from(NAMESPACE));
     checker(fn_spec, args)
 }
 pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
-    let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
+    let error_fn = fn_diag_with_ctx(Namespace::from(NAMESPACE));
     error_fn(fn_spec, e)
 }
 

@@ -42,7 +42,7 @@ impl FunctionImplementation for Index {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -50,7 +50,7 @@ impl FunctionImplementation for Index {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Value::Array(list) = args.get(0).unwrap() else {
             panic!("index function requires list for first input")

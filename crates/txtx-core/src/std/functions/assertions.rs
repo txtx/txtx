@@ -181,7 +181,7 @@ impl FunctionImplementation for AssertEq {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -189,7 +189,7 @@ impl FunctionImplementation for AssertEq {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let left = &args[0];
@@ -212,7 +212,7 @@ impl FunctionImplementation for AssertNe {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -220,7 +220,7 @@ impl FunctionImplementation for AssertNe {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let left = &args[0];
@@ -243,7 +243,7 @@ impl FunctionImplementation for AssertGt {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -251,7 +251,7 @@ impl FunctionImplementation for AssertGt {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let left = &args[0];
@@ -311,7 +311,7 @@ impl FunctionImplementation for AssertGte {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -319,7 +319,7 @@ impl FunctionImplementation for AssertGte {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let left = &args[0];
@@ -379,7 +379,7 @@ impl FunctionImplementation for AssertLt {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -387,7 +387,7 @@ impl FunctionImplementation for AssertLt {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let left = &args[0];
@@ -447,7 +447,7 @@ impl FunctionImplementation for AssertLte {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -455,7 +455,7 @@ impl FunctionImplementation for AssertLte {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let left = &args[0];

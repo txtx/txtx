@@ -1,6 +1,8 @@
 use std::{fmt::Display, ops::Range};
 
 use hcl_edit::{expr::Expression, structure::Block};
+use serde::{Deserialize, Serialize};
+use strum_macros::Display as StrumDisplay;
 
 use crate::helpers::fs::FileLocation;
 
@@ -17,21 +19,12 @@ impl DiagnosticSpan {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, StrumDisplay)]
+#[strum(serialize_all = "lowercase")]
 pub enum DiagnosticLevel {
     Note,
     Warning,
     Error,
-}
-
-impl Display for DiagnosticLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DiagnosticLevel::Error => write!(f, "error"),
-            DiagnosticLevel::Warning => write!(f, "warning"),
-            DiagnosticLevel::Note => write!(f, "note"),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -46,7 +39,27 @@ pub struct Diagnostic {
     pub parent_diagnostic: Option<Box<Diagnostic>>,
 }
 
+impl Default for Diagnostic {
+    fn default() -> Self {
+        Self {
+            span: None,
+            span_range: None,
+            location: None,
+            message: String::new(),
+            level: DiagnosticLevel::Error,
+            documentation: None,
+            example: None,
+            parent_diagnostic: None,
+        }
+    }
+}
+
 impl Diagnostic {
+    /// Create a diagnostic with the specified level and message
+    pub fn with_level(level: DiagnosticLevel, message: String) -> Self {
+        Self { message, level, ..Default::default() }
+    }
+
     pub fn error_from_expression(
         _block: &Block,
         _expr: Option<&Expression>,
@@ -72,40 +85,13 @@ impl Diagnostic {
     }
 
     pub fn error_from_string(message: String) -> Diagnostic {
-        Diagnostic {
-            span: None,
-            span_range: None,
-            location: None,
-            message,
-            level: DiagnosticLevel::Error,
-            documentation: None,
-            example: None,
-            parent_diagnostic: None,
-        }
+        Self::with_level(DiagnosticLevel::Error, message)
     }
     pub fn warning_from_string(message: String) -> Diagnostic {
-        Diagnostic {
-            span: None,
-            span_range: None,
-            location: None,
-            message,
-            level: DiagnosticLevel::Warning,
-            documentation: None,
-            example: None,
-            parent_diagnostic: None,
-        }
+        Self::with_level(DiagnosticLevel::Warning, message)
     }
     pub fn note_from_string(message: String) -> Diagnostic {
-        Diagnostic {
-            span: None,
-            span_range: None,
-            location: None,
-            message,
-            level: DiagnosticLevel::Note,
-            documentation: None,
-            example: None,
-            parent_diagnostic: None,
-        }
+        Self::with_level(DiagnosticLevel::Note, message)
     }
 
     pub fn location(mut self, location: &FileLocation) -> Self {

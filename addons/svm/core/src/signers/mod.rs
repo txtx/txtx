@@ -13,15 +13,15 @@ use txtx_addon_kit::types::{
         ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
         ReviewInputRequest,
     },
+    namespace::Namespace,
     signers::SignerSpecification,
     types::Value,
     ConstructDid,
 };
 use web_wallet::SVM_WEB_WALLET;
 
-use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY, NAMESPACE,
-};
+use txtx_addon_kit::constants::ActionItemKey;
+use crate::constants::NAMESPACE;
 
 lazy_static! {
     pub static ref SIGNERS: Vec<SignerSpecification> =
@@ -52,9 +52,9 @@ pub async fn get_additional_actions_for_address(
                 check_expectation_action_uuid: Some(signer_did.clone()),
                 message: "".to_string(),
                 network_id: network_id.into(),
-                namespace: NAMESPACE.to_string(),
+                namespace: Namespace::from(NAMESPACE),
             })
-            .to_request(instance_name, ACTION_ITEM_PROVIDE_PUBLIC_KEY)
+            .to_request(instance_name, ActionItemKey::ProvidePublicKey)
             .with_construct_did(signer_did)
             .with_some_description(description)
             .with_meta_description(&format!("Connect wallet '{instance_name}'"))
@@ -68,7 +68,7 @@ pub async fn get_additional_actions_for_address(
                 action_items.push(
                     ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
                         .to_action_type()
-                        .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
+                        .to_request(instance_name, ActionItemKey::CheckAddress)
                         .with_construct_did(signer_did)
                         .with_some_description(Some("".into()))
                         .with_meta_description(&format!(
@@ -138,7 +138,7 @@ async fn get_check_balance_action(
     Some(
         ReviewInputRequest::new("", &value)
             .to_action_type()
-            .to_request(instance_name, ACTION_ITEM_CHECK_BALANCE)
+            .to_request(instance_name, ActionItemKey::CheckBalance)
             .with_construct_did(signer_did)
             .with_meta_description(&format!("Check '{}' signer balance", instance_name))
             .with_some_description(Some("".into()))

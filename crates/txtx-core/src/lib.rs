@@ -27,16 +27,12 @@ use ::std::thread::sleep;
 use ::std::time::Duration;
 
 use crate::runbook::flow_context::FlowContext;
-use constants::ACTION_ITEM_ENV;
-use constants::ACTION_ITEM_GENESIS;
-use constants::ACTION_ITEM_VALIDATE_BLOCK;
 use eval::run_constructs_evaluation;
 use eval::run_signers_evaluation;
-use kit::constants::ACTION_ITEM_CHECK_BALANCE;
 use runbook::get_source_context_for_diagnostic;
 use tokio::sync::broadcast::error::TryRecvError;
 use txtx_addon_kit::channel::Sender;
-use txtx_addon_kit::constants::ACTION_ITEM_CHECK_ADDRESS;
+use txtx_addon_kit::constants::ActionItemKey;
 use txtx_addon_kit::hcl::Span;
 use txtx_addon_kit::types::block_id::BlockId;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
@@ -67,7 +63,7 @@ lazy_static! {
      pub static ref SET_ENV_ACTION: ActionItemRequest =ActionItemRequestType::PickInputOption(PickInputOptionRequest {
             options: vec![],
             selected: InputOption::default(),
-        }).to_request("", ACTION_ITEM_ENV)
+        }).to_request("", ActionItemKey::Env)
         .with_meta_description("Select the environment to target")
         .with_status(ActionItemStatus::Success(None))
       ;
@@ -383,7 +379,7 @@ pub async fn start_supervised_runbook_runloop(
                             vec![ActionItemRequestType::ValidateBlock(ValidateBlockData::new(
                                 validated_blocks,
                             ))
-                            .to_request("Validate", ACTION_ITEM_VALIDATE_BLOCK)],
+                            .to_request("Validate", ActionItemKey::ValidateBlock)],
                         );
                     }
 
@@ -450,8 +446,8 @@ pub async fn start_supervised_runbook_runloop(
                 // but they need to confirm it in the supervisor. when it is confirmed, we need to
                 // reprocess the signers
                 if let Some(request) = action_item_requests.get(&action_item_id) {
-                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS
-                        || request.internal_key == ACTION_ITEM_CHECK_BALANCE
+                    if request.internal_key == ActionItemKey::CheckAddress
+                        || request.internal_key == ActionItemKey::CheckBalance
                     {
                         process_signers_action_item_response(
                             runbook,
@@ -695,7 +691,7 @@ pub async fn build_genesis_panel(
             options: input_options,
             selected: selected_option,
         })
-        .to_request("", ACTION_ITEM_ENV)
+        .to_request("", ActionItemKey::Env)
         .with_meta_description("Select the environment to target")
         .with_status(ActionItemStatus::Success(None));
 
@@ -721,7 +717,7 @@ pub async fn build_genesis_panel(
 
     let validate_action =
         ActionItemRequestType::ValidateBlock(ValidateBlockData::new(validated_blocks))
-            .to_request("start runbook", ACTION_ITEM_GENESIS);
+            .to_request("start runbook", ActionItemKey::Genesis);
 
     actions.push_sub_group(None, vec![validate_action]);
 

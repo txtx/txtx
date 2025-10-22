@@ -54,7 +54,7 @@ log = "0.4.27"
 lazy_static = "1.4.0"
 
 [features]
-default = ["cli", "supervisor_ui"]
+default = ["cli"]
 cli = ["clap", "clap_generate", "ctrlc", "hiro-system-kit/log"]
 supervisor_ui = ["txtx-supervisor-ui"]
 txtx_serve = ["txtx-serve"]

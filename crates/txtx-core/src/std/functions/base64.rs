@@ -39,7 +39,7 @@ impl FunctionImplementation for Base64Decode {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -47,7 +47,7 @@ impl FunctionImplementation for Base64Decode {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let encoded = args.get(0).unwrap().expect_string();
         let decoded = general_purpose::STANDARD.decode(encoded).map_err(|e| {

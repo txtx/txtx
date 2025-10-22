@@ -42,7 +42,7 @@ impl FunctionImplementation for Secp256k1Recover {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -50,7 +50,7 @@ impl FunctionImplementation for Secp256k1Recover {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         use libsecp256k1::{recover, Message, RecoveryId, Signature};
 

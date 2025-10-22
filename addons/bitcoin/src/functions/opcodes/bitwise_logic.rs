@@ -35,7 +35,7 @@ impl FunctionImplementation for EqualVerify {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -43,7 +43,7 @@ impl FunctionImplementation for EqualVerify {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        _args: &[Value],
     ) -> Result<Value, Diagnostic> {
         Ok(BitcoinValue::opcode(BitcoinOpcode::OpEqualVerify.get_code()))
     }

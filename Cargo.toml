@@ -13,7 +13,6 @@ members = [
     "crates/txtx-addon-kit",
     "crates/txtx-cloud",
     "crates/txtx-lsp",
-    "crates/txtx-supervisor-ui",
     "crates/txtx-serve",
     "addons/bitcoin",
     "addons/evm",
@@ -46,3 +45,6 @@ txtx-addon-network-svm = { path = "addons/svm/core" }
 txtx-addon-telegram = { path = "addons/telegram" }
 txtx-addon-sp1 = { path = "addons/sp1" }
 uuid = { version = "1.15.1", features = ["v4", "serde", "js"] }
+
+[alias]
+build-cli = "build --package txtx-cli --no-default-features --features cli"

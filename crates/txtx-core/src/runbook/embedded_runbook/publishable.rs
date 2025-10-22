@@ -10,6 +10,7 @@ use txtx_addon_kit::types::embedded_runbooks::{
     EmbeddedRunbookStaticExecutionContext, EmbeddedRunbookStaticWorkspaceContext, SignerName,
 };
 use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::namespace::Namespace;
 use txtx_addon_kit::types::AddonInstance;
 use txtx_addon_kit::types::{ConstructDid, ConstructId, PackageId, RunbookId};
 
@@ -409,7 +410,7 @@ impl PublishableCommandInstance {
                 name: self.name.clone(),
                 block: block.clone(),
                 package_id: self.package_id.clone(),
-                namespace: self.namespace.clone(),
+                namespace: Namespace::from(&self.namespace),
                 typing: CommandInstanceType::Variable,
             },
             CommandInstanceType::Output => CommandInstance {
@@ -417,7 +418,7 @@ impl PublishableCommandInstance {
                 name: self.name.clone(),
                 block: block.clone(),
                 package_id: self.package_id.clone(),
-                namespace: self.namespace.clone(),
+                namespace: Namespace::from(&self.namespace),
                 typing: CommandInstanceType::Output,
             },
             CommandInstanceType::Action(command_id) => {
@@ -452,7 +453,7 @@ impl PublishableCommandInstance {
                 name: self.name.clone(),
                 block: block.clone(),
                 package_id: self.package_id.clone(),
-                namespace: self.namespace.clone(),
+                namespace: Namespace::from(&self.namespace),
                 typing: CommandInstanceType::Module,
             },
             CommandInstanceType::Addon => todo!(),
@@ -463,7 +464,7 @@ impl PublishableCommandInstance {
     pub fn from_command_instance(command_instance: &CommandInstance) -> Self {
         Self {
             package_id: command_instance.package_id.clone(),
-            namespace: command_instance.namespace.clone(),
+            namespace: command_instance.namespace.to_string(),
             typing: command_instance.typing.clone(),
             name: command_instance.name.clone(),
             hcl: RawHclContent::from_block(&command_instance.block),

@@ -17,6 +17,7 @@ use txtx_addon_kit::{
         },
         diagnostics::Diagnostic,
         functions::FunctionSpecification,
+        namespace::Namespace,
         signers::{SignerInstance, SignerSpecification},
         types::Value,
         AuthorizationContext, ConstructDid, ContractSourceTransform, Did, PackageDid, PackageId,
@@ -94,7 +95,7 @@ impl RuntimeContext {
             let inputs_simulation_results =
                 runbook_execution_context.commands_inputs_evaluation_results.get(did);
             grouped_commands
-                .entry(command_instance.namespace.clone())
+                .entry(command_instance.namespace.to_string())
                 .and_modify(|e: &mut _| {
                     e.push((did.clone(), command_instance, inputs_simulation_results))
                 })
@@ -244,7 +245,7 @@ impl RuntimeContext {
 
                     let existing_addon_defaults = runbook_workspace_context
                         .addons_defaults
-                        .get(&(package_id.did(), addon_id.clone()))
+                        .get(&(package_id.did(), Namespace::from(addon_id.clone())))
                         .cloned();
                     let addon_defaults = self
                         .generate_addon_defaults_from_block(
@@ -260,7 +261,7 @@ impl RuntimeContext {
 
                     runbook_workspace_context
                         .addons_defaults
-                        .insert((package_id.did(), addon_id.clone()), addon_defaults);
+                        .insert((package_id.did(), Namespace::from(addon_id.clone())), addon_defaults);
                 }
                 _ => {}
             }
@@ -621,7 +622,7 @@ impl AddonConstructFactory {
                     block: block.clone(),
                     package_id: package_id.clone(),
                     typing,
-                    namespace: namespace.to_string(),
+                    namespace: Namespace::from(namespace),
                 };
                 Ok(command_instance)
             }
@@ -648,7 +649,7 @@ impl AddonConstructFactory {
             specification: signer_spec.clone(),
             block: block.clone(),
             package_id: package_id.clone(),
-            namespace: namespace.to_string(),
+            namespace: Namespace::from(namespace),
         })
     }
 }

@@ -394,7 +394,7 @@ impl FunctionImplementation for UnaryNegInteger {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -402,7 +402,7 @@ impl FunctionImplementation for UnaryNegInteger {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        _args: &[Value],
     ) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
@@ -413,7 +413,7 @@ impl FunctionImplementation for UnaryNotBool {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -421,7 +421,7 @@ impl FunctionImplementation for UnaryNotBool {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        _args: &[Value],
     ) -> Result<Value, Diagnostic> {
         unimplemented!()
     }
@@ -432,7 +432,7 @@ impl FunctionImplementation for BinaryAndBool {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -440,7 +440,7 @@ impl FunctionImplementation for BinaryAndBool {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Bool(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Bool(rhs)) = args.get(1) else { unreachable!() };
@@ -453,7 +453,7 @@ impl FunctionImplementation for BinaryOrBool {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -461,7 +461,7 @@ impl FunctionImplementation for BinaryOrBool {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Bool(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Bool(rhs)) = args.get(1) else { unreachable!() };
@@ -474,7 +474,7 @@ impl FunctionImplementation for BinaryDivSignedInteger {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -482,7 +482,7 @@ impl FunctionImplementation for BinaryDivSignedInteger {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
@@ -499,7 +499,7 @@ impl FunctionImplementation for BinaryEq {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -507,7 +507,7 @@ impl FunctionImplementation for BinaryEq {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let lhs = args.get(0).unwrap();
@@ -521,7 +521,7 @@ impl FunctionImplementation for BinaryGreater {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -529,7 +529,7 @@ impl FunctionImplementation for BinaryGreater {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
@@ -542,7 +542,7 @@ impl FunctionImplementation for BinaryGreaterEq {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -550,7 +550,7 @@ impl FunctionImplementation for BinaryGreaterEq {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
@@ -563,7 +563,7 @@ impl FunctionImplementation for BinaryLess {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -571,7 +571,7 @@ impl FunctionImplementation for BinaryLess {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
@@ -584,7 +584,7 @@ impl FunctionImplementation for BinaryLessEq {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -592,7 +592,7 @@ impl FunctionImplementation for BinaryLessEq {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
@@ -605,7 +605,7 @@ impl FunctionImplementation for BinaryNotEq {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -613,7 +613,7 @@ impl FunctionImplementation for BinaryNotEq {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
@@ -626,7 +626,7 @@ impl FunctionImplementation for BinaryMinus {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -634,7 +634,7 @@ impl FunctionImplementation for BinaryMinus {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
@@ -647,7 +647,7 @@ impl FunctionImplementation for BinaryModulo {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -655,7 +655,7 @@ impl FunctionImplementation for BinaryModulo {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };
@@ -668,7 +668,7 @@ impl FunctionImplementation for BinaryMul {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -676,7 +676,7 @@ impl FunctionImplementation for BinaryMul {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let lhs = args.get(0).unwrap().as_integer().unwrap();
@@ -690,7 +690,7 @@ impl FunctionImplementation for BinaryPlus {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -698,7 +698,7 @@ impl FunctionImplementation for BinaryPlus {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(Value::Integer(lhs)) = args.get(0) else { unreachable!() };
         let Some(Value::Integer(rhs)) = args.get(1) else { unreachable!() };

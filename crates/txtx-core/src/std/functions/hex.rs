@@ -38,7 +38,7 @@ impl FunctionImplementation for EncodeHex {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -46,7 +46,7 @@ impl FunctionImplementation for EncodeHex {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let input = args.get(0).unwrap().expect_string();
         let hex = txtx_addon_kit::hex::encode(input);

@@ -91,7 +91,7 @@ impl FunctionImplementation for Ripemd160 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -99,7 +99,7 @@ impl FunctionImplementation for Ripemd160 {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(value) = args.get(0) else {
             return Err(diagnosed_error!("{}: expected 1 argument, got 0", fn_spec.name));
@@ -117,7 +117,7 @@ impl FunctionImplementation for Sha256 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -125,7 +125,7 @@ impl FunctionImplementation for Sha256 {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let Some(value) = args.get(0) else {
             return Err(diagnosed_error!("{}: expected 1 argument, got 0", fn_spec.name));
@@ -143,7 +143,7 @@ impl FunctionImplementation for Keccak256 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -151,7 +151,7 @@ impl FunctionImplementation for Keccak256 {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let value = args.get(0).unwrap().as_string().unwrap().to_string();

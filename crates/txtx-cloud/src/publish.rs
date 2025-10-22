@@ -210,7 +210,7 @@ impl CloudServiceRunbookDocumentation {
                     signers.push(CloudServiceSignerDocumentation {
                         name: signer.name.clone(),
                         description: Some(signer.documentation.clone()),
-                        namespace: signer.namespace.clone(),
+                        namespace: signer.namespace.to_string(),
                     });
                 }
             }

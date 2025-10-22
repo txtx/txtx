@@ -17,6 +17,7 @@ use txtx_addon_kit::{
     types::{
         diagnostics::Diagnostic,
         functions::{FunctionImplementation, FunctionSpecification},
+        namespace::Namespace,
         types::{ObjectType, Type, Value},
         AuthorizationContext,
     },
@@ -44,12 +45,12 @@ use crate::{
 };
 const INFURA_API_KEY: &str = "";
 
-pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
-    let checker = arg_checker_with_ctx(NAMESPACE.to_string());
+pub fn arg_checker(fn_spec: &FunctionSpecification, args: &[Value]) -> Result<(), Diagnostic> {
+    let checker = arg_checker_with_ctx(Namespace::from(NAMESPACE));
     checker(fn_spec, args)
 }
 pub fn to_diag(fn_spec: &FunctionSpecification, e: String) -> Diagnostic {
-    let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
+    let error_fn = fn_diag_with_ctx(Namespace::from(NAMESPACE));
     error_fn(fn_spec, e)
 }
 
@@ -434,7 +435,7 @@ impl FunctionImplementation for EncodeEvmAddress {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -442,7 +443,7 @@ impl FunctionImplementation for EncodeEvmAddress {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let entry = match args.get(0) {
             Some(Value::String(val)) => val.clone(),
@@ -465,7 +466,7 @@ impl FunctionImplementation for EvmZeroAddress {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -473,7 +474,7 @@ impl FunctionImplementation for EvmZeroAddress {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         Ok(EvmValue::address(&Address::ZERO))
@@ -486,7 +487,7 @@ impl FunctionImplementation for AbiEncode {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -494,7 +495,7 @@ impl FunctionImplementation for AbiEncode {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let array = args.get(0).unwrap().as_array().unwrap();
@@ -521,7 +522,7 @@ impl FunctionImplementation for EncodeToAbiType {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -529,7 +530,7 @@ impl FunctionImplementation for EncodeToAbiType {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let value = args.get(0).unwrap();
@@ -583,7 +584,7 @@ impl FunctionImplementation for EncodeEvmBytes32 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -591,7 +592,7 @@ impl FunctionImplementation for EncodeEvmBytes32 {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let bytes = match args.get(0) {
             Some(Value::String(val)) => B256::from_hex(&val).map_err(|e| {
@@ -619,7 +620,7 @@ impl FunctionImplementation for EncodeEvmBytes {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -627,7 +628,7 @@ impl FunctionImplementation for EncodeEvmBytes {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let bytes = match args.get(0).unwrap() {
@@ -650,7 +651,7 @@ impl FunctionImplementation for EncodeEvmUint32 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -658,7 +659,7 @@ impl FunctionImplementation for EncodeEvmUint32 {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let value = args.get(0).unwrap().as_integer().unwrap();
@@ -673,7 +674,7 @@ impl FunctionImplementation for EncodeEvmUint256 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -681,7 +682,7 @@ impl FunctionImplementation for EncodeEvmUint256 {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let value = args.get(0).unwrap();
@@ -707,7 +708,7 @@ impl FunctionImplementation for EncodeEvmUint8 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -715,7 +716,7 @@ impl FunctionImplementation for EncodeEvmUint8 {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let value = args.get(0).unwrap().as_integer().unwrap();
@@ -730,7 +731,7 @@ impl FunctionImplementation for EncodeEvmChain {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -738,7 +739,7 @@ impl FunctionImplementation for EncodeEvmChain {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let chain = match args.get(0) {
             Some(Value::String(chain_name)) => {
@@ -790,7 +791,7 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -798,7 +799,7 @@ impl FunctionImplementation for GetFoundryDeploymentArtifacts {
     fn run(
         fn_spec: &FunctionSpecification,
         auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let contract_name = args.get(0).unwrap().as_string().unwrap();
@@ -895,7 +896,7 @@ impl FunctionImplementation for GetHardhatDeploymentArtifacts {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -903,7 +904,7 @@ impl FunctionImplementation for GetHardhatDeploymentArtifacts {
     fn run(
         fn_spec: &FunctionSpecification,
         auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let contract_name = args.get(0).unwrap().as_string().unwrap();
@@ -983,7 +984,7 @@ impl FunctionImplementation for CreateInitCode {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -991,7 +992,7 @@ impl FunctionImplementation for CreateInitCode {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let prefix = "command 'evm::create_init_code'";
@@ -1048,7 +1049,7 @@ impl FunctionImplementation for EncodeFunctionCall {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -1056,7 +1057,7 @@ impl FunctionImplementation for EncodeFunctionCall {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let function_name = args.get(0).unwrap().as_string().unwrap();
@@ -1101,7 +1102,7 @@ impl FunctionImplementation for GenerateCreate2Address {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -1109,7 +1110,7 @@ impl FunctionImplementation for GenerateCreate2Address {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         let prefix = "command 'evm::create2'";
         let salt = match args.get(0) {

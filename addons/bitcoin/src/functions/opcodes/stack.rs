@@ -33,7 +33,7 @@ impl FunctionImplementation for Dup {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -41,7 +41,7 @@ impl FunctionImplementation for Dup {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        _args: &[Value],
     ) -> Result<Value, Diagnostic> {
         Ok(BitcoinValue::opcode(BitcoinOpcode::OpDup.get_code()))
     }

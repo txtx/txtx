@@ -8,6 +8,7 @@ use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookStatefulExecutionContext;
 use txtx_addon_kit::types::stores::ValueStore;
+use txtx_addon_kit::types::namespace::Namespace;
 use txtx_addon_kit::types::PackageId;
 use txtx_addon_kit::types::{
     commands::CommandExecutionResult, embedded_runbooks::EmbeddedRunbookInstance,
@@ -177,7 +178,7 @@ impl EmbeddingRunbookContext {
         for (_, addon_instance) in execution_context.addon_instances.iter() {
             let existing_addon_defaults = workspace_context
                 .addons_defaults
-                .get(&(addon_instance.package_id.did(), addon_instance.addon_id.to_string()))
+                .get(&(addon_instance.package_id.did(), Namespace::from(addon_instance.addon_id.to_string())))
                 .cloned();
             let defaults = runtime_context
                 .generate_addon_defaults_from_block(
@@ -196,7 +197,7 @@ impl EmbeddingRunbookContext {
                 ))
                 })?;
             workspace_context.addons_defaults.insert(
-                (addon_instance.package_id.did(), addon_instance.addon_id.to_string()),
+                (addon_instance.package_id.did(), Namespace::from(&addon_instance.addon_id)),
                 defaults,
             );
         }

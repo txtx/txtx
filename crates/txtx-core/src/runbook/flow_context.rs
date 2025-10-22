@@ -115,7 +115,7 @@ impl FlowContext {
     pub fn index_flow_input(&mut self, key: &str, value: Value, package_id: &PackageId) {
         let construct_id =
             self.workspace_context.index_flow_input(key, package_id, &mut self.graph_context);
-        self.evaluated_inputs.insert(key.into(), value.clone());
+        self.evaluated_inputs.insert(key.to_string(), value.clone());
         // self.graph_context.index_top_level_input(&construct_did);
         let mut result = CommandExecutionResult::new();
         result.outputs.insert("value".into(), value);
