@@ -801,6 +801,12 @@ lazy_static! {
             typing: Type::integer(),
             optional: true,
             tainting: false
+        },
+        account_path: {
+            documentation: "The path to a JSON file containing the account data to set. If provided, all other fields.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
         }
     };
 
