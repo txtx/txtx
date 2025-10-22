@@ -218,7 +218,7 @@ impl CommandImplementation for SetupSurfpool {
             let logger =
                 LogDispatcher::new(construct_did.as_uuid(), "svm::setup_surfnet", &progress_tx);
 
-            let account_updates = SurfpoolAccountUpdate::parse_value_store(&values)?;
+            let account_updates = SurfpoolAccountUpdate::parse_value_store(&values, &auth_context)?;
             SurfpoolAccountUpdate::process_updates(account_updates, &rpc_client, &logger).await?;
 
             let token_account_updates = SurfpoolTokenAccountUpdate::parse_value_store(&values)?;

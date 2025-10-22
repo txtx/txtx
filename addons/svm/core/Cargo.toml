@@ -37,6 +37,7 @@ solana-commitment-config = "3.0.0"
 solana-loader-v3-interface = { version = "6.1.0", features = ["bincode"] }
 solana-system-interface = { version = "2.0.0", features = ["bincode"] }
 spl-associated-token-account-interface = "2.0.0"
+solana-account-decoder-client-types = { version = "3.0.0", default-features = false }
 spl-token-interface = "2.0.0"
 spl-token-2022-interface = "2.0.0"
 solana_idl = "0.2.0"
