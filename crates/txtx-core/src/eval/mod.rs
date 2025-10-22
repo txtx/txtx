@@ -4,17 +4,14 @@ use crate::runbook::{
     RuntimeContext,
 };
 use crate::types::{ConstructType, RunbookExecutionContext, RunbookSources};
-use kit::constants::{RE_EXECUTE_COMMAND, THIRD_PARTY_SIGNATURE_STATUS};
+use kit::constants::{ActionItemKey, RunbookKey};
 use kit::types::commands::{
     ConstructInstance, PostConditionEvaluationResult, PreConditionEvaluationResult,
 };
 use kit::types::types::ObjectDefinition;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Display;
-use txtx_addon_kit::constants::{
-    SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE, SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
-    TX_HASH,
-};
+use txtx_addon_kit::constants::SignerKey;
 use txtx_addon_kit::hcl::structure::Block as HclBlock;
 use txtx_addon_kit::helpers::hcl::visit_optional_untyped_attribute;
 use txtx_addon_kit::indexmap::IndexMap;
@@ -323,12 +320,12 @@ impl Display for EvaluationPassResult {
 fn should_skip_construct_evaluation(execution_result: &CommandExecutionResult) -> bool {
     // Check if the execution result indicates that the construct should be skipped
     let has_re_execute_command =
-        execution_result.outputs.get(RE_EXECUTE_COMMAND).and_then(|v| v.as_bool()).unwrap_or(false);
+        execution_result.outputs.get(ActionItemKey::ReExecuteCommand.as_ref()).and_then(|v| v.as_bool()).unwrap_or(false);
 
     let is_third_party_signed_construct_not_yet_signed_by_third_party = {
         let third_party_val = execution_result
             .outputs
-            .get(THIRD_PARTY_SIGNATURE_STATUS)
+            .get(RunbookKey::ThirdPartySignatureStatus.as_ref())
             .map(|v| v.expect_third_party_signature());
         let is_action_signed_by_third_party = third_party_val.is_some();
         let is_third_party_sign_complete =
@@ -347,7 +344,7 @@ fn should_retry_construct_evaluation(execution_result: &CommandExecutionResult) 
     let is_third_party_signed_construct_not_yet_signed_by_third_party = {
         let third_party_val = execution_result
             .outputs
-            .get(THIRD_PARTY_SIGNATURE_STATUS)
+            .get(RunbookKey::ThirdPartySignatureStatus.as_ref())
             .map(|v| v.expect_third_party_signature());
         let is_action_signed_by_third_party = third_party_val.is_some();
         let is_third_party_sign_check_requested =
@@ -1563,7 +1560,7 @@ pub fn update_signer_instances_from_action_response(
                                 Some(bytes) => {
                                     signer_state.insert_scoped_value(
                                         &did,
-                                        SIGNED_TRANSACTION_BYTES,
+                                        SignerKey::SignedTransactionBytes.as_ref(),
                                         Value::string(bytes.clone()),
                                     );
                                 }
@@ -1571,20 +1568,20 @@ pub fn update_signer_instances_from_action_response(
                                     Some(true) => {
                                         signer_state.insert_scoped_value(
                                             &did,
-                                            SIGNATURE_APPROVED,
+                                            SignerKey::SignatureApproved.as_ref(),
                                             Value::bool(true),
                                         );
                                     }
                                     Some(false) => {}
                                     None => {
                                         let skippable = signer_state
-                                            .get_scoped_value(&did, SIGNATURE_SKIPPABLE)
+                                            .get_scoped_value(&did, SignerKey::SignatureSkippable.as_ref())
                                             .and_then(|v| v.as_bool())
                                             .unwrap_or(false);
                                         if skippable {
                                             signer_state.insert_scoped_value(
                                                 &did,
-                                                SIGNED_TRANSACTION_BYTES,
+                                                SignerKey::SignedTransactionBytes.as_ref(),
                                                 Value::null(),
                                             );
                                         }
@@ -1601,7 +1598,7 @@ pub fn update_signer_instances_from_action_response(
                             let did = &construct_did.to_string();
                             signer_state.insert_scoped_value(
                                 &did,
-                                TX_HASH,
+                                SignerKey::TxHash.as_ref(),
                                 Value::string(response.transaction_hash.clone()),
                             );
 
@@ -1614,7 +1611,7 @@ pub fn update_signer_instances_from_action_response(
                         {
                             signer_state.insert_scoped_value(
                                 &construct_did.value().to_string(),
-                                SIGNED_MESSAGE_BYTES,
+                                SignerKey::SignedMessageBytes.as_ref(),
                                 Value::string(response.signed_message_bytes.clone()),
                             );
                             signers.push_signer_state(signer_state.clone());
@@ -1629,7 +1626,7 @@ pub fn update_signer_instances_from_action_response(
                             // can handle accordingly
                             signer_state.insert_scoped_value(
                                 &construct_did.value().to_string(),
-                                THIRD_PARTY_SIGNATURE_STATUS,
+                                RunbookKey::ThirdPartySignatureStatus.as_ref(),
                                 Value::third_party_signature_check_requested(),
                             );
                             signers.push_signer_state(signer_state.clone());

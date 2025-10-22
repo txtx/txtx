@@ -1,6 +1,6 @@
 pub mod actions;
 
-use kit::constants::DESCRIPTION;
+use kit::constants::DocumentationKey;
 use kit::types::AuthorizationContext;
 use txtx_addon_kit::types::commands::return_synchronous_result;
 use txtx_addon_kit::types::frontend::{ActionItemRequestType, ProvideInputRequest};
@@ -23,7 +23,7 @@ use txtx_addon_kit::{
     },
 };
 
-use crate::constants::ACTION_ITEM_CHECK_OUTPUT;
+use txtx_addon_kit::constants::ActionItemKey;
 
 pub fn new_module_specification() -> CommandSpecification {
     let command = define_command! {
@@ -171,7 +171,7 @@ impl CommandImplementation for Variable {
         }
 
         let title = instance_name;
-        let description = values.get_string(DESCRIPTION).and_then(|d| Some(d.to_string()));
+        let description = values.get_string(DocumentationKey::Description.as_ref()).and_then(|d| Some(d.to_string()));
         let markdown = values.get_markdown(&auth_context)?;
 
         let is_editable = values.get_bool("editable").unwrap_or(false);
@@ -181,7 +181,7 @@ impl CommandImplementation for Variable {
                 input_name: "value".into(),
                 typing: value.get_type(),
             })
-            .to_request(title, "provide_input")
+            .to_request(title, ActionItemKey::ProvideInput)
             .with_some_description(description)
             .with_construct_did(construct_did)
             .with_some_markdown(markdown)
@@ -189,7 +189,7 @@ impl CommandImplementation for Variable {
             if supervision_context.review_input_values {
                 ReviewInputRequest::new("value", &value)
                     .to_action_type()
-                    .to_request(title, "check_input")
+                    .to_request(title, ActionItemKey::CheckInput)
                     .with_some_description(description)
                     .with_construct_did(construct_did)
                     .with_some_markdown(markdown)
@@ -278,7 +278,7 @@ impl CommandImplementation for Output {
         auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         let value = args.get_expected_value("value")?;
-        let description = args.get_string(DESCRIPTION).and_then(|d| Some(d.to_string()));
+        let description = args.get_string(DocumentationKey::Description.as_ref()).and_then(|d| Some(d.to_string()));
         let markdown = args.get_markdown(&auth_context)?;
         let actions = Actions::new_sub_group_of_items(
             None,
@@ -287,7 +287,7 @@ impl CommandImplementation for Output {
                 description: None,
                 value: value.clone(),
             })
-            .to_request(instance_name, ACTION_ITEM_CHECK_OUTPUT)
+            .to_request(instance_name, ActionItemKey::CheckOutput)
             .with_construct_did(construct_did)
             .with_some_description(description)
             .with_some_markdown(markdown)],

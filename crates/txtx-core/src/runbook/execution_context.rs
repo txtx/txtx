@@ -1,4 +1,4 @@
-use kit::constants::DESCRIPTION;
+use kit::constants::{ActionItemKey, DocumentationKey};
 use kit::types::commands::ConstructInstance;
 use kit::types::frontend::DisplayErrorLogRequest;
 use kit::types::AuthorizationContext;
@@ -157,7 +157,7 @@ impl RunbookExecutionContext {
         action_items: &mut IndexMap<String, Vec<ActionItemRequest>>,
         auth_context: &AuthorizationContext,
     ) -> LoopEvaluationResult {
-        if command_instance.specification.name.to_lowercase().eq("output") {
+        if command_instance.specification.name.to_lowercase().eq(ActionItemKey::Output.as_ref()) {
             let Some(execution_result) = self.commands_execution_results.get(&construct_did) else {
                 return LoopEvaluationResult::Continue;
             };
@@ -172,7 +172,7 @@ impl RunbookExecutionContext {
             };
 
             let description =
-                input_evaluations.inputs.get_string(DESCRIPTION).and_then(|d| Some(d.to_string()));
+                input_evaluations.inputs.get_string(DocumentationKey::Description.as_ref()).and_then(|d| Some(d.to_string()));
             let markdown = match input_evaluations.inputs.get_markdown(&auth_context) {
                 Ok(md) => md,
                 Err(e) => {
@@ -184,7 +184,7 @@ impl RunbookExecutionContext {
                                 e.message
                             ),
                         })
-                        .to_request(&command_instance.name, "output")
+                        .to_request(&command_instance.name, ActionItemKey::Output)
                         .with_construct_did(construct_did),
                     );
                     None
@@ -197,7 +197,7 @@ impl RunbookExecutionContext {
                     description: description.clone(),
                     value: value.clone(),
                 })
-                .to_request(&command_instance.name, "output")
+                .to_request(&command_instance.name, ActionItemKey::Output)
                 .with_construct_did(construct_did)
                 .with_some_description(description)
                 .with_some_markdown(markdown),
