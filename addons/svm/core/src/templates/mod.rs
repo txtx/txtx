@@ -206,10 +206,62 @@ impl GenesisEntry {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountEntry {
+    // Base58 pubkey string.
+    pub address: String,
+    // Name of JSON file containing the account data.
+    pub filename: String,
+}
+
+impl AccountEntry {
+    pub fn get_account_update_template(&self) -> String {
+        format!(
+            r#"
+    set_account {{
+        public_key = "{}"
+        account_path = "{}"
+    }}
+"#,
+            self.address, self.filename
+        )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountDirEntry {
+    // Directory containing account JSON files
+    pub directory: String,
+}
+impl AccountDirEntry {
+    pub fn get_account_update_templates(&self) -> Vec<String> {
+        let dir = std::path::Path::new(&self.directory);
+        let mut templates = vec![];
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    templates.push(format!(
+                        r#"
+    set_account {{
+        account_path = "{}"
+    }}
+"#,
+                        path.to_string_lossy()
+                    ));
+                }
+            }
+        }
+        templates
+    }
+}
+
 pub fn get_interpolated_setup_surfnet_template(
     genesis_accounts: &Vec<GenesisEntry>,
+    accounts: &Vec<AccountEntry>,
+    account_dirs: &Vec<AccountDirEntry>,
 ) -> Option<String> {
-    if genesis_accounts.is_empty() {
+    if genesis_accounts.is_empty() && accounts.is_empty() && account_dirs.is_empty() {
         return None;
     }
     let deployments = genesis_accounts
@@ -217,13 +269,28 @@ pub fn get_interpolated_setup_surfnet_template(
         .map(|entry| entry.get_deploy_template())
         .collect::<Vec<_>>()
         .join("\n");
+
+    let account_updates = accounts
+        .iter()
+        .map(|entry| entry.get_account_update_template())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let dir_account_updates = account_dirs
+        .iter()
+        .flat_map(|entry| entry.get_account_update_templates())
+        .collect::<Vec<_>>()
+        .join("\n");
+
     Some(format!(
         r#"
 action "setup_surfnet" "svm::setup_surfnet" {{
     description = "Sets up a local Surfnet with genesis accounts"
 {}
+{}
+{}
 }}"#,
-        deployments
+        deployments, account_updates, dir_account_updates
     ))
 }
 
@@ -232,7 +299,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_interpolated_setup_surfnet() {
-        let result = get_interpolated_setup_surfnet_template(&vec![]);
+        let result = get_interpolated_setup_surfnet_template(&vec![], &vec![], &vec![]);
         assert!(result.is_none(), "Expected None for empty genesis accounts");
 
         let genesis_accounts = vec![
@@ -247,7 +314,18 @@ mod tests {
                 upgradeable: Some(false),
             },
         ];
-        let result = get_interpolated_setup_surfnet_template(&genesis_accounts);
+        let accounts = vec![
+            AccountEntry {
+                address: "Account1".to_string(),
+                filename: "Path/To/Account1.json".to_string(),
+            },
+            AccountEntry {
+                address: "Account2".to_string(),
+                filename: "Path/To/Account2.json".to_string(),
+            },
+        ];
+
+        let result = get_interpolated_setup_surfnet_template(&genesis_accounts, &accounts, &vec![]);
         assert!(result.is_some(), "Expected Some for non-empty genesis accounts");
         let expected = r#"
 action "setup_surfnet" "svm::setup_surfnet" {
@@ -265,6 +343,19 @@ action "setup_surfnet" "svm::setup_surfnet" {
         binary_path = "Path/To/Program2.so"
         authority = svm::system_program_id()
     }
+
+
+    set_account {
+        public_key = "Account1"
+        account_path = "Path/To/Account1.json"
+    }
+
+
+    set_account {
+        public_key = "Account2"
+        account_path = "Path/To/Account2.json"
+    }
+
 
 }
 "#;
