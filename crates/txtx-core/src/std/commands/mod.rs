@@ -171,7 +171,7 @@ impl CommandImplementation for Variable {
         }
 
         let title = instance_name;
-        let description = values.get_string(DocumentationKey::Description.as_ref()).and_then(|d| Some(d.to_string()));
+        let description = values.get_string(DocumentationKey::Description).and_then(|d| Some(d.to_string()));
         let markdown = values.get_markdown(&auth_context)?;
 
         let is_editable = values.get_bool("editable").unwrap_or(false);
@@ -278,7 +278,7 @@ impl CommandImplementation for Output {
         auth_context: &AuthorizationContext,
     ) -> Result<Actions, Diagnostic> {
         let value = args.get_expected_value("value")?;
-        let description = args.get_string(DocumentationKey::Description.as_ref()).and_then(|d| Some(d.to_string()));
+        let description = args.get_string(DocumentationKey::Description).and_then(|d| Some(d.to_string()));
         let markdown = args.get_markdown(&auth_context)?;
         let actions = Actions::new_sub_group_of_items(
             None,

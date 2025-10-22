@@ -19,7 +19,7 @@ use web_wallet::STACKS_WEB_WALLET;
 
 use crate::{
     constants::{
-        ActionItemKey::CheckAddress.as_ref(), ActionItemKey::CheckBalance.as_ref(), ActionItemKey::ProvidePublicKey,
+        ActionItemKey::CheckAddress, ActionItemKey::CheckBalance, ActionItemKey::ProvidePublicKey,
         DEFAULT_MESSAGE,
     },
     rpc::StacksRpc,
@@ -72,7 +72,7 @@ pub async fn get_addition_actions_for_address(
                 ActionItemStatus::Todo,
                 ReviewInputRequest::new("", &Value::string(expected_address.to_owned()))
                     .to_action_type(),
-                ActionItemKey::CheckAddress.as_ref(),
+                ActionItemKey::CheckAddress,
             ))
         }
         if do_request_balance {
@@ -95,7 +95,7 @@ pub async fn get_addition_actions_for_address(
                 None,
                 action_status,
                 ReviewInputRequest::new("", &value).to_action_type(),
-                ActionItemKey::CheckBalance.as_ref(),
+                ActionItemKey::CheckBalance,
             );
             action_items.push(check_balance);
         }
@@ -107,7 +107,7 @@ pub async fn get_addition_actions_for_address(
                 None,
                 ActionItemStatus::Todo,
                 ReviewInputRequest::new("", &Value::string("N/A".to_string())).to_action_type(),
-                ActionItemKey::CheckBalance.as_ref(),
+                ActionItemKey::CheckBalance,
             );
             action_items.push(check_balance);
         }

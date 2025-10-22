@@ -150,13 +150,13 @@ impl SignerImplementation for EvmWebWallet {
             .get_expected_string(RPC_API_URL)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
-        let description = values.get_string(DocumentationKey::Description.as_ref()).map(|d| d.to_string());
+        let description = values.get_string(DocumentationKey::Description).map(|d| d.to_string());
         let markdown = values
             .get_markdown(auth_ctx)
             .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
 
         if let Ok(ref signed_message_hex) =
-            values.get_expected_string(ActionItemKey::ProvidePublicKey.as_ref())
+            values.get_expected_string(ActionItemKey::ProvidePublicKey)
         {
             let public_key_bytes =
                 public_key_from_signed_message(&DEFAULT_MESSAGE, signed_message_hex).map_err(
@@ -280,7 +280,7 @@ impl SignerImplementation for EvmWebWallet {
         _auth_ctx: &AuthorizationContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let construct_did_str = &construct_did.to_string();
-        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::TxHash.as_ref()) {
+        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::TxHash) {
             return Ok((signers, signer_state, Actions::none()));
         }
 
@@ -290,7 +290,7 @@ impl SignerImplementation for EvmWebWallet {
         let actions = if already_deployed {
             // the tx hash won't actually be used in the path where the contract is already deployed, but we need
             // this value set in order to prevent re-adding the same action item every time we get to this fn
-            signer_state.insert_scoped_value(&construct_did_str, SignerKey::TxHash.as_ref(), Value::null());
+            signer_state.insert_scoped_value(&construct_did_str, SignerKey::TxHash, Value::null());
 
             let contract_address = signer_state
                 .get_scoped_value(&construct_did.to_string(), CONTRACT_ADDRESS)
@@ -374,8 +374,8 @@ impl SignerImplementation for EvmWebWallet {
     ) -> SignerSignFutureResult {
         let mut result = CommandExecutionResult::new();
         let key = construct_did.to_string();
-        if let Some(signed_transaction) = signer_state.get_scoped_value(&key, SignerKey::TxHash.as_ref()) {
-            result.outputs.insert(SignerKey::TxHash.as_ref().into(), signed_transaction.clone());
+        if let Some(signed_transaction) = signer_state.get_scoped_value(&key, SignerKey::TxHash) {
+            result.outputs.insert(SignerKey::TxHash.to_string(), signed_transaction.clone());
         }
 
         return_synchronous_result(Ok((signers, signer_state, result)))

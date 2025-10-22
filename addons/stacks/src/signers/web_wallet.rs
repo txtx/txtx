@@ -25,7 +25,7 @@ use txtx_addon_kit::types::{
 };
 
 use crate::constants::{
-    ActionItemKey::CheckAddress.as_ref(), ActionItemKey::ProvidePublicKey,
+    ActionItemKey::CheckAddress, ActionItemKey::ProvidePublicKey,
     ActionItemKey::ProvideSignedTransaction, CHECKED_ADDRESS, CHECKED_COST_PROVISION,
     CHECKED_PUBLIC_KEY, EXPECTED_ADDRESS, FETCHED_BALANCE, FETCHED_NONCE, FORMATTED_TRANSACTION,
     IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS, REQUESTED_STARTUP_DATA, RPC_API_URL,
@@ -135,7 +135,7 @@ impl SignerImplementation for StacksWebWallet {
             .to_owned();
 
         if let Ok(public_key_bytes) =
-            values.get_expected_buffer_bytes(ActionItemKey::ProvidePublicKey.as_ref())
+            values.get_expected_buffer_bytes(ActionItemKey::ProvidePublicKey)
         {
             let version = if network_id.eq("mainnet") {
                 clarity_repl::clarity::address::C32_ADDRESS_VERSION_MAINNET_SINGLESIG
@@ -169,7 +169,7 @@ impl SignerImplementation for StacksWebWallet {
                 } else {
                     let update = ActionItemRequestUpdate::from_context(
                         &signer_did,
-                        ActionItemKey::CheckAddress.as_ref(),
+                        ActionItemKey::CheckAddress,
                     )
                     .set_status(status_update.clone());
                     actions.push_action_item_update(update);
@@ -272,7 +272,7 @@ impl SignerImplementation for StacksWebWallet {
         _supervision_context: &RunbookSupervisionContext,
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let construct_did_str = &construct_did.to_string();
-        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignedTransactionBytes.as_ref())
+        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignedTransactionBytes)
         {
             return Ok((signers, signer_state, Actions::none()));
         }
@@ -292,7 +292,7 @@ impl SignerImplementation for StacksWebWallet {
         };
 
         let skippable = signer_state
-            .get_scoped_value(&construct_did_str, SignerKey::SignatureSkippable.as_ref())
+            .get_scoped_value(&construct_did_str, SignerKey::SignatureSkippable)
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);
@@ -342,9 +342,9 @@ impl SignerImplementation for StacksWebWallet {
         let mut result = CommandExecutionResult::new();
         let key = construct_did.to_string();
         if let Some(signed_transaction) =
-            signer_state.get_scoped_value(&key, SignerKey::SignedTransactionBytes.as_ref())
+            signer_state.get_scoped_value(&key, SignerKey::SignedTransactionBytes)
         {
-            result.outputs.insert(SignerKey::SignedTransactionBytes.as_ref().into(), signed_transaction.clone());
+            result.outputs.insert(SignerKey::SignedTransactionBytes.to_string(), signed_transaction.clone());
         }
 
         return_synchronous_result(Ok((signers, signer_state, result)))

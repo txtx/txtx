@@ -164,7 +164,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         use txtx_addon_kit::{
-            constants::SignerKey::SignedTransactionBytes.as_ref(), types::frontend::ProgressBarStatusColor,
+            constants::SignerKey::SignedTransactionBytes, types::frontend::ProgressBarStatusColor,
         };
 
         use crate::{
@@ -187,7 +187,7 @@ impl CommandImplementation for BroadcastStacksTransaction {
 
         let network_id = args.get_expected_string(NETWORK_ID)?.to_owned();
 
-        let transaction_bytes = args.get_expected_buffer_bytes(SignerKey::SignedTransactionBytes.as_ref())?;
+        let transaction_bytes = args.get_expected_buffer_bytes(SignerKey::SignedTransactionBytes)?;
 
         let rpc_api_url = args.get_expected_string(RPC_API_URL)?.to_owned();
         let rpc_api_auth_token =

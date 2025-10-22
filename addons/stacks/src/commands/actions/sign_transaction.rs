@@ -162,10 +162,10 @@ impl CommandImplementation for SignStacksTransaction {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if signer_state
-                .get_scoped_value(&construct_did.to_string(), SignerKey::SignedTransactionBytes.as_ref())
+                .get_scoped_value(&construct_did.to_string(), SignerKey::SignedTransactionBytes)
                 .is_some()
                 || signer_state
-                    .get_scoped_value(&construct_did.to_string(), SignerKey::SignatureApproved.as_ref())
+                    .get_scoped_value(&construct_did.to_string(), SignerKey::SignatureApproved)
                     .is_some()
             {
                 return Ok((signers, signer_state, Actions::none()));
@@ -280,11 +280,11 @@ impl CommandImplementation for SignStacksTransaction {
         let signer_did = get_signer_did(args).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-        if let Ok(signed_transaction_bytes) = args.get_expected_value(SignerKey::SignedTransactionBytes.as_ref()) {
+        if let Ok(signed_transaction_bytes) = args.get_expected_value(SignerKey::SignedTransactionBytes) {
             let mut result = CommandExecutionResult::new();
             result
                 .outputs
-                .insert(SignerKey::SignedTransactionBytes.as_ref().into(), signed_transaction_bytes.clone());
+                .insert(SignerKey::SignedTransactionBytes, signed_transaction_bytes.clone());
             return return_synchronous_ok(signers, signer_state, result);
         }
 

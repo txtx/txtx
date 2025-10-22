@@ -228,7 +228,7 @@ impl CommandImplementation for SendStxTransfer {
             };
 
             values.insert(
-                SignerKey::SignedTransactionBytes.as_ref(),
+                SignerKey::SignedTransactionBytes,
                 res_signing.outputs.get(SignerKey::SignedTransactionBytes.as_ref()).unwrap().clone(),
             );
             let mut res = match BroadcastStacksTransaction::run_execution(

@@ -33,7 +33,7 @@ use txtx_addon_kit::types::{
 use txtx_addon_kit::types::{ConstructDid, Did};
 
 use crate::constants::{
-    ActionItemKey::CheckBalance.as_ref(), ActionItemKey::ProvidePublicKey, ACTION_OPEN_MODAL, CHECKED_ADDRESS,
+    ActionItemKey::CheckBalance, ActionItemKey::ProvidePublicKey, ACTION_OPEN_MODAL, CHECKED_ADDRESS,
     CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, IS_SIGNABLE, NETWORK_ID, PUBLIC_KEYS,
     REQUIRED_SIGNATURE_COUNT, RPC_API_URL,
 };
@@ -288,7 +288,7 @@ impl SignerImplementation for StacksConnect {
                         actions.push_action_item_update(
                             ActionItemRequestUpdate::from_context(
                                 &root_construct_did,
-                                ActionItemKey::CheckBalance.as_ref(),
+                                ActionItemKey::CheckBalance,
                             )
                             .set_type(ReviewInputRequest::new("", &value).to_action_type())
                             .set_status(status_update),
@@ -387,7 +387,7 @@ impl SignerImplementation for StacksConnect {
             signer_state.insert("signers", Value::array(signers_uuids.clone()));
 
             result.outputs.insert("signers".into(), Value::array(signers_uuids));
-            result.outputs.insert(ActionItemKey::ProvidePublicKey.as_ref().into(), public_key.clone());
+            result.outputs.insert(ActionItemKey::ProvidePublicKey.to_string(), public_key.clone());
             result.outputs.insert("address".into(), address.clone());
 
             Ok((signers, signer_state, result))
@@ -470,7 +470,7 @@ impl SignerImplementation for StacksConnect {
 
             signer_state.insert_scoped_value(
                 &origin_uuid.value().to_string(),
-                SignerKey::SignedTransactionBytes.as_ref(),
+                SignerKey::SignedTransactionBytes,
                 Value::string(txtx_addon_kit::hex::encode(signed_tx_bytes)),
             );
             // we know that there are no pending actions because we're in all_signed,
@@ -552,12 +552,12 @@ impl SignerImplementation for StacksConnect {
         use crate::typing::StacksValue;
 
         if let Some(signed_transaction_bytes) = signer_state
-            .get_scoped_value(&origin_uuid.value().to_string(), SignerKey::SignedTransactionBytes.as_ref())
+            .get_scoped_value(&origin_uuid.value().to_string(), SignerKey::SignedTransactionBytes)
         {
             let mut result = CommandExecutionResult::new();
             result
                 .outputs
-                .insert(SignerKey::SignedTransactionBytes.as_ref().into(), signed_transaction_bytes.clone());
+                .insert(SignerKey::SignedTransactionBytes, signed_transaction_bytes.clone());
 
             return Ok(Box::pin(future::ready(Ok((signers, signer_state, result)))));
         }
@@ -635,7 +635,7 @@ impl SignerImplementation for StacksConnect {
 
             transaction.verify().unwrap();
 
-            result.outputs.insert(SignerKey::SignedTransactionBytes.as_ref().into(), transaction_bytes);
+            result.outputs.insert(SignerKey::SignedTransactionBytes.to_string(), transaction_bytes);
 
             Ok((signers, signer_state, result))
         };
@@ -702,7 +702,7 @@ fn generate_ordered_multisig_payloads(
         let this_signer_state = signers.get_signer_state(&this_signer_uuid).unwrap();
 
         let stored_signature =
-            this_signer_state.get_scoped_value(origin_uuid, SignerKey::SignedTransactionBytes.as_ref());
+            this_signer_state.get_scoped_value(origin_uuid, SignerKey::SignedTransactionBytes);
         // along the way, track how many signers have completed signatures
         signature_count += stored_signature
             // if we have a signature for this signer, check if it's null. if null, this signer was skipped so don't add it to our count
@@ -806,7 +806,7 @@ fn extract_auth_field_from_signer_state(
     multisig_signer_idx: usize,
     origin_uuid: &str,
 ) -> Result<TransactionAuthField, String> {
-    let field = match signer_state.get_scoped_value(origin_uuid, SignerKey::SignedTransactionBytes.as_ref()) {
+    let field = match signer_state.get_scoped_value(origin_uuid, SignerKey::SignedTransactionBytes) {
         Some(&Value::Null) | None => {
             let stacks_public_key = expect_stacks_public_key(signer_state, CHECKED_PUBLIC_KEY)?;
             TransactionAuthField::PublicKey(stacks_public_key)
@@ -857,12 +857,12 @@ fn set_signer_states(
 
         // if this signer has a signature stored and it is null, the user skipped this signature
         let this_signer_skipped = signing_command_state
-            .get_scoped_value(origin_uuid, SignerKey::SignedTransactionBytes.as_ref())
+            .get_scoped_value(origin_uuid, SignerKey::SignedTransactionBytes)
             .and_then(|v| Some(v.as_null().is_some()))
             .unwrap_or(false);
         // if this signer has a signature stored and it _isn't_ null, we have a real signature and weren't skipped
         let this_signer_signed = signing_command_state
-            .get_scoped_value(origin_uuid, SignerKey::SignedTransactionBytes.as_ref())
+            .get_scoped_value(origin_uuid, SignerKey::SignedTransactionBytes)
             .and_then(|v| Some(v.as_null().is_none()))
             .unwrap_or(false);
 
@@ -870,7 +870,7 @@ fn set_signer_states(
         if this_signer_signed || this_signer_skipped {
             signing_command_state.insert_scoped_value(
                 &origin_uuid,
-                SignerKey::SignatureSkippable.as_ref(),
+                SignerKey::SignatureSkippable,
                 Value::bool(false),
             );
 
@@ -886,7 +886,7 @@ fn set_signer_states(
             let eligible_signers_after_this_signer = signer_count - next_signer_idx;
             signing_command_state.insert_scoped_value(
                 &origin_uuid,
-                SignerKey::SignatureSkippable.as_ref(),
+                SignerKey::SignatureSkippable,
                 Value::bool(
                     previous_signer_action_completed
                         && (eligible_signers_after_this_signer >= remaining_signatures_required),

@@ -522,7 +522,7 @@ impl CommandImplementation for ProcessInstructions {
                 Value::array(signer_dids.iter().map(|d| Value::string(d.to_string())).collect()),
             );
             args.insert(FORMATTED_TRANSACTION, formatted_transaction);
-            args.insert(DocumentationKey::MetaDescription.as_ref(), Value::string(meta_description));
+            args.insert(DocumentationKey::MetaDescription, Value::string(meta_description));
 
             signers.push_signer_state(owner_signer_state);
             let res = check_signed_executability(

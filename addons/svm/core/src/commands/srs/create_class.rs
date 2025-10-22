@@ -402,7 +402,7 @@ impl CommandImplementation for ProcessInstructions {
             let mut args = args.clone();
             args.insert(TRANSACTION_BYTES, transaction);
             args.insert(FORMATTED_TRANSACTION, formatted_transaction);
-            args.insert(DocumentationKey::MetaDescription.as_ref(), Value::string(meta_description));
+            args.insert(DocumentationKey::MetaDescription, Value::string(meta_description));
 
             signers.push_signer_state(signer_state);
             let res = check_signed_executability(

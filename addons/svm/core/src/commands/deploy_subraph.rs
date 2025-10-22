@@ -215,7 +215,7 @@ impl CommandImplementation for DeployProgram {
             .map_err(|e| diagnosed_error!("{e}"))?;
 
         let subgraph_name = values.get_string(SUBGRAPH_NAME).and_then(|s| Some(s.to_string()));
-        let description = values.get_string(DocumentationKey::Description.as_ref()).and_then(|s| Some(s.to_string()));
+        let description = values.get_string(DocumentationKey::Description).and_then(|s| Some(s.to_string()));
 
         let subgraph_request = SubgraphRequest::parse_value_store_v0(
             subgraph_name,

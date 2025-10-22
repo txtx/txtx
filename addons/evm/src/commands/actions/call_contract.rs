@@ -239,7 +239,7 @@ impl CommandImplementation for SignEvmContractCall {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
-                signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash.as_ref())
+                signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
@@ -298,7 +298,7 @@ impl CommandImplementation for SignEvmContractCall {
 
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload.clone());
-            values.insert(DocumentationKey::MetaDescription.as_ref(), Value::string(meta_description));
+            values.insert(DocumentationKey::MetaDescription, Value::string(meta_description));
 
             signer_state.insert_scoped_value(
                 &construct_did.to_string(),
@@ -388,7 +388,7 @@ impl CommandImplementation for SignEvmContractCall {
                 Err(err) => return Err(err),
             };
             result.append(&mut res_signing);
-            values.insert(SignerKey::TxHash.as_ref(), result.outputs.get(SignerKey::TxHash.as_ref()).unwrap().clone());
+            values.insert(SignerKey::TxHash, result.outputs.get(SignerKey::TxHash.as_ref()).unwrap().clone());
 
             let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
@@ -432,7 +432,7 @@ impl CommandImplementation for SignEvmContractCall {
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
-            result.outputs.insert(SignerKey::TxHash.as_ref().to_string(), inputs.get_value(SignerKey::TxHash.as_ref()).unwrap().clone());
+            result.outputs.insert(SignerKey::TxHash.to_string(), inputs.get_value(SignerKey::TxHash).unwrap().clone());
 
             let call_result = outputs.get_expected_value(RESULT)?;
             result.outputs.insert(RESULT.to_string(), call_result.clone());

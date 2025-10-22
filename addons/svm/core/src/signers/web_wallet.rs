@@ -102,7 +102,7 @@ impl SignerImplementation for SvmWebWallet {
         use txtx_addon_kit::constants::{ActionItemKey, DocumentationKey, SignerKey};
 
         let checked_public_key = signer_state.get_expected_string(CHECKED_PUBLIC_KEY);
-        let is_balance_checked = signer_state.get_bool(SignerKey::IsBalanceChecked.as_ref());
+        let is_balance_checked = signer_state.get_bool(SignerKey::IsBalanceChecked);
 
         let values = values.clone();
         let expected_address = values
@@ -123,7 +123,7 @@ impl SignerImplementation for SvmWebWallet {
             .get_expected_string(RPC_API_URL)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?
             .to_owned();
-        let description = values.get_string(DocumentationKey::Description.as_ref()).map(|d| d.to_string());
+        let description = values.get_string(DocumentationKey::Description).map(|d| d.to_string());
         let markdown = values
             .get_markdown(auth_ctx)
             .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
@@ -134,7 +134,7 @@ impl SignerImplementation for SvmWebWallet {
             .to_owned();
 
         let (mut actions, connected_public_key) = if let Ok(public_key_bytes) =
-            values.get_expected_string(ActionItemKey::ProvidePublicKey.as_ref())
+            values.get_expected_string(ActionItemKey::ProvidePublicKey)
         {
             let sol_address = public_key_from_str(&public_key_bytes)
                 .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
@@ -269,7 +269,7 @@ impl SignerImplementation for SvmWebWallet {
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let construct_did_str = &construct_did.to_string();
         signer_state.insert_scoped_value(&construct_did_str, TRANSACTION_BYTES, payload.clone());
-        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignedTransactionBytes.as_ref())
+        if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignedTransactionBytes)
         {
             return Ok((signers, signer_state, Actions::none()));
         }
@@ -289,7 +289,7 @@ impl SignerImplementation for SvmWebWallet {
         };
 
         let skippable = signer_state
-            .get_scoped_value(&construct_did_str, SignerKey::SignatureSkippable.as_ref())
+            .get_scoped_value(&construct_did_str, SignerKey::SignatureSkippable)
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         let expected_signer_address = signer_state.get_string(CHECKED_ADDRESS);
@@ -340,7 +340,7 @@ impl SignerImplementation for SvmWebWallet {
 
         // value signed (partially, maybe) by the supervisor
         let signed_transaction_value =
-            signer_state.remove_scoped_value(&construct_did.to_string(), SignerKey::SignedTransactionBytes.as_ref());
+            signer_state.remove_scoped_value(&construct_did.to_string(), SignerKey::SignedTransactionBytes);
 
         let supervisor_signed_tx = if let Some(signed_transaction_value) = signed_transaction_value
         {

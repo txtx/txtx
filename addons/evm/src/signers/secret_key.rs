@@ -140,7 +140,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         if signer_state.get_value(PUBLIC_KEYS).is_some() {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
-        let description = values.get_string(DocumentationKey::Description.as_ref()).map(|d| d.to_string());
+        let description = values.get_string(DocumentationKey::Description).map(|d| d.to_string());
         let markdown = values
             .get_markdown(auth_ctx)
             .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
@@ -228,7 +228,7 @@ impl SignerImplementation for EvmSecretKeySigner {
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
-            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignatureApproved.as_ref()) {
+            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignatureApproved) {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
@@ -326,7 +326,7 @@ impl SignerImplementation for EvmSecretKeySigner {
                 (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e.to_string()))
             })?;
 
-            result.outputs.insert(SignerKey::TxHash.as_ref().to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
+            result.outputs.insert(SignerKey::TxHash.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
 
             Ok((signers, signer_state, result))
         };

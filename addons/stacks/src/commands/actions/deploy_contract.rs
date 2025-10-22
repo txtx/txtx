@@ -573,7 +573,7 @@ impl CommandImplementation for StacksDeployContract {
                     .unwrap();
             let sender_address = transaction.origin_address().to_string();
 
-            values.insert(SignerKey::SignedTransactionBytes.as_ref(), signed_transaction.clone());
+            values.insert(SignerKey::SignedTransactionBytes, signed_transaction.clone());
 
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,

@@ -51,10 +51,10 @@ use txtx_addon_kit::constants::{DocumentationKey, SignerKey};
     let mut actions = Actions::none();
 
     let description =
-        values.get_expected_string(DocumentationKey::Description.as_ref()).ok().and_then(|d| Some(d.to_string()));
+        values.get_expected_string(DocumentationKey::Description).ok().and_then(|d| Some(d.to_string()));
     let markdown_res = values.get_markdown(&auth_context);
     let meta_description =
-        values.get_expected_string(DocumentationKey::MetaDescription.as_ref()).ok().and_then(|d| Some(d.to_string()));
+        values.get_expected_string(DocumentationKey::MetaDescription).ok().and_then(|d| Some(d.to_string()));
 
     let signers_dids_with_instances =
         get_signers_and_instance(&values, &signers_instances).unwrap();
@@ -65,10 +65,10 @@ use txtx_addon_kit::constants::{DocumentationKey, SignerKey};
         let mut signer_state = signers.get_signer_state(&signer_did).unwrap().clone();
 
         let signer_already_signed = signer_state
-            .get_scoped_value(&construct_did.to_string(), SignerKey::SignedTransactionBytes.as_ref())
+            .get_scoped_value(&construct_did.to_string(), SignerKey::SignedTransactionBytes)
             .is_some();
         let signer_already_approved =
-            signer_state.get_scoped_value(&construct_did.to_string(), SignerKey::SignatureApproved.as_ref()).is_some();
+            signer_state.get_scoped_value(&construct_did.to_string(), SignerKey::SignatureApproved).is_some();
 
         if !signer_already_signed && !signer_already_approved {
             let payload = values.get_value(TRANSACTION_BYTES).unwrap().clone();
@@ -275,7 +275,7 @@ pub fn run_signed_execution(
                                 )
                             })?;
                             result.outputs.insert(
-                                SignerKey::SignedTransactionBytes.as_ref().into(),
+                                SignerKey::SignedTransactionBytes.to_string(),
                                 SvmValue::transaction(&combined_transaction).map_err(|e| {
                                     (new_signers.clone(), new_signer_state.clone(), e)
                                 })?,

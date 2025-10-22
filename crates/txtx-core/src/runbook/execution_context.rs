@@ -172,7 +172,7 @@ impl RunbookExecutionContext {
             };
 
             let description =
-                input_evaluations.inputs.get_string(DocumentationKey::Description.as_ref()).and_then(|d| Some(d.to_string()));
+                input_evaluations.inputs.get_string(DocumentationKey::Description).and_then(|d| Some(d.to_string()));
             let markdown = match input_evaluations.inputs.get_markdown(&auth_context) {
                 Ok(md) => md,
                 Err(e) => {

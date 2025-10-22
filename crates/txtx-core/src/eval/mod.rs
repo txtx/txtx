@@ -1560,7 +1560,7 @@ pub fn update_signer_instances_from_action_response(
                                 Some(bytes) => {
                                     signer_state.insert_scoped_value(
                                         &did,
-                                        SignerKey::SignedTransactionBytes.as_ref(),
+                                        SignerKey::SignedTransactionBytes,
                                         Value::string(bytes.clone()),
                                     );
                                 }
@@ -1568,20 +1568,20 @@ pub fn update_signer_instances_from_action_response(
                                     Some(true) => {
                                         signer_state.insert_scoped_value(
                                             &did,
-                                            SignerKey::SignatureApproved.as_ref(),
+                                            SignerKey::SignatureApproved,
                                             Value::bool(true),
                                         );
                                     }
                                     Some(false) => {}
                                     None => {
                                         let skippable = signer_state
-                                            .get_scoped_value(&did, SignerKey::SignatureSkippable.as_ref())
+                                            .get_scoped_value(&did, SignerKey::SignatureSkippable)
                                             .and_then(|v| v.as_bool())
                                             .unwrap_or(false);
                                         if skippable {
                                             signer_state.insert_scoped_value(
                                                 &did,
-                                                SignerKey::SignedTransactionBytes.as_ref(),
+                                                SignerKey::SignedTransactionBytes,
                                                 Value::null(),
                                             );
                                         }
@@ -1598,7 +1598,7 @@ pub fn update_signer_instances_from_action_response(
                             let did = &construct_did.to_string();
                             signer_state.insert_scoped_value(
                                 &did,
-                                SignerKey::TxHash.as_ref(),
+                                SignerKey::TxHash,
                                 Value::string(response.transaction_hash.clone()),
                             );
 
@@ -1611,7 +1611,7 @@ pub fn update_signer_instances_from_action_response(
                         {
                             signer_state.insert_scoped_value(
                                 &construct_did.value().to_string(),
-                                SignerKey::SignedMessageBytes.as_ref(),
+                                SignerKey::SignedMessageBytes,
                                 Value::string(response.signed_message_bytes.clone()),
                             );
                             signers.push_signer_state(signer_state.clone());
@@ -1626,7 +1626,7 @@ pub fn update_signer_instances_from_action_response(
                             // can handle accordingly
                             signer_state.insert_scoped_value(
                                 &construct_did.value().to_string(),
-                                RunbookKey::ThirdPartySignatureStatus.as_ref(),
+                                RunbookKey::ThirdPartySignatureStatus,
                                 Value::third_party_signature_check_requested(),
                             );
                             signers.push_signer_state(signer_state.clone());

@@ -126,18 +126,18 @@ impl CommandImplementation for SignEvmTransaction {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
-                signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash.as_ref())
+                signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
             let description =
-                values.get_expected_string(DocumentationKey::Description.as_ref()).ok().and_then(|d| Some(d.to_string()));
+                values.get_expected_string(DocumentationKey::Description).ok().and_then(|d| Some(d.to_string()));
             let markdown = values
                 .get_markdown(&auth_ctx)
                 .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
             let meta_description =
-                values.get_expected_string(DocumentationKey::MetaDescription.as_ref()).ok().and_then(|d| Some(d.to_string()));
+                values.get_expected_string(DocumentationKey::MetaDescription).ok().and_then(|d| Some(d.to_string()));
 
             let already_deployed = signer_state
                 .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
@@ -204,7 +204,7 @@ impl CommandImplementation for SignEvmTransaction {
 
                 let mut action_items = vec![];
                 let already_signed = signer_state
-                    .get_scoped_bool(&construct_did.to_string(), SignerKey::SignatureApproved.as_ref())
+                    .get_scoped_bool(&construct_did.to_string(), SignerKey::SignatureApproved)
                     .unwrap_or(false);
 
                 if !already_signed {
@@ -281,7 +281,7 @@ impl CommandImplementation for SignEvmTransaction {
             .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
             .unwrap_or(false);
         if let Some(tx_hash) =
-            signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash.as_ref())
+            signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash)
         {
             let mut result = CommandExecutionResult::new();
             if !already_deployed {
@@ -293,7 +293,7 @@ impl CommandImplementation for SignEvmTransaction {
                     )
                 })?;
                 let tx_hash = EvmValue::tx_hash(tx_hash_bytes);
-                result.outputs.insert(SignerKey::TxHash.as_ref().into(), tx_hash.clone());
+                result.outputs.insert(SignerKey::TxHash.to_string(), tx_hash.clone());
             }
             return return_synchronous_ok(signers, signer_state, result);
         }

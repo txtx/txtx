@@ -176,7 +176,7 @@ impl CommandImplementation for CheckEvmConfirmations {
             return return_synchronous_result(Ok(result));
         }
 
-        let tx_hash_bytes = inputs.get_expected_buffer_bytes(SignerKey::TxHash.as_ref())?;
+        let tx_hash_bytes = inputs.get_expected_buffer_bytes(SignerKey::TxHash)?;
         let rpc_api_url = inputs.get_expected_string(RPC_API_URL)?.to_owned();
 
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];

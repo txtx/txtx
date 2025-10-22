@@ -111,7 +111,8 @@ impl ValueStore {
     }
 
     // Expected values: if both inputs/defaults yield an error, we should return the input's Diagnostic
-    pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
+    pub fn get_expected_value(&self, key: impl AsRef<str>) -> Result<&Value, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_value(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_value(key).or(Err(e)),
@@ -119,7 +120,8 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
-    pub fn get_expected_construct_did(&self, key: &str) -> Result<ConstructDid, Diagnostic> {
+    pub fn get_expected_construct_did(&self, key: impl AsRef<str>) -> Result<ConstructDid, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_construct_did(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_construct_did(key).or(Err(e)),
@@ -127,7 +129,8 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
-    pub fn get_expected_string(&self, key: &str) -> Result<&str, Diagnostic> {
+    pub fn get_expected_string(&self, key: impl AsRef<str>) -> Result<&str, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_string(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_string(key).or(Err(e)),
@@ -135,7 +138,8 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
-    pub fn get_expected_integer(&self, key: &str) -> Result<i128, Diagnostic> {
+    pub fn get_expected_integer(&self, key: impl AsRef<str>) -> Result<i128, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_integer(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_integer(key).or(Err(e)),
@@ -143,14 +147,16 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
-    pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {
+    pub fn get_expected_uint(&self, key: impl AsRef<str>) -> Result<u64, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_uint(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_uint(key).or(Err(e)),
         }
         .map_err(|e| e)
     }
-    pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
+    pub fn get_expected_bool(&self, key: impl AsRef<str>) -> Result<bool, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_bool(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_bool(key).or(Err(e)),
@@ -158,7 +164,8 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
-    pub fn get_expected_array(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
+    pub fn get_expected_array(&self, key: impl AsRef<str>) -> Result<&Vec<Value>, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_array(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_array(key).or(Err(e)),
@@ -166,7 +173,8 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
-    pub fn get_expected_map(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
+    pub fn get_expected_map(&self, key: impl AsRef<str>) -> Result<&Vec<Value>, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_map(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_map(key).or(Err(e)),
@@ -174,7 +182,8 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
-    pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
+    pub fn get_expected_object(&self, key: impl AsRef<str>) -> Result<IndexMap<String, Value>, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_object(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_object(key).or(Err(e)),
@@ -182,7 +191,8 @@ impl ValueStore {
         .map_err(|e| e)
     }
 
-    pub fn get_expected_buffer_bytes(&self, key: &str) -> Result<Vec<u8>, Diagnostic> {
+    pub fn get_expected_buffer_bytes(&self, key: impl AsRef<str>) -> Result<Vec<u8>, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_buffer_bytes(key) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_buffer_bytes(key).or(Err(e)),
@@ -191,21 +201,25 @@ impl ValueStore {
     }
 
     // Optional values
-    pub fn get_string(&self, key: &str) -> Option<&str> {
+    pub fn get_string(&self, key: impl AsRef<str>) -> Option<&str> {
+        let key = key.as_ref();
         self.inputs.get_string(key).or(self.defaults.get_string(key))
     }
 
-    pub fn get_value(&self, key: &str) -> Option<&Value> {
+    pub fn get_value(&self, key: impl AsRef<str>) -> Option<&Value> {
+        let key = key.as_ref();
         self.inputs.get_value(key).or(self.defaults.get_value(key))
     }
 
-    pub fn get_uint(&self, key: &str) -> Result<Option<u64>, String> {
+    pub fn get_uint(&self, key: impl AsRef<str>) -> Result<Option<u64>, String> {
+        let key = key.as_ref();
         self.inputs
             .get_uint(key)
             .map_or_else(|_| self.defaults.get_uint(key).map_err(|e| e), |val| Ok(val))
     }
 
-    pub fn get_u8(&self, key: &str) -> Result<Option<u8>, String> {
+    pub fn get_u8(&self, key: impl AsRef<str>) -> Result<Option<u8>, String> {
+        let key = key.as_ref();
         self.inputs
             .get_integer(key)
             .or(self.defaults.get_integer(key))
@@ -215,7 +229,8 @@ impl ValueStore {
             .transpose()
     }
 
-    pub fn get_bool(&self, key: &str) -> Option<bool> {
+    pub fn get_bool(&self, key: impl AsRef<str>) -> Option<bool> {
+        let key = key.as_ref();
         self.inputs.get_bool(key).or(self.defaults.get_bool(key))
     }
 
@@ -225,11 +240,13 @@ impl ValueStore {
             .or(self.defaults.get_third_party_signature_status())
     }
 
-    pub fn get_integer(&self, key: &str) -> Option<i128> {
+    pub fn get_integer(&self, key: impl AsRef<str>) -> Option<i128> {
+        let key = key.as_ref();
         self.inputs.get_integer(key).or(self.defaults.get_integer(key))
     }
 
-    pub fn get_i64(&self, key: &str) -> Result<Option<i64>, Diagnostic> {
+    pub fn get_i64(&self, key: impl AsRef<str>) -> Result<Option<i64>, Diagnostic> {
+        let key = key.as_ref();
         self.inputs
             .get_integer(key)
             .or(self.defaults.get_integer(key))
@@ -239,40 +256,47 @@ impl ValueStore {
             .transpose()
     }
 
-    pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+    pub fn get_array(&self, key: impl AsRef<str>) -> Option<&Box<Vec<Value>>> {
+        let key = key.as_ref();
         self.inputs.get_array(key).or(self.defaults.get_array(key))
     }
 
-    pub fn get_map(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+    pub fn get_map(&self, key: impl AsRef<str>) -> Option<&Box<Vec<Value>>> {
+        let key = key.as_ref();
         self.inputs.get_map(key).or(self.defaults.get_map(key))
     }
 
-    pub fn get_object(&self, key: &str) -> Option<&IndexMap<String, Value>> {
+    pub fn get_object(&self, key: impl AsRef<str>) -> Option<&IndexMap<String, Value>> {
+        let key = key.as_ref();
         self.inputs.get_object(key).or(self.defaults.get_object(key))
     }
 
     // Scoped values
-    pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
-        self.inputs.insert(&format!("{}:{}", scope, key), value);
+    pub fn insert_scoped_value(&mut self, scope: &str, key: impl ToString, value: Value) {
+        self.inputs.insert(format!("{}:{}", scope, key.to_string()), value);
     }
 
-    pub fn clear_scoped_value(&mut self, scope: &str, key: &str) {
+    pub fn clear_scoped_value(&mut self, scope: &str, key: impl AsRef<str>) {
+        let key = key.as_ref();
         self.inputs.store.swap_remove(&format!("{}:{}", scope, key));
     }
 
-    pub fn remove_scoped_value(&mut self, scope: &str, key: &str) -> Option<Value> {
+    pub fn remove_scoped_value(&mut self, scope: &str, key: impl AsRef<str>) -> Option<Value> {
+        let key = key.as_ref();
         self.inputs.store.shift_remove(&format!("{}:{}", scope, key))
     }
 
-    pub fn get_scoped_value(&self, scope: &str, key: &str) -> Option<&Value> {
+    pub fn get_scoped_value(&self, scope: &str, key: impl AsRef<str>) -> Option<&Value> {
+        let key = key.as_ref();
         self.inputs.get_value(&format!("{}:{}", scope, key))
     }
 
-    pub fn get_scoped_integer(&self, scope: &str, key: &str) -> Option<i128> {
+    pub fn get_scoped_integer(&self, scope: &str, key: impl AsRef<str>) -> Option<i128> {
+        let key = key.as_ref();
         self.inputs.get_integer(&format!("{}:{}", scope, key))
     }
 
-    pub fn get_scoped_bool(&self, scope: &str, key: &str) -> Option<bool> {
+    pub fn get_scoped_bool(&self, scope: &str, key: impl AsRef<str>) -> Option<bool> {
         if let Some(Value::Bool(bool)) = self.get_scoped_value(scope, key) {
             Some(*bool)
         } else {
@@ -280,7 +304,8 @@ impl ValueStore {
         }
     }
 
-    pub fn get_expected_scoped_value(&self, scope: &str, key: &str) -> Result<&Value, Diagnostic> {
+    pub fn get_expected_scoped_value(&self, scope: &str, key: impl AsRef<str>) -> Result<&Value, Diagnostic> {
+        let key = key.as_ref();
         match self.inputs.get_expected_value(&format!("{}:{}", scope, key)) {
             Ok(val) => Ok(val),
             Err(e) => self.defaults.get_expected_value(&format!("{}:{}", scope, key)).or(Err(e)),
@@ -307,16 +332,18 @@ impl ValueStore {
         self.inputs.clear_autoincrementable_nonce();
     }
 
-    pub fn set_autoincrementable_nonce(&mut self, key: &str, initial_value: u64) {
+    pub fn set_autoincrementable_nonce(&mut self, key: impl AsRef<str>, initial_value: u64) {
+        let key = key.as_ref();
         self.inputs.set_autoincrementable_nonce(key, initial_value);
     }
 
-    pub fn get_autoincremented_nonce(&mut self, key: &str) -> Option<i128> {
+    pub fn get_autoincremented_nonce(&mut self, key: impl AsRef<str>) -> Option<i128> {
+        let key = key.as_ref();
         self.inputs.get_autoincremented_nonce(key)
     }
 
     // General helpers
-    pub fn insert(&mut self, key: &str, value: Value) {
+    pub fn insert(&mut self, key: impl ToString, value: Value) {
         self.inputs.insert(key, value);
     }
 
@@ -327,7 +354,8 @@ impl ValueStore {
     pub fn len(&self) -> usize {
         self.inputs.len()
     }
-    pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
+    pub fn get_mut(&mut self, key: impl AsRef<str>) -> Option<&mut Value> {
+        let key = key.as_ref();
         self.inputs.get_mut(key)
     }
 
@@ -396,13 +424,14 @@ impl AddonDefaults {
     pub fn new(key: &str) -> AddonDefaults {
         AddonDefaults { store: ValueMap::new(), name: key.to_string(), uuid: Did::zero() }
     }
-    pub fn insert(&mut self, key: &str, value: Value) {
+    pub fn insert(&mut self, key: impl ToString, value: Value) {
         self.store.insert(key, value);
     }
     pub fn iter(&self) -> indexmap::map::Iter<String, Value> {
         self.store.iter()
     }
-    pub fn contains_key(&self, key: &str) -> bool {
+    pub fn contains_key(&self, key: impl AsRef<str>) -> bool {
+        let key = key.as_ref();
         self.store.contains_key(key)
     }
 }
@@ -428,7 +457,8 @@ impl ValueMap {
         self
     }
 
-    pub fn get_expected_value(&self, key: &str) -> Result<&Value, Diagnostic> {
+    pub fn get_expected_value(&self, key: impl AsRef<str>) -> Result<&Value, Diagnostic> {
+        let key = key.as_ref();
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve value '{}'",
@@ -438,7 +468,8 @@ impl ValueMap {
         Ok(value)
     }
 
-    pub fn get_expected_bool(&self, key: &str) -> Result<bool, Diagnostic> {
+    pub fn get_expected_bool(&self, key: impl AsRef<str>) -> Result<bool, Diagnostic> {
+        let key = key.as_ref();
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve bool '{}'",
@@ -454,13 +485,15 @@ impl ValueMap {
         Ok(value)
     }
 
-    pub fn get_expected_construct_did(&self, key: &str) -> Result<ConstructDid, Diagnostic> {
+    pub fn get_expected_construct_did(&self, key: impl AsRef<str>) -> Result<ConstructDid, Diagnostic> {
+        let key = key.as_ref();
         let value = self.get_expected_string(key)?;
         let construct_did = ConstructDid::from_hex_string(value);
         Ok(construct_did)
     }
 
-    pub fn get_expected_string(&self, key: &str) -> Result<&str, Diagnostic> {
+    pub fn get_expected_string(&self, key: impl AsRef<str>) -> Result<&str, Diagnostic> {
+        let key = key.as_ref();
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve string '{}'",
@@ -476,7 +509,8 @@ impl ValueMap {
         Ok(value)
     }
 
-    pub fn get_expected_array(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
+    pub fn get_expected_array(&self, key: impl AsRef<str>) -> Result<&Vec<Value>, Diagnostic> {
+        let key = key.as_ref();
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve array '{}'",
@@ -492,7 +526,8 @@ impl ValueMap {
         Ok(value)
     }
 
-    pub fn get_expected_map(&self, key: &str) -> Result<&Vec<Value>, Diagnostic> {
+    pub fn get_expected_map(&self, key: impl AsRef<str>) -> Result<&Vec<Value>, Diagnostic> {
+        let key = key.as_ref();
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(
                 format!("unable to retrieve map '{}'", key,),
@@ -507,7 +542,8 @@ impl ValueMap {
         Ok(value)
     }
 
-    pub fn get_expected_object(&self, key: &str) -> Result<IndexMap<String, Value>, Diagnostic> {
+    pub fn get_expected_object(&self, key: impl AsRef<str>) -> Result<IndexMap<String, Value>, Diagnostic> {
+        let key = key.as_ref();
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve object '{}'",
@@ -523,7 +559,8 @@ impl ValueMap {
         Ok(result.clone())
     }
 
-    pub fn get_expected_integer(&self, key: &str) -> Result<i128, Diagnostic> {
+    pub fn get_expected_integer(&self, key: impl AsRef<str>) -> Result<i128, Diagnostic> {
+        let key = key.as_ref();
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve integer '{}'",
@@ -539,7 +576,8 @@ impl ValueMap {
         Ok(value)
     }
 
-    pub fn get_expected_uint(&self, key: &str) -> Result<u64, Diagnostic> {
+    pub fn get_expected_uint(&self, key: impl AsRef<str>) -> Result<u64, Diagnostic> {
+        let key = key.as_ref();
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve uint '{}'",
@@ -560,7 +598,8 @@ impl ValueMap {
         })
     }
 
-    pub fn get_expected_buffer_bytes(&self, key: &str) -> Result<Vec<u8>, Diagnostic> {
+    pub fn get_expected_buffer_bytes(&self, key: impl AsRef<str>) -> Result<Vec<u8>, Diagnostic> {
+        let key = key.as_ref();
         let Some(value) = self.store.get(key) else {
             return Err(Diagnostic::error_from_string(format!(
                 "unable to retrieve buffer '{}'",
@@ -589,11 +628,12 @@ impl ValueMap {
         Ok(bytes)
     }
 
-    pub fn get_scoped_value(&self, scope: &str, key: &str) -> Option<&Value> {
+    pub fn get_scoped_value(&self, scope: &str, key: impl AsRef<str>) -> Option<&Value> {
+        let key = key.as_ref();
         self.store.get(&format!("{}:{}", scope, key))
     }
 
-    pub fn get_scoped_bool(&self, scope: &str, key: &str) -> Option<bool> {
+    pub fn get_scoped_bool(&self, scope: &str, key: impl AsRef<str>) -> Option<bool> {
         if let Some(Value::Bool(bool)) = self.get_scoped_value(scope, key) {
             Some(*bool)
         } else {
@@ -605,7 +645,8 @@ impl ValueMap {
         self.store.swap_remove(&format!("{}:autoincrement", CACHED_NONCE));
     }
 
-    pub fn set_autoincrementable_nonce(&mut self, key: &str, initial_value: u64) {
+    pub fn set_autoincrementable_nonce(&mut self, key: impl AsRef<str>, initial_value: u64) {
+        let key = key.as_ref();
         self.store.insert(
             format!("{}:autoincrement", CACHED_NONCE),
             Value::integer((initial_value + 1).into()),
@@ -614,7 +655,8 @@ impl ValueMap {
             .insert(format!("{}:{}", CACHED_NONCE, key), Value::integer(initial_value.into()));
     }
 
-    pub fn get_autoincremented_nonce(&mut self, key: &str) -> Option<i128> {
+    pub fn get_autoincremented_nonce(&mut self, key: impl AsRef<str>) -> Option<i128> {
+        let key = key.as_ref();
         let value = match self.store.get(&format!("{}:{}", CACHED_NONCE, key)) {
             None => match self.store.get(&format!("{}:autoincrement", CACHED_NONCE)) {
                 None => return None,
@@ -638,23 +680,28 @@ impl ValueMap {
         Some(value)
     }
 
-    pub fn get_value(&self, key: &str) -> Option<&Value> {
+    pub fn get_value(&self, key: impl AsRef<str>) -> Option<&Value> {
+        let key = key.as_ref();
         self.store.get(key)
     }
 
-    pub fn get_uint(&self, key: &str) -> Result<Option<u64>, String> {
+    pub fn get_uint(&self, key: impl AsRef<str>) -> Result<Option<u64>, String> {
+        let key = key.as_ref();
         self.store.get(key).map(|v| v.expect_uint()).transpose()
     }
 
-    pub fn get_integer(&self, key: &str) -> Option<i128> {
+    pub fn get_integer(&self, key: impl AsRef<str>) -> Option<i128> {
+        let key = key.as_ref();
         self.store.get(key).and_then(|v| v.as_integer())
     }
 
-    pub fn get_string(&self, key: &str) -> Option<&str> {
+    pub fn get_string(&self, key: impl AsRef<str>) -> Option<&str> {
+        let key = key.as_ref();
         self.store.get(key).and_then(|v| v.as_string())
     }
 
-    pub fn get_bool(&self, key: &str) -> Option<bool> {
+    pub fn get_bool(&self, key: impl AsRef<str>) -> Option<bool> {
+        let key = key.as_ref();
         self.store.get(key).and_then(|v| v.as_bool())
     }
 
@@ -664,22 +711,25 @@ impl ValueMap {
             .and_then(|v| v.as_third_party_signature_status())
     }
 
-    pub fn get_array(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+    pub fn get_array(&self, key: impl AsRef<str>) -> Option<&Box<Vec<Value>>> {
+        let key = key.as_ref();
         self.store.get(key).and_then(|v| v.as_array())
     }
 
-    pub fn get_map(&self, key: &str) -> Option<&Box<Vec<Value>>> {
+    pub fn get_map(&self, key: impl AsRef<str>) -> Option<&Box<Vec<Value>>> {
+        let key = key.as_ref();
         self.store.get(key).and_then(|v| v.as_array())
     }
 
-    pub fn get_object(&self, key: &str) -> Option<&IndexMap<String, Value>> {
+    pub fn get_object(&self, key: impl AsRef<str>) -> Option<&IndexMap<String, Value>> {
+        let key = key.as_ref();
         self.store.get(key).and_then(|v| v.as_object())
     }
 
-    pub fn insert_scoped_value(&mut self, scope: &str, key: &str, value: Value) {
-        self.store.insert(format!("{}:{}", scope, key), value);
+    pub fn insert_scoped_value(&mut self, scope: &str, key: impl ToString, value: Value) {
+        self.store.insert(format!("{}:{}", scope, key.to_string()), value);
     }
-    pub fn insert(&mut self, key: &str, value: Value) {
+    pub fn insert(&mut self, key: impl ToString, value: Value) {
         self.store.insert(key.to_string(), value);
     }
 
@@ -690,10 +740,12 @@ impl ValueMap {
     pub fn len(&self) -> usize {
         self.store.len()
     }
-    pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
+    pub fn get_mut(&mut self, key: impl AsRef<str>) -> Option<&mut Value> {
+        let key = key.as_ref();
         self.store.get_mut(key)
     }
-    pub fn contains_key(&self, key: &str) -> bool {
+    pub fn contains_key(&self, key: impl AsRef<str>) -> bool {
+        let key = key.as_ref();
         self.store.contains_key(key)
     }
 }

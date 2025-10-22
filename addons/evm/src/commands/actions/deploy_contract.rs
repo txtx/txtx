@@ -329,7 +329,7 @@ impl CommandImplementation for DeployContract {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
-                signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash.as_ref())
+                signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash)
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
@@ -445,7 +445,7 @@ impl CommandImplementation for DeployContract {
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload);
             if let Some(meta_description) = meta_description {
                 use txtx_addon_kit::constants::DocumentationKey;
-                values.insert(DocumentationKey::MetaDescription.as_ref(), Value::string(meta_description));
+                values.insert(DocumentationKey::MetaDescription, Value::string(meta_description));
             }
             signers.push_signer_state(signer_state);
 
@@ -559,7 +559,7 @@ impl CommandImplementation for DeployContract {
                 };
 
                 result.append(&mut res_signing);
-                values.insert(SignerKey::TxHash.as_ref(), result.outputs.get(SignerKey::TxHash.as_ref()).unwrap().clone());
+                values.insert(SignerKey::TxHash, result.outputs.get(SignerKey::TxHash.as_ref()).unwrap().clone());
 
                 (signers, signer_state)
             } else {
@@ -613,7 +613,7 @@ impl CommandImplementation for DeployContract {
 
             // If the deployment is done through create2, it could have already been deployed,
             // which means we don't have a tx_hash
-            if let Some(tx_hash) = inputs.get_value(SignerKey::TxHash.as_ref()) {
+            if let Some(tx_hash) = inputs.get_value(SignerKey::TxHash) {
                 result.insert(SignerKey::TxHash.as_ref(), tx_hash.clone());
             };
 

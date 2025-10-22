@@ -49,9 +49,9 @@ pub fn send_transaction_background_task(
         let is_deployment = inputs.get_bool(IS_DEPLOYMENT).unwrap_or(false);
 
         let signed_transaction_value = if is_deployment {
-            inputs.get_value(SignerKey::SignedTransactionBytes.as_ref()).unwrap()
+            inputs.get_value(SignerKey::SignedTransactionBytes).unwrap()
         } else {
-            outputs.get_value(SignerKey::SignedTransactionBytes.as_ref()).unwrap()
+            outputs.get_value(SignerKey::SignedTransactionBytes).unwrap()
         };
 
         let commitment_config = CommitmentConfig {

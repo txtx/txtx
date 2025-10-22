@@ -4,7 +4,7 @@ use crate::codec::crypto::{compute_keypair, sign_message, sign_transaction};
 
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{
-    SignerKey::SignatureApproved.as_ref(), SignerKey::SignatureSkippable.as_ref(), SIGNED_MESSAGE_BYTES, SignerKey::SignedTransactionBytes.as_ref(),
+    SignerKey::SignatureApproved, SignerKey::SignatureSkippable, SIGNED_MESSAGE_BYTES, SignerKey::SignedTransactionBytes,
 };
 use txtx_addon_kit::crypto::secret_key_from_bytes;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
@@ -26,7 +26,7 @@ use txtx_addon_kit::types::{
 };
 
 use crate::constants::{
-    ActionItemKey::CheckAddress.as_ref(), ActionItemKey::ProvideSignedTransaction, CHECKED_ADDRESS,
+    ActionItemKey::CheckAddress, ActionItemKey::ProvideSignedTransaction, CHECKED_ADDRESS,
     FORMATTED_TRANSACTION, IS_SIGNABLE, MESSAGE_BYTES,
 };
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -179,7 +179,7 @@ impl SignerImplementation for StacksSecretKey {
                     ActionItemStatus::Todo,
                     ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
                         .to_action_type(),
-                    ActionItemKey::CheckAddress.as_ref(),
+                    ActionItemKey::CheckAddress,
                 )],
             );
         }
@@ -216,7 +216,7 @@ impl SignerImplementation for StacksSecretKey {
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
-            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignatureApproved.as_ref()) {
+            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignatureApproved) {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
@@ -234,7 +234,7 @@ impl SignerImplementation for StacksSecretKey {
                 false => ActionItemStatus::Blocked,
             };
             let skippable = signer_state
-                .get_scoped_value(&construct_did_str, SignerKey::SignatureSkippable.as_ref())
+                .get_scoped_value(&construct_did_str, SignerKey::SignatureSkippable)
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
@@ -303,7 +303,7 @@ impl SignerImplementation for StacksSecretKey {
                 })?;
 
             result.outputs.insert(
-                SignerKey::SignedTransactionBytes.as_ref().into(),
+                SignerKey::SignedTransactionBytes,
                 StacksValue::transaction(signed_transaction_bytes),
             );
         } else {

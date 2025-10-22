@@ -266,7 +266,7 @@ use txtx_addon_kit::constants::{ActionItemKey, DocumentationKey};
             ));
         };
 
-        let is_balance_checked = signer_state.get_bool(SignerKey::IsBalanceChecked.as_ref());
+        let is_balance_checked = signer_state.get_bool(SignerKey::IsBalanceChecked);
         let rpc_api_url = values
             .get_expected_string(RPC_API_URL)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?
@@ -281,7 +281,7 @@ use txtx_addon_kit::constants::{ActionItemKey, DocumentationKey};
         let vault_pubkey_value = SvmValue::pubkey(vault_pubkey.to_bytes().to_vec());
         let vault_pubkey_string_value = Value::string(vault_pubkey.to_string());
         let multisig_value = squad.to_value();
-        let description = values.get_string(DocumentationKey::Description.as_ref()).map(|d| d.to_string());
+        let description = values.get_string(DocumentationKey::Description).map(|d| d.to_string());
         let markdown = values
             .get_markdown(auth_ctx)
             .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
@@ -498,7 +498,7 @@ use txtx_addon_kit::constants::{ActionItemKey, DocumentationKey};
         );
 
         let third_party_signature_status = signer_state
-            .get_scoped_value(&construct_did.to_string(), RunbookKey::ThirdPartySignatureStatus.as_ref())
+            .get_scoped_value(&construct_did.to_string(), RunbookKey::ThirdPartySignatureStatus)
             .and_then(|v| v.as_third_party_signature_status());
 
         let rpc_api_url = values
@@ -608,7 +608,7 @@ use txtx_addon_kit::constants::{ActionItemKey, DocumentationKey};
                 let values = {
                     let mut values = values.clone();
                     values.insert(
-                        DocumentationKey::MetaDescription.as_ref(),
+                        DocumentationKey::MetaDescription,
                         Value::string(get_formatted_transaction_meta_description(
                             &vec!["This transaction will create a Squads proposal.".into()],
                             &signers_dids,
@@ -809,7 +809,7 @@ use txtx_addon_kit::constants::{ActionItemKey, DocumentationKey};
             let rpc_client = RpcClient::new(rpc_api_url);
 
             let third_party_signature_status = signer_state
-                .get_scoped_value(&construct_did.to_string(), RunbookKey::ThirdPartySignatureStatus.as_ref())
+                .get_scoped_value(&construct_did.to_string(), RunbookKey::ThirdPartySignatureStatus)
                 .and_then(|v| v.as_third_party_signature_status());
 
             // The squads signer will have multiple passes through `check_signability` and `sign`. The enum variants are
@@ -840,7 +840,7 @@ use txtx_addon_kit::constants::{ActionItemKey, DocumentationKey};
 
                     signer_state.insert_scoped_value(
                         &construct_did.to_string(),
-                        RunbookKey::ThirdPartySignatureStatus.as_ref(),
+                        RunbookKey::ThirdPartySignatureStatus,
                         Value::third_party_signature_initialized(),
                     );
                     signers.push_signer_state(signer_state);
@@ -870,7 +870,7 @@ use txtx_addon_kit::constants::{ActionItemKey, DocumentationKey};
                         signer_state,
                         CommandExecutionResult::from([
                             (
-                                RunbookKey::ThirdPartySignatureStatus.as_ref(),
+                                RunbookKey::ThirdPartySignatureStatus,
                                 Value::third_party_signature_check_requested(),
                             ),
                             // (SIGNED_TRANSACTION_BYTES, Value::null()),

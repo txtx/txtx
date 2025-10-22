@@ -499,7 +499,7 @@ impl CommandImplementation for DeployProgram {
                 DeploymentTransaction::transaction_type_from_value(transaction_value)
                     .map_err(|e| (signers.clone(), authority_signer_state.clone(), e))?;
 
-            value_store.insert(NestedConstructKey::NestedConstructDid.as_ref(), Value::string(new_did.to_string()));
+            value_store.insert(NestedConstructKey::NestedConstructDid, Value::string(new_did.to_string()));
 
             value_store.insert_scoped_value(
                 &new_did.to_string(),
@@ -538,12 +538,12 @@ impl CommandImplementation for DeployProgram {
             );
             value_store.insert_scoped_value(
                 &new_did.to_string(),
-                NestedConstructKey::NestedConstructIndex.as_ref(),
+                NestedConstructKey::NestedConstructIndex,
                 Value::integer(cursor as i128),
             );
             value_store.insert_scoped_value(
                 &new_did.to_string(),
-                NestedConstructKey::NestedConstructCount.as_ref(),
+                NestedConstructKey::NestedConstructCount,
                 Value::integer(transaction_count as i128),
             );
             res.push((new_did, value_store));
@@ -562,7 +562,7 @@ impl CommandImplementation for DeployProgram {
         signers: SignersState,
         auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerActionsFutureResult {
-        let nested_construct_did = values.get_expected_construct_did(NestedConstructKey::NestedConstructDid.as_ref()).unwrap();
+        let nested_construct_did = values.get_expected_construct_did(NestedConstructKey::NestedConstructDid).unwrap();
 
         let transaction =
             values.get_scoped_value(&nested_construct_did.to_string(), TRANSACTION_BYTES).unwrap();
@@ -594,7 +594,7 @@ impl CommandImplementation for DeployProgram {
             _ => false,
         } {
             if authority_signer_state
-                .get_scoped_value(&&nested_construct_did.to_string(), SignerKey::SignatureApproved.as_ref())
+                .get_scoped_value(&&nested_construct_did.to_string(), SignerKey::SignatureApproved)
                 .is_some()
                 || !supervision_context.review_input_values
             {
@@ -605,7 +605,7 @@ impl CommandImplementation for DeployProgram {
                 Err(diag) => return Err((signers, authority_signer_state, diag)),
             };
             let description =
-                values.get_expected_string(DocumentationKey::Description.as_ref()).ok().and_then(|d| Some(d.to_string()));
+                values.get_expected_string(DocumentationKey::Description).ok().and_then(|d| Some(d.to_string()));
             let request = ProvideSignedTransactionRequest::new(
                 &authority_signer_did.0,
                 &Value::null(),
@@ -670,7 +670,7 @@ impl CommandImplementation for DeployProgram {
                 })?;
             if let Some((formatted_transaction, meta_description)) = formatted_transaction {
                 values.insert(FORMATTED_TRANSACTION, formatted_transaction);
-                values.insert(DocumentationKey::MetaDescription.as_ref(), Value::string(meta_description));
+                values.insert(DocumentationKey::MetaDescription, Value::string(meta_description));
             }
             let res = check_signed_executability(
                 &nested_construct_did,
@@ -722,7 +722,7 @@ impl CommandImplementation for DeployProgram {
             }
 
             let nested_construct_did =
-                values.get_expected_construct_did(NestedConstructKey::NestedConstructDid.as_ref()).unwrap();
+                values.get_expected_construct_did(NestedConstructKey::NestedConstructDid).unwrap();
 
             let nested_construct_index = values
                 .get_scoped_integer(&nested_construct_did.to_string(), NESTED_CONSTRUCT_INDEX)
@@ -782,7 +782,7 @@ impl CommandImplementation for DeployProgram {
                 })?;
 
                 result.outputs.insert(
-                    format!("{}:{}", &nested_construct_did.to_string(), SignerKey::SignedTransactionBytes.as_ref()),
+                    format!("{}:{}", &nested_construct_did.to_string(), SignerKey::SignedTransactionBytes),
                     transaction_value.clone(),
                 );
 
@@ -807,7 +807,7 @@ impl CommandImplementation for DeployProgram {
 
             if let Some(signed_transaction_value) = some_signed_transaction_value {
                 result.outputs.insert(
-                    format!("{}:{}", &nested_construct_did.to_string(), SignerKey::SignedTransactionBytes.as_ref()),
+                    format!("{}:{}", &nested_construct_did.to_string(), SignerKey::SignedTransactionBytes),
                     signed_transaction_value,
                 );
             }
@@ -837,17 +837,17 @@ impl CommandImplementation for DeployProgram {
 
         let future = async move {
             let nested_construct_did =
-                inputs.get_expected_construct_did(NestedConstructKey::NestedConstructDid.as_ref()).unwrap();
+                inputs.get_expected_construct_did(NestedConstructKey::NestedConstructDid).unwrap();
 
             let transaction_value = inputs
                 .get_scoped_value(&nested_construct_did.to_string(), TRANSACTION_BYTES)
                 .unwrap()
                 .clone();
             let transaction_index = inputs
-                .get_scoped_integer(&nested_construct_did.to_string(), NestedConstructKey::NestedConstructIndex.as_ref())
+                .get_scoped_integer(&nested_construct_did.to_string(), NestedConstructKey::NestedConstructIndex)
                 .unwrap();
             let transaction_count = inputs
-                .get_scoped_integer(&nested_construct_did.to_string(), NestedConstructKey::NestedConstructCount.as_ref())
+                .get_scoped_integer(&nested_construct_did.to_string(), NestedConstructKey::NestedConstructCount)
                 .unwrap();
 
             let program_id = SvmValue::to_pubkey(&outputs.get_value(PROGRAM_ID).unwrap()).unwrap();
@@ -895,7 +895,7 @@ impl CommandImplementation for DeployProgram {
                     let Some(signed_transaction_value) = inputs
                         .get_scoped_value(
                             &nested_construct_did.to_string(),
-                            SignerKey::SignedTransactionBytes.as_ref(),
+                            SignerKey::SignedTransactionBytes,
                         )
                         .cloned()
                     else {
@@ -903,7 +903,7 @@ impl CommandImplementation for DeployProgram {
                     };
 
                     inputs.insert(IS_DEPLOYMENT, Value::bool(true));
-                    inputs.insert(SignerKey::SignedTransactionBytes.as_ref(), signed_transaction_value.clone());
+                    inputs.insert(SignerKey::SignedTransactionBytes, signed_transaction_value.clone());
                     inputs.insert(
                         COMMITMENT_LEVEL,
                         Value::string(deployment_transaction.commitment_level.to_string()),
@@ -1051,7 +1051,7 @@ impl CommandImplementation for DeployProgram {
         }
         if is_squads_authority {
             result.outputs.insert(
-                RunbookKey::RunbookCompleteAdditionalInfo.as_ref().into(),
+                RunbookKey::RunbookCompleteAdditionalInfo.to_string(),
                 RunbookCompleteAdditionalInfo::new(
                     construct_did,
                     instance_name,

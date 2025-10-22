@@ -145,7 +145,7 @@ impl SignerImplementation for SvmSecretKey {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
 
-        let description = values.get_string(DocumentationKey::Description.as_ref()).map(|d| d.to_string());
+        let description = values.get_string(DocumentationKey::Description).map(|d| d.to_string());
         let markdown = values
             .get_markdown(auth_ctx)
             .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
@@ -299,7 +299,7 @@ impl SignerImplementation for SvmSecretKey {
 
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
-            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignatureApproved.as_ref()) {
+            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignatureApproved) {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
@@ -317,7 +317,7 @@ impl SignerImplementation for SvmSecretKey {
                 false => ActionItemStatus::Blocked,
             };
             let skippable = signer_state
-                .get_scoped_value(&construct_did_str, SignerKey::SignatureSkippable.as_ref())
+                .get_scoped_value(&construct_did_str, SignerKey::SignatureSkippable)
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
             let formatted_payload =
