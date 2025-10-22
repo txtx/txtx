@@ -3,7 +3,7 @@ use std::fmt;
 use strum_macros::{AsRefStr, Display as StrumDisplay, EnumString, IntoStaticStr};
 
 /// Namespace types for txtx addons and functions
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Namespace {
     /// Well-known standard namespace
@@ -20,6 +20,8 @@ pub enum Namespace {
     PartialEq,
     Eq,
     Hash,
+    PartialOrd,
+    Ord,
     Serialize,
     Deserialize,
     AsRefStr,
