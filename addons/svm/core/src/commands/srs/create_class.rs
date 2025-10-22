@@ -14,7 +14,7 @@ use solana_pubkey::Pubkey;
 use solana_sdk_ids::system_program;
 use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::META_DESCRIPTION;
+use txtx_addon_kit::constants::DocumentationKey;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
@@ -402,7 +402,7 @@ impl CommandImplementation for ProcessInstructions {
             let mut args = args.clone();
             args.insert(TRANSACTION_BYTES, transaction);
             args.insert(FORMATTED_TRANSACTION, formatted_transaction);
-            args.insert(META_DESCRIPTION, Value::string(meta_description));
+            args.insert(DocumentationKey::MetaDescription.as_ref(), Value::string(meta_description));
 
             signers.push_signer_state(signer_state);
             let res = check_signed_executability(

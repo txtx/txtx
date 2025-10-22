@@ -6,9 +6,9 @@ use crate::typing::SvmValue;
 use crate::utils::build_transaction_from_svm_value;
 use solana_signature::Signature;
 use std::collections::HashMap;
-use txtx_addon_kit::constants::META_DESCRIPTION;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
-use txtx_addon_kit::constants::THIRD_PARTY_SIGNATURE_STATUS;
+use txtx_addon_kit::constants::DocumentationKey;
+use txtx_addon_kit::constants::SignerKey;
+use txtx_addon_kit::constants::RunbookKey;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::types::frontend::Actions;
@@ -37,7 +37,7 @@ pub fn check_signed_executability(
     mut signers: SignersState,
     auth_context: &AuthorizationContext,
 ) -> Result<CheckSignabilityOk, SignerActionErr> {
-    use txtx_addon_kit::constants::{DESCRIPTION, SIGNATURE_APPROVED};
+use txtx_addon_kit::constants::{DocumentationKey, SignerKey};
 
     use crate::constants::FORMATTED_TRANSACTION;
 
@@ -51,10 +51,10 @@ pub fn check_signed_executability(
     let mut actions = Actions::none();
 
     let description =
-        values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+        values.get_expected_string(DocumentationKey::Description.as_ref()).ok().and_then(|d| Some(d.to_string()));
     let markdown_res = values.get_markdown(&auth_context);
     let meta_description =
-        values.get_expected_string(META_DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+        values.get_expected_string(DocumentationKey::MetaDescription.as_ref()).ok().and_then(|d| Some(d.to_string()));
 
     let signers_dids_with_instances =
         get_signers_and_instance(&values, &signers_instances).unwrap();
@@ -65,10 +65,10 @@ pub fn check_signed_executability(
         let mut signer_state = signers.get_signer_state(&signer_did).unwrap().clone();
 
         let signer_already_signed = signer_state
-            .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+            .get_scoped_value(&construct_did.to_string(), SignerKey::SignedTransactionBytes.as_ref())
             .is_some();
         let signer_already_approved =
-            signer_state.get_scoped_value(&construct_did.to_string(), SIGNATURE_APPROVED).is_some();
+            signer_state.get_scoped_value(&construct_did.to_string(), SignerKey::SignatureApproved.as_ref()).is_some();
 
         if !signer_already_signed && !signer_already_approved {
             let payload = values.get_value(TRANSACTION_BYTES).unwrap().clone();
@@ -180,11 +180,11 @@ pub fn run_signed_execution(
             ) {
                 Ok(res) => match res.await {
                     Ok((new_signers, new_signer_state, results)) => {
-                        if results.outputs.get(THIRD_PARTY_SIGNATURE_STATUS).is_some() {
+                        if results.outputs.get(RunbookKey::ThirdPartySignatureStatus.as_ref()).is_some() {
                             return Ok((new_signers, new_signer_state, results));
                         }
 
-                        if let Some(fully_signed_tx) = results.outputs.get(SIGNED_TRANSACTION_BYTES)
+                        if let Some(fully_signed_tx) = results.outputs.get(SignerKey::SignedTransactionBytes.as_ref())
                         {
                             let fully_signed_tx = build_transaction_from_svm_value(fully_signed_tx)
                                 .map_err(|e| (new_signers.clone(), new_signer_state.clone(), e))?;
@@ -275,7 +275,7 @@ pub fn run_signed_execution(
                                 )
                             })?;
                             result.outputs.insert(
-                                SIGNED_TRANSACTION_BYTES.into(),
+                                SignerKey::SignedTransactionBytes.as_ref().into(),
                                 SvmValue::transaction(&combined_transaction).map_err(|e| {
                                     (new_signers.clone(), new_signer_state.clone(), e)
                                 })?,

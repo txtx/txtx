@@ -4,9 +4,7 @@ use solana_client::rpc_client::RpcClient;
 use solana_signature::Signature;
 use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::{
-    META_DESCRIPTION, SIGNED_TRANSACTION_BYTES, THIRD_PARTY_SIGNATURE_STATUS,
-};
+use txtx_addon_kit::constants::{DocumentationKey, RunbookKey, SignerKey};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemStatus, ReviewInputRequest, VerifyThirdPartySignatureRequest,
@@ -26,7 +24,7 @@ use txtx_addon_kit::types::{
     types::{Type, Value},
 };
 use txtx_addon_kit::{
-    constants::ACTION_ITEM_CHECK_BALANCE, types::frontend::ActionItemRequestUpdate,
+    constants::ActionItemKey, types::frontend::ActionItemRequestUpdate,
 };
 use txtx_addon_network_svm_types::SVM_PUBKEY;
 
@@ -35,7 +33,7 @@ use crate::codec::squads::SquadsMultisig;
 use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::commands::sign_transaction::{check_signed_executability, run_signed_execution};
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION, ADDRESS,
+    ADDRESS,
     CHECKED_ADDRESS, CHECKED_PUBLIC_KEY, FORMATTED_TRANSACTION, INITIATOR, IS_DEPLOYMENT,
     IS_SIGNABLE, MULTISIG_ACCOUNT_ADDRESS, MULTISIG_ACCOUNT_PUBLIC_KEY, NAMESPACE, NETWORK_ID,
     PAYER, PUBLIC_KEY, RPC_API_URL, SIGNATURE, SIGNERS, SQUADS_MULTISIG, TRANSACTION_BYTES,
@@ -179,7 +177,7 @@ impl SignerImplementation for SvmSecretKey {
         is_balance_check_required: bool,
         is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::constants::{DESCRIPTION, IS_BALANCE_CHECKED};
+use txtx_addon_kit::constants::{ActionItemKey, DocumentationKey};
         use txtx_addon_kit::types::signers::consolidate_signer_result;
 
         use crate::constants::{
@@ -268,7 +266,7 @@ impl SignerImplementation for SvmSecretKey {
             ));
         };
 
-        let is_balance_checked = signer_state.get_bool(IS_BALANCE_CHECKED);
+        let is_balance_checked = signer_state.get_bool(SignerKey::IsBalanceChecked.as_ref());
         let rpc_api_url = values
             .get_expected_string(RPC_API_URL)
             .map_err(|e| (signers.clone(), signer_state.clone(), e))?
@@ -283,7 +281,7 @@ impl SignerImplementation for SvmSecretKey {
         let vault_pubkey_value = SvmValue::pubkey(vault_pubkey.to_bytes().to_vec());
         let vault_pubkey_string_value = Value::string(vault_pubkey.to_string());
         let multisig_value = squad.to_value();
-        let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let description = values.get_string(DocumentationKey::Description.as_ref()).map(|d| d.to_string());
         let markdown = values
             .get_markdown(auth_ctx)
             .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
@@ -300,14 +298,14 @@ impl SignerImplementation for SvmSecretKey {
                 signer_state.insert(PAYER, Value::string(payer_did.to_string()));
             }
             let update =
-                ActionItemRequestUpdate::from_context(&construct_did, ACTION_ITEM_CHECK_ADDRESS)
+                ActionItemRequestUpdate::from_context(&construct_did, ActionItemKey::CheckAddress)
                     .set_status(ActionItemStatus::Success(Some(vault_pubkey.to_string())));
             consolidated_actions.push_action_item_update(update);
         } else {
             action_items.push(
                 ReviewInputRequest::new("", &vault_pubkey_string_value)
                     .to_action_type()
-                    .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
+                    .to_request(instance_name, ActionItemKey::CheckAddress)
                     .with_construct_did(construct_did)
                     .with_some_description(description)
                     .with_meta_description(&format!(
@@ -323,7 +321,7 @@ impl SignerImplementation for SvmSecretKey {
                 consolidated_actions.push_action_item_update(
                     ActionItemRequestUpdate::from_context(
                         &construct_did,
-                        ACTION_ITEM_CHECK_BALANCE,
+                        ActionItemKey::CheckBalance,
                     )
                     .set_status(ActionItemStatus::Success(None)),
                 );
@@ -332,7 +330,7 @@ impl SignerImplementation for SvmSecretKey {
                 consolidated_actions.push_action_item_update(
                     ActionItemRequestUpdate::from_context(
                         &construct_did,
-                        ACTION_ITEM_CHECK_BALANCE,
+                        ActionItemKey::CheckBalance,
                     )
                     .set_status(ActionItemStatus::Todo),
                 );
@@ -500,7 +498,7 @@ impl SignerImplementation for SvmSecretKey {
         );
 
         let third_party_signature_status = signer_state
-            .get_scoped_value(&construct_did.to_string(), THIRD_PARTY_SIGNATURE_STATUS)
+            .get_scoped_value(&construct_did.to_string(), RunbookKey::ThirdPartySignatureStatus.as_ref())
             .and_then(|v| v.as_third_party_signature_status());
 
         let rpc_api_url = values
@@ -610,7 +608,7 @@ impl SignerImplementation for SvmSecretKey {
                 let values = {
                     let mut values = values.clone();
                     values.insert(
-                        META_DESCRIPTION,
+                        DocumentationKey::MetaDescription.as_ref(),
                         Value::string(get_formatted_transaction_meta_description(
                             &vec!["This transaction will create a Squads proposal.".into()],
                             &signers_dids,
@@ -683,7 +681,7 @@ impl SignerImplementation for SvmSecretKey {
                 .check_expectation_action_uuid(construct_did)
                 .formatted_payload(formatted_payload)
                 .to_action_type()
-                .to_request(instance_name, ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION)
+                .to_request(instance_name, ActionItemKey::ProvideSignedSquadTransaction)
                 .with_construct_did(construct_did)
                 .with_some_description(description.clone())
                 .with_some_meta_description(meta_description.clone())
@@ -704,7 +702,7 @@ impl SignerImplementation for SvmSecretKey {
                 actions.push_action_item_update(
                     ActionItemRequestUpdate::from_context(
                         &construct_did,
-                        ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
+                        txtx_addon_kit::constants::ActionItemKey::ProvideSignedSquadTransaction,
                     )
                     .set_status(ActionItemStatus::Todo),
                 );
@@ -757,7 +755,7 @@ impl SignerImplementation for SvmSecretKey {
                         actions.push_action_item_update(
                             ActionItemRequestUpdate::from_context(
                                 &construct_did,
-                                ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
+                                txtx_addon_kit::constants::ActionItemKey::ProvideSignedSquadTransaction,
                             )
                             .set_status(ActionItemStatus::Success(None)),
                         );
@@ -769,7 +767,7 @@ impl SignerImplementation for SvmSecretKey {
                         actions.push_action_item_update(
                             ActionItemRequestUpdate::from_context(
                                 &construct_did,
-                                ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION,
+                                txtx_addon_kit::constants::ActionItemKey::ProvideSignedSquadTransaction,
                             )
                             .set_status(ActionItemStatus::Todo),
                         );
@@ -811,7 +809,7 @@ impl SignerImplementation for SvmSecretKey {
             let rpc_client = RpcClient::new(rpc_api_url);
 
             let third_party_signature_status = signer_state
-                .get_scoped_value(&construct_did.to_string(), THIRD_PARTY_SIGNATURE_STATUS)
+                .get_scoped_value(&construct_did.to_string(), RunbookKey::ThirdPartySignatureStatus.as_ref())
                 .and_then(|v| v.as_third_party_signature_status());
 
             // The squads signer will have multiple passes through `check_signability` and `sign`. The enum variants are
@@ -842,7 +840,7 @@ impl SignerImplementation for SvmSecretKey {
 
                     signer_state.insert_scoped_value(
                         &construct_did.to_string(),
-                        THIRD_PARTY_SIGNATURE_STATUS,
+                        RunbookKey::ThirdPartySignatureStatus.as_ref(),
                         Value::third_party_signature_initialized(),
                     );
                     signers.push_signer_state(signer_state);
@@ -858,7 +856,7 @@ impl SignerImplementation for SvmSecretKey {
                     };
 
                     result.insert(
-                        THIRD_PARTY_SIGNATURE_STATUS,
+                        RunbookKey::ThirdPartySignatureStatus.as_ref(),
                         Value::third_party_signature_initialized(),
                     );
 
@@ -872,7 +870,7 @@ impl SignerImplementation for SvmSecretKey {
                         signer_state,
                         CommandExecutionResult::from([
                             (
-                                THIRD_PARTY_SIGNATURE_STATUS,
+                                RunbookKey::ThirdPartySignatureStatus.as_ref(),
                                 Value::third_party_signature_check_requested(),
                             ),
                             // (SIGNED_TRANSACTION_BYTES, Value::null()),
@@ -890,8 +888,8 @@ impl SignerImplementation for SvmSecretKey {
                         signers,
                         signer_state,
                         CommandExecutionResult::from([
-                            (THIRD_PARTY_SIGNATURE_STATUS, Value::third_party_signature_approved()),
-                            (SIGNED_TRANSACTION_BYTES, Value::null()),
+                            (RunbookKey::ThirdPartySignatureStatus.as_ref(), Value::third_party_signature_approved()),
+                            (SignerKey::SignedTransactionBytes.as_ref(), Value::null()),
                             (SIGNATURE, Value::string(signature)),
                         ]),
                     ));

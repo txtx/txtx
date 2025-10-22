@@ -5,7 +5,7 @@ use solana_client::rpc_config::RpcSendTransactionConfig;
 use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::SignerKey;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::commands::{CommandExecutionFutureResult, CommandSpecification};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
@@ -49,9 +49,9 @@ pub fn send_transaction_background_task(
         let is_deployment = inputs.get_bool(IS_DEPLOYMENT).unwrap_or(false);
 
         let signed_transaction_value = if is_deployment {
-            inputs.get_value(SIGNED_TRANSACTION_BYTES).unwrap()
+            inputs.get_value(SignerKey::SignedTransactionBytes.as_ref()).unwrap()
         } else {
-            outputs.get_value(SIGNED_TRANSACTION_BYTES).unwrap()
+            outputs.get_value(SignerKey::SignedTransactionBytes.as_ref()).unwrap()
         };
 
         let commitment_config = CommitmentConfig {

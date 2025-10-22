@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::future;
 use std::ops::Deref;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::META_DESCRIPTION;
+use txtx_addon_kit::constants::DocumentationKey;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
@@ -522,7 +522,7 @@ impl CommandImplementation for ProcessInstructions {
                 Value::array(signer_dids.iter().map(|d| Value::string(d.to_string())).collect()),
             );
             args.insert(FORMATTED_TRANSACTION, formatted_transaction);
-            args.insert(META_DESCRIPTION, Value::string(meta_description));
+            args.insert(DocumentationKey::MetaDescription.as_ref(), Value::string(meta_description));
 
             signers.push_signer_state(owner_signer_state);
             let res = check_signed_executability(

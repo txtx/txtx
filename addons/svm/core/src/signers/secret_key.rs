@@ -5,7 +5,7 @@ use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_keypair::Keypair;
 use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::{SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE};
+use txtx_addon_kit::constants::{SignerKey};
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
@@ -27,8 +27,9 @@ use txtx_addon_kit::types::{
 use txtx_addon_network_svm_types::SvmValue;
 
 use crate::codec::DeploymentTransaction;
+use txtx_addon_kit::constants::ActionItemKey;
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, ADDRESS, CHECKED_ADDRESS,
+    ADDRESS, CHECKED_ADDRESS,
     CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, FORMATTED_TRANSACTION, IS_DEPLOYMENT, IS_SIGNABLE,
     NAMESPACE, NETWORK_ID, PARTIALLY_SIGNED_TRANSACTION_BYTES, PREVIOUSLY_SIGNED_BLOCKHASH,
     PUBLIC_KEY, RPC_API_URL, SECRET_KEY, TRANSACTION_BYTES,
@@ -137,14 +138,14 @@ impl SignerImplementation for SvmSecretKey {
         };
         use solana_keypair::Keypair;
         use solana_signer::Signer;
-        use txtx_addon_kit::{constants::DESCRIPTION, crypto::secret_key_bytes_from_mnemonic};
+        use txtx_addon_kit::{constants::DocumentationKey, crypto::secret_key_bytes_from_mnemonic};
         let mut actions = Actions::none();
 
         if signer_state.get_value(CHECKED_PUBLIC_KEY).is_some() {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
 
-        let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let description = values.get_string(DocumentationKey::Description.as_ref()).map(|d| d.to_string());
         let markdown = values
             .get_markdown(auth_ctx)
             .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
@@ -242,7 +243,7 @@ impl SignerImplementation for SvmSecretKey {
                     None,
                     vec![ReviewInputRequest::new("", &public_key_value)
                         .to_action_type()
-                        .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
+                        .to_request(instance_name, ActionItemKey::CheckAddress)
                         .with_construct_did(construct_did)
                         .with_some_description(description)
                         .with_meta_description(&format!("Check {} expected address", instance_name))
@@ -298,7 +299,7 @@ impl SignerImplementation for SvmSecretKey {
 
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
-            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNATURE_APPROVED) {
+            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignatureApproved.as_ref()) {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
@@ -316,7 +317,7 @@ impl SignerImplementation for SvmSecretKey {
                 false => ActionItemStatus::Blocked,
             };
             let skippable = signer_state
-                .get_scoped_value(&construct_did_str, SIGNATURE_SKIPPABLE)
+                .get_scoped_value(&construct_did_str, SignerKey::SignatureSkippable.as_ref())
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
             let formatted_payload =
@@ -333,7 +334,7 @@ impl SignerImplementation for SvmSecretKey {
             .formatted_payload(formatted_payload)
             .only_approval_needed()
             .to_action_type()
-            .to_request(title, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION)
+            .to_request(title, ActionItemKey::ProvideSignedTransaction)
             .with_construct_did(construct_did)
             .with_some_description(description.clone())
             .with_some_meta_description(meta_description.clone())

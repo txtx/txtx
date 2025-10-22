@@ -180,7 +180,7 @@ impl CommandImplementation for DeployProgram {
         _progress_tx: &txtx_addon_kit::channel::Sender<BlockEvent>,
         _auth_ctx: &txtx_addon_kit::types::AuthorizationContext,
     ) -> CommandExecutionFutureResult {
-        use txtx_addon_kit::{constants::DESCRIPTION, types::commands::return_synchronous_ok};
+        use txtx_addon_kit::{constants::DocumentationKey, types::commands::return_synchronous_ok};
 
         use crate::{
             constants::{
@@ -215,7 +215,7 @@ impl CommandImplementation for DeployProgram {
             .map_err(|e| diagnosed_error!("{e}"))?;
 
         let subgraph_name = values.get_string(SUBGRAPH_NAME).and_then(|s| Some(s.to_string()));
-        let description = values.get_string(DESCRIPTION).and_then(|s| Some(s.to_string()));
+        let description = values.get_string(DocumentationKey::Description.as_ref()).and_then(|s| Some(s.to_string()));
 
         let subgraph_request = SubgraphRequest::parse_value_store_v0(
             subgraph_name,
