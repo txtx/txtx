@@ -1231,7 +1231,7 @@ fn handle_log_event(
             persist_log(
                 &message,
                 &summary,
-                &static_log_event.namespace,
+                static_log_event.namespace.as_ref(),
                 &static_log_event.level,
                 &log_filter,
                 true,
@@ -1249,7 +1249,7 @@ fn handle_log_event(
                     pb.enable_steady_tick(Duration::from_millis(80));
                     pb.set_message(format!("{} {}", yellow!(&summary), message));
                     active_spinners.insert(log.uuid, pb);
-                    persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
+                    persist_log(&message, &summary, log.namespace.as_ref(), &log.level, &log_filter, false);
                 }
             }
             TransientLogEventStatus::Success(LogDetails { summary, message }) => {
@@ -1260,7 +1260,7 @@ fn handle_log_event(
                     println!("{}", msg);
                 }
 
-                persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
+                persist_log(&message, &summary, log.namespace.as_ref(), &log.level, &log_filter, false);
             }
             TransientLogEventStatus::Failure(LogDetails { summary, message }) => {
                 let msg = format!("{} {}: {}", red!("x"), red!(&summary), message);
@@ -1269,7 +1269,7 @@ fn handle_log_event(
                 } else {
                     println!("{}", msg);
                 }
-                persist_log(&message, &summary, &log.namespace, &log.level, &log_filter, false);
+                persist_log(&message, &summary, log.namespace.as_ref(), &log.level, &log_filter, false);
             }
         },
     }
