@@ -11,6 +11,7 @@ use txtx_addon_kit::types::{
     types::Type,
 };
 use txtx_addon_kit::uuid::Uuid;
+use txtx_addon_kit::constants::SignerKey;
 
 use crate::constants::{DEFAULT_CONFIRMATIONS_NUMBER, RPC_API_URL};
 
@@ -175,7 +176,7 @@ impl CommandImplementation for CheckEvmConfirmations {
             return return_synchronous_result(Ok(result));
         }
 
-        let tx_hash_bytes = inputs.get_expected_buffer_bytes(TX_HASH)?;
+        let tx_hash_bytes = inputs.get_expected_buffer_bytes(SignerKey::TxHash.as_ref())?;
         let rpc_api_url = inputs.get_expected_string(RPC_API_URL)?.to_owned();
 
         let progress_symbol = ["|", "/", "-", "\\", "|", "/", "-", "\\"];

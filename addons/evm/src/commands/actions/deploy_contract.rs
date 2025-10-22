@@ -54,7 +54,7 @@ use super::check_confirmations::CheckEvmConfirmations;
 use super::sign_transaction::SignEvmTransaction;
 
 use super::{get_common_tx_params_from_args, get_expected_address, get_signer_did};
-use txtx_addon_kit::constants::TX_HASH;
+use txtx_addon_kit::constants::SignerKey;
 
 lazy_static! {
     pub static ref DEPLOY_CONTRACT: PreCommandSpecification = {
@@ -329,7 +329,7 @@ impl CommandImplementation for DeployContract {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
-                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
+                signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash.as_ref())
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
@@ -444,8 +444,8 @@ impl CommandImplementation for DeployContract {
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload);
             if let Some(meta_description) = meta_description {
-                use txtx_addon_kit::constants::META_DESCRIPTION;
-                values.insert(META_DESCRIPTION, Value::string(meta_description));
+                use txtx_addon_kit::constants::DocumentationKey;
+                values.insert(DocumentationKey::MetaDescription.as_ref(), Value::string(meta_description));
             }
             signers.push_signer_state(signer_state);
 
@@ -559,7 +559,7 @@ impl CommandImplementation for DeployContract {
                 };
 
                 result.append(&mut res_signing);
-                values.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
+                values.insert(SignerKey::TxHash.as_ref(), result.outputs.get(SignerKey::TxHash.as_ref()).unwrap().clone());
 
                 (signers, signer_state)
             } else {
@@ -613,8 +613,8 @@ impl CommandImplementation for DeployContract {
 
             // If the deployment is done through create2, it could have already been deployed,
             // which means we don't have a tx_hash
-            if let Some(tx_hash) = inputs.get_value(TX_HASH) {
-                result.insert(TX_HASH, tx_hash.clone());
+            if let Some(tx_hash) = inputs.get_value(SignerKey::TxHash.as_ref()) {
+                result.insert(SignerKey::TxHash.as_ref(), tx_hash.clone());
             };
 
             if let Some(impl_contract_address) = outputs.get_value(IMPL_CONTRACT_ADDRESS) {

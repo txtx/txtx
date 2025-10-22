@@ -30,10 +30,11 @@ use crate::commands::actions::check_confirmations::CheckEvmConfirmations;
 use crate::commands::actions::sign_transaction::SignEvmTransaction;
 use crate::constants::{
     ABI_ENCODED_RESULT, ADDRESS_ABI_MAP, CONTRACT_ABI, CONTRACT_ADDRESS, RESULT, RPC_API_URL,
+    TX_HASH,
 };
 use crate::rpc::EvmRpc;
 use crate::typing::{DECODED_LOG_OUTPUT, EVM_ADDRESS, EVM_SIM_RESULT, RAW_LOG_OUTPUT};
-use txtx_addon_kit::constants::TX_HASH;
+use txtx_addon_kit::constants::SignerKey;
 
 use super::{get_expected_address, get_signer_did};
 
@@ -231,14 +232,14 @@ impl CommandImplementation for SignEvmContractCall {
         let auth_context = auth_context.clone();
 
         let future = async move {
-            use txtx_addon_kit::constants::META_DESCRIPTION;
+            use txtx_addon_kit::constants::DocumentationKey;
 
             use crate::{commands::actions::get_meta_description, constants::CHAIN_ID};
 
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
-                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
+                signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash.as_ref())
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
@@ -297,7 +298,7 @@ impl CommandImplementation for SignEvmContractCall {
 
             let mut values = values.clone();
             values.insert(TRANSACTION_PAYLOAD_BYTES, payload.clone());
-            values.insert(META_DESCRIPTION, Value::string(meta_description));
+            values.insert(DocumentationKey::MetaDescription.as_ref(), Value::string(meta_description));
 
             signer_state.insert_scoped_value(
                 &construct_did.to_string(),
@@ -387,7 +388,7 @@ impl CommandImplementation for SignEvmContractCall {
                 Err(err) => return Err(err),
             };
             result.append(&mut res_signing);
-            values.insert(TX_HASH, result.outputs.get(TX_HASH).unwrap().clone());
+            values.insert(SignerKey::TxHash.as_ref(), result.outputs.get(SignerKey::TxHash.as_ref()).unwrap().clone());
 
             let mut res = match CheckEvmConfirmations::run_execution(
                 &construct_did,
@@ -431,7 +432,7 @@ impl CommandImplementation for SignEvmContractCall {
 
         let future = async move {
             let mut result = CommandExecutionResult::new();
-            result.outputs.insert(TX_HASH.to_string(), inputs.get_value(TX_HASH).unwrap().clone());
+            result.outputs.insert(SignerKey::TxHash.as_ref().to_string(), inputs.get_value(SignerKey::TxHash.as_ref()).unwrap().clone());
 
             let call_result = outputs.get_expected_value(RESULT)?;
             result.outputs.insert(RESULT.to_string(), call_result.clone());

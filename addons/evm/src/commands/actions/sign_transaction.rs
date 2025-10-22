@@ -19,11 +19,12 @@ use txtx_addon_kit::types::{
     signers::SignersState, types::RunbookSupervisionContext, ConstructDid,
 };
 
-use crate::constants::{ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, ALREADY_DEPLOYED};
+use crate::constants::ALREADY_DEPLOYED;
+use txtx_addon_kit::constants::ActionItemKey;
 
 use crate::constants::SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES;
 use crate::typing::EvmValue;
-use txtx_addon_kit::constants::TX_HASH;
+use txtx_addon_kit::constants::SignerKey;
 
 use super::get_signer_did;
 
@@ -120,23 +121,23 @@ impl CommandImplementation for SignEvmTransaction {
         let auth_ctx = auth_ctx.clone();
 
         let future = async move {
-            use txtx_addon_kit::constants::{DESCRIPTION, META_DESCRIPTION};
+            use txtx_addon_kit::constants::DocumentationKey;
 
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if let Some(_) =
-                signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
+                signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash.as_ref())
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
             let description =
-                values.get_expected_string(DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+                values.get_expected_string(DocumentationKey::Description.as_ref()).ok().and_then(|d| Some(d.to_string()));
             let markdown = values
                 .get_markdown(&auth_ctx)
                 .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
             let meta_description =
-                values.get_expected_string(META_DESCRIPTION).ok().and_then(|d| Some(d.to_string()));
+                values.get_expected_string(DocumentationKey::MetaDescription.as_ref()).ok().and_then(|d| Some(d.to_string()));
 
             let already_deployed = signer_state
                 .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
@@ -149,7 +150,7 @@ impl CommandImplementation for SignEvmTransaction {
                     actions.push_sub_group(description.clone(), vec![]);
                 }
             } else {
-                use txtx_addon_kit::constants::SIGNATURE_APPROVED;
+                use txtx_addon_kit::constants::SignerKey;
 
                 let transaction_request_bytes = values
                     .get_expected_buffer_bytes(TRANSACTION_PAYLOAD_BYTES)
@@ -203,14 +204,14 @@ impl CommandImplementation for SignEvmTransaction {
 
                 let mut action_items = vec![];
                 let already_signed = signer_state
-                    .get_scoped_bool(&construct_did.to_string(), SIGNATURE_APPROVED)
+                    .get_scoped_bool(&construct_did.to_string(), SignerKey::SignatureApproved.as_ref())
                     .unwrap_or(false);
 
                 if !already_signed {
                     action_items.push(
                         ReviewInputRequest::new("", &Value::integer(transaction.nonce().into()))
                             .to_action_type()
-                            .to_request(&instance_name, ACTION_ITEM_CHECK_NONCE)
+                            .to_request(&instance_name, ActionItemKey::CheckNonce)
                             .with_construct_did(&construct_did)
                             .with_meta_description("Check transaction nonce"),
                     );
@@ -230,7 +231,7 @@ impl CommandImplementation for SignEvmTransaction {
                         action_items.push(
                             ReviewInputRequest::new("", &Value::string(formatted_cost))
                                 .to_action_type()
-                                .to_request(&instance_name, ACTION_ITEM_CHECK_FEE)
+                                .to_request(&instance_name, ActionItemKey::CheckFee)
                                 .with_meta_description("Check transaction cost (Wei)")
                                 .with_construct_did(&construct_did),
                         );
@@ -280,7 +281,7 @@ impl CommandImplementation for SignEvmTransaction {
             .get_scoped_bool(&construct_did.to_string(), ALREADY_DEPLOYED)
             .unwrap_or(false);
         if let Some(tx_hash) =
-            signer_state.get_scoped_value(&construct_did.value().to_string(), TX_HASH)
+            signer_state.get_scoped_value(&construct_did.value().to_string(), SignerKey::TxHash.as_ref())
         {
             let mut result = CommandExecutionResult::new();
             if !already_deployed {
@@ -292,7 +293,7 @@ impl CommandImplementation for SignEvmTransaction {
                     )
                 })?;
                 let tx_hash = EvmValue::tx_hash(tx_hash_bytes);
-                result.outputs.insert(TX_HASH.into(), tx_hash.clone());
+                result.outputs.insert(SignerKey::TxHash.as_ref().into(), tx_hash.clone());
             }
             return return_synchronous_ok(signers, signer_state, result);
         }
