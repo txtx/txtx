@@ -10,7 +10,7 @@ use clarity_repl::repl::{
 use std::collections::{BTreeMap, HashMap};
 use std::future;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::SignerKey;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandInputsEvaluationResult, InputsPostProcessingFutureResult,
@@ -566,14 +566,14 @@ impl CommandImplementation for StacksDeployContract {
                 Err(err) => return Err(err),
             };
 
-            let signed_transaction = res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap();
+            let signed_transaction = res_signing.outputs.get(SignerKey::SignedTransactionBytes.as_ref()).unwrap();
             let signed_transaction_bytes = signed_transaction.clone().expect_buffer_bytes();
             let transaction =
                 StacksTransaction::consensus_deserialize(&mut &signed_transaction_bytes[..])
                     .unwrap();
             let sender_address = transaction.origin_address().to_string();
 
-            values.insert(SIGNED_TRANSACTION_BYTES, signed_transaction.clone());
+            values.insert(SignerKey::SignedTransactionBytes.as_ref(), signed_transaction.clone());
 
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,

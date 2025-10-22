@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::SignerKey;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::signers::SignerActionsFutureResult;
 use txtx_addon_kit::types::stores::ValueStore;
@@ -228,8 +228,8 @@ impl CommandImplementation for SendStxTransfer {
             };
 
             values.insert(
-                SIGNED_TRANSACTION_BYTES,
-                res_signing.outputs.get(SIGNED_TRANSACTION_BYTES).unwrap().clone(),
+                SignerKey::SignedTransactionBytes.as_ref(),
+                res_signing.outputs.get(SignerKey::SignedTransactionBytes.as_ref()).unwrap().clone(),
             );
             let mut res = match BroadcastStacksTransaction::run_execution(
                 &construct_did,

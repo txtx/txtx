@@ -19,7 +19,7 @@ use web_wallet::STACKS_WEB_WALLET;
 
 use crate::{
     constants::{
-        ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+        ActionItemKey::CheckAddress.as_ref(), ActionItemKey::CheckBalance.as_ref(), ActionItemKey::ProvidePublicKey,
         DEFAULT_MESSAGE,
     },
     rpc::StacksRpc,
@@ -59,7 +59,7 @@ pub async fn get_addition_actions_for_address(
                 network_id: network_id.into(),
                 namespace: "stacks".to_string(),
             }),
-            ACTION_ITEM_PROVIDE_PUBLIC_KEY,
+            ActionItemKey::ProvidePublicKey,
         ));
     }
 
@@ -72,7 +72,7 @@ pub async fn get_addition_actions_for_address(
                 ActionItemStatus::Todo,
                 ReviewInputRequest::new("", &Value::string(expected_address.to_owned()))
                     .to_action_type(),
-                ACTION_ITEM_CHECK_ADDRESS,
+                ActionItemKey::CheckAddress.as_ref(),
             ))
         }
         if do_request_balance {
@@ -95,7 +95,7 @@ pub async fn get_addition_actions_for_address(
                 None,
                 action_status,
                 ReviewInputRequest::new("", &value).to_action_type(),
-                ACTION_ITEM_CHECK_BALANCE,
+                ActionItemKey::CheckBalance.as_ref(),
             );
             action_items.push(check_balance);
         }
@@ -107,7 +107,7 @@ pub async fn get_addition_actions_for_address(
                 None,
                 ActionItemStatus::Todo,
                 ReviewInputRequest::new("", &Value::string("N/A".to_string())).to_action_type(),
-                ACTION_ITEM_CHECK_BALANCE,
+                ActionItemKey::CheckBalance.as_ref(),
             );
             action_items.push(check_balance);
         }

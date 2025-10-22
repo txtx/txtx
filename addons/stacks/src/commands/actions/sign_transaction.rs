@@ -10,7 +10,7 @@ use clarity::util::secp256k1::MessageSignature;
 use clarity::vm::{ClarityName, ContractName};
 use clarity_repl::clarity::address::AddressHashMode;
 use std::collections::HashMap;
-use txtx_addon_kit::constants::SIGNED_TRANSACTION_BYTES;
+use txtx_addon_kit::constants::SignerKey;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
 };
@@ -143,7 +143,7 @@ impl CommandImplementation for SignStacksTransaction {
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
         mut signers: SignersState,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::constants::SIGNATURE_APPROVED;
+        use txtx_addon_kit::constants::SignerKey;
 
         use crate::constants::{
             ACTION_ITEM_CHECK_FEE, ACTION_ITEM_CHECK_NONCE, FORMATTED_TRANSACTION,
@@ -162,10 +162,10 @@ impl CommandImplementation for SignStacksTransaction {
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
             if signer_state
-                .get_scoped_value(&construct_did.to_string(), SIGNED_TRANSACTION_BYTES)
+                .get_scoped_value(&construct_did.to_string(), SignerKey::SignedTransactionBytes.as_ref())
                 .is_some()
                 || signer_state
-                    .get_scoped_value(&construct_did.to_string(), SIGNATURE_APPROVED)
+                    .get_scoped_value(&construct_did.to_string(), SignerKey::SignatureApproved.as_ref())
                     .is_some()
             {
                 return Ok((signers, signer_state, Actions::none()));
@@ -280,11 +280,11 @@ impl CommandImplementation for SignStacksTransaction {
         let signer_did = get_signer_did(args).unwrap();
         let signer_state = signers.pop_signer_state(&signer_did).unwrap();
 
-        if let Ok(signed_transaction_bytes) = args.get_expected_value(SIGNED_TRANSACTION_BYTES) {
+        if let Ok(signed_transaction_bytes) = args.get_expected_value(SignerKey::SignedTransactionBytes.as_ref()) {
             let mut result = CommandExecutionResult::new();
             result
                 .outputs
-                .insert(SIGNED_TRANSACTION_BYTES.into(), signed_transaction_bytes.clone());
+                .insert(SignerKey::SignedTransactionBytes.as_ref().into(), signed_transaction_bytes.clone());
             return return_synchronous_ok(signers, signer_state, result);
         }
 
