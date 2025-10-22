@@ -324,11 +324,11 @@ impl<'a> ValidationPhaseHandler<'a> {
         }
 
         match parts[0].as_str() {
-            "variable" => self.validate_variable_reference(parts, position), // ConstructType::Variable
-            "action" => self.validate_action_reference(parts, position),     // ConstructType::Action
-            "signer" => self.validate_signer_reference(parts, position),     // ConstructType::Signer
-            "output" => self.validate_output_reference(parts, position),     // ConstructType::Output
-            "flow" => self.validate_flow_reference(parts, position),         // ConstructType::Flow
+            "variable" => self.validate_variable_reference(parts, position),
+            "action" => self.validate_action_reference(parts, position),
+            "signer" => self.validate_signer_reference(parts, position),
+            "output" => self.validate_output_reference(parts, position),
+            "flow" => self.validate_flow_reference(parts, position),
             _ => Ok(()),
         }
     }
