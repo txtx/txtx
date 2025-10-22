@@ -55,7 +55,7 @@ impl FunctionImplementation for Hash160 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -63,7 +63,7 @@ impl FunctionImplementation for Hash160 {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        _args: &[Value],
     ) -> Result<Value, Diagnostic> {
         Ok(BitcoinValue::opcode(BitcoinOpcode::OpHash160.get_code()))
     }
@@ -75,7 +75,7 @@ impl FunctionImplementation for CheckSig {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -83,7 +83,7 @@ impl FunctionImplementation for CheckSig {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        _args: &[Value],
     ) -> Result<Value, Diagnostic> {
         Ok(BitcoinValue::opcode(BitcoinOpcode::OpCheckSig.get_code()))
     }
