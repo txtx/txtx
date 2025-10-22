@@ -7,8 +7,8 @@ use send_token::SEND_TOKEN;
 use serde::{Deserialize, Serialize};
 use setup_surfnet::SETUP_SURFNET;
 use solana_client::rpc_request::RpcRequest;
-use srs::create_class::CREATE_CLASS;
-use srs::create_record::CREATE_RECORD;
+// use srs::create_class::CREATE_CLASS;
+// use srs::create_record::CREATE_RECORD;
 use txtx_addon_kit::types::commands::PreCommandSpecification;
 use txtx_addon_kit::types::stores::ValueStore;
 use txtx_addon_kit::types::{diagnostics::Diagnostic, ConstructDid, Did};
@@ -20,7 +20,7 @@ pub mod send_sol;
 pub mod send_token;
 pub mod setup_surfnet;
 pub mod sign_transaction;
-pub mod srs;
+// pub mod srs;
 
 fn get_signers_did(args: &ValueStore) -> Result<Vec<ConstructDid>, Diagnostic> {
     let signers = args.get_expected_array(SIGNERS)?;
@@ -80,7 +80,7 @@ lazy_static! {
         SEND_TOKEN.clone(),
         DEPLOY_SUBGRAPH.clone(),
         SETUP_SURFNET.clone(),
-        CREATE_CLASS.clone(),
-        CREATE_RECORD.clone(),
+        // CREATE_CLASS.clone(),
+        // CREATE_RECORD.clone(),
     ];
 }
