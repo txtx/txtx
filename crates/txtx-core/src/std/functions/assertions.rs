@@ -23,12 +23,12 @@ lazy_static! {
                 inputs: [
                     left: {
                         documentation: "A value to compare.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::arbitrary_object()],
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::arbitrary_object()],
                         optional: false
                     },
                     right: {
                         documentation: "The value to compare against.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::arbitrary_object()],
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::arbitrary_object()],
                         optional: false
                     }
                 ],
