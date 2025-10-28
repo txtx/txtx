@@ -103,11 +103,11 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "Any value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null(Type::string())), Type::arbitrary_object()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::arbitrary_object()]
                     },
                     rhs: {
                         documentation: "Any value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null(Type::string())), Type::arbitrary_object()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool(), Type::addon(""), Type::array(Type::null()), Type::arbitrary_object()]
                     }
                 ],
                 output: {
@@ -129,11 +129,11 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -155,11 +155,11 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -181,11 +181,11 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -207,11 +207,11 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {
@@ -233,11 +233,11 @@ lazy_static! {
                 inputs: [
                     lhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     },
                     rhs: {
                         documentation: "An `integer`, `float`, `string`, `boolean` or `null` value.",
-                        typing: vec![Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
+                        typing: vec![Type::null(), Type::integer(), Type::float(), Type::integer(), Type::string(), Type::bool()]
                     }
                 ],
                 output: {

@@ -110,7 +110,7 @@ pub fn get_expected_type_from_idl_type_def_ty(
                 } else {
                     props.push(ObjectProperty {
                         documentation: "".into(),
-                        typing: Type::null(Type::string()), // No fields means unit type, which we represent as null
+                        typing: Type::null(), // No fields means unit type, which we represent as null
                         optional: false,
                         tainting: false,
                         name: variant.name.clone(),
@@ -151,7 +151,7 @@ pub fn idl_type_to_txtx_type(
         IdlType::Bytes => Type::buffer(),
         IdlType::String => Type::string(),
         IdlType::Pubkey => Type::addon(SVM_PUBKEY),
-        IdlType::Option(idl_type) => Type::null(idl_type_to_txtx_type(
+        IdlType::Option(idl_type) => Type::typed_null(idl_type_to_txtx_type(
             *idl_type,
             idl_types,
             idl_constants,

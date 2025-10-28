@@ -254,7 +254,7 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
                     ObjectProperty {
                         name: "UnitVariant".into(),
                         documentation: "".into(),
-                        typing: Type::null(Type::string()),
+                        typing: Type::null(),
                         optional: false,
                         tainting: false,
                         internal: false,

@@ -169,17 +169,17 @@ lazy_static! {
                     },
                     keypair_path: {
                         documentation: "The location of the program keypair file. Defaults to `./target/deploy/<program_name>-keypair.json`.",
-                        typing: vec![Type::string(), Type::null(Type::string())],
+                        typing: vec![Type::string(), Type::null()],
                         optional: true
                     },
                     idl_path: {
                         documentation: "The location of the program IDL file. Defaults to `./target/idl/<program_name>.json`.",
-                        typing: vec![Type::string(), Type::null(Type::string())],
+                        typing: vec![Type::string(), Type::null()],
                         optional: true
                     },
                     bin_path: {
                         documentation: "The location of the program binary file. Defaults to `./target/deploy/<program_name>.so`.",
-                        typing: vec![Type::string(), Type::null(Type::string())],
+                        typing: vec![Type::string(), Type::null()],
                         optional: true
                     }
                 ],
@@ -209,17 +209,17 @@ lazy_static! {
                     },
                     keypair_path: {
                         documentation: "The location of the program keypair file. Defaults to `./target/deploy/<program_name>-keypair.json`.",
-                        typing: vec![Type::string(), Type::null(Type::string())],
+                        typing: vec![Type::string(), Type::null()],
                         optional: true
                     },
                     idl_path: {
                         documentation: "The location of the program IDL file. Defaults to `./idl/<program_name>.json`.",
-                        typing: vec![Type::string(), Type::null(Type::string())],
+                        typing: vec![Type::string(), Type::null()],
                         optional: true
                     },
                     bin_path: {
                         documentation: "The location of the program binary file. Defaults to `./target/deploy/<program_name>.so`.",
-                        typing: vec![Type::string(), Type::null(Type::string())],
+                        typing: vec![Type::string(), Type::null()],
                         optional: true
                     }
                 ],

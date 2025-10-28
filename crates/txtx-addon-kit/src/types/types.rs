@@ -925,7 +925,7 @@ impl Value {
     pub fn get_type(&self) -> Type {
         match self {
             Value::Bool(_) => Type::Bool,
-            Value::Null => Type::null(Type::string()),
+            Value::Null => Type::null(),
             Value::Integer(_) => Type::Integer,
             Value::Float(_) => Type::Float,
             Value::String(_) => Type::String,
@@ -1024,7 +1024,7 @@ impl fmt::Debug for AddonData {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Type {
     Bool,
-    Null(Box<Type>),
+    Null(Option<Box<Type>>),
     Integer,
     Float,
     String,
@@ -1045,8 +1045,11 @@ impl Type {
     pub fn float() -> Type {
         Type::Float
     }
-    pub fn null(inner: Type) -> Type {
-        Type::Null(Box::new(inner))
+    pub fn null() -> Type {
+        Type::Null(None)
+    }
+    pub fn typed_null(inner: Type) -> Type {
+        Type::Null(Some(Box::new(inner)))
     }
     pub fn bool() -> Type {
         Type::Bool
@@ -1096,10 +1099,16 @@ impl Type {
 
         match &self {
             Type::Bool => value.as_bool().map(|_| ()).ok_or_else(|| mismatch_err("bool"))?,
-            Type::Null(inner) => value
-                .as_null()
-                .map(|_| ())
-                .ok_or_else(|| mismatch_err(&format!("null<{}>", inner.to_string())))?,
+            Type::Null(inner) => {
+                if let Some(inner) = inner {
+                    value
+                        .as_null()
+                        .map(|_| ())
+                        .ok_or_else(|| mismatch_err(&format!("null<{}>", inner.to_string())))?
+                } else {
+                    value.as_null().map(|_| ()).ok_or_else(|| mismatch_err("null"))?
+                }
+            }
             Type::Integer => {
                 value.as_integer().map(|_| ()).ok_or_else(|| mismatch_err("integer"))?
             }
@@ -1270,7 +1279,13 @@ impl Type {
     pub fn to_string(&self) -> String {
         match self {
             Type::Bool => "bool".into(),
-            Type::Null(inner) => format!("null<{}>", inner.to_string()),
+            Type::Null(inner) => {
+                if let Some(inner) = inner {
+                    format!("null<{}>", inner.to_string())
+                } else {
+                    "null".into()
+                }
+            }
             Type::Integer => "integer".into(),
             Type::Float => "float".into(),
             Type::String => "string".into(),
@@ -1299,11 +1314,14 @@ impl TryFrom<String> for Type {
             "buffer" => Type::Buffer,
             "object" => Type::Object(ObjectDefinition::arbitrary()),
             other => {
+                if other == "null" {
+                    return Ok(Type::null());
+                }
                 if other.starts_with("null<") && other.ends_with(">") {
                     let mut inner = other.replace("null<", "");
                     inner = inner.replace(">", "");
                     let inner_type = Type::try_from(inner)?;
-                    return Ok(Type::null(inner_type));
+                    return Ok(Type::typed_null(inner_type));
                 } else if other.starts_with("array[") && other.ends_with("]") {
                     let mut inner = other.replace("array[", "");
                     inner = inner.replace("]", "");
