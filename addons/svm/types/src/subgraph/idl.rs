@@ -151,13 +151,13 @@ pub fn idl_type_to_txtx_type(
         IdlType::Bytes => Type::buffer(),
         IdlType::String => Type::string(),
         IdlType::Pubkey => Type::addon(SVM_PUBKEY),
-        IdlType::Option(idl_type) => idl_type_to_txtx_type(
+        IdlType::Option(idl_type) => Type::typed_null(idl_type_to_txtx_type(
             *idl_type,
             idl_types,
             idl_constants,
             generic_args,
             idl_type_def_generics,
-        )?,
+        )?),
         IdlType::Vec(idl_type) => Type::array(idl_type_to_txtx_type(
             *idl_type,
             idl_types,

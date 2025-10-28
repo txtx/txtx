@@ -206,7 +206,7 @@ fn assert_field_expected_types(field_name: &str, expected_type: Type) {
             assert_eq!(expected_type, Type::addon(SVM_U64));
         }
         "option" => {
-            assert_eq!(expected_type, Type::addon(SVM_U64));
+            assert_eq!(expected_type, Type::typed_null(Type::addon(SVM_U64)));
         }
         "additional_data" => {
             assert_eq!(
