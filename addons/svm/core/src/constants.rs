@@ -70,6 +70,9 @@ pub const DEPLOYMENT_TRANSACTION_TYPE: &str = "deployment_transaction_type";
 pub const EPHEMERAL_AUTHORITY_SECRET_KEY: &str = "ephemeral_authority_secret_key";
 pub const BUFFER_ACCOUNT_PUBKEY: &str = "buffer_account_pubkey";
 pub const DEPLOYMENT_TRANSACTIONS: &str = "deployment_transactions";
+pub const IS_WRITABLE: &str = "is_writable";
+pub const IS_SIGNER: &str = "is_signer";
+pub const REMAINING_ACCOUNT: &str = "remaining_account";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
