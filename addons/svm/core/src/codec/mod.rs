@@ -755,13 +755,16 @@ impl UpgradeableProgramDeployer {
     ) -> Result<Self, Diagnostic> {
         let (buffer_pubkey, buffer_keypair, buffer_data) = match existing_program_buffer_opts {
             Some(buffer_pubkey) => {
-                let buffer_account = rpc_client.get_account(&buffer_pubkey).map_err(|e| {
+                let buffer_account = rpc_client.get_account_with_commitment(&buffer_pubkey, CommitmentConfig::processed()).map_err(|e| {
                     diagnosed_error!(
                         "failed to fetch existing buffer account {}: {}",
                         buffer_pubkey,
                         e
                     )
-                })?;
+                })?.value.ok_or(diagnosed_error!(
+                    "existing buffer account {} does not exist",
+                    buffer_pubkey
+                ))?;
 
                 if buffer_account.owner != solana_sdk_ids::bpf_loader_upgradeable::id() {
                     return Err(diagnosed_error!(
@@ -850,12 +853,8 @@ impl UpgradeableProgramDeployer {
         })
     }
 
-    pub fn get_transactions(&mut self) -> Result<Vec<Value>, Diagnostic> {
-        let recent_blockhash = self
-            .rpc_client
-            .get_latest_blockhash()
-            .map_err(|e| diagnosed_error!("failed to fetch latest blockhash: rpc error: {e}"))?;
-
+    fn get_core_transactions_internal(&mut self, recent_blockhash: &Hash) -> Result<Vec<Value>, Diagnostic> {
+        
         let mut core_transactions =
             // transactions for first deployment of a program
             if !self.is_program_upgrade {
@@ -881,23 +880,14 @@ impl UpgradeableProgramDeployer {
                         self.get_create_buffer_transaction(&recent_blockhash)?;
 
                     // write transaction data to the buffer account
-                    let mut write_transactions =
-                        self.get_write_to_buffer_transactions(&recent_blockhash)?;
+                    let mut write_transactions = self.get_write_to_buffer_transactions(&recent_blockhash)?;
 
-                    // deploy the program, with the final authority as program authority
-                    let finalize_transaction =
-                        self.get_deploy_with_max_program_len_transaction(&recent_blockhash)?;
-
-                    // transfer the program authority from the temp authority to the final authority
-                    let transfer_authority = self.get_set_program_authority_to_final_authority_transaction(&recent_blockhash)?;
 
                     let mut transactions = vec![];
                     if let Some(create_buffer_transaction) = create_buffer_account_transaction {
                         transactions.push(create_buffer_transaction);
                     }
                     transactions.append(&mut write_transactions);
-                    transactions.push(finalize_transaction);
-                    transactions.push(transfer_authority);
                     transactions
                 }
             }
@@ -910,23 +900,15 @@ impl UpgradeableProgramDeployer {
                     let prepare_program_upgrade_transaction =
                         self.get_prepare_program_upgrade_transaction(&recent_blockhash)?;
 
-                    // write transaction data to the buffer account
-                    let mut write_transactions =
-                        self.get_write_to_buffer_transactions(&recent_blockhash)?;
+                    // write transaction data to the buffer account 
+                    let mut write_transactions = self.get_write_to_buffer_transactions(&recent_blockhash)?;
 
-                    // transfer the buffer authority from the temp authority to the final authority
-                    let transfer_authority = self.get_set_buffer_authority_to_final_authority_transaction(&recent_blockhash)?;
-
-                    // upgrade the program, with the final authority as program authority
-                    let upgrade_transaction = self.get_upgrade_transaction(&recent_blockhash)?;
 
                     let mut transactions = vec![];
                     if let Some(prepare_program_upgrade_transaction) = prepare_program_upgrade_transaction {
                         transactions.push(prepare_program_upgrade_transaction);
                     }
                     transactions.append(&mut write_transactions);
-                    transactions.push(transfer_authority);
-                    transactions.push(upgrade_transaction);
                     transactions
                 }
             };
@@ -942,10 +924,70 @@ impl UpgradeableProgramDeployer {
                 transactions.push(create_temp_account_transaction);
             }
             transactions.append(&mut core_transactions);
-            // close out our temp authority account and transfer any leftover funds back to the payer
-            transactions.push(self.get_close_temp_authority_transaction_parts()?);
             transactions
         };
+        Ok(transactions)
+    }
+
+    pub fn get_cleanup_transactions_count() -> usize {
+        3 // finalize + transfer authority + close temp authority
+    }
+    
+    fn get_cleanup_transactions(&self, recent_blockhash: &Hash) -> Result<Vec<Value>, Diagnostic> {
+        if self.do_cheatcode_deploy {
+            Ok(vec![])
+        } else {
+            let mut cleanup_transactions = if !self.is_program_upgrade {
+
+                        // deploy the program, with the final authority as program authority
+                        let finalize_transaction =
+                            self.get_deploy_with_max_program_len_transaction(&recent_blockhash)?;
+
+                        // transfer the program authority from the temp authority to the final authority
+                        let transfer_authority = self.get_set_program_authority_to_final_authority_transaction(&recent_blockhash)?;
+                        vec![finalize_transaction, transfer_authority]
+            }
+            else {
+                        // transfer the buffer authority from the temp authority to the final authority
+                        let transfer_authority = self.get_set_buffer_authority_to_final_authority_transaction(&recent_blockhash)?;
+
+                        // upgrade the program, with the final authority as program authority
+                        let upgrade_transaction = self.get_upgrade_transaction(&recent_blockhash)?;
+
+                        vec![transfer_authority, upgrade_transaction]
+            };
+            cleanup_transactions.push(self.get_close_temp_authority_transaction_parts()?);
+            Ok(cleanup_transactions)
+        }
+    }
+
+    
+    
+    pub fn get_all_transactions(&mut self) -> Result<Vec<Value>, Diagnostic> {
+        let recent_blockhash = self
+            .rpc_client
+            .get_latest_blockhash()
+            .map_err(|e| diagnosed_error!("failed to fetch latest blockhash: rpc error: {e}"))?;
+
+        let transactions = {
+            let mut core_transactions = self.get_core_transactions_internal(&recent_blockhash)?;
+
+            let mut cleanup_transactions = self.get_cleanup_transactions(&recent_blockhash)?;
+
+            core_transactions.append(&mut cleanup_transactions);
+            core_transactions
+        };
+
+        Ok(transactions)
+    }
+
+    pub fn get_core_transactions(&mut self) -> Result<Vec<Value>, Diagnostic> {
+        let recent_blockhash = self
+            .rpc_client
+            .get_latest_blockhash()
+            .map_err(|e| diagnosed_error!("failed to fetch latest blockhash: rpc error: {e}"))?;
+
+        let transactions = self.get_core_transactions_internal(&recent_blockhash)?;
 
         Ok(transactions)
     }
@@ -1100,6 +1142,12 @@ impl UpgradeableProgramDeployer {
 
     fn get_create_buffer_transaction(&self, blockhash: &Hash) -> Result<Option<Value>, Diagnostic> {
         if let Some(buffer_keypair) = self.buffer_keypair.as_ref() {
+            if self
+                .rpc_client
+                .get_account(&self.buffer_pubkey).ok().is_some()
+            {
+                return Ok(None);
+            }
             let create_buffer_instruction = self.get_create_buffer_instruction()?;
 
             let message = Message::new_with_blockhash(

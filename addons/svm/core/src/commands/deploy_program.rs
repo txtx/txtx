@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::vec;
+use std::{i128, vec};
 
 use solana_client::rpc_client::RpcClient;
 use solana_commitment_config::CommitmentConfig;
@@ -42,9 +42,10 @@ use crate::constants::{
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, BUFFER_ACCOUNT_PUBKEY,
     CHECKED_PUBLIC_KEY, COMMITMENT_LEVEL, DEPLOYMENT_TRANSACTIONS, DEPLOYMENT_TRANSACTION_TYPE,
     DO_AWAIT_CONFIRMATION, EPHEMERAL_AUTHORITY_SECRET_KEY, FORMATTED_TRANSACTION,
-    INSTANT_SURFNET_DEPLOYMENT, IS_DEPLOYMENT, IS_SQUADS_AUTHORITY, IS_SURFNET, NAMESPACE,
-    NETWORK_ID, PAYER, PROGRAM, PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID, PROGRAM_IDL, RPC_API_URL,
-    SIGNATURE, SIGNATURES, SIGNERS, SLOT, TRANSACTION_BYTES,
+    INITIAL_EXPECTED_DEPLOYMENT_TRANSACTIONS_COUNT, INSTANT_SURFNET_DEPLOYMENT, IS_DEPLOYMENT,
+    IS_SQUADS_AUTHORITY, IS_SURFNET, NAMESPACE, NETWORK_ID, PAYER, PROGRAM,
+    PROGRAM_DEPLOYMENT_KEYPAIR, PROGRAM_ID, PROGRAM_IDL, RPC_API_URL, SIGNATURE, SIGNATURES,
+    SIGNED_NESTED_EXECUTION_INDEX, SIGNERS, SLOT, TRANSACTION_BYTES,
 };
 use crate::signers::squads::{
     SQUADS_DEPLOYMENT_ADDITIONAL_INFO, SQUADS_DEPLOYMENT_ADDITIONAL_INFO_TITLE, SQUADS_MATCHER,
@@ -283,16 +284,42 @@ impl CommandImplementation for DeployProgram {
             })?
         };
 
-        let (program_id, transactions) = match authority_signer_state
+        let initial_expected_deployment_transactions_count = authority_signer_state
+            .get_scoped_value(
+                &construct_did.to_string(),
+                INITIAL_EXPECTED_DEPLOYMENT_TRANSACTIONS_COUNT,
+            )
+            .and_then(|v| v.as_integer())
+            .unwrap_or(i128::MAX)
+            as usize;
+
+        let signed_nested_execution_index = authority_signer_state
+            .get_scoped_integer(&construct_did.to_string(), SIGNED_NESTED_EXECUTION_INDEX)
+            .unwrap_or(0) as usize;
+
+        let deployment_transactions = authority_signer_state
             .get_scoped_value(&construct_did.to_string(), DEPLOYMENT_TRANSACTIONS)
-        {
-            Some(transactions) => {
+            .cloned();
+
+        let already_generated_deployment_transactions = deployment_transactions.is_some();
+
+        let only_cleanup_transactions_remaining = signed_nested_execution_index
+            == (initial_expected_deployment_transactions_count
+                - (UpgradeableProgramDeployer::get_cleanup_transactions_count() + 1));
+
+        let use_existing =
+            already_generated_deployment_transactions && !only_cleanup_transactions_remaining;
+
+        let (program_id, transactions) = match use_existing {
+            true => {
                 let program_id = authority_signer_state
                     .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
                     .unwrap();
+                let transactions = deployment_transactions.unwrap();
+
                 (program_id.clone(), transactions.clone())
             }
-            None => {
+            false => {
                 let temp_authority_keypair = match authority_signer_state
                     .get_scoped_value(&construct_did.to_string(), EPHEMERAL_AUTHORITY_SECRET_KEY)
                 {
@@ -336,6 +363,10 @@ impl CommandImplementation for DeployProgram {
 
                 let buffer_pubkey = values
                     .get_value(BUFFER_ACCOUNT_PUBKEY)
+                    .or_else(|| {
+                        authority_signer_state
+                            .get_scoped_value(&construct_did.to_string(), BUFFER_ACCOUNT_PUBKEY)
+                    })
                     .map(|v| {
                         SvmValue::to_pubkey(&v).map_err(|e| {
                             (
@@ -375,19 +406,60 @@ impl CommandImplementation for DeployProgram {
                     program_id.clone(),
                 );
 
-                let transactions = deployer.get_transactions().map_err(|e| {
-                    (
-                        signers.clone(),
-                        authority_signer_state.clone(),
-                        diagnosed_error!("failed to get deploy transactions: {}", e),
-                    )
-                })?;
+                authority_signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    BUFFER_ACCOUNT_PUBKEY,
+                    SvmValue::pubkey(deployer.buffer_pubkey.to_bytes().to_vec()),
+                );
+
+                let transactions = if !already_generated_deployment_transactions {
+                    deployer.get_all_transactions().map_err(|e| {
+                        (
+                            signers.clone(),
+                            authority_signer_state.clone(),
+                            diagnosed_error!("failed to get deploy transactions: {}", e),
+                        )
+                    })?
+                } else {
+                    let existing_transactions = deployment_transactions.unwrap();
+                    let existing_transactions = existing_transactions.as_array().unwrap();
+
+                    let mut new_write_transactions =
+                        deployer.get_core_transactions().map_err(|e| {
+                            (
+                                signers.clone(),
+                                authority_signer_state.clone(),
+                                diagnosed_error!("failed to get deploy transactions: {}", e),
+                            )
+                        })?;
+                    // make a new set of transactions including:
+                    //  1. The original write transactions
+                    //  2. The new set of write transactions
+                    //  3. The original cleanup transactions
+                    let mut combined_transactions = vec![];
+                    let initial_write_count = existing_transactions.len()
+                        - UpgradeableProgramDeployer::get_cleanup_transactions_count();
+                    combined_transactions
+                        .extend_from_slice(&existing_transactions[..initial_write_count]);
+                    combined_transactions.append(&mut new_write_transactions);
+                    combined_transactions
+                        .extend_from_slice(&existing_transactions[initial_write_count..]);
+                    combined_transactions
+                };
+
+                authority_signer_state.insert_scoped_value(
+                    &construct_did.to_string(),
+                    INITIAL_EXPECTED_DEPLOYMENT_TRANSACTIONS_COUNT,
+                    Value::integer(transactions.len() as i128),
+                );
 
                 authority_signer_state.insert_scoped_value(
                     &construct_did.to_string(),
                     DEPLOYMENT_TRANSACTIONS,
                     Value::array(transactions.clone()),
                 );
+                authority_signer_state
+                    .remove_scoped_value(&construct_did.to_string(), SIGNED_NESTED_EXECUTION_INDEX);
                 (program_id, Value::array(transactions))
             }
         };
@@ -617,12 +689,14 @@ impl CommandImplementation for DeployProgram {
         values: &ValueStore,
         _progress_tx: &channel::Sender<BlockEvent>,
         signers_instances: &HashMap<ConstructDid, SignerInstance>,
-        signers: SignersState,
+        mut signers: SignersState,
         _auth_context: &txtx_addon_kit::types::AuthorizationContext,
     ) -> SignerSignFutureResult {
         let authority_signer_did = get_custom_signer_did(values, AUTHORITY).unwrap();
-        let authority_signer_state =
-            signers.get_signer_state(&authority_signer_did).unwrap().clone();
+        let construct_did = construct_did.clone();
+
+        let mut authority_signer_state =
+            signers.pop_signer_state(&authority_signer_did).unwrap().clone();
 
         let program_id_value = authority_signer_state
             .get_scoped_value(&construct_did.to_string(), PROGRAM_ID)
@@ -645,6 +719,15 @@ impl CommandImplementation for DeployProgram {
 
             let nested_construct_did =
                 values.get_expected_construct_did(NESTED_CONSTRUCT_DID).unwrap();
+
+            let nested_construct_index = values
+                .get_scoped_integer(&nested_construct_did.to_string(), NESTED_CONSTRUCT_INDEX)
+                .unwrap();
+            authority_signer_state.insert_scoped_value(
+                &construct_did.to_string(),
+                SIGNED_NESTED_EXECUTION_INDEX,
+                Value::integer(nested_construct_index),
+            );
 
             let transaction_value = values
                 .get_scoped_value(&nested_construct_did.to_string(), TRANSACTION_BYTES)
@@ -704,6 +787,7 @@ impl CommandImplementation for DeployProgram {
             values.insert(IS_DEPLOYMENT, Value::bool(true));
             values.insert(TRANSACTION_BYTES, transaction_value.clone());
 
+            signers.push_signer_state(authority_signer_state);
             let run_signing_future =
                 run_signed_execution(&nested_construct_did, &values, &signers_instances, signers);
             let (signers, signer_state, mut signin_res) = match run_signing_future {
