@@ -70,6 +70,9 @@ pub const DEPLOYMENT_TRANSACTION_TYPE: &str = "deployment_transaction_type";
 pub const EPHEMERAL_AUTHORITY_SECRET_KEY: &str = "ephemeral_authority_secret_key";
 pub const BUFFER_ACCOUNT_PUBKEY: &str = "buffer_account_pubkey";
 pub const DEPLOYMENT_TRANSACTIONS: &str = "deployment_transactions";
+pub const INITIAL_EXPECTED_DEPLOYMENT_TRANSACTIONS_COUNT: &str =
+    "initial_expected_deployment_transactions_count";
+pub const SIGNED_NESTED_EXECUTION_INDEX: &str = "signed_nested_execution_index";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
