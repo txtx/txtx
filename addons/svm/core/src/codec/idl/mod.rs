@@ -164,7 +164,7 @@ fn parse_idl_bytes(idl_bytes: &[u8]) -> Result<Idl, Diagnostic> {
     Ok(idl)
 }
 
-fn borsh_encode_value_to_idl_type(
+pub fn borsh_encode_value_to_idl_type(
     value: &Value,
     idl_type: &IdlType,
     idl_types: &Vec<IdlTypeDef>,
@@ -347,17 +347,41 @@ fn borsh_encode_value_to_idl_type(
                 }
                 IdlTypeDefTy::Enum { variants } => {
                     let enum_value = value.as_object().ok_or(mismatch_err("object"))?;
-                    let enum_variant = enum_value.get("variant").ok_or_else(|| {
-                        format!(
-                            "unable to encode value ({}) as borsh enum: missing variant field",
-                            value.to_string(),
-                        )
-                    })?.as_string().ok_or_else(|| {
-                        format!(
-                            "unable to encode value ({}) as borsh enum: expected variant field to be a string",
-                            value.to_string(),
-                        )
-                    })?;
+
+                    // Handle two enum formats:
+                    // 1. {"variant": "VariantName", "value": ...} (explicit format)
+                    // 2. {"VariantName": ...} (decoded format from parse_bytes_to_value)
+                    let (enum_variant, enum_variant_value) = if let Some(variant_field) = enum_value.get("variant") {
+                        // Format 1: explicit variant field
+                        let variant_name = variant_field.as_string().ok_or_else(|| {
+                            format!(
+                                "unable to encode value ({}) as borsh enum: expected variant field to be a string",
+                                value.to_string(),
+                            )
+                        })?;
+                        let variant_value = enum_value.get("value").ok_or_else(|| {
+                            format!(
+                                "unable to encode value ({}) as borsh enum: missing 'value' field",
+                                value.to_string(),
+                            )
+                        })?;
+                        (variant_name, variant_value)
+                    } else {
+                        // Format 2: variant name as object key
+                        if enum_value.len() != 1 {
+                            return Err(format!(
+                                "unable to encode value ({}) as borsh enum: expected exactly one field (the variant name)",
+                                value.to_string(),
+                            ));
+                        }
+                        let (variant_name, variant_value) = enum_value.iter().next().ok_or_else(|| {
+                            format!(
+                                "unable to encode value ({}) as borsh enum: empty object",
+                                value.to_string(),
+                            )
+                        })?;
+                        (variant_name.as_str(), variant_value)
+                    };
 
                     let (variant_index, expected_variant) = variants
                         .iter()
@@ -381,12 +405,6 @@ fn borsh_encode_value_to_idl_type(
 
                     match &expected_variant.fields {
                         Some(idl_defined_fields) => {
-                            let enum_variant_value = enum_value.get("value").ok_or_else(|| {
-                                format!(
-                                    "unable to encode value ({}) as borsh enum: missing 'value' field",
-                                    value.to_string(),
-                                )
-                            })?;
                             let mut encoded_fields = borsh_encode_value_to_idl_defined_fields(
                                 &idl_defined_fields,
                                 enum_variant_value,
@@ -517,26 +535,189 @@ fn borsh_encode_value_to_idl_defined_fields(
     Ok(encoded_fields)
 }
 
-// todo
 fn borsh_encode_bytes_to_idl_type(
     bytes: &Vec<u8>,
     idl_type: &IdlType,
     idl_types: &Vec<IdlTypeDef>,
 ) -> Result<Vec<u8>, String> {
     match idl_type {
-        IdlType::U8 => bytes
-            .iter()
-            .map(|b| {
-                borsh_encode_value_to_idl_type(
-                    &Value::integer(*b as i128),
-                    idl_type,
-                    idl_types,
-                    None,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(|v| v.into_iter().flatten().collect::<Vec<_>>()),
-        _ => todo!(),
+        // Primitive numeric types - deserialize from bytes
+        IdlType::U8 => {
+            if bytes.len() != 1 {
+                return Err(format!("expected 1 byte for u8, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::U16 => {
+            if bytes.len() != 2 {
+                return Err(format!("expected 2 bytes for u16, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::U32 => {
+            if bytes.len() != 4 {
+                return Err(format!("expected 4 bytes for u32, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::U64 => {
+            if bytes.len() != 8 {
+                return Err(format!("expected 8 bytes for u64, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::U128 => {
+            if bytes.len() != 16 {
+                return Err(format!("expected 16 bytes for u128, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::U256 => {
+            if bytes.len() != 32 {
+                return Err(format!("expected 32 bytes for u256, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::I8 => {
+            if bytes.len() != 1 {
+                return Err(format!("expected 1 byte for i8, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::I16 => {
+            if bytes.len() != 2 {
+                return Err(format!("expected 2 bytes for i16, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::I32 => {
+            if bytes.len() != 4 {
+                return Err(format!("expected 4 bytes for i32, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::I64 => {
+            if bytes.len() != 8 {
+                return Err(format!("expected 8 bytes for i64, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::I128 => {
+            if bytes.len() != 16 {
+                return Err(format!("expected 16 bytes for i128, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::I256 => {
+            if bytes.len() != 32 {
+                return Err(format!("expected 32 bytes for i256, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::F32 => {
+            if bytes.len() != 4 {
+                return Err(format!("expected 4 bytes for f32, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::F64 => {
+            if bytes.len() != 8 {
+                return Err(format!("expected 8 bytes for f64, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::Bool => {
+            if bytes.len() != 1 {
+                return Err(format!("expected 1 byte for bool, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::Pubkey => {
+            if bytes.len() != 32 {
+                return Err(format!("expected 32 bytes for Pubkey, found {}", bytes.len()));
+            }
+            Ok(bytes.clone())
+        }
+        IdlType::String => {
+            // Assume bytes are UTF-8 encoded string, encode as borsh string
+            let s = std::str::from_utf8(bytes)
+                .map_err(|e| format!("invalid UTF-8 for string: {}", e))?;
+            borsh::to_vec(&s).map_err(|e| format!("failed to encode string: {}", e))
+        }
+        IdlType::Bytes => {
+            // Return raw bytes as-is
+            Ok(bytes.clone())
+        }
+        IdlType::Vec(inner_type) => {
+            // Encode as vector - each element from inner type
+            match &**inner_type {
+                IdlType::U8 => {
+                    // Vec<u8> - encode as borsh vector
+                    borsh::to_vec(bytes).map_err(|e| format!("failed to encode Vec<u8>: {}", e))
+                }
+                _ => {
+                    // For other types, try to split bytes and encode each element
+                    Err(format!(
+                        "cannot convert raw bytes to Vec<{:?}>; bytes can only be directly converted to Vec<u8>",
+                        inner_type
+                    ))
+                }
+            }
+        }
+        IdlType::Array(inner_type, array_len) => {
+            let expected_len = match array_len {
+                IdlArrayLen::Value(len) => *len,
+                IdlArrayLen::Generic(_) => {
+                    return Err(format!("cannot determine array length from generic"));
+                }
+            };
+
+            match &**inner_type {
+                IdlType::U8 => {
+                    // [u8; N] - validate length and return bytes
+                    if bytes.len() != expected_len {
+                        return Err(format!(
+                            "expected {} bytes for array, found {}",
+                            expected_len,
+                            bytes.len()
+                        ));
+                    }
+                    Ok(bytes.clone())
+                }
+                _ => {
+                    // For other types, would need to know element size
+                    Err(format!(
+                        "cannot convert raw bytes to [{:?}; {}]; bytes can only be directly converted to [u8; N]",
+                        inner_type, expected_len
+                    ))
+                }
+            }
+        }
+        IdlType::Option(inner_type) => {
+            // If bytes are empty, encode as None
+            if bytes.is_empty() {
+                borsh::to_vec(&None::<u8>).map_err(|e| format!("failed to encode None: {}", e))
+            } else {
+                // Otherwise encode as Some with inner bytes
+                let inner_encoded = borsh_encode_bytes_to_idl_type(bytes, inner_type, idl_types)?;
+                borsh::to_vec(&Some(inner_encoded))
+                    .map_err(|e| format!("failed to encode Option: {}", e))
+            }
+        }
+        IdlType::Defined { name, .. } => {
+            // For defined types, we can't directly convert from bytes without knowing the structure
+            Err(format!(
+                "cannot convert raw bytes to defined type '{}'; use structured value instead",
+                name
+            ))
+        }
+        IdlType::Generic(name) => {
+            Err(format!(
+                "cannot convert raw bytes to generic type '{}'; type must be resolved first",
+                name
+            ))
+        }
+        t => Err(format!("IDL type {:?} is not yet supported for bytes encoding", t)),
     }
 }
 
