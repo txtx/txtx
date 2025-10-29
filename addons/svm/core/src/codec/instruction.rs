@@ -11,7 +11,9 @@ use txtx_addon_network_svm_types::anchor::types::{
 };
 
 use crate::{
-    constants::{INSTRUCTION, PROGRAM_ID, PUBLIC_KEY, SIGNER},
+    constants::{
+        INSTRUCTION, IS_SIGNER, IS_WRITABLE, PROGRAM_ID, PUBLIC_KEY, REMAINING_ACCOUNT, SIGNER,
+    },
     typing::SvmValue,
 };
 
@@ -121,20 +123,12 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
                 })
                 .transpose()?
                 .unwrap();
+
             let _ = instruction_data.swap_remove(ACCOUNTS).iter().try_for_each(|acc| {
                 let acc_obj =
                     acc.as_map().ok_or(diagnosed_error!("each account field must be a map"))?;
                 let _ = acc_obj.iter().try_for_each(|item| {
-                    let item_obj = item.as_object().expect("expected map entry to be an object");
-                    let public_key = item_obj.get("public_key").ok_or("public_key not found")?;
-                    let public_key = SvmValue::to_pubkey(public_key)
-                        .map_err(|e| diagnosed_error!("invalid 'account' for instruction: {e}"))?;
-                    let is_writable =
-                        item_obj.get("is_writable").and_then(|v| v.as_bool()).unwrap_or(false);
-                    let is_signer =
-                        item_obj.get("is_signer").and_then(|v| v.as_bool()).unwrap_or(false);
-
-                    let account_meta = AccountMeta { pubkey: public_key, is_signer, is_writable };
+                    let account_meta = value_to_account_meta(item)?;
                     accounts.push(account_meta);
                     Ok::<(), Diagnostic>(())
                 })?;
@@ -181,6 +175,16 @@ pub fn parse_instructions_map(values: &ValueStore) -> Result<Vec<Instruction>, D
         instructions.push(instruction);
     }
     Ok(instructions)
+}
+
+fn value_to_account_meta(value: &Value) -> Result<AccountMeta, Diagnostic> {
+    let obj = value.as_object().expect("expected map entry to be an object");
+    let public_key = obj.get(PUBLIC_KEY).ok_or("public_key not found")?;
+    let public_key = SvmValue::to_pubkey(public_key)
+        .map_err(|e| diagnosed_error!("invalid 'public_key' for instruction: {e}"))?;
+    let is_writable = obj.get(IS_WRITABLE).and_then(|v| v.as_bool()).unwrap_or(false);
+    let is_signer = obj.get(IS_SIGNER).and_then(|v| v.as_bool()).unwrap_or(false);
+    Ok(AccountMeta { pubkey: public_key, is_writable, is_signer })
 }
 
 struct InstructionBuilder {
@@ -293,6 +297,24 @@ impl InstructionBuilder {
                 IdlInstructionAccountItem::Single(account) => account.name.clone(),
             };
             ordered_accounts.push(self.accounts_map.get(&account_name).unwrap().clone());
+        }
+
+        if let Some(remaining_accounts) = instruction_data
+            .swap_remove(REMAINING_ACCOUNT)
+            .map(|v| match v {
+                Value::Array(values) => Ok(values),
+                _ => Err(diagnosed_error!(
+                    "'remaining_account' field for an instruction must be a map type"
+                )),
+            })
+            .transpose()?
+        {
+            for remaining_account in remaining_accounts.iter() {
+                let account_meta = value_to_account_meta(remaining_account).map_err(|e| {
+                    diagnosed_error!("failed to parse remaining account for instruction: {e}")
+                })?;
+                ordered_accounts.push(account_meta);
+            }
         }
 
         Ok(ordered_accounts)
