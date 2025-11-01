@@ -81,18 +81,6 @@ macro_rules! assert_circular_dependency {
     };
 }
 
-macro_rules! assert_min_errors {
-    ($result:expr, $count:expr) => {
-        assert!(
-            $result.errors.len() >= $count,
-            "Expected at least {} errors, got {}: {:?}",
-            $count,
-            $result.errors.len(),
-            error_messages(&$result)
-        );
-    };
-}
-
 // Type-safe error code assertions
 macro_rules! assert_has_error_code {
     ($result:expr, $code:expr) => {
@@ -182,13 +170,24 @@ mod lint_fixture_tests {
         let result = builder.validate();
 
         assert!(!result.success);
-        assert_min_errors!(result, 4);
 
-        // Check specific errors
+        // Check specific errors - verify each expected failure
+        // 1. Undefined signer reference
         assert_validation_error!(result, "undefined_signer");
+
+        // 2 & 3. Invalid parameter names
+        let param_errors: Vec<_> = result.errors.iter()
+            .filter(|e| e.message.contains("Invalid parameter"))
+            .collect();
+        assert_eq!(param_errors.len(), 2, "Expected 2 invalid parameter errors, got {}: {:?}",
+            param_errors.len(), error_messages(&result));
+        assert!(param_errors.iter().any(|e| e.message.contains("'to'")),
+            "Expected error for invalid parameter 'to'");
+        assert!(param_errors.iter().any(|e| e.message.contains("'value'")),
+            "Expected error for invalid parameter 'value'");
+
+        // 4. Invalid field access
         assert_validation_error!(result, "from");
-        assert_validation_error!(result, "Invalid parameter 'to'");
-        assert_validation_error!(result, "Invalid parameter 'value'");
     }
 
     // Test case 2: test_lint_valid.tx
@@ -232,11 +231,21 @@ mod lint_fixture_tests {
         let result = builder.validate();
 
         assert!(!result.success);
-        assert_min_errors!(result, 3);
 
+        // Check specific errors - verify each expected failure
+        // 1. Undefined action reference
         assert_validation_error!(result, "second");
-        assert_validation_error!(result, "Invalid parameter 'to'");
-        assert_validation_error!(result, "Invalid parameter 'value'");
+
+        // 2 & 3. Invalid parameter names
+        let param_errors: Vec<_> = result.errors.iter()
+            .filter(|e| e.message.contains("Invalid parameter"))
+            .collect();
+        assert_eq!(param_errors.len(), 2, "Expected 2 invalid parameter errors, got {}: {:?}",
+            param_errors.len(), error_messages(&result));
+        assert!(param_errors.iter().any(|e| e.message.contains("'to'")),
+            "Expected error for invalid parameter 'to'");
+        assert!(param_errors.iter().any(|e| e.message.contains("'value'")),
+            "Expected error for invalid parameter 'value'");
     }
 
     // Test case 4: test_lint_unknown_action_type.tx
@@ -300,7 +309,22 @@ mod lint_fixture_tests {
         let result = builder.validate();
 
         assert!(!result.success);
-        assert_min_errors!(result, 4);
+
+        // Check specific errors - verify each expected failure
+        // 1. Undefined signer
+        assert_validation_error!(result, "missing");
+
+        // 2 & 3. Invalid parameter names
+        let param_errors: Vec<_> = result.errors.iter()
+            .filter(|e| e.message.contains("Invalid parameter"))
+            .collect();
+        assert!(param_errors.len() >= 2, "Expected at least 2 invalid parameter errors");
+
+        // 4. Invalid action type
+        assert_validation_error!(result, "invalid_action");
+
+        // 5 & 6. Invalid references
+        assert_validation_error!(result, "invalid");
     }
 
     // Test environment variable validation
@@ -1053,49 +1077,17 @@ mod lint_multi_file_tests {
 
     // Test multi-file runbook validation
     #[test]
+    #[ignore = "Multi-file validation not yet supported by test builder - pending implementation"]
     fn test_lint_multi_file_with_builder() {
-        // Main runbook file
-        let mut builder = RunbookBuilder::new()
-            .with_content(
-                r#"
-                import "./flows.tx"
-                
-                addon "evm" {
-                    rpc_api_url = "https://eth.example.com"
-                }
-                
-                action "main" "evm::send_eth" {
-                    to = "0x123"
-                    value = "1000"
-                }
-            "#,
-            )
-            // Add imported file
-            .with_file(
-                "./flows.tx",
-                r#"
-                flow "deployment" {
-                    variable "token_name" {
-                        value = "MyToken"
-                    }
-                    
-                    action "deploy" "evm::deploy_contract" {
-                        contract = "Token.sol"
-                        constructor_args = [flow.token_name]
-                    }
-                }
-            "#,
-            );
-
-        // Lint validation should handle multi-file imports
-        let result = builder.validate();
-
-        // This test would need actual multi-file support in the builder
-        // For now, we're demonstrating the pattern
-        println!(
-            "Multi-file validation result: {}",
-            if result.success { "✓ Success" } else { "✗ Failed" }
-        );
+        // TODO: Implement multi-file support in RunbookBuilder
+        // This test demonstrates the intended pattern for multi-file validation:
+        //
+        // 1. Create main runbook with import statements
+        // 2. Add imported files via builder.with_file()
+        // 3. Validate that linter resolves imports correctly
+        // 4. Verify errors are reported with correct file paths
+        //
+        // Implementation blocked on: RunbookBuilder.with_file() support
     }
 }
 

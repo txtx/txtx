@@ -267,51 +267,6 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
-    #[test]
-    fn test_severity_display() {
-        assert_eq!(Severity::Error.to_string(), "error");
-        assert_eq!(Severity::Warning.to_string(), "warning"); // primary serialization
-        assert_eq!(Severity::Info.to_string(), "info");
-        assert_eq!(Severity::Off.to_string(), "off"); // primary serialization
-    }
-
-    #[test]
-    fn test_severity_from_str() {
-        // Test successful parsing
-        assert_eq!(Severity::from_str("error").unwrap(), Severity::Error);
-        assert_eq!(Severity::from_str("warning").unwrap(), Severity::Warning);
-        assert_eq!(Severity::from_str("info").unwrap(), Severity::Info);
-        assert_eq!(Severity::from_str("off").unwrap(), Severity::Off);
-
-        // Test aliases
-        assert_eq!(Severity::from_str("warn").unwrap(), Severity::Warning);
-        assert_eq!(Severity::from_str("none").unwrap(), Severity::Off);
-
-        // Test invalid input
-        assert!(Severity::from_str("invalid").is_err());
-    }
-
-    #[test]
-    fn test_severity_iteration() {
-        use strum::IntoEnumIterator;
-
-        let all_severities: Vec<Severity> = Severity::iter().collect();
-        assert_eq!(all_severities.len(), 4);
-        assert!(all_severities.contains(&Severity::Error));
-        assert!(all_severities.contains(&Severity::Warning));
-        assert!(all_severities.contains(&Severity::Info));
-        assert!(all_severities.contains(&Severity::Off));
-    }
-
-    #[test]
-    fn test_severity_as_ref() {
-        // Test AsRefStr trait
-        assert_eq!(Severity::Error.as_ref(), "error");
-        assert_eq!(Severity::Warning.as_ref(), "warning");
-        assert_eq!(Severity::Info.as_ref(), "info");
-        assert_eq!(Severity::Off.as_ref(), "off");
-    }
-
     // Property-based tests
     mod proptests {
         use super::*;

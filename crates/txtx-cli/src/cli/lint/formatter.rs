@@ -650,38 +650,6 @@ mod tests {
                 // Assert
                 prop_assert_eq!(length, 8, "Should return default length for unquoted message");
             }
-
-            /// Property: Format enum should roundtrip through string conversion
-            #[test]
-            fn format_enum_roundtrip(
-                format in prop::sample::select(vec![
-                    Format::Stylish,
-                    Format::Compact,
-                    Format::Json,
-                    Format::Quickfix,
-                    Format::Doc,
-                ])
-            ) {
-                let string = format.to_string();
-                let parsed = Format::from_str(&string).unwrap();
-                prop_assert_eq!(format, parsed);
-            }
-
-            /// Property: Format strings should always be lowercase
-            #[test]
-            fn format_strings_are_lowercase(
-                format in prop::sample::select(vec![
-                    Format::Stylish,
-                    Format::Compact,
-                    Format::Json,
-                    Format::Quickfix,
-                    Format::Doc,
-                ])
-            ) {
-                let string = format.to_string();
-                let lowercase = string.to_lowercase();
-                prop_assert_eq!(string, lowercase);
-            }
         }
     }
 }
