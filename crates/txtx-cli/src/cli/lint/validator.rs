@@ -164,17 +164,15 @@ impl Linter {
         for input_ref in input_refs {
             let full_name = format!("input.{}", input_ref.name);
             let context = ValidationContext {
-                manifest: manifest.clone(),
-                environment: environment.cloned(),
-                effective_inputs: effective_inputs.clone(),
-                cli_inputs: self.config.cli_inputs.clone(),
-                content: content.to_string(),
-                file_path: file_path.to_string(),
+                manifest,
+                environment: environment.map(|s| s.as_str()),
+                effective_inputs: &effective_inputs,
+                cli_inputs: &self.config.cli_inputs,
                 input: InputInfo {
                     name: input_ref.name.clone(),
                     full_name,
                 },
-                config: Some(self.config.clone()),
+                config: Some(&self.config),
             };
 
             let issues = validate_all(&context, rules);

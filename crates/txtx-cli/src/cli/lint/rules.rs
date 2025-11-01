@@ -28,7 +28,8 @@
 //! ```rust
 //! #[test]
 //! fn test_my_rule() {
-//!     let ctx = create_test_context("input_name".to_string());
+//!     let data = TestContextData::new();
+//!     let ctx = data.context("input_name");
 //!     let result = validate_my_rule(&ctx);
 //!     assert!(result.is_none()); // Expects no issues
 //! }
@@ -89,15 +90,13 @@ pub struct InputInfo {
 }
 
 /// Context passed to validation rules
-pub struct ValidationContext {
-    pub manifest: WorkspaceManifest,
-    pub environment: Option<String>,
-    pub effective_inputs: HashMap<String, String>,
-    pub cli_inputs: Vec<(String, String)>,
-    pub content: String,
-    pub file_path: String,
+pub struct ValidationContext<'a> {
+    pub manifest: &'a WorkspaceManifest,
+    pub environment: Option<&'a str>,
+    pub effective_inputs: &'a HashMap<String, String>,
+    pub cli_inputs: &'a [(String, String)],
     pub input: InputInfo,
-    pub config: Option<LinterConfig>,
+    pub config: Option<&'a LinterConfig>,
 }
 
 // ============================================================================
@@ -110,14 +109,14 @@ const SENSITIVE_PATTERNS: &[&str] = &["password", "secret", "key", "token", "cre
 // Rule Implementations
 // ============================================================================
 
-type RuleFn = fn(&ValidationContext) -> Option<ValidationIssue>;
+type RuleFn = for<'a> fn(&ValidationContext<'a>) -> Option<ValidationIssue>;
 
 fn validate_input_defined(ctx: &ValidationContext) -> Option<ValidationIssue> {
     if ctx.effective_inputs.contains_key(&ctx.input.name) {
         return None;
     }
 
-    let env_name = ctx.environment.as_deref().unwrap_or("global");
+    let env_name = ctx.environment.unwrap_or("global");
     Some(ValidationIssue {
         rule: CliRuleId::InputDefined,
         severity: Severity::Error,
@@ -184,7 +183,7 @@ fn validate_cli_override(ctx: &ValidationContext) -> Option<ValidationIssue> {
     }
 
     // Check specific environment (if set)
-    if let Some(env_name) = &ctx.environment {
+    if let Some(env_name) = ctx.environment {
         if let Some(env) = ctx.manifest.environments.get(env_name) {
             if env.contains_key(&ctx.input.name) {
                 in_manifest = true;
@@ -253,7 +252,7 @@ pub fn get_default_rules() -> &'static [RuleFn] {
 }
 
 /// Run all rules against a context and collect issues
-pub fn validate_all(ctx: &ValidationContext, rules: &[RuleFn]) -> Vec<ValidationIssue> {
+pub fn validate_all(ctx: &ValidationContext<'_>, rules: &[RuleFn]) -> Vec<ValidationIssue> {
     rules.iter().filter_map(|rule| {
         let issue = rule(ctx)?;
 
@@ -306,13 +305,13 @@ mod tests {
         global_env.insert("API_KEY".to_string(), "global-value".to_string());
         manifest.environments.insert("global".to_string(), global_env.into_iter().collect());
 
+        let effective_inputs = HashMap::from([("API_KEY".to_string(), "cli-value".to_string())]);
+        let cli_inputs = vec![("API_KEY".to_string(), "cli-value".to_string())];
         let ctx = ValidationContext {
-            manifest,
+            manifest: &manifest,
             environment: None,
-            effective_inputs: HashMap::from([("API_KEY".to_string(), "cli-value".to_string())]),
-            cli_inputs: vec![("API_KEY".to_string(), "cli-value".to_string())],
-            content: String::new(),
-            file_path: String::new(),
+            effective_inputs: &effective_inputs,
+            cli_inputs: &cli_inputs,
             input: InputInfo {
                 name: "API_KEY".to_string(),
                 full_name: "input.API_KEY".to_string(),
@@ -382,26 +381,40 @@ mod tests {
             }
         }
 
-        // Helper to create a minimal ValidationContext
-        fn create_test_context(name: String) -> ValidationContext {
-            ValidationContext {
-                manifest: txtx_core::manifest::WorkspaceManifest {
-                    name: "test".to_string(),
-                    id: "test-id".to_string(),
-                    runbooks: vec![],
-                    environments: Default::default(),
-                    location: None,
-                },
-                environment: None,
-                effective_inputs: HashMap::new(),
-                cli_inputs: vec![],
-                content: String::new(),
-                file_path: String::new(),
-                input: InputInfo {
-                    name: name.clone(),
-                    full_name: format!("input.{}", name),
-                },
-                config: None,
+        // Helper struct that owns test data and can create ValidationContext references
+        struct TestContextData {
+            manifest: txtx_core::manifest::WorkspaceManifest,
+            effective_inputs: HashMap<String, String>,
+            cli_inputs: Vec<(String, String)>,
+        }
+
+        impl TestContextData {
+            fn new() -> Self {
+                Self {
+                    manifest: txtx_core::manifest::WorkspaceManifest {
+                        name: "test".to_string(),
+                        id: "test-id".to_string(),
+                        runbooks: vec![],
+                        environments: Default::default(),
+                        location: None,
+                    },
+                    effective_inputs: HashMap::new(),
+                    cli_inputs: vec![],
+                }
+            }
+
+            fn context<'a>(&'a self, name: &str) -> ValidationContext<'a> {
+                ValidationContext {
+                    manifest: &self.manifest,
+                    environment: None,
+                    effective_inputs: &self.effective_inputs,
+                    cli_inputs: &self.cli_inputs,
+                    input: InputInfo {
+                        name: name.to_string(),
+                        full_name: format!("input.{}", name),
+                    },
+                    config: None,
+                }
             }
         }
 
@@ -411,7 +424,8 @@ mod tests {
             /// Property: Valid snake_case names should never trigger naming convention warnings
             #[test]
             fn valid_snake_case_always_passes(name in valid_snake_case_name()) {
-                let ctx = create_test_context(name.clone());
+                let data = TestContextData::new();
+                let ctx = data.context(&name);
                 let result = validate_naming_convention(&ctx);
                 prop_assert!(
                     result.is_none(),
@@ -423,7 +437,8 @@ mod tests {
             /// Property: Names with hyphens should always trigger warnings
             #[test]
             fn names_with_hyphens_always_warn(name in name_with_hyphens()) {
-                let ctx = create_test_context(name.clone());
+                let data = TestContextData::new();
+                let ctx = data.context(&name);
                 let result = validate_naming_convention(&ctx);
                 prop_assert!(
                     result.is_some(),
@@ -440,7 +455,8 @@ mod tests {
             /// Property: Names with leading underscores should always trigger warnings
             #[test]
             fn names_with_leading_underscore_always_warn(name in name_with_leading_underscore()) {
-                let ctx = create_test_context(name.clone());
+                let data = TestContextData::new();
+                let ctx = data.context(&name);
                 let result = validate_naming_convention(&ctx);
                 prop_assert!(
                     result.is_some(),
@@ -456,7 +472,8 @@ mod tests {
             /// Property: Names containing sensitive patterns should trigger warnings (case-insensitive)
             #[test]
             fn sensitive_patterns_detected_case_insensitive(name in name_with_sensitive_pattern()) {
-                let ctx = create_test_context(name.clone());
+                let data = TestContextData::new();
+                let ctx = data.context(&name);
                 let result = validate_sensitive_data(&ctx);
                 prop_assert!(
                     result.is_some(),
@@ -473,7 +490,8 @@ mod tests {
             /// Property: Hyphen replacement suggestion should be valid snake_case
             #[test]
             fn hyphen_replacement_produces_valid_name(name in name_with_hyphens()) {
-                let ctx = create_test_context(name);
+                let data = TestContextData::new();
+                let ctx = data.context(&name);
                 let result = validate_naming_convention(&ctx);
 
                 if let Some(issue) = result {
@@ -487,7 +505,8 @@ mod tests {
 
                         // The example should be the original with underscores
                         // Verify it doesn't trigger the same warning
-                        let fixed_ctx = create_test_context(example);
+                        let fixed_data = TestContextData::new();
+                        let fixed_ctx = fixed_data.context(&example);
                         let fixed_result = validate_naming_convention(&fixed_ctx);
 
                         // Should either pass or only warn about other things (not hyphens)
@@ -517,7 +536,8 @@ mod tests {
                 // Filter out names that happen to contain sensitive patterns
                 prop_assume!(!SENSITIVE_PATTERNS.iter().any(|p| name.to_lowercase().contains(p)));
 
-                let ctx = create_test_context(name.clone());
+                let data = TestContextData::new();
+                let ctx = data.context(&name);
 
                 // Should pass naming convention
                 let naming_result = validate_naming_convention(&ctx);
@@ -548,7 +568,8 @@ mod tests {
             /// Property: Suggested fixes for naming issues actually fix the problem
             #[test]
             fn suggested_fixes_resolve_issues(name in name_with_hyphens()) {
-                let ctx = create_test_context(name.clone());
+                let data = TestContextData::new();
+                let ctx = data.context(&name);
                 let result = validate_naming_convention(&ctx);
 
                 // Should have an issue with a suggested fix
@@ -557,7 +578,8 @@ mod tests {
                 if let Some(issue) = result {
                     if let Some(suggested_name) = issue.example {
                         // Apply the fix and verify it resolves the issue
-                        let fixed_ctx = create_test_context(suggested_name.clone());
+                        let fixed_data = TestContextData::new();
+                        let fixed_ctx = fixed_data.context(&suggested_name);
                         let fixed_result = validate_naming_convention(&fixed_ctx);
 
                         // The fix should either:
@@ -577,7 +599,8 @@ mod tests {
             /// Property: Leading underscore removal suggestions produce valid names
             #[test]
             fn underscore_fix_produces_valid_name(name in name_with_leading_underscore()) {
-                let ctx = create_test_context(name.clone());
+                let data = TestContextData::new();
+                let ctx = data.context(&name);
                 let result = validate_naming_convention(&ctx);
 
                 prop_assert!(result.is_some(), "Name '{}' should have underscore warning", name);
