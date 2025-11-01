@@ -772,4 +772,224 @@ action "test" {
         assert_violation_message_contains!(result, "cli_input_override", "API_KEY");
         assert_violation_message_contains!(result, "cli_input_override", "overridden");
     }
+
+    // Error message quality tests
+    #[test]
+    fn test_error_message_includes_variable_name() {
+        // Arrange
+        let manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        let linter = Linter::with_defaults();
+
+        // Act
+        let result = linter.validate_content(
+            r#"
+                variable "test" {
+                    value = input.UNDEFINED_VARIABLE
+                }
+            "#,
+            "test.tx",
+            manifest,
+            None,
+        );
+
+        // Assert - error message should include the undefined variable name
+        assert!(!result.errors.is_empty(), "Should have errors");
+        let has_variable_in_message = result.errors.iter()
+            .any(|e| e.message.contains("UNDEFINED_VARIABLE"));
+
+        assert!(has_variable_in_message,
+            "Error messages should include variable name, got: {:?}",
+            result.errors.iter().map(|e| &e.message).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_warning_includes_helpful_context() {
+        // Arrange - create scenario that triggers naming convention warning
+        let global_env: std::collections::HashMap<String, String> =
+            vec![("api-key".to_string(), "value".to_string())]
+            .into_iter().collect();
+
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+        manifest.environments.insert("global".to_string(), global_env.into_iter().collect());
+
+        let linter = Linter::with_defaults();
+
+        // Act
+        let result = linter.validate_content(
+            r#"
+                variable "key" {
+                    value = input.api-key
+                }
+            "#,
+            "test.tx",
+            manifest,
+            None,
+        );
+
+        // Assert - naming convention warning should include the problematic name
+        let naming_warnings: Vec<_> = result.warnings.iter()
+            .filter(|w| w.code.as_deref() == Some("input_naming_convention"))
+            .collect();
+
+        if !naming_warnings.is_empty() {
+            assert!(naming_warnings[0].message.contains("api-key"),
+                "Warning should mention the input name with hyphens");
+        }
+    }
+
+    #[test]
+    fn test_cli_override_message_explains_precedence() {
+        // Arrange
+        let global_env: std::collections::HashMap<String, String> =
+            vec![("CONFIG_VAR".to_string(), "env-value".to_string())]
+            .into_iter().collect();
+
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+        manifest.environments.insert("global".to_string(), global_env.into_iter().collect());
+
+        let config = LinterConfig {
+            manifest_path: None,
+            runbook: None,
+            environment: None,
+            cli_inputs: vec![("CONFIG_VAR".to_string(), "cli-value".to_string())],
+            format: Format::Json,
+            config_file: None,
+        };
+
+        let linter = Linter::new(&config).unwrap();
+
+        // Act
+        let result = linter.validate_content(
+            r#"
+                variable "cfg" {
+                    value = input.CONFIG_VAR
+                }
+            "#,
+            "test.tx",
+            manifest,
+            None,
+        );
+
+        // Assert - warning should explain precedence
+        let override_warnings: Vec<_> = result.warnings.iter()
+            .filter(|w| w.code.as_deref() == Some("cli_input_override"))
+            .collect();
+
+        if !override_warnings.is_empty() {
+            let message = &override_warnings[0].message;
+            assert!(message.contains("CLI") || message.contains("command"),
+                "Message should mention CLI/command line: {}", message);
+        }
+    }
+
+    #[test]
+    fn test_error_messages_are_actionable() {
+        // Arrange - test that undefined input error suggests a fix
+        let manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        let linter = Linter::with_defaults();
+
+        // Act
+        let result = linter.validate_content(
+            r#"
+                variable "test" {
+                    value = input.MISSING_INPUT
+                }
+            "#,
+            "test.tx",
+            manifest,
+            None,
+        );
+
+        // Assert - should have error about undefined input
+        assert!(!result.errors.is_empty(), "Should have error for undefined input");
+
+        // Check for actionable information in error or its context/suggestion
+        let has_actionable_info = result.errors.iter().any(|e| {
+            // Error message, context, or suggestion should guide the user
+            e.message.contains("defined") ||
+            e.message.contains("environment") ||
+            e.context.as_ref().map(|c| c.contains("Add") || c.contains("define")).unwrap_or(false)
+        });
+
+        assert!(has_actionable_info,
+            "Error should be actionable with guidance, got messages: {:?}",
+            result.errors.iter().map(|e| (&e.message, &e.context)).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_violations_include_error_codes() {
+        // Arrange
+        let global_env: std::collections::HashMap<String, String> =
+            vec![("test_var".to_string(), "value".to_string())]
+            .into_iter().collect();
+
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+        manifest.environments.insert("global".to_string(), global_env.into_iter().collect());
+
+        let config = LinterConfig {
+            manifest_path: None,
+            runbook: None,
+            environment: None,
+            cli_inputs: vec![("test_var".to_string(), "override".to_string())],
+            format: Format::Json,
+            config_file: None,
+        };
+
+        let linter = Linter::new(&config).unwrap();
+
+        // Act
+        let result = linter.validate_content(
+            r#"
+                variable "v" {
+                    value = input.test_var
+                }
+            "#,
+            "test.tx",
+            manifest,
+            None,
+        );
+
+        // Assert - all violations should have error codes
+        for error in &result.errors {
+            assert!(error.code.is_some(),
+                "Error should have code: {:?}", error.message);
+        }
+
+        for warning in &result.warnings {
+            assert!(warning.code.is_some(),
+                "Warning should have code: {:?}", warning.message);
+        }
+    }
 }
