@@ -1435,3 +1435,5 @@ output "timeout" {
         assert_validation_error!(result3, "API_URL");
     }
 }
+
+#[cfg(test)]

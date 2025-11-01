@@ -166,12 +166,34 @@ pub(crate) fn validate_naming_convention(ctx: &ValidationContext) -> Option<Vali
 }
 
 fn validate_cli_override(ctx: &ValidationContext) -> Option<ValidationIssue> {
-    if !ctx.effective_inputs.contains_key(&ctx.input.name) {
+    // Check if this input is provided via CLI
+    let is_cli_input = ctx.cli_inputs.iter().any(|(k, _)| k == &ctx.input.name);
+
+    if !is_cli_input {
         return None;
     }
 
-    let is_overridden = ctx.cli_inputs.iter().any(|(k, _)| k == &ctx.input.name);
-    if is_overridden {
+    // Check if the input was also defined in the manifest
+    let mut in_manifest = false;
+
+    // Check global environment
+    if let Some(global_env) = ctx.manifest.environments.get("global") {
+        if global_env.contains_key(&ctx.input.name) {
+            in_manifest = true;
+        }
+    }
+
+    // Check specific environment (if set)
+    if let Some(env_name) = &ctx.environment {
+        if let Some(env) = ctx.manifest.environments.get(env_name) {
+            if env.contains_key(&ctx.input.name) {
+                in_manifest = true;
+            }
+        }
+    }
+
+    // Only warn if the CLI input overrides a manifest value
+    if in_manifest {
         Some(ValidationIssue {
             rule: CliRuleId::CliInputOverride,
             severity: Severity::Warning,
@@ -266,6 +288,47 @@ pub fn validate_all(ctx: &ValidationContext, rules: &[RuleFn]) -> Vec<Validation
 mod tests {
     use super::*;
     use std::str::FromStr;
+
+    #[test]
+    fn test_cli_override_rule_logic() {
+        use txtx_core::manifest::WorkspaceManifest;
+
+        // Arrange - create context with CLI input that overrides manifest
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        let mut global_env = std::collections::HashMap::new();
+        global_env.insert("API_KEY".to_string(), "global-value".to_string());
+        manifest.environments.insert("global".to_string(), global_env.into_iter().collect());
+
+        let ctx = ValidationContext {
+            manifest,
+            environment: None,
+            effective_inputs: HashMap::from([("API_KEY".to_string(), "cli-value".to_string())]),
+            cli_inputs: vec![("API_KEY".to_string(), "cli-value".to_string())],
+            content: String::new(),
+            file_path: String::new(),
+            input: InputInfo {
+                name: "API_KEY".to_string(),
+                full_name: "input.API_KEY".to_string(),
+            },
+            config: None,
+        };
+
+        // Act
+        let result = validate_cli_override(&ctx);
+
+        // Assert
+        assert!(result.is_some(), "Should warn when CLI overrides manifest value");
+        let issue = result.unwrap();
+        assert_eq!(issue.rule, CliRuleId::CliInputOverride);
+        assert!(issue.message.contains("API_KEY"));
+    }
 
     // Property-based tests
     mod proptests {

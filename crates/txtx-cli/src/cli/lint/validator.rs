@@ -448,4 +448,294 @@ action "test" {
         // Act & Assert - should not panic
         linter.format_and_print(result);
     }
+
+    #[test]
+    fn test_cli_override_warns_when_overriding_global_env() {
+        // Arrange - manifest defines API_KEY in global environment
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        let global_env: std::collections::HashMap<String, String> =
+            vec![("API_KEY".to_string(), "global-value".to_string())]
+            .into_iter().collect();
+        manifest.environments.insert("global".to_string(), global_env.into_iter().collect());
+
+        let config = LinterConfig {
+            manifest_path: None,
+            runbook: None,
+            environment: None,
+            cli_inputs: vec![("API_KEY".to_string(), "cli-override".to_string())],
+            format: Format::Json,
+            config_file: None,
+        };
+
+        let linter = Linter::new(&config).unwrap();
+
+        let content = r#"
+            variable "key" {
+                value = input.API_KEY
+            }
+        "#;
+
+        // Act
+        let result = linter.validate_content(content, "test.tx", manifest, None);
+
+        // Assert - should warn about CLI override
+        assert!(
+            result.warnings.iter().any(|w| w.code.as_deref() == Some("cli_input_override")),
+            "Should warn about CLI override, got warnings: {:?}",
+            result.warnings.iter().map(|w| &w.code).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_cli_override_warns_when_overriding_specific_env() {
+        // Arrange - manifest defines API_KEY in production environment
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        let prod_env: std::collections::HashMap<String, String> =
+            vec![("API_KEY".to_string(), "prod-value".to_string())]
+            .into_iter().collect();
+        manifest.environments.insert("production".to_string(), prod_env.into_iter().collect());
+
+        let config = LinterConfig {
+            manifest_path: None,
+            runbook: None,
+            environment: Some("production".to_string()),
+            cli_inputs: vec![("API_KEY".to_string(), "cli-override".to_string())],
+            format: Format::Json,
+            config_file: None,
+        };
+
+        let linter = Linter::new(&config).unwrap();
+
+        let content = r#"
+            variable "key" {
+                value = input.API_KEY
+            }
+        "#;
+
+        // Act
+        let result = linter.validate_content(content, "test.tx", manifest, Some(&"production".to_string()));
+
+        // Assert - should warn about CLI override
+        assert!(
+            result.warnings.iter().any(|w| w.code.as_deref() == Some("cli_input_override")),
+            "Should warn about CLI override in specific environment"
+        );
+    }
+
+    #[test]
+    fn test_cli_override_no_warning_when_not_in_manifest() {
+        // Arrange - manifest defines OTHER_VAR but not API_KEY
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        let prod_env: std::collections::HashMap<String, String> =
+            vec![("OTHER_VAR".to_string(), "value".to_string())]
+            .into_iter().collect();
+        manifest.environments.insert("production".to_string(), prod_env.into_iter().collect());
+
+        let config = LinterConfig {
+            manifest_path: None,
+            runbook: None,
+            environment: Some("production".to_string()),
+            cli_inputs: vec![("API_KEY".to_string(), "cli-value".to_string())],
+            format: Format::Json,
+            config_file: None,
+        };
+
+        let linter = Linter::new(&config).unwrap();
+
+        let content = r#"
+            variable "key" {
+                value = input.API_KEY
+            }
+        "#;
+
+        // Act
+        let result = linter.validate_content(content, "test.tx", manifest, Some(&"production".to_string()));
+
+        // Assert - should NOT warn (API_KEY not in manifest)
+        let cli_override_warnings: Vec<_> = result.warnings.iter()
+            .filter(|w| w.code.as_deref() == Some("cli_input_override"))
+            .collect();
+
+        assert!(cli_override_warnings.is_empty(),
+            "Should not warn when CLI input not in manifest, got warnings: {:?}",
+            cli_override_warnings);
+    }
+
+    #[test]
+    fn test_cli_override_multiple_inputs_selective_warning() {
+        // Arrange - manifest defines some inputs
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        let prod_env: std::collections::HashMap<String, String> =
+            vec![
+                ("API_KEY".to_string(), "prod-key".to_string()),
+                ("API_URL".to_string(), "prod-url".to_string()),
+            ]
+            .into_iter().collect();
+        manifest.environments.insert("production".to_string(), prod_env.into_iter().collect());
+
+        let config = LinterConfig {
+            manifest_path: None,
+            runbook: None,
+            environment: Some("production".to_string()),
+            cli_inputs: vec![
+                ("API_KEY".to_string(), "cli-key".to_string()),  // Overrides manifest
+                ("TIMEOUT".to_string(), "30".to_string()),       // Not in manifest
+            ],
+            format: Format::Json,
+            config_file: None,
+        };
+
+        let linter = Linter::new(&config).unwrap();
+
+        let content = r#"
+            variable "key" {
+                value = input.API_KEY
+            }
+            variable "url" {
+                value = input.API_URL
+            }
+            variable "timeout" {
+                value = input.TIMEOUT
+            }
+        "#;
+
+        // Act
+        let result = linter.validate_content(content, "test.tx", manifest, Some(&"production".to_string()));
+
+        // Assert - should warn about API_KEY only
+        let cli_override_warnings: Vec<_> = result.warnings.iter()
+            .filter(|w| w.code.as_deref() == Some("cli_input_override"))
+            .collect();
+
+        assert_eq!(cli_override_warnings.len(), 1,
+            "Should warn about 1 override, got: {:?}", cli_override_warnings);
+        assert!(cli_override_warnings[0].message.contains("API_KEY"),
+            "Warning should be for API_KEY");
+    }
+
+    #[test]
+    fn test_cli_override_no_warning_without_cli_input() {
+        // Arrange - manifest defines API_KEY
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        let prod_env: std::collections::HashMap<String, String> =
+            vec![("API_KEY".to_string(), "prod-value".to_string())]
+            .into_iter().collect();
+        manifest.environments.insert("production".to_string(), prod_env.into_iter().collect());
+
+        let config = LinterConfig {
+            manifest_path: None,
+            runbook: None,
+            environment: Some("production".to_string()),
+            cli_inputs: vec![],  // No CLI inputs
+            format: Format::Json,
+            config_file: None,
+        };
+
+        let linter = Linter::new(&config).unwrap();
+
+        let content = r#"
+            variable "key" {
+                value = input.API_KEY
+            }
+        "#;
+
+        // Act
+        let result = linter.validate_content(content, "test.tx", manifest, Some(&"production".to_string()));
+
+        // Assert - should NOT warn (no CLI override happening)
+        let cli_override_warnings: Vec<_> = result.warnings.iter()
+            .filter(|w| w.code.as_deref() == Some("cli_input_override"))
+            .collect();
+
+        assert!(cli_override_warnings.is_empty(),
+            "Should not warn when not using CLI input, got warnings: {:?}",
+            cli_override_warnings);
+    }
+
+    #[test]
+    fn test_cli_override_both_global_and_specific_env() {
+        // Arrange - manifest has API_KEY in both global and production
+        let mut manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        let global_env: std::collections::HashMap<String, String> =
+            vec![("API_KEY".to_string(), "global-value".to_string())]
+            .into_iter().collect();
+        manifest.environments.insert("global".to_string(), global_env.into_iter().collect());
+
+        let prod_env: std::collections::HashMap<String, String> =
+            vec![("API_KEY".to_string(), "prod-value".to_string())]
+            .into_iter().collect();
+        manifest.environments.insert("production".to_string(), prod_env.into_iter().collect());
+
+        let config = LinterConfig {
+            manifest_path: None,
+            runbook: None,
+            environment: Some("production".to_string()),
+            cli_inputs: vec![("API_KEY".to_string(), "cli-override".to_string())],
+            format: Format::Json,
+            config_file: None,
+        };
+
+        let linter = Linter::new(&config).unwrap();
+
+        let content = r#"
+            variable "key" {
+                value = input.API_KEY
+            }
+        "#;
+
+        // Act
+        let result = linter.validate_content(content, "test.tx", manifest, Some(&"production".to_string()));
+
+        // Assert - should warn about override
+        let warning = result.warnings.iter()
+            .find(|w| w.code.as_deref() == Some("cli_input_override"))
+            .expect("Should have cli override warning");
+
+        assert!(warning.message.contains("API_KEY"),
+            "Warning should mention the input name");
+        assert!(warning.message.contains("overridden") || warning.message.contains("override"),
+            "Warning should mention override: {}", warning.message);
+    }
 }
