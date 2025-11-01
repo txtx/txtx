@@ -48,6 +48,11 @@ mod rules;
 mod validator;
 pub mod workspace;
 
+// Test utilities (only compiled during tests)
+#[cfg(test)]
+#[macro_use]
+pub mod test_utils;
+
 // Re-export main components
 pub use command::{run_lint, LinterOptions};
 pub use config::LinterConfig;
