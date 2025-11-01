@@ -87,7 +87,7 @@ test-cli-all:
 
 # Linter unit tests only
 test-lint-unit:
-    RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_BIN}} cli::linter::
+    RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_BIN}} cli::lint::
 
 # Linter integration tests only
 test-lint-int:

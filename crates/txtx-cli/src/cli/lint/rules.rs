@@ -35,6 +35,7 @@
 //! ```
 
 use super::rule_id::CliRuleId;
+use super::config::LinterConfig;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use strum::{AsRefStr, Display, EnumIter, EnumString, IntoStaticStr};
@@ -65,11 +66,20 @@ pub struct ValidationIssue {
     EnumString,    // Provides from_str()
     IntoStaticStr, // Provides into() -> &'static str
     EnumIter,      // Provides iter() over all variants
+    serde::Deserialize,
+    serde::Serialize,
 )]
 #[strum(serialize_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
+    #[serde(alias = "warn")]
+    #[strum(to_string = "warning", serialize = "warn")]  // to_string for Display, serialize for parsing
     Warning,
+    Info,
+    #[serde(alias = "none")]
+    #[strum(to_string = "off", serialize = "none")]  // to_string for Display, serialize for parsing
+    Off,  // Rule is disabled
 }
 
 /// Input-specific context within a validation check
@@ -87,6 +97,7 @@ pub struct ValidationContext {
     pub content: String,
     pub file_path: String,
     pub input: InputInfo,
+    pub config: Option<LinterConfig>,
 }
 
 // ============================================================================
@@ -221,7 +232,34 @@ pub fn get_default_rules() -> &'static [RuleFn] {
 
 /// Run all rules against a context and collect issues
 pub fn validate_all(ctx: &ValidationContext, rules: &[RuleFn]) -> Vec<ValidationIssue> {
-    rules.iter().filter_map(|rule| rule(ctx)).collect()
+    rules.iter().filter_map(|rule| {
+        let issue = rule(ctx)?;
+
+        // Check if the rule is disabled or severity is overridden in the config
+        if let Some(config) = &ctx.config {
+            let rule_id = issue.rule.as_ref();
+
+            // If rule is disabled, skip it
+            if config.is_rule_disabled(rule_id) {
+                return None;
+            }
+
+            // Apply configured severity if available
+            if let Some(severity) = config.get_rule_severity(rule_id) {
+                let mut modified_issue = issue;
+                modified_issue.severity = severity;
+
+                // Skip if severity is Off
+                if modified_issue.severity == Severity::Off {
+                    return None;
+                }
+
+                return Some(modified_issue);
+            }
+        }
+
+        Some(issue)
+    }).collect()
 }
 
 #[cfg(test)]
@@ -232,7 +270,9 @@ mod tests {
     #[test]
     fn test_severity_display() {
         assert_eq!(Severity::Error.to_string(), "error");
-        assert_eq!(Severity::Warning.to_string(), "warning");
+        assert_eq!(Severity::Warning.to_string(), "warning"); // primary serialization
+        assert_eq!(Severity::Info.to_string(), "info");
+        assert_eq!(Severity::Off.to_string(), "off"); // primary serialization
     }
 
     #[test]
@@ -240,6 +280,12 @@ mod tests {
         // Test successful parsing
         assert_eq!(Severity::from_str("error").unwrap(), Severity::Error);
         assert_eq!(Severity::from_str("warning").unwrap(), Severity::Warning);
+        assert_eq!(Severity::from_str("info").unwrap(), Severity::Info);
+        assert_eq!(Severity::from_str("off").unwrap(), Severity::Off);
+
+        // Test aliases
+        assert_eq!(Severity::from_str("warn").unwrap(), Severity::Warning);
+        assert_eq!(Severity::from_str("none").unwrap(), Severity::Off);
 
         // Test invalid input
         assert!(Severity::from_str("invalid").is_err());
@@ -250,9 +296,11 @@ mod tests {
         use strum::IntoEnumIterator;
 
         let all_severities: Vec<Severity> = Severity::iter().collect();
-        assert_eq!(all_severities.len(), 2);
+        assert_eq!(all_severities.len(), 4);
         assert!(all_severities.contains(&Severity::Error));
         assert!(all_severities.contains(&Severity::Warning));
+        assert!(all_severities.contains(&Severity::Info));
+        assert!(all_severities.contains(&Severity::Off));
     }
 
     #[test]
@@ -260,6 +308,8 @@ mod tests {
         // Test AsRefStr trait
         assert_eq!(Severity::Error.as_ref(), "error");
         assert_eq!(Severity::Warning.as_ref(), "warning");
+        assert_eq!(Severity::Info.as_ref(), "info");
+        assert_eq!(Severity::Off.as_ref(), "off");
     }
 
     // Property-based tests
@@ -333,6 +383,7 @@ mod tests {
                     name: name.clone(),
                     full_name: format!("input.{}", name),
                 },
+                config: None,
             }
         }
 
@@ -435,7 +486,7 @@ mod tests {
             /// Property: Severity enum should roundtrip through string conversion
             #[test]
             fn severity_enum_roundtrip(
-                severity in prop::sample::select(vec![Severity::Error, Severity::Warning])
+                severity in prop::sample::select(vec![Severity::Error, Severity::Warning, Severity::Info, Severity::Off])
             ) {
                 let string = severity.to_string();
                 let parsed = Severity::from_str(&string).unwrap();

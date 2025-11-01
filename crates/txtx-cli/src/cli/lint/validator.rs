@@ -174,6 +174,7 @@ impl Linter {
                     name: input_ref.name.clone(),
                     full_name,
                 },
+                config: Some(self.config.clone()),
             };
 
             let issues = validate_all(&context, rules);
@@ -209,6 +210,26 @@ impl Linter {
                         }
 
                         result.warnings.push(diagnostic);
+                    }
+                    Severity::Info => {
+                        // Info-level issues could be treated as notices or logged
+                        // For now, we'll treat them as warnings with a different prefix
+                        let mut diagnostic = Diagnostic::warning(format!("[INFO] {}", issue.message.into_owned()))
+                            .with_code(issue.rule)
+                            .with_file(file_path)
+                            .with_line(input_ref.line)
+                            .with_column(input_ref.column);
+
+                        if let Some(help) = issue.help {
+                            diagnostic = diagnostic.with_suggestion(help.into_owned());
+                        }
+
+                        result.warnings.push(diagnostic);
+                    }
+                    Severity::Off => {
+                        // This should never happen as Off severity is filtered out in validate_all
+                        // But we handle it to satisfy the compiler
+                        continue;
                     }
                 }
             }

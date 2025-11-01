@@ -47,13 +47,14 @@ pub fn run_lint(
         );
     }
 
-    // Create linter configuration
-    let config = LinterConfig::new(
+    // Create linter configuration with config file support
+    let config = LinterConfig::with_config_file(
         manifest_path.map(PathBuf::from),
         runbook_path.clone(),
         environment,
         cli_inputs,
         format,
+        linter_options.config_path.as_deref(),
     );
 
     // Run the linter
@@ -68,6 +69,10 @@ pub fn run_lint(
 /// Initialize a new linter configuration file
 fn init_linter_config() -> Result<(), LinterError> {
     use std::fs;
+    use crate::cli::lint::config::{ConfigFile, RuleConfig};
+    use crate::cli::lint::rules::Severity;
+    use crate::cli::lint::rule_id::CliRuleId;
+    use txtx_core::validation::CoreRuleId;
 
     let config_path = PathBuf::from(".txtxlint.yml");
 
@@ -75,34 +80,54 @@ fn init_linter_config() -> Result<(), LinterError> {
         return Err(LinterError::ConfigExists(config_path));
     }
 
-    let default_config = r#"# Txtx Linter Configuration
-# https://docs.txtx.io/linter
+    // Create a default config using the enums
+    let mut config = ConfigFile {
+        extends: Some("txtx:recommended".to_string()),
+        rules: std::collections::HashMap::new(),
+        ignore: vec!["examples/**".to_string(), "tests/**".to_string()],
+    };
 
-extends: "txtx:recommended"
+    // Add custom rule overrides (these override the recommended settings)
+    // Core rules
+    config.rules.insert(
+        CoreRuleId::UndefinedInput.as_ref().to_string(),
+        RuleConfig::Severity(Severity::Error),
+    );
 
-rules:
-  # Correctness rules
-  undefined-input: error
-  undefined-signer: error
-  invalid-action-type: error
-  cli-override: info
+    // CLI rules with custom settings
+    config.rules.insert(
+        CliRuleId::CliInputOverride.as_ref().to_string(),
+        RuleConfig::Severity(Severity::Info),
+    );
 
-  # Style rules
-  input-naming:
-    severity: warning
-    options:
-      convention: "SCREAMING_SNAKE_CASE"
+    config.rules.insert(
+        CliRuleId::InputNamingConvention.as_ref().to_string(),
+        RuleConfig::Full {
+            severity: Severity::Warning,
+            options: {
+                let mut opts = std::collections::HashMap::new();
+                opts.insert("convention".to_string(), serde_yaml::Value::String("SCREAMING_SNAKE_CASE".to_string()));
+                opts
+            },
+        },
+    );
 
-  # Security rules
-  sensitive-data: warning
+    config.rules.insert(
+        CliRuleId::NoSensitiveData.as_ref().to_string(),
+        RuleConfig::Severity(Severity::Warning),
+    );
 
-# Paths to ignore
-ignore:
-  - "examples/**"
-  - "tests/**"
-"#;
+    // Serialize to YAML with comments
+    let yaml_content = serde_yaml::to_string(&config)
+        .map_err(|e| LinterError::Other(format!("Failed to serialize config: {}", e)))?;
 
-    fs::write(&config_path, default_config)?;
+    // Add header comment
+    let full_content = format!(
+        "# Txtx Linter Configuration\n# https://docs.txtx.io/linter\n\n{}",
+        yaml_content
+    );
+
+    fs::write(&config_path, full_content)?;
 
     println!("Created .txtxlint.yml with recommended settings");
     Ok(())
