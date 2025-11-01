@@ -93,8 +93,46 @@ brew install txtx/taps/txtx
 
 Other installation options are available and described in our [doc website](https://docs.txtx.sh/install).
 
-## Going Further
+## Features
 
-- Documentation: https://docs.txtx.sh
-- Cases Study: https://txtx.sh/blog
-- Demos and Screencasts: https://www.youtube.com/@runtxtx
+### 🔍 Validation & Linting
+Comprehensive runbook validation with `txtx lint`:
+- Catch errors before runtime
+- Security analysis
+- Generate CLI templates
+- Multiple output formats
+
+**Share validation examples:**
+```bash
+txtx lint flows/deploy.tx --format doc
+```
+
+Output with visual error indicators:
+```
+flows/deploy.tx:
+
+  8 │     flow.missing_field
+    │     ^^^^^^^^^^^^^ error: Undefined flow input 'missing_field'
+```
+
+Perfect for bug reports, team communication, and documentation!
+
+### 💡 IDE Integration
+Full Language Server Protocol support:
+- Real-time error detection
+- Auto-completion
+- Go-to-definition
+- VSCode & Neovim support
+
+### 🧪 Testing Framework
+Powerful test utilities in `txtx-test-utils`:
+- Fluent runbook builder API
+- Multiple validation modes
+- Integration test support
+
+## Documentation
+
+- [**Quick Start Guide**](docs/) - Get started with txtx
+- [**User Documentation**](docs/user/) - Linter and LSP guides
+- [**Developer Guide**](docs/developer/DEVELOPER.md) - Development setup and contributing
+- **Online**: https://docs.txtx.sh
