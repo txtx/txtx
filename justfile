@@ -13,24 +13,25 @@ default:
     @echo "  lint-doc        - Show validation errors with doc format"
     @echo ""
     @echo "Test - CLI:"
-    @echo "  cli-unit        - CLI unit tests"
-    @echo "  cli-int         - CLI integration tests"
-    @echo "  cli-all         - All CLI tests (unit + integration)"
+    @echo "  test-cli-unit   - CLI unit tests"
+    @echo "  test-cli-int    - CLI integration tests"
+    @echo "  test-cli-all    - All CLI tests (unit + integration)"
     @echo ""
     @echo "Test - Linter:"
-    @echo "  lint-unit       - Linter unit tests"
-    @echo "  lint-int        - Linter integration tests"
+    @echo "  test-lint-unit  - Linter unit tests"
+    @echo "  test-lint-int   - Linter integration tests"
+    @echo "  test-lint-prop  - Linter property-based tests"
     @echo ""
     @echo "Test - LSP:"
-    @echo "  lsp-unit        - LSP unit tests"
-    @echo "  lsp-int         - LSP integration tests"
-    @echo "  lsp-hcl-diag    - HCL diagnostic extraction tests"
-    @echo "  lsp-validation  - LSP validation pipeline tests"
+    @echo "  test-lsp-unit   - LSP unit tests"
+    @echo "  test-lsp-int    - LSP integration tests"
+    @echo "  test-lsp-hcl-diag - HCL diagnostic extraction tests"
+    @echo "  test-lsp-validation - LSP validation pipeline tests"
     @echo ""
     @echo "Test - Validation:"
-    @echo "  val-core        - Validation core tests"
-    @echo "  val-utils       - Validation utils tests"
-    @echo "  val-all         - All validation tests"
+    @echo "  test-val-core   - Validation core tests"
+    @echo "  test-val-utils  - Validation utils tests"
+    @echo "  test-val-all    - All validation tests"
     @echo ""
     @echo "Test - Other Packages:"
     @echo "  test-core       - txtx-core unit tests"
@@ -71,57 +72,61 @@ export RUST_DEV_FLAGS := "-A unused_assignments -A unused_variables -A dead_code
 
 # ===== CLI Tests =====
 # CLI unit tests only
-cli-unit:
+test-cli-unit:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_BIN}}
 
 # CLI integration tests only
-cli-int:
+test-cli-int:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_TESTS}}
 
 # All CLI tests (unit + integration)
-cli-all:
+test-cli-all:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_FLAGS}}
 
 # ===== Linter Tests =====
 
 # Linter unit tests only
-lint-unit:
+test-lint-unit:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_BIN}} cli::linter_impl::
 
 # Linter integration tests only
-lint-int:
+test-lint-int:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test --package txtx-cli --test linter_tests_builder --no-default-features --features cli
+
+# Linter property-based tests
+test-lint-prop:
+    RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_BIN}} proptests
 
 # ===== LSP Tests =====
 
 # LSP unit tests only
-lsp-unit:
+test-lsp-unit:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_BIN}} cli::lsp::
 
 # LSP integration tests only
-lsp-int:
+test-lsp-int:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test --package txtx-cli --test lsp_tests_builder --no-default-features --features cli
 
 # HCL diagnostic extraction tests
-lsp-hcl-diag:
+test-lsp-hcl-diag:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_BIN}} cli::lsp::tests::hcl_diagnostics_test
 
 # LSP validation pipeline tests
-lsp-validation:
+test-lsp-validation:
     RUSTFLAGS="{{RUST_DEV_FLAGS}}" cargo test {{CLI_BIN}} cli::lsp::tests::validation_integration_test
 
 # ===== Validation Tests =====
 
 # Validation core tests
-val-core:
+test-val-core:
     cargo test --no-default-features --package txtx-core --lib validation::hcl_validator::tests
 
 # Validation utils tests
-val-utils:
+test-val-utils:
     cargo test --no-default-features --package txtx-test-utils
 
 # All validation tests
-val-all:
+test-val-all:
     cargo test --no-default-features --lib --tests --package txtx-core --package txtx-test-utils
 
 # ===== Other Package Tests =====

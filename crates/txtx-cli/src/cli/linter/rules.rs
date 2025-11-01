@@ -232,4 +232,186 @@ mod tests {
         assert_eq!(Severity::Error.as_ref(), "error");
         assert_eq!(Severity::Warning.as_ref(), "warning");
     }
+
+    // Property-based tests
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+        use std::collections::HashMap;
+
+        // Generate valid snake_case names (no hyphens, no leading underscore)
+        prop_compose! {
+            fn valid_snake_case_name()(
+                first in "[a-z]",
+                rest in "[a-z0-9_]{0,30}"
+            ) -> String {
+                format!("{}{}", first, rest)
+            }
+        }
+
+        // Generate names with hyphens (invalid)
+        prop_compose! {
+            fn name_with_hyphens()(
+                parts in prop::collection::vec("[a-z][a-z0-9]{0,10}", 2..5)
+            ) -> String {
+                parts.join("-")
+            }
+        }
+
+        // Generate names with leading underscore (invalid)
+        prop_compose! {
+            fn name_with_leading_underscore()(
+                underscores in "_+",
+                rest in "[a-z][a-z0-9_]{0,30}"
+            ) -> String {
+                format!("{}{}", underscores, rest)
+            }
+        }
+
+        // Generate names containing sensitive patterns
+        prop_compose! {
+            fn name_with_sensitive_pattern()(
+                pattern in prop::sample::select(&["password", "secret", "key", "token", "credential"]),
+                prefix in "[a-z0-9_]{0,10}",
+                suffix in "[a-z0-9_]{0,10}",
+                use_upper in prop::bool::ANY,
+            ) -> String {
+                let pattern_cased = if use_upper {
+                    pattern.to_uppercase()
+                } else {
+                    pattern.to_string()
+                };
+                format!("{}{}{}", prefix, pattern_cased, suffix)
+            }
+        }
+
+        // Helper to create a minimal ValidationContext
+        fn create_test_context(name: String) -> ValidationContext {
+            ValidationContext {
+                manifest: txtx_core::manifest::WorkspaceManifest {
+                    name: "test".to_string(),
+                    id: "test-id".to_string(),
+                    runbooks: vec![],
+                    environments: Default::default(),
+                    location: None,
+                },
+                environment: None,
+                effective_inputs: HashMap::new(),
+                cli_inputs: vec![],
+                content: String::new(),
+                file_path: String::new(),
+                input: InputInfo {
+                    name: name.clone(),
+                    full_name: format!("input.{}", name),
+                },
+            }
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig::with_cases(100))]
+
+            /// Property: Valid snake_case names should never trigger naming convention warnings
+            #[test]
+            fn valid_snake_case_always_passes(name in valid_snake_case_name()) {
+                let ctx = create_test_context(name.clone());
+                let result = validate_naming_convention(&ctx);
+                prop_assert!(
+                    result.is_none(),
+                    "Valid snake_case name '{}' should not trigger warning",
+                    name
+                );
+            }
+
+            /// Property: Names with hyphens should always trigger warnings
+            #[test]
+            fn names_with_hyphens_always_warn(name in name_with_hyphens()) {
+                let ctx = create_test_context(name.clone());
+                let result = validate_naming_convention(&ctx);
+                prop_assert!(
+                    result.is_some(),
+                    "Name with hyphens '{}' should trigger warning",
+                    name
+                );
+                if let Some(issue) = result {
+                    prop_assert!(issue.message.contains("hyphens"));
+                    prop_assert_eq!(issue.severity, Severity::Warning);
+                    prop_assert_eq!(issue.rule, CliRuleId::InputNamingConvention);
+                }
+            }
+
+            /// Property: Names with leading underscores should always trigger warnings
+            #[test]
+            fn names_with_leading_underscore_always_warn(name in name_with_leading_underscore()) {
+                let ctx = create_test_context(name.clone());
+                let result = validate_naming_convention(&ctx);
+                prop_assert!(
+                    result.is_some(),
+                    "Name with leading underscore '{}' should trigger warning",
+                    name
+                );
+                if let Some(issue) = result {
+                    prop_assert!(issue.message.contains("underscore"));
+                    prop_assert_eq!(issue.severity, Severity::Warning);
+                }
+            }
+
+            /// Property: Names containing sensitive patterns should trigger warnings (case-insensitive)
+            #[test]
+            fn sensitive_patterns_detected_case_insensitive(name in name_with_sensitive_pattern()) {
+                let ctx = create_test_context(name.clone());
+                let result = validate_sensitive_data(&ctx);
+                prop_assert!(
+                    result.is_some(),
+                    "Name '{}' should be detected as sensitive",
+                    name
+                );
+                if let Some(issue) = result {
+                    prop_assert!(issue.message.contains("sensitive"));
+                    prop_assert_eq!(issue.severity, Severity::Warning);
+                    prop_assert_eq!(issue.rule, CliRuleId::NoSensitiveData);
+                }
+            }
+
+            /// Property: Hyphen replacement suggestion should be valid snake_case
+            #[test]
+            fn hyphen_replacement_produces_valid_name(name in name_with_hyphens()) {
+                let ctx = create_test_context(name);
+                let result = validate_naming_convention(&ctx);
+
+                if let Some(issue) = result {
+                    if let Some(example) = issue.example {
+                        // The example should not contain hyphens
+                        prop_assert!(
+                            !example.contains('-'),
+                            "Example '{}' should not contain hyphens",
+                            example
+                        );
+
+                        // The example should be the original with underscores
+                        // Verify it doesn't trigger the same warning
+                        let fixed_ctx = create_test_context(example);
+                        let fixed_result = validate_naming_convention(&fixed_ctx);
+
+                        // Should either pass or only warn about other things (not hyphens)
+                        if let Some(fixed_issue) = fixed_result {
+                            prop_assert!(
+                                !fixed_issue.message.contains("hyphens"),
+                                "Fixed name should not trigger hyphen warning"
+                            );
+                        }
+                    }
+                }
+            }
+
+            /// Property: Severity enum should roundtrip through string conversion
+            #[test]
+            fn severity_enum_roundtrip(
+                severity in prop::sample::select(vec![Severity::Error, Severity::Warning])
+            ) {
+                let string = severity.to_string();
+                let parsed = Severity::from_str(&string).unwrap();
+                prop_assert_eq!(severity, parsed);
+            }
+        }
+    }
 }
