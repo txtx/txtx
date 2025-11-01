@@ -243,3 +243,188 @@ impl Linter {
         formatter.format(&result);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::linter::config::LinterConfig;
+    use crate::cli::linter::formatter::Format;
+    use std::path::PathBuf;
+    use txtx_core::manifest::WorkspaceManifest;
+
+    #[test]
+    fn test_linter_new_with_valid_config() {
+        // Arrange
+        let config = LinterConfig::new(
+            Some(PathBuf::from("test.yml")),
+            Some("test_runbook".to_string()),
+            None,
+            vec![],
+            Format::Json,
+        );
+
+        // Act
+        let result = Linter::new(&config);
+
+        // Assert
+        assert!(result.is_ok(), "Should create linter with valid config");
+    }
+
+    #[test]
+    fn test_linter_with_defaults_creates_stylish_formatter() {
+        // Arrange - no setup needed
+
+        // Act
+        let linter = Linter::with_defaults();
+
+        // Assert
+        assert_eq!(linter.config.format, Format::Stylish);
+        assert!(linter.config.manifest_path.is_none());
+    }
+
+    #[test]
+    fn test_into_manifest_with_some_manifest() {
+        // Arrange
+        let manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        // Act
+        let result = Some(manifest.clone()).into_manifest();
+
+        // Assert
+        assert!(result.is_some());
+        let unwrapped = result.unwrap();
+        assert_eq!(unwrapped.name, "test");
+        assert_eq!(unwrapped.id, "test-id");
+    }
+
+    #[test]
+    fn test_into_manifest_with_none_returns_none() {
+        // Arrange
+        let none_manifest: Option<WorkspaceManifest> = None;
+
+        // Act
+        let result = none_manifest.into_manifest();
+
+        // Assert
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_into_manifest_pathbuf_from_option() {
+        // Arrange - use non-existent path so it returns None
+        let path = PathBuf::from("/nonexistent/path/manifest.yml");
+
+        // Act
+        let result = Some(path).into_manifest();
+
+        // Assert
+        // Non-existent file should return None (not error)
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_validate_content_with_valid_runbook() {
+        // Arrange
+        let linter = Linter::with_defaults();
+        let valid_content = r#"
+action "test" {
+    http_method = "GET"
+    url = "https://example.com"
+}"#;
+
+        // Act
+        let result = linter.validate_content::<Option<&PathBuf>>(
+            valid_content,
+            "test.tx",
+            None,
+            None,
+        );
+
+        // Assert
+        // Valid content should produce no errors for basic structure
+        // (may have warnings about undefined inputs)
+        assert!(result.errors.is_empty() ||
+                result.errors.iter().all(|e| e.message.contains("undefined")));
+    }
+
+    #[test]
+    fn test_validate_content_with_invalid_syntax() {
+        // Arrange
+        let linter = Linter::with_defaults();
+        let invalid_content = r#"
+action "test" {
+    http_method =
+}"#;
+
+        // Act
+        let result = linter.validate_content::<Option<&PathBuf>>(
+            invalid_content,
+            "test.tx",
+            None,
+            None,
+        );
+
+        // Assert
+        assert!(!result.errors.is_empty(), "Should have parsing errors");
+    }
+
+    #[test]
+    fn test_resolve_inputs_with_empty_manifest() {
+        // Arrange
+        let linter = Linter::with_defaults();
+        let manifest = WorkspaceManifest {
+            name: "test".to_string(),
+            id: "test-id".to_string(),
+            runbooks: vec![],
+            environments: Default::default(),
+            location: None,
+        };
+
+        // Act
+        let inputs = linter.resolve_inputs(&manifest, None);
+
+        // Assert
+        assert!(inputs.is_empty(), "Should return empty map for manifest without inputs");
+    }
+
+    #[test]
+    fn test_format_and_print_with_empty_results() {
+        // Arrange
+        let linter = Linter::with_defaults();
+        let result = ValidationResult {
+            errors: vec![],
+            warnings: vec![],
+            suggestions: vec![],
+        };
+
+        // Act & Assert - should not panic
+        linter.format_and_print(result);
+    }
+
+    #[test]
+    fn test_format_and_print_with_errors() {
+        // Arrange
+        use txtx_addon_kit::types::diagnostics::Diagnostic;
+
+        let linter = Linter::with_defaults();
+        let mut error = Diagnostic::error("Test error message");
+        error.line = Some(10);
+        error.column = Some(5);
+        error.file = Some("test.tx".to_string());
+
+        let result = ValidationResult {
+            errors: vec![error],
+            warnings: vec![],
+            suggestions: vec![],
+        };
+
+        // Act & Assert - should not panic
+        linter.format_and_print(result);
+    }
+}
