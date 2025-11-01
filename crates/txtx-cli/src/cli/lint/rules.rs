@@ -510,6 +510,96 @@ mod tests {
                 let parsed = Severity::from_str(&string).unwrap();
                 prop_assert_eq!(severity, parsed);
             }
+
+            /// Property: Valid names pass all naming and sensitive data rules
+            #[test]
+            fn valid_names_pass_all_rules(name in valid_snake_case_name()) {
+                // Filter out names that happen to contain sensitive patterns
+                prop_assume!(!SENSITIVE_PATTERNS.iter().any(|p| name.to_lowercase().contains(p)));
+
+                let ctx = create_test_context(name.clone());
+
+                // Should pass naming convention
+                let naming_result = validate_naming_convention(&ctx);
+                prop_assert!(naming_result.is_none(),
+                    "Valid name '{}' should pass naming convention check, got: {:?}",
+                    name, naming_result);
+
+                // Should pass sensitive data check
+                let sensitive_result = validate_sensitive_data(&ctx);
+                prop_assert!(sensitive_result.is_none(),
+                    "Valid name '{}' should pass sensitive data check, got: {:?}",
+                    name, sensitive_result);
+
+                // Should pass all rules together
+                let rules = get_default_rules();
+                let issues = validate_all(&ctx, rules);
+
+                // Filter out input_defined issues (we're only testing naming/sensitive rules)
+                let naming_issues: Vec<_> = issues.iter()
+                    .filter(|i| i.rule != CliRuleId::InputDefined && i.rule != CliRuleId::CliInputOverride)
+                    .collect();
+
+                prop_assert!(naming_issues.is_empty(),
+                    "Valid name '{}' should pass all naming/sensitive rules, got issues: {:?}",
+                    name, naming_issues);
+            }
+
+            /// Property: Suggested fixes for naming issues actually fix the problem
+            #[test]
+            fn suggested_fixes_resolve_issues(name in name_with_hyphens()) {
+                let ctx = create_test_context(name.clone());
+                let result = validate_naming_convention(&ctx);
+
+                // Should have an issue with a suggested fix
+                prop_assert!(result.is_some(), "Name '{}' should have naming issue", name);
+
+                if let Some(issue) = result {
+                    if let Some(suggested_name) = issue.example {
+                        // Apply the fix and verify it resolves the issue
+                        let fixed_ctx = create_test_context(suggested_name.clone());
+                        let fixed_result = validate_naming_convention(&fixed_ctx);
+
+                        // The fix should either:
+                        // 1. Completely resolve the issue (no warning), OR
+                        // 2. Only have different warnings (not the same hyphen warning)
+                        if let Some(fixed_issue) = fixed_result {
+                            prop_assert!(
+                                !fixed_issue.message.contains("hyphens"),
+                                "Suggested fix '{}' for '{}' should resolve hyphen warning, but got: {}",
+                                suggested_name, name, fixed_issue.message
+                            );
+                        }
+                    }
+                }
+            }
+
+            /// Property: Leading underscore removal suggestions produce valid names
+            #[test]
+            fn underscore_fix_produces_valid_name(name in name_with_leading_underscore()) {
+                let ctx = create_test_context(name.clone());
+                let result = validate_naming_convention(&ctx);
+
+                prop_assert!(result.is_some(), "Name '{}' should have underscore warning", name);
+
+                if let Some(issue) = result {
+                    if let Some(suggested_name) = issue.example {
+                        // Suggested name should not start with underscore
+                        prop_assert!(
+                            !suggested_name.starts_with('_'),
+                            "Suggested fix '{}' should not start with underscore",
+                            suggested_name
+                        );
+
+                        // Suggested name should be the original without leading underscores
+                        let trimmed = name.trim_start_matches('_');
+                        prop_assert_eq!(
+                            &suggested_name, trimmed,
+                            "Suggested fix should be the name with underscores removed"
+                        );
+                    }
+                }
+            }
         }
     }
 }
