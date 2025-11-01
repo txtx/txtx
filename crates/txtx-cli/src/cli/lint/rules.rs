@@ -1,4 +1,38 @@
 //! Validation rules for txtx runbooks
+//!
+//! # Adding New Validation Rules
+//!
+//! To add a new validation rule:
+//!
+//! 1. Create a validation function with signature:
+//!    ```rust
+//!    fn validate_my_rule(ctx: &ValidationContext) -> Option<ValidationIssue>
+//!    ```
+//!
+//! 2. Add the rule to `get_default_rules()` function:
+//!    ```rust
+//!    pub fn get_default_rules() -> Vec<RuleFn> {
+//!        vec![
+//!            validate_input_defined,
+//!            validate_my_rule,  // Add your rule here
+//!            // ... other rules
+//!        ]
+//!    }
+//!    ```
+//!
+//! 3. Add a corresponding CliRuleId variant in `rule_id.rs` if needed
+//!
+//! # Testing Rules
+//!
+//! Use the test utilities in the `tests` module to validate rule behavior:
+//! ```rust
+//! #[test]
+//! fn test_my_rule() {
+//!     let ctx = create_test_context("input_name".to_string());
+//!     let result = validate_my_rule(&ctx);
+//!     assert!(result.is_none()); // Expects no issues
+//! }
+//! ```
 
 use super::rule_id::CliRuleId;
 use std::borrow::Cow;
