@@ -273,6 +273,63 @@ mod tests {
     use std::path::PathBuf;
     use txtx_core::manifest::WorkspaceManifest;
 
+    // Helper macros for cleaner assertions
+
+    /// Assert that there are no violations with the given code
+    macro_rules! assert_no_violations {
+        ($result:expr, $code:expr) => {
+            let violations: Vec<_> = $result.errors.iter()
+                .chain($result.warnings.iter())
+                .filter(|v| v.code.as_deref() == Some($code))
+                .collect();
+
+            assert!(
+                violations.is_empty(),
+                "Expected no violations with code '{}', but found: {:?}",
+                $code,
+                violations.iter().map(|v| &v.message).collect::<Vec<_>>()
+            );
+        };
+    }
+
+    /// Assert that there are exactly N violations with the given code
+    macro_rules! assert_violation_count {
+        ($result:expr, $code:expr, $count:expr) => {
+            let violations: Vec<_> = $result.errors.iter()
+                .chain($result.warnings.iter())
+                .filter(|v| v.code.as_deref() == Some($code))
+                .collect();
+
+            assert_eq!(
+                violations.len(),
+                $count,
+                "Expected {} violations with code '{}', but found {}: {:?}",
+                $count,
+                $code,
+                violations.len(),
+                violations.iter().map(|v| &v.message).collect::<Vec<_>>()
+            );
+        };
+    }
+
+    /// Assert that a violation contains specific text in its message
+    macro_rules! assert_violation_message_contains {
+        ($result:expr, $code:expr, $text:expr) => {
+            let violations: Vec<_> = $result.errors.iter()
+                .chain($result.warnings.iter())
+                .filter(|v| v.code.as_deref() == Some($code))
+                .collect();
+
+            assert!(
+                violations.iter().any(|v| v.message.contains($text)),
+                "Expected violation with code '{}' to contain '{}', but messages were: {:?}",
+                $code,
+                $text,
+                violations.iter().map(|v| &v.message).collect::<Vec<_>>()
+            );
+        };
+    }
+
     #[test]
     fn test_linter_new_with_valid_config() {
         // Arrange
@@ -573,13 +630,7 @@ action "test" {
         let result = linter.validate_content(content, "test.tx", manifest, Some(&"production".to_string()));
 
         // Assert - should NOT warn (API_KEY not in manifest)
-        let cli_override_warnings: Vec<_> = result.warnings.iter()
-            .filter(|w| w.code.as_deref() == Some("cli_input_override"))
-            .collect();
-
-        assert!(cli_override_warnings.is_empty(),
-            "Should not warn when CLI input not in manifest, got warnings: {:?}",
-            cli_override_warnings);
+        assert_no_violations!(result, "cli_input_override");
     }
 
     #[test]
@@ -631,14 +682,8 @@ action "test" {
         let result = linter.validate_content(content, "test.tx", manifest, Some(&"production".to_string()));
 
         // Assert - should warn about API_KEY only
-        let cli_override_warnings: Vec<_> = result.warnings.iter()
-            .filter(|w| w.code.as_deref() == Some("cli_input_override"))
-            .collect();
-
-        assert_eq!(cli_override_warnings.len(), 1,
-            "Should warn about 1 override, got: {:?}", cli_override_warnings);
-        assert!(cli_override_warnings[0].message.contains("API_KEY"),
-            "Warning should be for API_KEY");
+        assert_violation_count!(result, "cli_input_override", 1);
+        assert_violation_message_contains!(result, "cli_input_override", "API_KEY");
     }
 
     #[test]
@@ -678,13 +723,7 @@ action "test" {
         let result = linter.validate_content(content, "test.tx", manifest, Some(&"production".to_string()));
 
         // Assert - should NOT warn (no CLI override happening)
-        let cli_override_warnings: Vec<_> = result.warnings.iter()
-            .filter(|w| w.code.as_deref() == Some("cli_input_override"))
-            .collect();
-
-        assert!(cli_override_warnings.is_empty(),
-            "Should not warn when not using CLI input, got warnings: {:?}",
-            cli_override_warnings);
+        assert_no_violations!(result, "cli_input_override");
     }
 
     #[test]
@@ -729,13 +768,8 @@ action "test" {
         let result = linter.validate_content(content, "test.tx", manifest, Some(&"production".to_string()));
 
         // Assert - should warn about override
-        let warning = result.warnings.iter()
-            .find(|w| w.code.as_deref() == Some("cli_input_override"))
-            .expect("Should have cli override warning");
-
-        assert!(warning.message.contains("API_KEY"),
-            "Warning should mention the input name");
-        assert!(warning.message.contains("overridden") || warning.message.contains("override"),
-            "Warning should mention override: {}", warning.message);
+        assert_violation_count!(result, "cli_input_override", 1);
+        assert_violation_message_contains!(result, "cli_input_override", "API_KEY");
+        assert_violation_message_contains!(result, "cli_input_override", "overridden");
     }
 }
