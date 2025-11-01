@@ -149,6 +149,49 @@ impl Linter {
         result
     }
 
+    fn issue_to_diagnostic(
+        issue: super::rules::ValidationIssue,
+        file_path: &str,
+        line: Option<usize>,
+        column: Option<usize>,
+    ) -> Diagnostic {
+        let message = issue.message.into_owned();
+
+        let mut diagnostic = match issue.severity {
+            Severity::Error => Diagnostic::error(message),
+            Severity::Warning => Diagnostic::warning(message),
+            Severity::Info => Diagnostic::warning(format!("[INFO] {}", message)),
+            Severity::Off => unreachable!("Off severity should be filtered before conversion"),
+        };
+
+        diagnostic = diagnostic
+            .with_code(issue.rule)
+            .with_file(file_path);
+
+        if let Some(line_num) = line {
+            diagnostic = diagnostic.with_line(line_num);
+        }
+
+        if let Some(col_num) = column {
+            diagnostic = diagnostic.with_column(col_num);
+        }
+
+        if let Some(help) = issue.help {
+            diagnostic = match issue.severity {
+                Severity::Error => diagnostic.with_context(help.into_owned()),
+                _ => diagnostic.with_suggestion(help.into_owned()),
+            };
+        }
+
+        if let Some(example) = issue.example {
+            if matches!(issue.severity, Severity::Error) {
+                diagnostic = diagnostic.with_documentation(example);
+            }
+        }
+
+        diagnostic
+    }
+
     fn validate_with_rules(
         &self,
         input_refs: &[txtx_core::validation::LocatedInputRef],
@@ -178,57 +221,26 @@ impl Linter {
             let issues = validate_all(&context, rules);
 
             for issue in issues {
-                match issue.severity {
+                if matches!(issue.severity, Severity::Off) {
+                    continue;
+                }
+
+                let severity = issue.severity;
+                let diagnostic = Self::issue_to_diagnostic(
+                    issue,
+                    file_path,
+                    Some(input_ref.line),
+                    Some(input_ref.column),
+                );
+
+                match severity {
                     Severity::Error => {
-                        let mut diagnostic = Diagnostic::error(issue.message.into_owned())
-                            .with_code(issue.rule)
-                            .with_file(file_path)
-                            .with_line(input_ref.line)
-                            .with_column(input_ref.column);
-
-                        if let Some(help) = issue.help {
-                            diagnostic = diagnostic.with_context(help.into_owned());
-                        }
-
-                        if let Some(example) = issue.example {
-                            diagnostic = diagnostic.with_documentation(example);
-                        }
-
                         result.errors.push(diagnostic);
                     }
-                    Severity::Warning => {
-                        let mut diagnostic = Diagnostic::warning(issue.message.into_owned())
-                            .with_code(issue.rule)
-                            .with_file(file_path)
-                            .with_line(input_ref.line)
-                            .with_column(input_ref.column);
-
-                        if let Some(help) = issue.help {
-                            diagnostic = diagnostic.with_suggestion(help.into_owned());
-                        }
-
+                    Severity::Warning | Severity::Info => {
                         result.warnings.push(diagnostic);
                     }
-                    Severity::Info => {
-                        // Info-level issues could be treated as notices or logged
-                        // For now, we'll treat them as warnings with a different prefix
-                        let mut diagnostic = Diagnostic::warning(format!("[INFO] {}", issue.message.into_owned()))
-                            .with_code(issue.rule)
-                            .with_file(file_path)
-                            .with_line(input_ref.line)
-                            .with_column(input_ref.column);
-
-                        if let Some(help) = issue.help {
-                            diagnostic = diagnostic.with_suggestion(help.into_owned());
-                        }
-
-                        result.warnings.push(diagnostic);
-                    }
-                    Severity::Off => {
-                        // This should never happen as Off severity is filtered out in validate_all
-                        // But we handle it to satisfy the compiler
-                        continue;
-                    }
+                    Severity::Off => unreachable!(),
                 }
             }
         }
