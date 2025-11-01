@@ -12,9 +12,6 @@ use super::config::LinterConfig;
 use super::error::LinterError;
 use super::validator::Linter;
 
-/// @c4-component WorkspaceAnalyzer
-/// @c4-responsibility Discover workspace manifests by searching upward from current directory
-/// @c4-responsibility Resolve runbook files from manifest or direct paths
 pub struct WorkspaceAnalyzer {
     config: LinterConfig,
     manifest: Option<WorkspaceManifest>,

@@ -14,12 +14,6 @@ This directory contains architectural documentation for txtx components using a 
 - Module structure and performance characteristics
 - Detailed Mermaid diagrams
 
-**[linter/workspace.dsl](linter/workspace.dsl)** - Structurizr C4 model
-
-- System context and container diagrams
-- Dynamic diagrams for validation flows (single-file, multi-file, flow validation)
-- Component relationships and interactions
-
 ### Cross-Cutting Documentation
 
 **[features.md](features.md)** - Linter feature behavior
