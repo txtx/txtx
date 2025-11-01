@@ -1,0 +1,37 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch txtx LSP Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode-extension",
+        "${workspaceFolder}/examples"
+      ],
+      "outFiles": ["${workspaceFolder}/vscode-extension/**/*.js"],
+      "preLaunchTask": "Build txtx Binary"
+    },
+    {
+      "name": "Launch txtx LSP (Custom Project)",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode-extension",
+        "${input:projectPath}"
+      ],
+      "outFiles": ["${workspaceFolder}/vscode-extension/**/*.js"],
+      "preLaunchTask": "Build txtx Binary"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "projectPath",
+      "type": "promptString",
+      "description": "Path to your txtx project",
+      "default": "${env:HOME}/your-txtx-project"
+    }
+  ]
+}
