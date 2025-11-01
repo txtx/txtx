@@ -381,7 +381,7 @@ async fn handle_command(
             docs::handle_docs_command(&cmd, ctx).await?;
         }
         Command::Lint(cmd) => {
-            handle_lint_command(&cmd)?;
+            handle_lint_command(&cmd).map_err(|e| e.to_string())?;
         }
         Command::Snapshots(SnapshotCommand::Begin(cmd)) => {
             snapshots::handle_begin_command(&cmd, ctx).await?;
@@ -412,7 +412,7 @@ async fn handle_command(
     Ok(())
 }
 
-fn handle_lint_command(cmd: &LintRunbook) -> Result<(), String> {
+fn handle_lint_command(cmd: &LintRunbook) -> Result<(), lint::LinterError> {
     // Parse CLI inputs from "key=value" strings
     let cli_inputs: Vec<(String, String)> = cmd.inputs
         .iter()
@@ -428,9 +428,6 @@ fn handle_lint_command(cmd: &LintRunbook) -> Result<(), String> {
 
     let linter_options = lint::LinterOptions {
         config_path: cmd.config.clone(),
-        disabled_rules: cmd.disabled_rules.clone(),
-        only_rules: cmd.only_rules.clone(),
-        fix: cmd.fix,
         init: cmd.init,
     };
 

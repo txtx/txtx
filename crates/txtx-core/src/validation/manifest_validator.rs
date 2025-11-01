@@ -138,7 +138,8 @@ pub fn validate_inputs_against_manifest(
                     documentation_link,
                 } => {
                     let mut error = Diagnostic::error(message)
-                        .with_file(file_path.to_string())
+                        .with_code(rule.id())
+                        .with_file(file_path)
                         .with_line(input_ref.line)
                         .with_column(input_ref.column);
 
@@ -161,7 +162,8 @@ pub fn validate_inputs_against_manifest(
 
                 ValidationOutcome::Warning { message, suggestion } => {
                     let mut warning = Diagnostic::warning(message)
-                        .with_file(file_path.to_string())
+                        .with_code(rule.id())
+                        .with_file(file_path)
                         .with_line(input_ref.line)
                         .with_column(input_ref.column);
 

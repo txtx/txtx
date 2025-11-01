@@ -3,19 +3,23 @@ use txtx_core::manifest::WorkspaceManifest;
 
 // Re-export linter components
 pub use crate::cli::linter::{
-    LinterConfig, Linter, Format as LinterFormat,
+    LinterConfig, Linter, LinterError, Format as LinterFormat,
     workspace::WorkspaceAnalyzer,
 };
 
 /// Options for running the linter
 #[derive(Debug, Clone)]
 pub struct LinterOptions {
+    /// Path to custom linter configuration file
     pub config_path: Option<String>,
-    pub disabled_rules: Vec<String>,
-    pub only_rules: Vec<String>,
-    pub fix: bool,
+    /// Initialize a new linter configuration file
     pub init: bool,
 }
+
+// Future features (not yet implemented):
+// - disabled_rules: Vec<String> - Disable specific rules
+// - only_rules: Vec<String> - Run only specific rules
+// - fix: bool - Automatically fix issues where possible
 
 /// Main entry point for the lint command
 pub fn run_lint(
@@ -27,7 +31,7 @@ pub fn run_lint(
     linter_options: LinterOptions,
     gen_cli: bool,
     gen_cli_full: bool,
-) -> Result<(), String> {
+) -> Result<(), LinterError> {
     // Handle --init flag
     if linter_options.init {
         return init_linter_config();
@@ -74,13 +78,13 @@ pub fn run_lint(
 }
 
 /// Initialize a new linter configuration file
-fn init_linter_config() -> Result<(), String> {
+fn init_linter_config() -> Result<(), LinterError> {
     use std::fs;
 
     let config_path = PathBuf::from(".txtxlint.yml");
 
     if config_path.exists() {
-        return Err(format!("Configuration file {} already exists", config_path.display()));
+        return Err(LinterError::ConfigExists(config_path));
     }
 
     let default_config = r#"# Txtx Linter Configuration
@@ -110,8 +114,7 @@ ignore:
   - "tests/**"
 "#;
 
-    fs::write(&config_path, default_config)
-        .map_err(|e| format!("Failed to write config file: {}", e))?;
+    fs::write(&config_path, default_config)?;
 
     println!("Created .txtxlint.yml with recommended settings");
     Ok(())
@@ -124,13 +127,13 @@ fn handle_gen_cli(
     environment: Option<&str>,
     cli_inputs: &[(String, String)],
     include_all: bool,
-) -> Result<(), String> {
+) -> Result<(), LinterError> {
     use txtx_core::runbook::variables::RunbookVariableIterator;
     use txtx_addon_kit::helpers::fs::FileLocation;
     use txtx_core::manifest::file::read_runbook_from_location;
     use crate::cli::common::addon_registry;
 
-    let runbook_path = runbook_path.ok_or("Runbook path required for --gen-cli")?;
+    let runbook_path = runbook_path.ok_or_else(|| LinterError::Other("Runbook path required for --gen-cli".to_string()))?;
     let path = PathBuf::from(runbook_path);
 
     // Try to determine the runbook name and location
@@ -142,7 +145,7 @@ fn handle_gen_cli(
             &None,
             &environment.map(|s| s.to_string()),
             None,
-        )?;
+        ).map_err(|e| LinterError::RunbookResolution(e))?;
         let name = path.file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("runbook")
@@ -198,7 +201,7 @@ fn handle_gen_cli(
         environment,
         addon_specs,
         cli_inputs,
-    )?;
+    ).map_err(|e| LinterError::Other(e))?;
 
     // Collect variables
     let variables: Vec<_> = if include_all {
@@ -251,10 +254,15 @@ fn format_cli_template(
 }
 
 /// Load workspace manifest
-fn load_manifest(path: &PathBuf) -> Result<WorkspaceManifest, String> {
-    crate::cli::runbooks::load_workspace_manifest_from_manifest_path(
-        path.to_str().ok_or_else(|| "Invalid manifest path".to_string())?
-    ).map_err(|e| e.to_string())
+fn load_manifest(path: &PathBuf) -> Result<WorkspaceManifest, LinterError> {
+    let path_str = path.to_str()
+        .ok_or_else(|| LinterError::InvalidConfig("Invalid manifest path".to_string()))?;
+
+    crate::cli::runbooks::load_workspace_manifest_from_manifest_path(path_str)
+        .map_err(|e| LinterError::ManifestLoad {
+            path: path.clone(),
+            message: e,
+        })
 }
 
 #[cfg(test)]
@@ -265,9 +273,6 @@ mod tests {
     fn test_lint_handles_none_manifest_path() {
         let linter_options = LinterOptions {
             config_path: None,
-            disabled_rules: vec![],
-            only_rules: vec![],
-            fix: false,
             init: false,
         };
 
@@ -287,18 +292,14 @@ mod tests {
         // The function should fail because the manifest doesn't exist in test environment
         // but it should fail gracefully, not panic
         assert!(result.is_err());
-        let error = result.unwrap_err();
-        // The new linter has different error messages, so we just check it's an error
-        assert!(!error.is_empty());
+        // Just verify it returns an error (any LinterError variant is acceptable)
+        result.unwrap_err();
     }
 
     #[test]
     fn test_lint_all_runbooks_defaults_manifest_path() {
         let linter_options = LinterOptions {
             config_path: None,
-            disabled_rules: vec![],
-            only_rules: vec![],
-            fix: false,
             init: false,
         };
 
@@ -321,9 +322,9 @@ mod tests {
             Ok(_) => {
                 // No runbooks found is okay
             }
-            Err(e) => {
-                // Should be a reasonable error message, not a panic
-                assert!(!e.is_empty());
+            Err(_) => {
+                // Should return a LinterError, not panic
+                // The specific error type doesn't matter for this test
             }
         }
     }

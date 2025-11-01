@@ -5,8 +5,21 @@ use colored::Colorize;
 use serde_json;
 use std::collections::HashMap;
 use std::fs;
+use strum::{AsRefStr, Display, EnumIter, EnumString, IntoStaticStr};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    AsRefStr,      // Provides as_ref() -> &str
+    Display,       // Provides to_string()
+    EnumString,    // Provides from_str()
+    IntoStaticStr, // Provides into() -> &'static str
+    EnumIter,      // Provides iter() over all variants
+)]
+#[strum(serialize_all = "lowercase")]
 pub enum Format {
     Stylish,
     Compact,
@@ -383,4 +396,52 @@ fn estimate_token_length(message: &str) -> usize {
 
     // Default squiggly length
     8
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_format_display() {
+        assert_eq!(Format::Stylish.to_string(), "stylish");
+        assert_eq!(Format::Compact.to_string(), "compact");
+        assert_eq!(Format::Json.to_string(), "json");
+        assert_eq!(Format::Quickfix.to_string(), "quickfix");
+        assert_eq!(Format::Doc.to_string(), "doc");
+    }
+
+    #[test]
+    fn test_format_from_str() {
+        // Test successful parsing
+        assert_eq!(Format::from_str("stylish").unwrap(), Format::Stylish);
+        assert_eq!(Format::from_str("compact").unwrap(), Format::Compact);
+        assert_eq!(Format::from_str("json").unwrap(), Format::Json);
+        assert_eq!(Format::from_str("quickfix").unwrap(), Format::Quickfix);
+        assert_eq!(Format::from_str("doc").unwrap(), Format::Doc);
+
+        // Test invalid input
+        assert!(Format::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_format_iteration() {
+        use strum::IntoEnumIterator;
+
+        let all_formats: Vec<Format> = Format::iter().collect();
+        assert_eq!(all_formats.len(), 5);
+        assert!(all_formats.contains(&Format::Stylish));
+        assert!(all_formats.contains(&Format::Compact));
+        assert!(all_formats.contains(&Format::Json));
+        assert!(all_formats.contains(&Format::Quickfix));
+        assert!(all_formats.contains(&Format::Doc));
+    }
+
+    #[test]
+    fn test_format_as_ref() {
+        // Test AsRefStr trait
+        assert_eq!(Format::Stylish.as_ref(), "stylish");
+        assert_eq!(Format::Json.as_ref(), "json");
+    }
 }

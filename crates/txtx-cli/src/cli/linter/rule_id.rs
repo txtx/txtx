@@ -1,10 +1,24 @@
 //! Type-safe rule identification for CLI-specific linting rules
 
 use std::fmt;
+use strum::{AsRefStr, Display, EnumIter, EnumString, IntoStaticStr};
 use txtx_core::validation::{AddonScope, CoreRuleId};
 
 /// CLI-specific linting rules
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    AsRefStr,      // Provides as_ref() -> &str
+    Display,       // Provides to_string()
+    EnumString,    // Provides from_str()
+    IntoStaticStr, // Provides into() -> &'static str
+    EnumIter,      // Provides iter() over all variants
+)]
+#[strum(serialize_all = "snake_case")]
 pub enum CliRuleId {
     /// Check if input is defined
     InputDefined,
@@ -17,17 +31,6 @@ pub enum CliRuleId {
 }
 
 impl CliRuleId {
-    /// Get a string representation suitable for display and configuration
-    pub const fn as_str(&self) -> &'static str {
-        use CliRuleId::*;
-        match self {
-            InputDefined => "input_defined",
-            InputNamingConvention => "input_naming_convention",
-            CliInputOverride => "cli_input_override",
-            NoSensitiveData => "no_sensitive_data",
-        }
-    }
-
     /// Get a human-readable description of what the rule validates
     pub const fn description(&self) -> &'static str {
         use CliRuleId::*;
@@ -47,12 +50,6 @@ impl CliRuleId {
     }
 }
 
-impl fmt::Display for CliRuleId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
 /// Identifier for CLI validation rules
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CliRuleIdentifier {
@@ -69,8 +66,8 @@ impl CliRuleIdentifier {
     /// Get a string representation of the rule identifier
     pub fn as_str(&self) -> &str {
         match self {
-            Self::Cli(id) => id.as_str(),
-            Self::Core(id) => id.as_str(),
+            Self::Cli(id) => id.as_ref(),
+            Self::Core(id) => id.as_ref(),
             Self::External(name) => name.as_str(),
         }
     }
@@ -123,5 +120,50 @@ mod tests {
 
         let external_id = CliRuleIdentifier::External("custom".to_string());
         assert_eq!(external_id.as_str(), "custom");
+    }
+
+    #[test]
+    fn test_cli_rule_id_from_str() {
+        use std::str::FromStr;
+
+        // Test successful parsing
+        assert_eq!(
+            CliRuleId::from_str("input_defined").unwrap(),
+            CliRuleId::InputDefined
+        );
+        assert_eq!(
+            CliRuleId::from_str("input_naming_convention").unwrap(),
+            CliRuleId::InputNamingConvention
+        );
+        assert_eq!(
+            CliRuleId::from_str("cli_input_override").unwrap(),
+            CliRuleId::CliInputOverride
+        );
+        assert_eq!(
+            CliRuleId::from_str("no_sensitive_data").unwrap(),
+            CliRuleId::NoSensitiveData
+        );
+
+        // Test invalid input
+        assert!(CliRuleId::from_str("invalid_rule").is_err());
+    }
+
+    #[test]
+    fn test_cli_rule_id_iteration() {
+        use strum::IntoEnumIterator;
+
+        let all_rules: Vec<CliRuleId> = CliRuleId::iter().collect();
+        assert_eq!(all_rules.len(), 4);
+        assert!(all_rules.contains(&CliRuleId::InputDefined));
+        assert!(all_rules.contains(&CliRuleId::InputNamingConvention));
+        assert!(all_rules.contains(&CliRuleId::CliInputOverride));
+        assert!(all_rules.contains(&CliRuleId::NoSensitiveData));
+    }
+
+    #[test]
+    fn test_cli_rule_id_as_ref() {
+        // Test AsRefStr trait
+        assert_eq!(CliRuleId::InputDefined.as_ref(), "input_defined");
+        assert_eq!(CliRuleId::CliInputOverride.as_ref(), "cli_input_override");
     }
 }

@@ -8,6 +8,7 @@ use txtx_addon_kit::helpers::fs::FileLocation;
 use crate::cli::common::addon_registry;
 
 use super::config::LinterConfig;
+use super::error::LinterError;
 use super::rules::{ValidationContext, InputInfo, Severity, get_default_rules, validate_all};
 
 /// Trait for types that can be converted into an optional WorkspaceManifest
@@ -49,24 +50,42 @@ impl IntoManifest for Option<PathBuf> {
     }
 }
 
+/// Linter engine that orchestrates validation of txtx runbooks.
 pub struct Linter {
     config: LinterConfig,
 }
 
 impl Linter {
-    pub fn new(config: &LinterConfig) -> Result<Self, String> {
+    /// Create a new linter with the given configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LinterError` if the configuration is invalid.
+    pub fn new(config: &LinterConfig) -> Result<Self, LinterError> {
         Ok(Self {
             config: config.clone(),
         })
     }
 
+    /// Create a linter with default configuration.
     pub fn with_defaults() -> Self {
         Self {
             config: LinterConfig::default(),
         }
     }
 
-    pub fn lint_runbook(&self, name: &str) -> Result<(), String> {
+    /// Lint a specific runbook by name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the runbook to lint
+    ///
+    /// # Errors
+    ///
+    /// Returns `LinterError` if:
+    /// - The runbook cannot be found
+    /// - The runbook cannot be loaded or parsed
+    pub fn lint_runbook(&self, name: &str) -> Result<(), LinterError> {
         let workspace = super::workspace::WorkspaceAnalyzer::new(&self.config)?;
         let result = workspace.analyze_runbook(name)?;
 
@@ -74,7 +93,14 @@ impl Linter {
         Ok(())
     }
 
-    pub fn lint_all(&self) -> Result<(), String> {
+    /// Lint all runbooks in the workspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LinterError` if:
+    /// - The workspace manifest cannot be loaded
+    /// - Any runbook cannot be loaded or parsed
+    pub fn lint_all(&self) -> Result<(), LinterError> {
         let workspace = super::workspace::WorkspaceAnalyzer::new(&self.config)?;
         let results = workspace.analyze_all()?;
 
@@ -156,7 +182,8 @@ impl Linter {
                 match issue.severity {
                     Severity::Error => {
                         let mut diagnostic = Diagnostic::error(issue.message.into_owned())
-                            .with_file(file_path.to_string())
+                            .with_code(issue.rule)
+                            .with_file(file_path)
                             .with_line(input_ref.line)
                             .with_column(input_ref.column);
 
@@ -172,7 +199,8 @@ impl Linter {
                     }
                     Severity::Warning => {
                         let mut diagnostic = Diagnostic::warning(issue.message.into_owned())
-                            .with_file(file_path.to_string())
+                            .with_code(issue.rule)
+                            .with_file(file_path)
                             .with_line(input_ref.line)
                             .with_column(input_ref.column);
 
