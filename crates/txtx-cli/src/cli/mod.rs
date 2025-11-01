@@ -11,7 +11,6 @@ mod common;
 mod docs;
 mod env;
 mod lint;
-mod linter;
 mod lsp;
 mod runbooks;
 mod snapshots;
@@ -160,7 +159,7 @@ pub struct LintRunbook {
     pub inputs: Vec<String>,
     /// Output format
     #[arg(long = "format", short = 'f', default_value = "stylish")]
-    pub format: linter::Format,
+    pub format: lint::Format,
     /// Path to linter config file
     #[arg(long = "config")]
     pub config: Option<String>,

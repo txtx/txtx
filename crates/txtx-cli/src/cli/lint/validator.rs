@@ -247,8 +247,8 @@ impl Linter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::linter::config::LinterConfig;
-    use crate::cli::linter::formatter::Format;
+    use crate::cli::lint::config::LinterConfig;
+    use crate::cli::lint::formatter::Format;
     use std::path::PathBuf;
     use txtx_core::manifest::WorkspaceManifest;
 

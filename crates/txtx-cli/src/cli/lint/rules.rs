@@ -91,7 +91,7 @@ fn validate_input_defined(ctx: &ValidationContext) -> Option<ValidationIssue> {
     })
 }
 
-fn validate_naming_convention(ctx: &ValidationContext) -> Option<ValidationIssue> {
+pub(crate) fn validate_naming_convention(ctx: &ValidationContext) -> Option<ValidationIssue> {
     if ctx.input.name.starts_with('_') {
         return Some(ValidationIssue {
             rule: CliRuleId::InputNamingConvention,
