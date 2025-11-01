@@ -2,6 +2,8 @@
 //!
 //! This module provides validation and formatting capabilities for txtx runbooks and manifests.
 //!
+//! **NOTE: Configuration support via `.txtxlint.yml` is EXPERIMENTAL and subject to change.**
+//!
 //! # Architecture
 //!
 //! The linter consists of several key components:

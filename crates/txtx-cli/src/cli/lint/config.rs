@@ -20,7 +20,7 @@ pub enum RuleConfig {
     Full {
         severity: Severity,
         #[serde(default)]
-        options: HashMap<String, serde_yaml::Value>,
+        options: HashMap<String, serde_yml::Value>,
     },
 }
 
@@ -39,7 +39,7 @@ impl RuleConfig {
     }
 
     /// Get options for this rule
-    pub fn options(&self) -> Option<&HashMap<String, serde_yaml::Value>> {
+    pub fn options(&self) -> Option<&HashMap<String, serde_yml::Value>> {
         match self {
             RuleConfig::Severity(_) => None,
             RuleConfig::Full { options, .. } => Some(options),
@@ -48,6 +48,9 @@ impl RuleConfig {
 }
 
 /// Configuration file structure (.txtxlint.yml)
+///
+/// **EXPERIMENTAL**: This configuration format is experimental and may change
+/// in future versions as we add support for plugins and more advanced features.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ConfigFile {
     /// Base configuration to extend (e.g., "txtx:recommended")
@@ -69,7 +72,7 @@ impl ConfigFile {
         let content = fs::read_to_string(path)
             .map_err(|e| format!("Failed to read config file: {}", e))?;
 
-        serde_yaml::from_str(&content)
+        serde_yml::from_str(&content)
             .map_err(|e| format!("Failed to parse YAML config: {}", e))
     }
 

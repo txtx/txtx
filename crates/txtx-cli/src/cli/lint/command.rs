@@ -106,7 +106,7 @@ fn init_linter_config() -> Result<(), LinterError> {
             severity: Severity::Warning,
             options: {
                 let mut opts = std::collections::HashMap::new();
-                opts.insert("convention".to_string(), serde_yaml::Value::String("SCREAMING_SNAKE_CASE".to_string()));
+                opts.insert("convention".to_string(), serde_yml::Value::String("SCREAMING_SNAKE_CASE".to_string()));
                 opts
             },
         },
@@ -118,12 +118,14 @@ fn init_linter_config() -> Result<(), LinterError> {
     );
 
     // Serialize to YAML with comments
-    let yaml_content = serde_yaml::to_string(&config)
+    let yaml_content = serde_yml::to_string(&config)
         .map_err(|e| LinterError::Other(format!("Failed to serialize config: {}", e)))?;
 
     // Add header comment
     let full_content = format!(
-        "# Txtx Linter Configuration\n# https://docs.txtx.io/linter\n\n{}",
+        "# Txtx Linter Configuration (Experimental)\n\
+         # WARNING: This configuration format is experimental and may change in future versions.\n\
+         # https://docs.txtx.io/linter\n\n{}",
         yaml_content
     );
 
