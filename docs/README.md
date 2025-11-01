@@ -6,16 +6,14 @@ Welcome to the txtx documentation. This guide covers everything from user guides
 
 Start here if you're using txtx to validate runbooks and write blockchain automation.
 
-- [**Linter Guide**](user/linter-guide.md) - Validate runbooks with `txtx lint`
-- [**Linter Configuration**](user/linter-configuration.md) - Command-line options and output formats
+- [**Linter Guide**](user/linter.md) - Validate runbooks with `txtx lint`, command-line options, and output formats
 
 ## 🛠 Developer Documentation
 
 For contributors and maintainers working on txtx itself.
 
-- [**Developer Guide**](developer/DEVELOPER.md) - Development setup, workflows, and contributing
-- [**Testing Guide**](developer/TESTING_GUIDE.md) - Testing strategies, utilities, and conventions
-- [**Validation Architecture**](developer/VALIDATION_ARCHITECTURE.md) - Deep dive into the validation system
+- [**Developer Guide**](developer/development.md) - Development setup, workflows, and contributing
+- [**Testing Guide**](developer/testing.md) - Testing strategies, utilities, and conventions
 - [**API Documentation**](https://docs.rs/txtx) - Generated Rust documentation (or run `cargo doc --open --no-deps`)
 
 ## 🏗️ Architecture
@@ -40,11 +38,11 @@ Understand why key architectural decisions were made:
 - [ADR 003: Capture Everything Pattern](adr/003-capture-everything-filter-later-pattern.md)
 - [ADR 004: Visitor Strategy Pattern](adr/004-visitor-strategy-pattern-with-readonly-iterators.md)
 
-## 📋 Internal Documents
+## 📋 Proposals
 
-Planning and future features.
+Planning documents for future features.
 
-- [**Linter Plugin System**](internal/linter-plugin-system.md) - Future extensible validation system (Phases 2-4)
+- [**Linter Plugin System**](proposals/linter-plugin-system.md) - Future extensible validation system (Phases 2-4)
 
 ## 📖 Examples
 

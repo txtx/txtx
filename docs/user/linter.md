@@ -1,4 +1,4 @@
-# Txtx Linter Guide
+# txtx Linter Guide
 
 The `txtx lint` command provides validation for your txtx runbooks, catching errors before runtime and suggesting improvements.
 
@@ -37,9 +37,45 @@ txtx lint
 txtx lint runbook.tx --gen-cli
 ```
 
-## Features
+## Command Line Options
 
-### Validation
+```bash
+txtx lint [OPTIONS] [RUNBOOK]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--manifest-path PATH` | Path to txtx.yml (default: ./txtx.yml) |
+| `--env ENV` | Environment to validate against |
+| `--input KEY=VALUE` | CLI input overrides (triggers warnings) |
+| `--format FORMAT` | Output format: `stylish` (default), `compact`, `json`, `doc` |
+| `--gen-cli` | Generate CLI command template |
+| `--gen-cli-full` | Generate CLI template with all options |
+| `--fix` | Automatically fix fixable issues |
+| `--no-color` | Disable colored output |
+
+### Examples
+
+```bash
+# Lint using a specific manifest
+txtx lint --manifest-path path/to/txtx.yml
+
+# Validate against production environment
+txtx lint --env production
+
+# Provide CLI inputs (overrides manifest values)
+txtx lint --input api_key=test123 --input region=us-west-1
+
+# Use JSON format for CI/CD
+txtx lint --format json
+
+# Generate CLI command template
+txtx lint deploy.tx --gen-cli
+```
+
+## Validation Features
 
 The linter performs multiple levels of validation:
 
@@ -124,7 +160,7 @@ variable "access" {
 
 **Rationale**: Helps identify inputs that should be handled with extra care and never hardcoded.
 
-### Error Categories
+### Severity Levels
 
 #### Errors (Must Fix)
 
@@ -145,29 +181,11 @@ variable "access" {
 - Performance improvements
 - Best practices
 
-## Command Options
-
-### Basic Usage
-
-```bash
-txtx lint [OPTIONS] [RUNBOOK]
-```
-
-### Options
-
-| Option | Description |
-|--------|-------------|
-| `--manifest-path` | Path to txtx.yml (default: ./txtx.yml) |
-| `--env` | Environment to validate against |
-| `--format` | Output format: `stylish` (default), `compact`, `json` |
-| `--gen-cli` | Generate CLI command template |
-| `--gen-cli-full` | Generate CLI template with all options |
-| `--fix` | Automatically fix fixable issues |
-| `--no-color` | Disable colored output |
-
 ## Output Formats
 
 ### Stylish (Default)
+
+Human-readable with color and context:
 
 ```console
 ✗ path/to/runbook.tx
@@ -179,12 +197,16 @@ txtx lint [OPTIONS] [RUNBOOK]
 
 ### Compact
 
+One violation per line:
+
 ```console
 path/to/runbook.tx:12:5: error - Undefined signer 'deployer' (undefined-reference)
 path/to/runbook.tx:25:3: warning - Hardcoded private key (security/no-hardcoded-keys)
 ```
 
 ### JSON
+
+Machine-readable for CI/CD integration:
 
 ```json
 {
@@ -210,6 +232,21 @@ path/to/runbook.tx:25:3: warning - Hardcoded private key (security/no-hardcoded-
     "files": 1
   }
 }
+```
+
+### Doc
+
+Documentation format with code context:
+
+```console
+runbook.tx:
+
+  6 │ action "deploy" {
+  7 │   constructor_args = [
+  8 │     flow.api_key
+    │     ^^^^^^^^^^^^ error: Undefined input 'api_key'
+  9 │   ]
+ 10 │ }
 ```
 
 ## CLI Generation
@@ -259,12 +296,12 @@ txtx lint --env development
 
 ### Environment Variable Validation
 
-The linter checks that all `env.*` references have corresponding values:
+The linter checks that all `input.*` references have corresponding values:
 
 ```hcl
 # runbook.tx
 variable "api_key" {
-  value = env.API_KEY  # Linter ensures API_KEY is defined
+  value = input.API_KEY  # Linter ensures API_KEY is defined
 }
 ```
 
@@ -272,10 +309,14 @@ variable "api_key" {
 # txtx.yml
 environments:
   production:
-    API_KEY: "prod-key-value"
+    inputs:
+      API_KEY: "prod-key-value"
   development:
-    API_KEY: "dev-key-value"
+    inputs:
+      API_KEY: "dev-key-value"
 ```
+
+**Important**: txtx environments are defined in `txtx.yml` manifest files, not OS environment variables. The linter validates against the inputs defined in your manifest's environment configuration.
 
 ## Common Issues and Solutions
 
@@ -285,15 +326,15 @@ environments:
 error: Undefined signer 'deployer'
 ```
 
-**Solution**: Ensure the signer is defined before use:
+**Solution**: Add the signer definition to your runbook:
 
 ```hcl
 signer "deployer" "evm::private_key" {
-  private_key = input.deployer_key
+  private_key = input.DEPLOYER_KEY
 }
 
 action "deploy" "evm::deploy_contract" {
-  signer = signer.deployer  # Now valid
+  signer = signer.deployer  # Now references existing signer
 }
 ```
 
@@ -303,7 +344,7 @@ action "deploy" "evm::deploy_contract" {
 error: Action 'send_eth' only provides 'tx_hash' output
 ```
 
-**Solution**: Reference only available outputs:
+**Solution**: Reference only available outputs for the action type:
 
 ```hcl
 action "send" "evm::send_eth" {
@@ -315,19 +356,53 @@ output "transaction_hash" {
 }
 ```
 
-### Issue: Missing Environment Variable
+### Issue: Missing Input
 
 ```console
-error: Environment variable 'DATABASE_URL' not found
+error: Input 'API_KEY' not found
 ```
 
-**Solution**: Add to your environment configuration:
+**Solution**: Add the input to your manifest's environment configuration:
 
 ```yaml
 environments:
   production:
-    DATABASE_URL: "postgres://..."
+    inputs:
+      API_KEY: "..."
 ```
+
+### Issue: Circular Dependency
+
+```console
+error: Circular dependency detected: var_a -> var_b -> var_a
+```
+
+**Solution**: Break the circular reference by restructuring your variables. Variables in txtx are evaluated as a DAG - each variable can only reference other variables that don't create a cycle.
+
+## Integration with CI/CD
+
+### GitHub Actions Example
+
+```yaml
+name: Lint
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install txtx
+        run: curl -L https://txtx.sh/install.sh | sh
+      - name: Lint runbooks
+        run: txtx lint --format json --env production
+```
+
+### Exit Codes
+
+- `0` - No violations found
+- `1` - Violations found (errors or warnings)
+- `2` - Linter error (invalid manifest, parse errors, etc.)
 
 ## Integration with Editors
 
@@ -360,6 +435,29 @@ Ensure you're in a directory with `txtx.yml` or specify `--manifest-path`.
 ### Environment validation not working
 
 Specify the environment explicitly with `--env`.
+
+### Manifest not found
+
+```bash
+# Specify manifest location explicitly
+txtx lint --manifest-path path/to/txtx.yml
+```
+
+### Environment not found
+
+```bash
+# Check available environments
+txtx ls-envs
+
+# Use correct environment name
+txtx lint --env production
+```
+
+### Undefined input errors
+
+- Ensure inputs are defined in your manifest under `environments.global.inputs` or `environments.<env>.inputs`
+- Check for typos in input names
+- Verify you're using the correct environment with `--env`
 
 ### False positives
 

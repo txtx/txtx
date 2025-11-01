@@ -206,8 +206,6 @@ Run `just arch-c4` when:
 6. **Use Mermaid for GitHub** - For simple diagrams, use Mermaid in Markdown (renders on GitHub)
 7. **Use Structurizr for complexity** - For complex systems with multiple views, use Structurizr DSL
 
----
-
 ## Other Diagram Tools
 
 ### Rust Module Graphs

@@ -149,8 +149,7 @@ See `docs/adr/` for Architecture Decision Records documenting key design choices
 
 ## Additional Resources
 
-- [Architecture Decision Records](docs/adr/) - Design decisions and rationale
-- [Validation Architecture](docs/developer/VALIDATION_ARCHITECTURE.md) - Deep dive into validation system design
-- [Testing Guide](docs/developer/TESTING_GUIDE.md) - Testing documentation
-- [Testing Conventions](docs/developer/TESTING_CONVENTIONS.md) - Test writing standards
+- [Architecture Decision Records](../adr/) - Design decisions and rationale
+- [Linter Architecture](../architecture/linter/architecture.md) - Deep dive into validation system design
+- [Testing Guide](testing.md) - Testing documentation and conventions
 - Generated Rust docs: `cargo doc --open --no-deps`

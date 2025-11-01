@@ -475,9 +475,156 @@ let diagnostics = result.errors.iter()
 7. **Workspace Discovery**: Automatic manifest location
 8. **Zero-cost Abstractions**: Function pointers, no heap allocation
 
+## HCL Validator Architecture
+
+The HCL Validator uses a **Visitor-Strategy Pattern with Read-Only Iterators** to process different block types in runbooks. This architecture addresses code duplication, state management complexity, and extensibility issues.
+
+### Architecture Components
+
+```mermaid
+graph TB
+    subgraph "HCL Validator"
+        HV[HclValidationVisitor]
+        PC[ProcessingContext]
+        BPF[BlockProcessorFactory]
+
+        subgraph "Block Processors"
+            VP[VariableProcessor]
+            AP[ActionProcessor]
+            SP[SignerProcessor]
+            OP[OutputProcessor]
+            FP[FlowProcessor]
+        end
+
+        subgraph "Support Components"
+            DG[DependencyGraph]
+            EF[ErrorFactory]
+        end
+    end
+
+    HV -->|creates| PC
+    HV -->|uses| BPF
+    BPF -->|creates| VP
+    BPF -->|creates| AP
+    BPF -->|creates| SP
+    BPF -->|creates| OP
+    BPF -->|creates| FP
+
+    PC -->|read-only refs| HV
+    VP -->|returns| PR[ProcessingResult]
+    AP -->|returns| PR
+    SP -->|returns| PR
+
+    HV -->|applies| PR
+    HV -->|uses| DG
+    PC -->|uses| EF
+
+    style HV fill:#f96,stroke:#333,stroke-width:4px
+    style PC fill:#9cf,stroke:#333,stroke-width:2px
+```
+
+### Key Design Patterns
+
+#### Read-Only Iterator Pattern
+
+Processors receive read-only references to the visitor's state through `ProcessingContext`:
+
+```rust
+pub struct ProcessingContext<'a> {
+    // Read-only references to visitor's state
+    pub defined_variables: &'a HashSet<String>,
+    pub defined_signers: &'a HashMap<String, String>,
+    pub addon_specs: &'a HashMap<String, Vec<CommandSpec>>,
+    // Error reporting utilities
+    pub file_path: &'a str,
+    pub source: &'a str,
+}
+```
+
+#### Result-Based Processing
+
+Processors return results instead of mutating state:
+
+```rust
+pub struct ProcessingResult {
+    pub variables: Vec<String>,
+    pub signers: Vec<(String, String)>,
+    pub errors: Vec<ValidationError>,
+    pub current_block_name: Option<String>,
+}
+```
+
+#### Two-Phase Validation
+
+The validator runs two passes over the HCL:
+
+```mermaid
+sequenceDiagram
+    participant V as Visitor
+    participant P as Processor
+    participant DG as DependencyGraph
+
+    Note over V: Phase 1: Collection
+    V->>P: process_collection(block, context)
+    P-->>V: ProcessingResult
+    V->>V: Apply results (add definitions)
+    V->>DG: Add nodes for dependency tracking
+
+    Note over V: Phase 2: Validation
+    V->>P: process_validation(block, context)
+    P-->>V: ProcessingResult
+    V->>V: Apply errors
+    V->>DG: Track dependencies (add edges)
+
+    Note over V: Post-processing
+    V->>DG: find_all_cycles()
+    DG-->>V: Circular dependencies
+    V->>V: Generate cycle errors
+```
+
+### Benefits of This Architecture
+
+1. **Clear Ownership**: The visitor maintains exclusive ownership of all state
+2. **No Shared Mutable State**: Eliminates complex borrowing patterns and race conditions
+3. **Extensibility**: New block types only require implementing the `BlockProcessor` trait
+4. **Testability**: Processors are essentially pure functions with clear inputs/outputs
+5. **Maintainability**: Each processor is self-contained with single responsibility
+6. **Performance**: No unnecessary cloning - only read-only references passed around
+
+### Example: Adding a New Block Type
+
+To add support for a new block type (e.g., `webhook`):
+
+```rust
+// 1. Create the processor
+pub struct WebhookProcessor;
+
+impl BlockProcessor for WebhookProcessor {
+    fn process_collection(&mut self, block: &Block, context: &ProcessingContext)
+        -> ProcessingResult {
+        // Extract webhook definition
+    }
+
+    fn process_validation(&mut self, block: &Block, context: &ProcessingContext)
+        -> ProcessingResult {
+        // Validate webhook configuration
+    }
+}
+
+// 2. Register in factory
+impl BlockProcessorFactory {
+    pub fn create(block_type: &str) -> Option<Box<dyn BlockProcessor>> {
+        match block_type {
+            // ... existing types ...
+            "webhook" => Some(Box::new(WebhookProcessor)),
+            _ => None,
+        }
+    }
+}
+```
+
 ## Related Documentation
 
-- [Validation Architecture](../../developer/VALIDATION_ARCHITECTURE.md) - Deep dive into validation system
-- [Linter User Guide](../../user/linter-guide.md) - Usage and examples
+- [Linter User Guide](../../user/linter.md) - Usage and examples
 - [ADR 003: Capture Everything Pattern](../../adr/003-capture-everything-filter-later-pattern.md) - Validation approach
 - [ADR 004: Visitor Strategy Pattern](../../adr/004-visitor-strategy-pattern-with-readonly-iterators.md) - AST traversal
