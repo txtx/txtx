@@ -1,30 +1,38 @@
 //! Output formatting for validation results
 
 use txtx_core::validation::ValidationResult;
+use clap;
 use colored::Colorize;
 use serde_json;
 use std::collections::HashMap;
 use std::fs;
 use strum::{AsRefStr, Display, EnumIter, EnumString, IntoStaticStr};
 
+/// Output format for lint results
 #[derive(
     Clone,
     Copy,
     Debug,
     PartialEq,
     Eq,
-    AsRefStr,      // Provides as_ref() -> &str
-    Display,       // Provides to_string()
-    EnumString,    // Provides from_str()
-    IntoStaticStr, // Provides into() -> &'static str
-    EnumIter,      // Provides iter() over all variants
+    clap::ValueEnum,  // For CLI argument parsing
+    AsRefStr,         // Provides as_ref() -> &str
+    Display,          // Provides to_string()
+    EnumString,       // Provides from_str()
+    IntoStaticStr,    // Provides into() -> &'static str
+    EnumIter,         // Provides iter() over all variants
 )]
 #[strum(serialize_all = "lowercase")]
 pub enum Format {
+    /// Stylish format (default, human-readable)
     Stylish,
+    /// Compact format (one line per issue)
     Compact,
+    /// JSON format (machine-readable)
     Json,
+    /// Quickfix format (vim-compatible)
     Quickfix,
+    /// Documentation format (generates docs from rules)
     Doc,
 }
 

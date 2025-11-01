@@ -27,7 +27,7 @@ pub fn run_lint(
     manifest_path: Option<String>,
     environment: Option<String>,
     cli_inputs: Vec<(String, String)>,
-    format: crate::cli::LintOutputFormat,
+    format: LinterFormat,
     linter_options: LinterOptions,
     gen_cli: bool,
     gen_cli_full: bool,
@@ -48,24 +48,13 @@ pub fn run_lint(
         );
     }
 
-    // Convert format enum
-    let linter_format = match format {
-        crate::cli::LintOutputFormat::Stylish => LinterFormat::Stylish,
-        crate::cli::LintOutputFormat::Pretty => LinterFormat::Stylish, // Map Pretty to Stylish
-        crate::cli::LintOutputFormat::Auto => LinterFormat::Stylish, // Default Auto to Stylish
-        crate::cli::LintOutputFormat::Compact => LinterFormat::Compact,
-        crate::cli::LintOutputFormat::Json => LinterFormat::Json,
-        crate::cli::LintOutputFormat::Quickfix => LinterFormat::Quickfix,
-        crate::cli::LintOutputFormat::Doc => LinterFormat::Doc,
-    };
-
     // Create linter configuration
     let config = LinterConfig::new(
         manifest_path.map(PathBuf::from),
         runbook_path.clone(),
         environment,
         cli_inputs,
-        linter_format,
+        format,
     );
 
     // Run the linter
@@ -283,7 +272,7 @@ mod tests {
             None, // This should default to "./txtx.yml"
             None, // No environment specified
             vec![],
-            crate::cli::LintOutputFormat::Json,
+            LinterFormat::Json,
             linter_options,
             false,
             false,
@@ -309,7 +298,7 @@ mod tests {
             None, // This should default to "./txtx.yml"
             None, // No environment specified
             vec![],
-            crate::cli::LintOutputFormat::Json,
+            LinterFormat::Json,
             linter_options,
             false,
             false,
