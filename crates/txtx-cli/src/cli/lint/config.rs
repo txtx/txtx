@@ -178,6 +178,8 @@ impl ConfigFile {
 #[derive(Clone, Debug)]
 pub struct LinterConfig {
     pub manifest_path: Option<PathBuf>,
+    /// Runbook name (stored for potential future use, currently passed directly to lint methods)
+    #[allow(dead_code)]
     pub runbook: Option<String>,
     pub environment: Option<String>,
     pub cli_inputs: Vec<(String, String)>,
