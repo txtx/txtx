@@ -280,6 +280,7 @@ mod tests {
     use super::*;
     use crate::cli::lint::config::LinterConfig;
     use crate::cli::lint::formatter::Format;
+    use crate::cli::lint::test_utils::manifest_builders::*;
     use std::path::PathBuf;
     use txtx_core::manifest::WorkspaceManifest;
 
@@ -465,18 +466,7 @@ action "test" {
     #[test]
     fn test_cli_override_warns_when_overriding_global_env() {
         // Arrange - manifest defines API_KEY in global environment
-        let mut manifest = WorkspaceManifest {
-            name: "test".to_string(),
-            id: "test-id".to_string(),
-            runbooks: vec![],
-            environments: Default::default(),
-            location: None,
-        };
-
-        let global_env: std::collections::HashMap<String, String> =
-            vec![("API_KEY".to_string(), "global-value".to_string())]
-            .into_iter().collect();
-        manifest.environments.insert("global".to_string(), global_env.into_iter().collect());
+        let manifest = create_manifest_with_global(&[("API_KEY", "global-value")]);
 
         let config = LinterConfig {
             manifest_path: None,
@@ -509,18 +499,7 @@ action "test" {
     #[test]
     fn test_cli_override_warns_when_overriding_specific_env() {
         // Arrange - manifest defines API_KEY in production environment
-        let mut manifest = WorkspaceManifest {
-            name: "test".to_string(),
-            id: "test-id".to_string(),
-            runbooks: vec![],
-            environments: Default::default(),
-            location: None,
-        };
-
-        let prod_env: std::collections::HashMap<String, String> =
-            vec![("API_KEY".to_string(), "prod-value".to_string())]
-            .into_iter().collect();
-        manifest.environments.insert("production".to_string(), prod_env.into_iter().collect());
+        let manifest = create_manifest_with_env("production", &[("API_KEY", "prod-value")]);
 
         let config = LinterConfig {
             manifest_path: None,
@@ -685,23 +664,11 @@ action "test" {
     #[test]
     fn test_cli_override_both_global_and_specific_env() {
         // Arrange - manifest has API_KEY in both global and production
-        let mut manifest = WorkspaceManifest {
-            name: "test".to_string(),
-            id: "test-id".to_string(),
-            runbooks: vec![],
-            environments: Default::default(),
-            location: None,
-        };
-
-        let global_env: std::collections::HashMap<String, String> =
-            vec![("API_KEY".to_string(), "global-value".to_string())]
-            .into_iter().collect();
-        manifest.environments.insert("global".to_string(), global_env.into_iter().collect());
-
-        let prod_env: std::collections::HashMap<String, String> =
-            vec![("API_KEY".to_string(), "prod-value".to_string())]
-            .into_iter().collect();
-        manifest.environments.insert("production".to_string(), prod_env.into_iter().collect());
+        let manifest = with_env(
+            create_manifest_with_global(&[("API_KEY", "global-value")]),
+            "production",
+            &[("API_KEY", "prod-value")]
+        );
 
         let config = LinterConfig {
             manifest_path: None,
