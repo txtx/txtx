@@ -95,6 +95,8 @@ pub struct ValidationContext<'a> {
     pub environment: Option<&'a str>,
     pub effective_inputs: &'a HashMap<String, String>,
     pub cli_inputs: &'a [(String, String)],
+    pub content: &'a str,
+    pub file_path: &'a str,
     pub input: InputInfo,
     pub config: Option<&'a LinterConfig>,
 }
@@ -312,6 +314,8 @@ mod tests {
             environment: None,
             effective_inputs: &effective_inputs,
             cli_inputs: &cli_inputs,
+            content: "",
+            file_path: "test.tx",
             input: InputInfo {
                 name: "API_KEY".to_string(),
                 full_name: "input.API_KEY".to_string(),
@@ -409,6 +413,8 @@ mod tests {
                     environment: None,
                     effective_inputs: &self.effective_inputs,
                     cli_inputs: &self.cli_inputs,
+                    content: "",
+                    file_path: "test.tx",
                     input: InputInfo {
                         name: name.to_string(),
                         full_name: format!("input.{}", name),

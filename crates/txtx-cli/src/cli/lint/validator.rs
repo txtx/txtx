@@ -211,6 +211,8 @@ impl Linter {
                 environment: environment.map(|s| s.as_str()),
                 effective_inputs: &effective_inputs,
                 cli_inputs: &self.config.cli_inputs,
+                content,
+                file_path,
                 input: InputInfo {
                     name: input_ref.name.clone(),
                     full_name,
