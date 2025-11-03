@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::{i128, vec};
 
+use log::debug;
 use solana_client::rpc_client::RpcClient;
 use solana_commitment_config::CommitmentConfig;
 use solana_pubkey::Pubkey;
@@ -432,6 +433,10 @@ impl CommandImplementation for DeployProgram {
                                 diagnosed_error!("failed to get deploy transactions: {}", e),
                             )
                         })?;
+                    debug!("Transaction deployment checking for additional write transactions:");
+                    debug!("  Original transaction count: {}", existing_transactions.len());
+                    debug!("  New write transactions count: {}", new_write_transactions.len());
+
                     // make a new set of transactions including:
                     //  1. The original write transactions
                     //  2. The new set of write transactions
@@ -444,6 +449,8 @@ impl CommandImplementation for DeployProgram {
                     combined_transactions.append(&mut new_write_transactions);
                     combined_transactions
                         .extend_from_slice(&existing_transactions[initial_write_count..]);
+                    debug!("  Combined transaction count: {}", combined_transactions.len());
+
                     combined_transactions
                 };
 
