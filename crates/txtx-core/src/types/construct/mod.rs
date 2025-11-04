@@ -1,3 +1,4 @@
+use crate::types::ConstructType;
 use txtx_addon_kit::types::embedded_runbooks::EmbeddedRunbookInstance;
 use txtx_addon_kit::{
     hcl::structure::Block,
@@ -18,16 +19,38 @@ pub enum PreConstructData {
 }
 
 impl PreConstructData {
-    pub fn construct_type(&self) -> &str {
+    /// Get the construct type as an enum.
+    ///
+    /// This provides type-safe access to the construct type.
+    pub fn construct_type_enum(&self) -> ConstructType {
         match &self {
-            PreConstructData::Import(_) => "import",
-            PreConstructData::Variable(_) => "variable",
-            PreConstructData::Output(_) => "output",
-            PreConstructData::Module(_) => "module",
-            PreConstructData::Action(_) => "action",
-            PreConstructData::Signer(_) => "signer",
-            PreConstructData::Addon(_) => "addon",
-            PreConstructData::EmbeddedRunbook(_) => "runbook",
+            PreConstructData::Import(_) => ConstructType::Import,
+            PreConstructData::Variable(_) => ConstructType::Variable,
+            PreConstructData::Output(_) => ConstructType::Output,
+            PreConstructData::Module(_) => ConstructType::Module,
+            PreConstructData::Action(_) => ConstructType::Action,
+            PreConstructData::Signer(_) => ConstructType::Signer,
+            PreConstructData::Addon(_) => ConstructType::Addon,
+            PreConstructData::EmbeddedRunbook(_) => ConstructType::Runbook,
+            PreConstructData::Root => unreachable!(),
+        }
+    }
+
+    /// Get the construct type as a string.
+    ///
+    /// For new code, prefer `construct_type_enum()` for type safety.
+    pub fn construct_type(&self) -> &str {
+        use crate::types::ConstructType;
+
+        match &self {
+            PreConstructData::Import(_) => ConstructType::Import.into(),
+            PreConstructData::Variable(_) => ConstructType::Variable.into(),
+            PreConstructData::Output(_) => ConstructType::Output.into(),
+            PreConstructData::Module(_) => ConstructType::Module.into(),
+            PreConstructData::Action(_) => ConstructType::Action.into(),
+            PreConstructData::Signer(_) => ConstructType::Signer.into(),
+            PreConstructData::Addon(_) => ConstructType::Addon.into(),
+            PreConstructData::EmbeddedRunbook(_) => ConstructType::Runbook.into(),
             PreConstructData::Root => unreachable!(),
         }
     }

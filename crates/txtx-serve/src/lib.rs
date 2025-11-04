@@ -219,6 +219,21 @@ pub async fn execute_runbook(
     let mut reconstructed_source = "".to_string();
     let mut required_addons = HashSet::new();
     for construct in payload.constructs.iter() {
+        // Parse construct type to enum for type-safe handling
+        use std::str::FromStr;
+        use txtx_core::types::ConstructType;
+
+        let construct_type = match ConstructType::from_str(&construct.construct_type) {
+            Ok(ct) => ct,
+            Err(_) => {
+                return Err(actix_web::error::ErrorBadRequest(format!(
+                    "Invalid construct type: '{}'. Valid types: {:?}",
+                    construct.construct_type,
+                    ConstructType::all()
+                )))
+            }
+        };
+
         reconstructed_source.push_str(&construct.construct_type);
         reconstructed_source.push_str(&format!(" \"{}\"", &construct.id));
         if let Some(ref namespace) = construct.namespace {
@@ -231,48 +246,66 @@ pub async fn execute_runbook(
             (None, None) => format!(""),
         };
         reconstructed_source.push_str(&format!(" {} {{\n", &command_id));
-        if construct.construct_type.eq("variable") || construct.construct_type.eq("output") {
-            reconstructed_source
-                .push_str(&format!("  description = \"{}\"\n", construct.description));
-            reconstructed_source.push_str(&format!("  editable = true\n"));
 
-            if let Some(ref value) = construct.value {
-                match value {
-                    JsonValue::Null => {}
-                    JsonValue::String(value) if value.starts_with("$") => {
-                        reconstructed_source.push_str(&format!("  value = {}\n", &value[1..]));
-                    }
-                    JsonValue::String(value) => {
-                        reconstructed_source.push_str(&format!("  value = \"{}\"\n", value));
-                    }
-                    JsonValue::Number(value) => {
-                        reconstructed_source.push_str(&format!("  value = {}\n", &value));
-                    }
-                    _ => unreachable!(),
-                }
-            }
-        } else if construct.construct_type.eq("action") {
-            if let Some(ref inputs) = construct.inputs {
-                for (key, value) in inputs.iter() {
+        // Use exhaustive match for type-safe construct handling
+        match construct_type {
+            ConstructType::Variable | ConstructType::Output => {
+                reconstructed_source
+                    .push_str(&format!("  description = \"{}\"\n", construct.description));
+                reconstructed_source.push_str(&format!("  editable = true\n"));
+
+                if let Some(ref value) = construct.value {
                     match value {
                         JsonValue::Null => {}
-                        JsonValue::String(value) if value.eq("null") => {}
                         JsonValue::String(value) if value.starts_with("$") => {
-                            reconstructed_source.push_str(&format!(
-                                "  {} = {}\n",
-                                key,
-                                &value[1..]
-                            ));
+                            reconstructed_source.push_str(&format!("  value = {}\n", &value[1..]));
                         }
                         JsonValue::String(value) => {
-                            reconstructed_source.push_str(&format!("  {} = \"{}\"\n", key, value));
+                            reconstructed_source.push_str(&format!("  value = \"{}\"\n", value));
                         }
                         JsonValue::Number(value) => {
-                            reconstructed_source.push_str(&format!("  {} = {}\n", key, &value));
+                            reconstructed_source.push_str(&format!("  value = {}\n", &value));
                         }
                         _ => unreachable!(),
                     }
                 }
+            }
+            ConstructType::Action => {
+                if let Some(ref inputs) = construct.inputs {
+                    for (key, value) in inputs.iter() {
+                        match value {
+                            JsonValue::Null => {}
+                            JsonValue::String(value) if value.eq("null") => {}
+                            JsonValue::String(value) if value.starts_with("$") => {
+                                reconstructed_source.push_str(&format!(
+                                    "  {} = {}\n",
+                                    key,
+                                    &value[1..]
+                                ));
+                            }
+                            JsonValue::String(value) => {
+                                reconstructed_source
+                                    .push_str(&format!("  {} = \"{}\"\n", key, value));
+                            }
+                            JsonValue::Number(value) => {
+                                reconstructed_source.push_str(&format!("  {} = {}\n", key, &value));
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+            }
+            ConstructType::Signer
+            | ConstructType::Addon
+            | ConstructType::Module
+            | ConstructType::Flow
+            | ConstructType::Import
+            | ConstructType::Prompt
+            | ConstructType::Runbook => {
+                return Err(actix_web::error::ErrorBadRequest(format!(
+                    "Construct type '{}' is not supported in runbook execution",
+                    construct_type
+                )))
             }
         }
         reconstructed_source.push_str(&format!("}}\n\n"));

@@ -12,6 +12,10 @@ categories = { workspace = true }
 [dependencies]
 txtx-addon-kit = { workspace = true, default-features = false }
 txtx-core = { workspace = true, default-features = false}
+txtx-addon-network-bitcoin = { workspace = true }
+txtx-addon-network-evm = { workspace = true }
+txtx-addon-network-svm = { workspace = true }
+txtx-addon-telegram = { workspace = true }
 hiro-system-kit = "0.3.4"
 tokio = "1.43.0"
 

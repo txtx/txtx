@@ -19,7 +19,14 @@ use crate::helpers::fs::FileLocation;
 pub mod block_id;
 pub mod cloud_interface;
 pub mod commands;
+pub mod construct_type;
+pub mod typed_block;
+pub mod diagnostic_types;
 pub mod diagnostics;
+
+// Re-export common diagnostic types for convenience
+pub use diagnostic_types::{DiagnosticLevel, DiagnosticSpan, RelatedLocation};
+
 pub mod embedded_runbooks;
 pub mod frontend;
 pub mod functions;
@@ -266,7 +273,7 @@ pub struct ConstructId {
     /// Location of the file enclosing the construct
     pub construct_location: FileLocation,
     /// Type of construct (e.g. `variable` in `variable.value``)
-    pub construct_type: String,
+    pub construct_type: construct_type::ConstructType,
     /// Name of construct (e.g. `value` in `variable.value``)
     pub construct_name: String,
 }
@@ -275,13 +282,20 @@ impl ConstructId {
     pub fn did(&self) -> ConstructDid {
         let did = Did::from_components(vec![
             self.package_id.did().as_bytes(),
-            self.construct_type.to_string().as_bytes(),
+            self.construct_type.as_ref().as_bytes(),  // Zero-cost conversion via AsRef trait
             self.construct_name.to_string().as_bytes(),
             // todo(lgalabru): This should be done upstream.
             // Serializing is allowing us to get a canonical location.
             serde_json::json!(self.construct_location).to_string().as_bytes(),
         ]);
         ConstructDid(did)
+    }
+
+    /// Get the construct type as a string reference.
+    ///
+    /// This is a zero-cost conversion that returns a reference to a static string.
+    pub fn construct_type_str(&self) -> &str {
+        self.construct_type.as_ref()
     }
 }
 

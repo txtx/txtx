@@ -18,7 +18,7 @@ getrandom = { version = "0.2", features = ["js"] }
 lazy_static = "1.4.0"
 jaq-interpret = "1.2.1"
 jaq-parse = "1.0.2"
-serde_json = { version = "1", features = ["preserve_order"] } 
+serde_json = { version = "1", features = ["preserve_order"] }
 petgraph = "0.8.2"
 libsecp256k1 = "0.7.0"
 ripemd = "0.1.3"
@@ -29,6 +29,8 @@ chrono = "0.4.38"
 similar = "2.5.0"
 better-debug = "1.0.1"
 serde_with = "3.11.0"
+strum = { version = "0.26", features = ["derive"] }
+thiserror = "1.0"
 tokio = { version = "1.37.0", features = ["sync"] }
 mustache = "0.9.0"
 

@@ -46,7 +46,7 @@ use txtx_core::{
         AddonConstructFactory, ConsolidatedChanges, RunbookTopLevelInputsMap, SynthesizedChange,
     },
     start_supervised_runbook_runloop, start_unsupervised_runbook_runloop,
-    types::{ConstructDid, Runbook, RunbookSnapshotContext, RunbookSources},
+    types::{ConstructDid, ConstructType, Runbook, RunbookSnapshotContext, RunbookSources},
 };
 use txtx_core::{
     runbook::DEFAULT_TOP_LEVEL_INPUTS_NAME,
@@ -465,7 +465,7 @@ pub async fn run_action(
         commands: addon.build_command_lookup(),
         signers: addon.build_signer_lookup(),
     };
-    let block = Block::new(Ident::new("action"));
+    let block = Block::new(Ident::new(ConstructType::Action.as_ref()));
     let construct_did = Did::zero();
     let command_id = CommandId::Action(command_name.into());
     let package_id = PackageId::zero();

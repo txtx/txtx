@@ -886,7 +886,7 @@ impl RunbookExecutionContext {
                     execution_results
                         .outputs
                         // check if we have any outputs for this construct type
-                        .entry(construct_id.construct_type.clone())
+                        .entry(construct_id.construct_type.as_ref().to_string())
                         // if we do, we'll update them to include the results from its child construct's execution
                         .and_modify(|object_value| {
                             object_value.as_object_mut().map(|object_props| {
@@ -904,7 +904,7 @@ impl RunbookExecutionContext {
                 .or_insert_with(|| {
                     let mut res = CommandExecutionResult::new();
                     res.insert(
-                        &construct_id.construct_type,
+                        construct_id.construct_type.as_ref(),
                         ObjectType::from(vec![(&construct_id.construct_name, value.clone())])
                             .to_value(),
                     );

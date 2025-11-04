@@ -30,6 +30,7 @@ use crate::{helpers::hcl::get_object_expression_key, types::stores::ValueStore};
 
 use super::{
     cloud_interface::CloudServiceContext,
+    construct_type::ConstructType,
     diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemRequestType, ActionItemRequestUpdate, ActionItemResponse,
@@ -668,12 +669,12 @@ pub enum CommandInstanceType {
 impl CommandInstanceType {
     pub fn to_ident(&self) -> &str {
         match self {
-            CommandInstanceType::Variable => "variable",
-            CommandInstanceType::Output => "output",
-            CommandInstanceType::Action(_) => "action",
-            CommandInstanceType::Prompt => "prompt",
-            CommandInstanceType::Module => "module",
-            CommandInstanceType::Addon => "addon",
+            CommandInstanceType::Variable => ConstructType::Variable.into(),
+            CommandInstanceType::Output => ConstructType::Output.into(),
+            CommandInstanceType::Action(_) => ConstructType::Action.into(),
+            CommandInstanceType::Prompt => ConstructType::Prompt.into(),
+            CommandInstanceType::Module => ConstructType::Module.into(),
+            CommandInstanceType::Addon => ConstructType::Addon.into(),
         }
     }
 }
@@ -928,7 +929,7 @@ impl CommandInstance {
             .check(&self.name, &self.specification.inputs)?;
 
         let spec = &self.specification;
-        if spec.matcher != "output" {
+        if spec.matcher != ConstructType::Output.as_ref() {
             let mut actions = (spec.check_executability)(
                 &construct_did,
                 &self.name,

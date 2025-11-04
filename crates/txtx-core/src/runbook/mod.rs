@@ -19,12 +19,15 @@ use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
 use txtx_addon_kit::types::{AuthorizationContext, Did, PackageId, RunbookId};
 use txtx_addon_kit::Addon;
 
+pub mod collector;
 mod diffing_context;
 pub mod embedded_runbook;
 mod execution_context;
 pub mod flow_context;
 mod graph_context;
+pub mod location;
 mod runtime_context;
+pub mod variables;
 mod workspace_context;
 
 pub use diffing_context::ConsolidatedChanges;
@@ -136,12 +139,13 @@ impl Runbook {
                 PackageId::from_file(&location, &self.runbook_id, &package_name).map_err(|e| e)?;
             package_ids.push(package_id.clone());
 
-            let mut blocks = raw_content.into_blocks().map_err(|diag| diag.location(&location))?;
+            let mut blocks = raw_content.into_typed_blocks().map_err(|diag| diag.location(&location))?;
 
-            while let Some(block) = blocks.pop_front() {
-                match block.ident.value().as_str() {
-                    "flow" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+            while let Some(typed_block) = blocks.pop_front() {
+                use crate::types::ConstructType;
+                match &typed_block.construct_type {
+                    Ok(ConstructType::Flow) => {
+                        let Some(BlockLabel::String(name)) = typed_block.labels.first() else {
                             continue;
                         };
                         let flow_name = name.to_string();
@@ -150,7 +154,7 @@ impl Runbook {
                             &self.runbook_id,
                             &current_top_level_value_store,
                         );
-                        flow_map.push((flow_context, block.body.attributes().cloned().collect()));
+                        flow_map.push((flow_context, typed_block.body.attributes().cloned().collect()));
                     }
                     _ => {}
                 }

@@ -24,6 +24,7 @@ use txtx_addon_kit::types::stores::AddonDefaults;
 use txtx_addon_kit::types::types::Value;
 use txtx_addon_kit::types::AddonInstance;
 use txtx_addon_kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
+use crate::types::ConstructType;
 
 use super::{
     get_source_context_for_diagnostic, RunbookExecutionContext, RunbookGraphContext,
@@ -120,13 +121,15 @@ impl RunbookWorkspaceContext {
                 .map_err(|e| vec![e])?;
 
             let mut blocks =
-                raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
+                raw_content.into_typed_blocks().map_err(|diag| vec![diag.location(&location)])?;
 
-            while let Some(block) = blocks.pop_front() {
-                match block.ident.value().as_str() {
-                    "import" => {
+            while let Some(typed_block) = blocks.pop_front() {
+                use crate::types::ConstructType;
+
+                match &typed_block.construct_type {
+                    Ok(ConstructType::Import) => {
                         // imports are the only constructs that we need to process in this step
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                        let Some(BlockLabel::String(name)) = typed_block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("import name missing".into())
                                     .location(&location),
@@ -134,7 +137,7 @@ impl RunbookWorkspaceContext {
                             continue;
                         };
 
-                        let path = visit_required_string_literal_attribute("path", &block).unwrap(); // todo(lgalabru)
+                        let path = visit_required_string_literal_attribute("path", &*typed_block).unwrap(); // todo(lgalabru)
                         println!("Loading {} at path ({path})", name.to_string());
 
                         // todo(lgalabru): revisit this approach, filesystem access needs to be abstracted.
@@ -187,14 +190,14 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Import(block.clone()),
+                            PreConstructData::Import(typed_block.clone_inner()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
-                    "variable" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                    Ok(ConstructType::Variable) => {
+                        let Some(BlockLabel::String(name)) = typed_block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("variable name missing".into())
                                     .location(&location),
@@ -204,14 +207,14 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Variable(block.clone()),
+                            PreConstructData::Variable(typed_block.clone_inner()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
-                    "module" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                    Ok(ConstructType::Module) => {
+                        let Some(BlockLabel::String(name)) = typed_block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("module name missing".into())
                                     .location(&location),
@@ -221,14 +224,14 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Module(block.clone()),
+                            PreConstructData::Module(typed_block.clone_inner()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
-                    "output" => {
-                        let Some(BlockLabel::String(name)) = block.labels.first() else {
+                    Ok(ConstructType::Output) => {
+                        let Some(BlockLabel::String(name)) = typed_block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("output name missing".into())
                                     .location(&location),
@@ -238,15 +241,15 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             name.to_string(),
                             location.clone(),
-                            PreConstructData::Output(block.clone()),
+                            PreConstructData::Output(typed_block.clone_inner()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
-                    "action" => {
+                    Ok(ConstructType::Action) => {
                         let (Some(command_name), Some(namespaced_action)) =
-                            (block.labels.get(0), block.labels.get(1))
+                            (typed_block.labels.get(0), typed_block.labels.get(1))
                         else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("invalid action syntax: expected `action \"action_name\" \"namespace::action\"".into())
@@ -265,7 +268,7 @@ impl RunbookWorkspaceContext {
                             command_id,
                             command_name.as_str(),
                             &package_id,
-                            &block,
+                            &*typed_block,
                             &location,
                         ) {
                             Ok(command_instance) => {
@@ -284,16 +287,16 @@ impl RunbookWorkspaceContext {
                                 diagnostics.push(
                                     diagnostic
                                         .location(&location)
-                                        .set_span_range(block.span())
+                                        .set_span_range(typed_block.span())
                                         .set_diagnostic_span(span),
                                 );
                                 continue;
                             }
                         };
                     }
-                    "signer" => {
+                    Ok(ConstructType::Signer) => {
                         let (Some(signer_name), Some(namespaced_signer_cmd)) =
-                            (block.labels.get(0), block.labels.get(1))
+                            (typed_block.labels.get(0), typed_block.labels.get(1))
                         else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("signer syntax invalid".into())
@@ -305,7 +308,7 @@ impl RunbookWorkspaceContext {
                             &namespaced_signer_cmd.as_str(),
                             signer_name.as_str(),
                             &package_id,
-                            &block,
+                            &*typed_block,
                             &location,
                         ) {
                             Ok(signer_instance) => {
@@ -324,8 +327,8 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
-                    "runbook" => {
-                        let Some(runbook_name) = block.labels.get(0) else {
+                    Ok(ConstructType::Runbook) => {
+                        let Some(runbook_name) = typed_block.labels.get(0) else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("'runbook' syntax invalid".into())
                                     .location(&location),
@@ -334,7 +337,7 @@ impl RunbookWorkspaceContext {
                         };
                         let runbook_name = runbook_name.to_string();
                         let embedded_runbook_location =
-                            visit_required_string_literal_attribute("location", &block).unwrap();
+                            visit_required_string_literal_attribute("location", &*typed_block).unwrap();
                         println!("Loading {runbook_name} at path ({embedded_runbook_location})");
 
                         let imported_package_location =
@@ -364,7 +367,7 @@ impl RunbookWorkspaceContext {
                                         loc,
                                         &runbook_name.to_string(),
                                         &package_id,
-                                        &block,
+                                        &*typed_block,
                                         &mut runtime_context.addons_context,
                                     )
                                     .await
@@ -387,8 +390,8 @@ impl RunbookWorkspaceContext {
                             }
                         }
                     }
-                    "addon" => {
-                        let Some(BlockLabel::String(addon_id)) = block.labels.first() else {
+                    Ok(ConstructType::Addon) => {
+                        let Some(BlockLabel::String(addon_id)) = typed_block.labels.first() else {
                             diagnostics.push(
                                 Diagnostic::error_from_string("addon name missing".into())
                                     .location(&location),
@@ -398,16 +401,17 @@ impl RunbookWorkspaceContext {
                         let _ = self.index_construct(
                             addon_id.to_string(),
                             location.clone(),
-                            PreConstructData::Addon(block.clone()),
+                            PreConstructData::Addon(typed_block.clone_inner()),
                             &package_id,
                             graph_context,
                             execution_context,
                         );
                     }
-                    "flow" => {}
-                    unknown => {
+                    Ok(ConstructType::Flow) => {}
+                    _ => {
+                        // Unknown or unsupported construct types (Prompt, etc.)
                         diagnostics.push(
-                            Diagnostic::error_from_string(format!("unknown construct {}", unknown))
+                            Diagnostic::error_from_string(format!("unknown or unsupported construct '{}'", typed_block.ident_str()))
                                 .location(&location),
                         );
                     }
@@ -454,7 +458,7 @@ impl RunbookWorkspaceContext {
             self.packages.get_mut(&package_id).expect("internal error: unable to retrieve package");
         let construct_id = ConstructId {
             package_id: package_id.clone(),
-            construct_type: "flow_input".into(),
+            construct_type: crate::types::ConstructType::Flow,  // Flow inputs are flow-related constructs
             construct_location: package_id.package_location.clone(),
             construct_name: input_name.to_string(),
         };
@@ -478,7 +482,7 @@ impl RunbookWorkspaceContext {
             self.packages.get_mut(&package_id).expect("internal error: unable to retrieve package");
         let construct_id = ConstructId {
             package_id: package_id.clone(),
-            construct_type: construct_data.construct_type().into(),
+            construct_type: construct_data.construct_type_enum(),
             construct_location,
             construct_name: construct_name.clone(),
         };
@@ -825,7 +829,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for outputs
-                if component.eq_ignore_ascii_case("output") {
+                if component.eq_ignore_ascii_case(ConstructType::Output.as_ref()) {
                     is_root = false;
                     let Some(output_name) = components.pop_front() else {
                         continue;
@@ -838,7 +842,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for variables
-                if component.eq_ignore_ascii_case("variable") {
+                if component.eq_ignore_ascii_case(ConstructType::Variable.as_ref()) {
                     is_root = false;
                     let Some(input_name) = components.pop_front() else {
                         continue;
@@ -851,7 +855,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for actions
-                if component.eq_ignore_ascii_case("action") {
+                if component.eq_ignore_ascii_case(ConstructType::Action.as_ref()) {
                     is_root = false;
                     let Some(action_name) = components.pop_front() else {
                         continue;
@@ -865,7 +869,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for signers
-                if component.eq_ignore_ascii_case("signer") {
+                if component.eq_ignore_ascii_case(ConstructType::Signer.as_ref()) {
                     is_root = false;
                     let Some(signer_name) = components.pop_front() else {
                         continue;
@@ -878,7 +882,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for flows
-                if component.eq_ignore_ascii_case("flow") {
+                if component.eq_ignore_ascii_case(ConstructType::Flow.as_ref()) {
                     is_root = false;
                     let Some(flow_input_name) = components.pop_front() else {
                         continue;
@@ -891,7 +895,7 @@ impl RunbookWorkspaceContext {
                 }
 
                 // Look for embedded runbooks
-                if component.eq_ignore_ascii_case("runbook") {
+                if component.eq_ignore_ascii_case(ConstructType::Runbook.as_ref()) {
                     is_root = false;
                     let Some(embedded_runbook_name) = components.pop_front() else {
                         continue;

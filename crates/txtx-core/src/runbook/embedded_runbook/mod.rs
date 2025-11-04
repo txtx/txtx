@@ -2,6 +2,7 @@ pub mod publishable;
 
 use publishable::PublishableEmbeddedRunbookSpecification;
 use std::collections::HashMap;
+use std::str::FromStr;
 use txtx_addon_kit::hcl::structure::Block;
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
@@ -312,13 +313,15 @@ mod tests {
         let my_var_construct_id = ConstructId {
             package_id: package_id.clone(),
             construct_location: package_id.package_location.clone(),
-            construct_type: my_var_inst.typing.to_ident().into(),
+            construct_type: crate::types::ConstructType::from_str(my_var_inst.typing.to_ident())
+                .expect("valid construct type"),
             construct_name: my_var_name.to_string(),
         };
         let my_output_construct_id = ConstructId {
             package_id: package_id.clone(),
             construct_location: package_id.package_location.clone(),
-            construct_type: my_output_inst.typing.to_ident().into(),
+            construct_type: crate::types::ConstructType::from_str(my_output_inst.typing.to_ident())
+                .expect("valid construct type"),
             construct_name: my_output_name.to_string(),
         };
 

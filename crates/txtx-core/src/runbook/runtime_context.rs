@@ -195,7 +195,7 @@ impl RuntimeContext {
                 self.addons_context.register(&package_id.did(), "std", false).unwrap();
 
                 let blocks =
-                    raw_content.into_blocks().map_err(|diag| vec![diag.location(&location)])?;
+                    raw_content.into_typed_blocks().map_err(|diag| vec![diag.location(&location)])?;
 
                 let _ = self
                     .register_addons_from_blocks(
@@ -220,19 +220,20 @@ impl RuntimeContext {
 
     pub fn register_addons_from_blocks(
         &mut self,
-        mut blocks: VecDeque<Block>,
+        mut blocks: VecDeque<txtx_addon_kit::types::typed_block::OwnedTypedBlock>,
         package_id: &PackageId,
         location: &FileLocation,
         runbook_workspace_context: &mut RunbookWorkspaceContext,
         runbook_execution_context: &RunbookExecutionContext,
     ) -> Result<(), Vec<Diagnostic>> {
+        use crate::types::ConstructType;
         let mut diagnostics = vec![];
         let dependencies_execution_results = DependencyExecutionResultCache::new();
-        while let Some(block) = blocks.pop_front() {
+        while let Some(typed_block) = blocks.pop_front() {
             // parse addon blocks to load that addon
-            match block.ident.value().as_str() {
-                "addon" => {
-                    let Some(BlockLabel::String(name)) = block.labels.first() else {
+            match &typed_block.construct_type {
+                Ok(ConstructType::Addon) => {
+                    let Some(BlockLabel::String(name)) = typed_block.labels.first() else {
                         diagnostics.push(
                             Diagnostic::error_from_string("addon name missing".into())
                                 .location(&location),
@@ -249,7 +250,7 @@ impl RuntimeContext {
                     let addon_defaults = self
                         .generate_addon_defaults_from_block(
                             existing_addon_defaults,
-                            &block,
+                            &*typed_block,
                             &addon_id,
                             &package_id,
                             &dependencies_execution_results,
