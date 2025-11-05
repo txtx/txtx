@@ -276,10 +276,7 @@ pub fn main() {
 
     let opts: Opts = match Opts::try_parse() {
         Ok(opts) => opts,
-        Err(e) => {
-            println!("{}", e);
-            process::exit(1);
-        }
+        Err(e) => e.exit(),
     };
 
     let buffer_stdin = if let Command::Lsp = opts.command { None } else { load_stdin() };
