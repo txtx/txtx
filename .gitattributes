@@ -1,0 +1,2 @@
+# Syntax highlighting for txtx runbook files
+*.tx linguist-language=HCL

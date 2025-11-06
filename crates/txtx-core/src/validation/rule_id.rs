@@ -5,6 +5,7 @@
 
 use std::collections::HashSet;
 use std::fmt;
+use strum::{AsRefStr, Display, EnumIter, EnumString, IntoStaticStr};
 
 /// Identifies which addons a rule applies to
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,7 +44,20 @@ impl AddonScope {
 }
 
 /// Internal validation rules built into txtx-core
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    AsRefStr,      // Provides as_ref() -> &str
+    Display,       // Provides to_string()
+    EnumString,    // Provides from_str()
+    IntoStaticStr, // Provides into() -> &'static str
+    EnumIter,      // Provides iter() over all variants
+)]
+#[strum(serialize_all = "snake_case")]
 pub enum CoreRuleId {
     // Core validation rules (global)
     UndefinedInput,
@@ -85,21 +99,6 @@ impl CoreRuleId {
         }
     }
 
-    /// Get a string representation suitable for display and configuration
-    pub const fn as_str(&self) -> &'static str {
-        use CoreRuleId::*;
-        match self {
-            UndefinedInput => "undefined_input",
-            DeprecatedInput => "deprecated_input",
-            RequiredInput => "required_input",
-            InputNamingConvention => "input_naming_convention",
-            CliInputOverride => "cli_input_override",
-            SensitiveData => "sensitive_data",
-            NoDefaultValues => "no_default_values",
-            RequiredProductionInputs => "required_production_inputs",
-        }
-    }
-
     /// Get a human-readable description of what the rule validates
     pub const fn description(&self) -> &'static str {
         use CoreRuleId::*;
@@ -113,12 +112,6 @@ impl CoreRuleId {
             NoDefaultValues => "Ensures production environments don't use default values",
             RequiredProductionInputs => "Ensures required inputs are present in production",
         }
-    }
-}
-
-impl fmt::Display for CoreRuleId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -136,7 +129,7 @@ impl RuleIdentifier {
     /// Get a string representation of the rule identifier
     pub fn as_str(&self) -> &str {
         match self {
-            RuleIdentifier::Core(id) => id.as_str(),
+            RuleIdentifier::Core(id) => id.as_ref(),
             RuleIdentifier::External(name) => name.as_str(),
         }
     }
@@ -161,6 +154,12 @@ impl fmt::Display for RuleIdentifier {
 impl From<CoreRuleId> for RuleIdentifier {
     fn from(id: CoreRuleId) -> Self {
         RuleIdentifier::Core(id)
+    }
+}
+
+impl AsRef<str> for RuleIdentifier {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }
 
