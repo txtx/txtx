@@ -73,6 +73,9 @@ pub const DEPLOYMENT_TRANSACTIONS: &str = "deployment_transactions";
 pub const INITIAL_EXPECTED_DEPLOYMENT_TRANSACTIONS_COUNT: &str =
     "initial_expected_deployment_transactions_count";
 pub const SIGNED_NESTED_EXECUTION_INDEX: &str = "signed_nested_execution_index";
+pub const IS_WRITABLE: &str = "is_writable";
+pub const IS_SIGNER: &str = "is_signer";
+pub const REMAINING_ACCOUNT: &str = "remaining_account";
 
 // Subgraph keys
 pub const BLOCK_HEIGHT: &str = "block_height";
