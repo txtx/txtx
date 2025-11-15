@@ -248,12 +248,18 @@ impl CommandImplementation for SignEvmContractCall {
                 sim_result_raw,
                 sim_result_with_encoding,
                 meta_description,
+                nonce_used,
+                chain_id,
             ) = build_unsigned_contract_call(&signer_state, &spec, &values)
                 .await
                 .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
             let meta_description =
                 get_meta_description(meta_description, &signer_did, &signers_instances);
+
+            // Update signer_state with next nonce to prevent race conditions
+            use crate::signers::common::set_signer_nonce;
+            set_signer_nonce(&mut signer_state, chain_id, nonce_used);
 
             signer_state.insert_scoped_value(
                 &construct_did.to_string(),
@@ -443,7 +449,7 @@ async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
-) -> Result<(TransactionRequest, i128, String, Value, String), Diagnostic> {
+) -> Result<(TransactionRequest, i128, String, Value, String, u64, u64), Diagnostic> {
     use crate::{
         codec::{
             build_unsigned_transaction, value_to_abi_function_args, value_to_sol_value,
@@ -550,7 +556,10 @@ async fn build_unsigned_contract_call(
 
     let sim_result = EvmValue::sim_result(sim_result_bytes, function_spec);
 
-    Ok((tx, cost, sim_result_raw, sim_result, format!("The transaction will call the `{}` function on the contract at address `{}` with the provided arguments.", function_name, contract_address)))
+    // Extract the nonce from the built transaction
+    let nonce_used = tx.nonce.ok_or_else(|| diagnosed_error!("transaction nonce not set"))?;
+
+    Ok((tx, cost, sim_result_raw, sim_result, format!("The transaction will call the `{}` function on the contract at address `{}` with the provided arguments.", function_name, contract_address), nonce_used, chain_id))
 }
 
 pub fn encode_contract_call_inputs_from_selector(

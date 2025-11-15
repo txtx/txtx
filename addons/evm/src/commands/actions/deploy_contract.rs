@@ -364,6 +364,9 @@ impl CommandImplementation for DeployContract {
                 .description(&impl_deploy_tx)
                 .map(|d| get_meta_description(d, &signer_did, &signers_instances));
 
+            // Update signer_state with the nonce to prevent race conditions
+            use crate::signers::common::set_signer_nonce;
+
             let payload = match impl_deploy_tx {
                 ContractDeploymentTransaction::Create(status)
                 | ContractDeploymentTransaction::Create2(status) => match status {
@@ -383,6 +386,10 @@ impl CommandImplementation for DeployContract {
                     ContractDeploymentTransactionStatus::NotYetDeployed(
                         TransactionDeploymentRequestData { tx, tx_cost, expected_address },
                     ) => {
+                        // Update signer_state with nonce from transaction to prevent race conditions
+                        if let Some(nonce) = tx.nonce {
+                            set_signer_nonce(&mut signer_state, chain_id, nonce);
+                        }
                         signer_state.insert_scoped_value(
                             &construct_did.to_string(),
                             CONTRACT_ADDRESS,
@@ -406,6 +413,10 @@ impl CommandImplementation for DeployContract {
                     expected_impl_address,
                     expected_proxy_address,
                 }) => {
+                    // Update signer_state with nonce from transaction to prevent race conditions
+                    if let Some(nonce) = tx.nonce {
+                        set_signer_nonce(&mut signer_state, chain_id, nonce);
+                    }
                     signer_state.insert_scoped_value(
                         &construct_did.to_string(),
                         IS_PROXIED,
