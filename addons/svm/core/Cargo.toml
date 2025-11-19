@@ -33,6 +33,7 @@ solana-signature = "3.0.0"
 solana-signer = "3.0.0"
 solana-instruction = { version = "3.0.0", features = ["serde"] }
 solana-packet = "3.0.0"
+solana-perf = { git = "https://github.com/txtx/solana", branch = "txtx/increase-tx-size-v3.0.10" }
 solana-sha256-hasher = "3.0.0"
 solana-commitment-config = "3.0.0"
 solana-loader-v3-interface = { version = "6.1.0", features = ["bincode"] }

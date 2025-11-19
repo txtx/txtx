@@ -11526,7 +11526,7 @@ dependencies = [
  "rayon",
  "solana-keypair",
  "solana-measure",
- "solana-metrics",
+ "solana-metrics 3.0.6",
  "solana-time-utils",
  "solana-transaction-error",
  "thiserror 2.0.17",
@@ -11861,6 +11861,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-metrics"
+version = "3.0.10"
+source = "git+https://github.com/txtx/solana?branch=txtx%2Fincrease-tx-size-v3.0.10#736e7dfe696040bb8051f76b6f07e5c82aabaa97"
+dependencies = [
+ "crossbeam-channel",
+ "gethostname",
+ "log 0.4.27",
+ "reqwest 0.12.24",
+ "solana-cluster-type",
+ "solana-sha256-hasher",
+ "solana-time-utils",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "solana-msg"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11946,10 +11961,41 @@ dependencies = [
  "serde",
  "solana-hash",
  "solana-message",
- "solana-metrics",
+ "solana-metrics 3.0.6",
  "solana-packet",
  "solana-pubkey",
- "solana-rayon-threadlimit",
+ "solana-rayon-threadlimit 3.0.6",
+ "solana-sdk-ids",
+ "solana-short-vec",
+ "solana-signature",
+ "solana-time-utils",
+]
+
+[[package]]
+name = "solana-perf"
+version = "3.0.10"
+source = "git+https://github.com/txtx/solana?branch=txtx%2Fincrease-tx-size-v3.0.10#736e7dfe696040bb8051f76b6f07e5c82aabaa97"
+dependencies = [
+ "ahash",
+ "bincode",
+ "bv",
+ "bytes",
+ "caps",
+ "curve25519-dalek 4.1.3",
+ "dlopen2",
+ "fnv",
+ "libc",
+ "log 0.4.27",
+ "nix 0.30.1",
+ "rand 0.8.5",
+ "rayon",
+ "serde",
+ "solana-hash",
+ "solana-message",
+ "solana-metrics 3.0.10",
+ "solana-packet",
+ "solana-pubkey",
+ "solana-rayon-threadlimit 3.0.10",
  "solana-sdk-ids",
  "solana-short-vec",
  "solana-signature",
@@ -12104,7 +12150,7 @@ dependencies = [
  "solana-connection-cache",
  "solana-keypair",
  "solana-measure",
- "solana-metrics",
+ "solana-metrics 3.0.6",
  "solana-net-utils",
  "solana-pubkey",
  "solana-quic-definitions",
@@ -12131,6 +12177,15 @@ name = "solana-rayon-threadlimit"
 version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1bc3dcac63a9fae71e7dc760f0252fae7f08860750933f86112fff8bfcc7cf50"
+dependencies = [
+ "log 0.4.27",
+ "num_cpus",
+]
+
+[[package]]
+name = "solana-rayon-threadlimit"
+version = "3.0.10"
+source = "git+https://github.com/txtx/solana?branch=txtx%2Fincrease-tx-size-v3.0.10#736e7dfe696040bb8051f76b6f07e5c82aabaa97"
 dependencies = [
  "log 0.4.27",
  "num_cpus",
@@ -12492,10 +12547,10 @@ dependencies = [
  "socket2 0.6.1",
  "solana-keypair",
  "solana-measure",
- "solana-metrics",
+ "solana-metrics 3.0.6",
  "solana-net-utils",
  "solana-packet",
- "solana-perf",
+ "solana-perf 3.0.6",
  "solana-pubkey",
  "solana-quic-definitions",
  "solana-signature",
@@ -12691,7 +12746,7 @@ dependencies = [
  "log 0.4.27",
  "rand 0.8.5",
  "solana-packet",
- "solana-perf",
+ "solana-perf 3.0.6",
  "solana-short-vec",
  "solana-signature",
 ]
@@ -15157,6 +15212,7 @@ dependencies = [
  "solana-loader-v3-interface",
  "solana-message",
  "solana-packet",
+ "solana-perf 3.0.10",
  "solana-pubkey",
  "solana-record-service-client",
  "solana-sdk-ids",
