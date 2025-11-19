@@ -25,8 +25,8 @@ use solana_loader_v3_interface::{get_program_data_address, instruction::create_b
 use solana_commitment_config::CommitmentConfig;
 use solana_commitment_config::CommitmentLevel;
 use solana_hash::Hash;
-use solana_packet::PACKET_DATA_SIZE;
 use solana_keypair::{Keypair, keypair_from_seed};
+use solana_perf::packet::QUIC_MAX_STREAM_SIZE;
 use solana_signature::Signature;
 use solana_signer::Signer;
 use solana_system_interface::instruction as system_instruction;
@@ -1643,7 +1643,7 @@ where
     })
     .unwrap() as usize;
     // add 1 byte buffer to account for shortvec encoding
-    PACKET_DATA_SIZE.saturating_sub(tx_size).saturating_sub(1)
+    QUIC_MAX_STREAM_SIZE.saturating_sub(tx_size).saturating_sub(1)
 }
 
 pub fn transaction_is_fully_signed(transaction: &Transaction) -> bool {
