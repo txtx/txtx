@@ -16,7 +16,6 @@ members = [
     "crates/txtx-supervisor-ui",
     "crates/txtx-serve",
     "addons/bitcoin",
-    "addons/evm",
     "addons/ovm",
     "addons/stacks",
     "addons/svm/core",

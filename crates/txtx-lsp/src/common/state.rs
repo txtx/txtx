@@ -10,7 +10,6 @@ use txtx_addon_kit::helpers::fs::{FileAccessor, FileLocation};
 use txtx_addon_kit::types::diagnostics::{Diagnostic as TxtxDiagnostic, DiagnosticLevel};
 use txtx_addon_kit::types::RunbookId;
 use txtx_addon_kit::Addon;
-use txtx_addon_network_evm::EvmNetworkAddon;
 use txtx_addon_telegram::TelegramAddon;
 use txtx_core::std::StdAddon;
 
@@ -18,7 +17,7 @@ use super::requests::capabilities::InitializationOptions;
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(TelegramAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for func in addon.get_functions() {
@@ -111,7 +110,7 @@ lazy_static! {
     };
 
     pub static ref ACTIONS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(TelegramAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for action in addon.get_actions() {
@@ -203,7 +202,7 @@ lazy_static! {
 
 
     pub static ref WALLETS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(TelegramAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for signer in addon.get_signers() {

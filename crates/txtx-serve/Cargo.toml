@@ -16,7 +16,6 @@ txtx-gql = { workspace = true }
 txtx-supervisor-ui = { workspace = true }
 txtx-addon-network-svm = { workspace = true }
 txtx-addon-network-stacks = { workspace = true, optional = true }
-txtx-addon-network-evm = { workspace = true }
 txtx-addon-network-ovm = { workspace = true, optional = true }
 txtx-addon-network-bitcoin = { workspace = true }
 txtx-addon-telegram = { workspace = true }

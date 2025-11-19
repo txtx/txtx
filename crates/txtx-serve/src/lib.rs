@@ -20,7 +20,6 @@ use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::frontend::SupervisorAddonData;
 use txtx_addon_kit::Addon;
 use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
-use txtx_addon_network_evm::EvmNetworkAddon;
 #[cfg(feature = "ovm")]
 use txtx_addon_network_ovm::OvmNetworkAddon;
 #[cfg(feature = "stacks")]
@@ -55,7 +54,6 @@ fn get_available_addons() -> Vec<Box<dyn Addon>> {
         Box::new(SvmNetworkAddon::new()),
         #[cfg(feature = "stacks")]
         Box::new(StacksNetworkAddon::new()),
-        Box::new(EvmNetworkAddon::new()),
         Box::new(BitcoinNetworkAddon::new()),
         Box::new(TelegramAddon::new()),
         #[cfg(feature = "sp1")]

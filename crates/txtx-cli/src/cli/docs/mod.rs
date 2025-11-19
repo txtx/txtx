@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use super::{Context, GetDocumentation};
 use itertools::Itertools;
 use serde_json::json;
-use txtx_addon_network_evm::EvmNetworkAddon;
 #[cfg(feature = "ovm")]
 use txtx_addon_network_ovm::OvmNetworkAddon;
 #[cfg(feature = "stacks")]
@@ -29,11 +28,10 @@ use txtx_gql::kit::types::EvaluatableInput;
 
 pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Result<(), String> {
     let std: Box<dyn Addon> = Box::new(StdAddon::new());
-    let evm: Box<dyn Addon> = Box::new(EvmNetworkAddon::new());
     let svm: Box<dyn Addon> = Box::new(SvmNetworkAddon::new());
     let telegram: Box<dyn Addon> = Box::new(TelegramAddon::new());
 
-    let mut addons = vec![&std, &evm, &svm, &telegram];
+    let mut addons = vec![&std, &svm, &telegram];
     #[cfg(feature = "ovm")]
     let ovm: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
     #[cfg(feature = "ovm")]
