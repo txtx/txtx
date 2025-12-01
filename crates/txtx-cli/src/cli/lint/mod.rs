@@ -12,25 +12,6 @@
 //! - **Formatters** (`Format`): Output formatters (json, stylish, github, csv)
 //! - **Workspace** (`WorkspaceAnalyzer`): Analyzes and validates entire workspaces
 //!
-//! # CLI Usage
-//!
-//! ```bash
-//! # Lint all runbooks in workspace
-//! txtx lint
-//!
-//! # Lint specific runbook
-//! txtx lint --runbook my_runbook
-//!
-//! # Lint with specific environment
-//! txtx lint --env production
-//!
-//! # Output as JSON
-//! txtx lint --format json
-//!
-//! # Output as GitHub annotations
-//! txtx lint --format github
-//! ```
-//!
 //! # Available Validation Rules
 //!
 //! - **undefined-input**: Checks that all input references are defined
