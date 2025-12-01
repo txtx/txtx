@@ -7,8 +7,10 @@ use runbooks::load_runbook_from_manifest;
 use std::process;
 use txtx_cloud::{LoginCommand, PublishRunbook};
 
+mod common;
 mod docs;
 mod env;
+mod lint;
 mod lsp;
 mod runbooks;
 mod snapshots;
@@ -75,6 +77,9 @@ enum Command {
     /// Display documentation
     #[clap(name = "docs", bin_name = "docs")]
     Docs(GetDocumentation),
+    /// Lint runbooks for issues and style violations
+    #[clap(name = "lint", bin_name = "lint")]
+    Lint(LintRunbook),
     /// Start the txtx language server
     #[clap(name = "lsp", bin_name = "lsp")]
     Lsp,
@@ -229,6 +234,45 @@ pub struct ListRunbooks {
 }
 
 #[derive(Parser, PartialEq, Clone, Debug)]
+pub struct LintRunbook {
+    /// Path to the manifest
+    #[arg(long = "manifest-file-path", short = 'm')]
+    pub manifest_path: Option<String>,
+    /// Name of the runbook to lint (omit to lint all runbooks)
+    pub runbook: Option<String>,
+    /// Choose the environment variable to set from those configured in the txtx.yml
+    #[arg(long = "env")]
+    pub environment: Option<String>,
+    /// A set of inputs to use for linting
+    #[arg(long = "input")]
+    pub inputs: Vec<String>,
+    /// Output format
+    #[arg(long = "format", short = 'f', default_value = "stylish")]
+    pub format: lint::Format,
+    /// Path to linter config file
+    #[arg(long = "config")]
+    pub config: Option<String>,
+    /// Disable specific rules (can be used multiple times)
+    #[arg(long = "disable-rule")]
+    pub disabled_rules: Vec<String>,
+    /// Only run specific rules (can be used multiple times)
+    #[arg(long = "only-rule")]
+    pub only_rules: Vec<String>,
+    /// Automatically fix issues where possible
+    #[arg(long = "fix")]
+    pub fix: bool,
+    /// Initialize a new linter configuration file
+    #[arg(long = "init")]
+    pub init: bool,
+    /// Generate CLI command template for undefined inputs
+    #[arg(long = "gen-cli")]
+    pub gen_cli: bool,
+    /// Generate full CLI command template with all inputs
+    #[arg(long = "gen-cli-full")]
+    pub gen_cli_full: bool,
+}
+
+#[derive(Parser, PartialEq, Clone, Debug)]
 #[cfg(feature = "txtx_serve")]
 pub struct StartServer {
     /// Serve runbooks from a specific project
@@ -316,6 +360,9 @@ async fn handle_command(
         Command::Docs(cmd) => {
             docs::handle_docs_command(&cmd, ctx).await?;
         }
+        Command::Lint(cmd) => {
+            handle_lint_command(&cmd).map_err(|e| e.to_string())?;
+        }
         Command::Snapshots(SnapshotCommand::Begin(cmd)) => {
             snapshots::handle_begin_command(&cmd, ctx).await?;
         }
@@ -343,6 +390,37 @@ async fn handle_command(
         Command::Cloud(cmd) => handle_cloud_commands(&cmd, buffer_stdin, &env).await?,
     }
     Ok(())
+}
+
+fn handle_lint_command(cmd: &LintRunbook) -> Result<(), lint::LinterError> {
+    // Parse CLI inputs from "key=value" strings
+    let cli_inputs: Vec<(String, String)> = cmd.inputs
+        .iter()
+        .filter_map(|input| {
+            let parts: Vec<&str> = input.splitn(2, '=').collect();
+            if parts.len() == 2 {
+                Some((parts[0].to_string(), parts[1].to_string()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let linter_options = lint::LinterOptions {
+        config_path: cmd.config.clone(),
+        init: cmd.init,
+    };
+
+    lint::run_lint(
+        cmd.runbook.clone(),
+        cmd.manifest_path.clone(),
+        cmd.environment.clone(),
+        cli_inputs,
+        cmd.format.clone(),
+        linter_options,
+        cmd.gen_cli,
+        cmd.gen_cli_full,
+    )
 }
 
 async fn handle_cloud_commands(

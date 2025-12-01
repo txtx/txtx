@@ -1,13 +1,5 @@
 //! Manifest validation functionality
 //!
-//! # C4 Architecture Annotations
-//! @c4-component Manifest Validator
-//! @c4-container Validation Core
-//! @c4-description Validates runbook inputs against workspace manifests
-//! @c4-technology Rust
-//! @c4-responsibility Check that environment variables and inputs are properly defined
-//! @c4-responsibility Validate input references against manifest environments
-//!
 //! This module provides validation of runbook inputs against workspace manifests,
 //! checking that environment variables and inputs are properly defined.
 
@@ -146,7 +138,8 @@ pub fn validate_inputs_against_manifest(
                     documentation_link,
                 } => {
                     let mut error = Diagnostic::error(message)
-                        .with_file(file_path.to_string())
+                        .with_code(rule.id())
+                        .with_file(file_path)
                         .with_line(input_ref.line)
                         .with_column(input_ref.column);
 
@@ -169,7 +162,8 @@ pub fn validate_inputs_against_manifest(
 
                 ValidationOutcome::Warning { message, suggestion } => {
                     let mut warning = Diagnostic::warning(message)
-                        .with_file(file_path.to_string())
+                        .with_code(rule.id())
+                        .with_file(file_path)
                         .with_line(input_ref.line)
                         .with_column(input_ref.column);
 
