@@ -4,12 +4,6 @@
 //! reducing parameter passing and making validation state management cleaner.
 //!
 //! # C4 Architecture Annotations
-//! @c4-component ValidationContext
-//! @c4-container Validation Core
-//! @c4-description Central state management for all validation operations
-//! @c4-technology Rust
-//! @c4-relationship "Delegates to" "HCL Validator"
-//! @c4-relationship "Delegates to" "Manifest Validator"
 
 use super::types::{LocatedInputRef, ValidationResult};
 use crate::kit::types::commands::CommandSpecification;
@@ -22,9 +16,6 @@ use std::path::Path;
 /// This struct contains all the data needed by various validators,
 /// reducing the need to pass multiple parameters through the validation pipeline.
 ///
-/// @c4-component ValidationContext
-/// @c4-responsibility Manage validation state across all validation layers
-/// @c4-responsibility Compute effective inputs from manifest + environment + CLI
 #[derive(Clone)]
 pub struct ValidationContext {
     /// The content being validated
