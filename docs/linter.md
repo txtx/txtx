@@ -14,8 +14,12 @@ txtx lint my_runbook
 # Validate against an environment
 txtx lint --env production
 
-# Generate CLI command template
+# Generate CLI command template with minimal inputs defined
 txtx lint my_runbook --gen-cli
+
+# Generate CLI command template with all inputs defined
+txtx lint my_runbook --gen-cli-full
+
 ```
 
 ## Options
@@ -29,8 +33,31 @@ txtx lint my_runbook --gen-cli
 | `--gen-cli` | Generate CLI command template for undefined inputs |
 | `--gen-cli-full` | Generate CLI template with all inputs |
 | `--config` | Path to linter config file |
+| `--init` | Initialize a `.txtxlint.yml` config file |
 | `--disable-rule` | Disable specific rules |
 | `--only-rule` | Run only specific rules |
+
+## Configuration
+
+> **Note**: Configuration file support is experimental and may change.
+
+Initialize a linter config file:
+
+```bash
+txtx lint --init
+```
+
+This creates `.txtxlint.yml` with recommended defaults:
+
+```yaml
+extends: "txtx:recommended"
+rules:
+  undefined_input: error
+  cli_input_override: info
+ignore:
+  - "examples/**"
+  - "tests/**"
+```
 
 ## Validation
 
