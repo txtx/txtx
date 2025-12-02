@@ -8,7 +8,5 @@ test-lint-unit = "test --package txtx-cli --bin txtx --no-default-features --fea
 test-lint-int = "test --package txtx-cli --test linter_tests_builder --no-default-features --features cli"
 test-lint-all = "test --package txtx-cli --no-default-features --features cli"
 
-run-builder-example = "run --example enhanced_builder_example --package txtx-test-utils"
-
 [build]
 rustflags = ["--cfg", "tokio_unstable"]
