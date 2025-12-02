@@ -8,7 +8,6 @@ use super::rules::Severity;
 use super::rule_id::CliRuleId;
 use txtx_core::validation::CoreRuleId;
 use serde::{Deserialize, Serialize};
-use strum::{EnumString, Display, AsRefStr, IntoStaticStr};
 
 /// Rule configuration from YAML file
 #[derive(Debug, Clone, Deserialize, Serialize)]

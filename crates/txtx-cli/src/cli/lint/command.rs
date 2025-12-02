@@ -209,7 +209,7 @@ fn handle_gen_cli(
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("./txtx.yml"));
 
-        let manifest = load_manifest(&manifest_path)?;
+        let _manifest = load_manifest(&manifest_path)?;
 
         // Create workspace analyzer with the appropriate configuration
         let config = LinterConfig::new(
