@@ -14,7 +14,7 @@ use txtx_core::std::StdAddon;
 
 /// Get all available addons as a shared reference
 pub fn get_all_addons() -> Arc<Vec<Box<dyn Addon>>> {
-    let addons: Vec<Box<dyn Addon>> = vec![
+    let mut addons: Vec<Box<dyn Addon>> = vec![
         Box::new(StdAddon::new()),
         Box::new(BitcoinNetworkAddon::new()),
         Box::new(EvmNetworkAddon::new()),
