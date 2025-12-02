@@ -95,7 +95,9 @@ pub struct ValidationContext<'a> {
     pub environment: Option<&'a str>,
     pub effective_inputs: &'a HashMap<String, String>,
     pub cli_inputs: &'a [(String, String)],
+    #[allow(dead_code)] // Available for rules that need source content
     pub content: &'a str,
+    #[allow(dead_code)] // Available for rules that need file location
     pub file_path: &'a str,
     pub input: InputInfo,
     pub config: Option<&'a LinterConfig>,

@@ -38,6 +38,7 @@ impl RuleConfig {
     }
 
     /// Get options for this rule
+    #[allow(dead_code)] // Will be used when rules support custom options
     pub fn options(&self) -> Option<&HashMap<String, serde_yml::Value>> {
         match self {
             RuleConfig::Severity(_) => None,

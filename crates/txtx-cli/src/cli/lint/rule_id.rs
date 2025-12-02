@@ -1,8 +1,7 @@
 //! Type-safe rule identification for CLI-specific linting rules
 
-use std::fmt;
 use strum::{AsRefStr, Display, EnumIter, EnumString, IntoStaticStr};
-use txtx_core::validation::{AddonScope, CoreRuleId};
+use txtx_core::validation::AddonScope;
 
 /// CLI-specific linting rules
 #[derive(
@@ -47,46 +46,5 @@ impl CliRuleId {
     /// Currently all CLI rules are global in scope.
     pub const fn addon_scope(&self) -> AddonScope {
         AddonScope::Global
-    }
-}
-
-/// Identifier for CLI validation rules
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum CliRuleIdentifier {
-    /// CLI-specific rule
-    Cli(CliRuleId),
-    /// Core rule reused in CLI
-    Core(CoreRuleId),
-    /// External rule defined via configuration (future)
-    #[allow(dead_code)] // Reserved for future plugin system
-    External(String),
-}
-
-impl CliRuleIdentifier {
-    /// Get a string representation of the rule identifier
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Cli(id) => id.as_ref(),
-            Self::Core(id) => id.as_ref(),
-            Self::External(name) => name.as_str(),
-        }
-    }
-}
-
-impl fmt::Display for CliRuleIdentifier {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl From<CliRuleId> for CliRuleIdentifier {
-    fn from(id: CliRuleId) -> Self {
-        CliRuleIdentifier::Cli(id)
-    }
-}
-
-impl From<CoreRuleId> for CliRuleIdentifier {
-    fn from(id: CoreRuleId) -> Self {
-        CliRuleIdentifier::Core(id)
     }
 }
