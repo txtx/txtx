@@ -229,7 +229,7 @@ pub async fn execute_runbook(
                 return Err(actix_web::error::ErrorBadRequest(format!(
                     "Invalid construct type: '{}'. Valid types: {:?}",
                     construct.construct_type,
-                    ConstructType::all()
+                    ConstructType::all().collect::<Vec<_>>()
                 )))
             }
         };

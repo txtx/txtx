@@ -4,7 +4,9 @@ test-validation-core = "test --no-default-features --package txtx-core --lib val
 test-validation-utils = "test --no-default-features --package txtx-test-utils"
 test-validation-all = "test --no-default-features --lib --tests --package txtx-core --package txtx-test-utils"
 
-run-builder-example = "run --example enhanced_builder_example --package txtx-test-utils"
+test-lint-unit = "test --package txtx-cli --bin txtx --no-default-features --features cli cli::lint::"
+test-lint-int = "test --package txtx-cli --test linter_tests_builder --no-default-features --features cli"
+test-lint-all = "test --package txtx-cli --no-default-features --features cli"
 
 [build]
 rustflags = ["--cfg", "tokio_unstable"]

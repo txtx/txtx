@@ -4,9 +4,6 @@
 //! the lint command (CLI) and the LSP for real-time error detection.
 //!
 //! # C4 Architecture Annotations
-//! @c4-container Validation Core
-//! @c4-description Core validation logic shared between CLI and LSP
-//! @c4-technology Rust (txtx-core)
 
 pub mod context;
 pub mod file_boundary;

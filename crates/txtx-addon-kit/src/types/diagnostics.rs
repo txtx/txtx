@@ -11,6 +11,7 @@ pub use super::diagnostic_types::{DiagnosticLevel, DiagnosticSpan, RelatedLocati
 pub struct Diagnostic {
     pub level: DiagnosticLevel,
     pub message: String,
+    pub code: Option<String>,
     pub span: Option<DiagnosticSpan>,
     #[serde(skip)]
     span_range: Option<Range<usize>>,
@@ -55,6 +56,7 @@ impl Diagnostic {
         Diagnostic {
             level: DiagnosticLevel::Error,
             message,
+            code: None,
             span: None,
             span_range: None,
             location: None,
@@ -74,6 +76,7 @@ impl Diagnostic {
         Diagnostic {
             level: DiagnosticLevel::Warning,
             message,
+            code: None,
             span: None,
             span_range: None,
             location: None,
@@ -93,6 +96,7 @@ impl Diagnostic {
         Diagnostic {
             level: DiagnosticLevel::Note,
             message,
+            code: None,
             span: None,
             span_range: None,
             location: None,
@@ -121,8 +125,13 @@ impl Diagnostic {
         Self::note_from_string(message.into())
     }
 
-    pub fn with_file(mut self, file: impl Into<String>) -> Self {
-        self.file = Some(file.into());
+    pub fn with_code(mut self, code: impl AsRef<str>) -> Self {
+        self.code = Some(code.as_ref().to_string());
+        self
+    }
+
+    pub fn with_file(mut self, file: impl AsRef<str>) -> Self {
+        self.file = Some(file.as_ref().to_string());
         self
     }
 
@@ -221,11 +230,18 @@ impl Display for Diagnostic {
             }
         }
 
+        // Add error code if available
+        let level_with_code = if let Some(code) = &self.code {
+            format!("{}[{}]", self.level, code)
+        } else {
+            format!("{}", self.level)
+        };
+
         msg = format!(
             "{}{}{}: {}",
             msg,
             if !msg.is_empty() { "\n\t" } else { "" },
-            self.level,
+            level_with_code,
             self.message
         );
         write!(f, "{}", msg)

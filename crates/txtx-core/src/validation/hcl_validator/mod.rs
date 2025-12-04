@@ -1,13 +1,6 @@
 //! HCL-based validation for the lint command using hcl-edit
 //!
 //! # C4 Architecture Annotations
-//! @c4-component HCL Validator
-//! @c4-container Validation Core
-//! @c4-description Validates HCL syntax, block structure, and references
-//! @c4-technology Rust (hcl-edit)
-//! @c4-responsibility Two-phase validation: collect definitions, then validate references
-//! @c4-responsibility Detect circular dependencies in variables and actions
-//! @c4-responsibility Validate action outputs, signers, variables, and flow inputs
 //!
 //! This module uses hcl-edit's visitor pattern to perform comprehensive
 //! validation of runbook files, replacing the Tree-sitter based approach.

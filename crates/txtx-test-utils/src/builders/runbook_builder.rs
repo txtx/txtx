@@ -442,3 +442,82 @@ signer "{}" "{}" {{
         &self.files
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_builder_state_management() {
+        // Test that builder properly manages state between actions
+        let mut builder = RunbookBuilder::new()
+            .action("first", "evm::deploy_contract")
+            .input("contract", "\"First.sol\"")
+            .action("second", "evm::deploy_contract") // Should close first action
+            .input("contract", "\"Second.sol\"");
+
+        let content = builder.build_content();
+        assert!(content.contains("action \"first\""));
+        assert!(content.contains("action \"second\""));
+        assert_eq!(content.matches('}').count(), 2); // Both actions closed
+    }
+
+    #[test]
+    fn test_value_formatting() {
+        // Test that builder properly formats different value types
+        let mut builder = RunbookBuilder::new()
+            .variable("string_var", "hello") // Should be quoted
+            .variable("ref_var", "env.TEST") // Should not be quoted
+            .variable("action_ref", "action.test.output") // Should not be quoted
+            .action("test", "evm::call")
+            .input("number", "42") // Should not be quoted
+            .input("signer_ref", "signer.test") // Should not be quoted
+            .input("string", "test value"); // Should be quoted
+
+        let content = builder.build_content();
+        assert!(content.contains("value = \"hello\""));
+        assert!(content.contains("value = env.TEST"));
+        assert!(content.contains("value = action.test.output"));
+        assert!(content.contains("number = 42"));
+        assert!(content.contains("signer_ref = signer.test"));
+        assert!(content.contains("string = \"test value\""));
+    }
+
+    #[test]
+    fn test_multi_file_support() {
+        // Test multi-file runbook construction
+        let builder = RunbookBuilder::new()
+            .with_file("contracts/Token.sol", "contract Token { ... }")
+            .with_file("scripts/deploy.js", "const deploy = async () => { ... }")
+            .with_content(
+                r#"
+                addon "evm" {}
+                action "deploy" "evm::deploy_contract" {
+                    contract = "./contracts/Token.sol"
+                }
+            "#,
+            );
+
+        assert_eq!(builder.file_count(), 2);
+        assert!(builder.has_file("contracts/Token.sol"));
+    }
+
+    #[test]
+    fn test_manifest_generation() {
+        // Test that builder correctly generates manifests
+        let builder = RunbookBuilder::new()
+            .with_environment(
+                "dev",
+                vec![("API_KEY", "dev-key"), ("RPC_URL", "http://localhost:8545")],
+            )
+            .with_environment(
+                "prod",
+                vec![("API_KEY", "prod-key"), ("RPC_URL", "https://mainnet.infura.io")],
+            );
+
+        let manifest = builder.build_manifest();
+        assert_eq!(manifest.environments.len(), 2);
+        assert_eq!(manifest.environments["dev"]["API_KEY"], "dev-key");
+        assert_eq!(manifest.environments["prod"]["RPC_URL"], "https://mainnet.infura.io");
+    }
+}

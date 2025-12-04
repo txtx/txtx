@@ -14,18 +14,9 @@
 //! This eliminates code duplication - one validation pipeline handles both cases.
 //!
 //! # C4 Architecture Annotations
-//! @c4-component FileBoundaryMapper
-//! @c4-container Validation Core
-//! @c4-description Normalizes multi-file runbooks to single-file for validation
-//! @c4-description Maps validation errors back to original source file locations
-//! @c4-technology Rust
-//! @c4-responsibility Track which lines in concatenated content belong to which files
-//! @c4-responsibility Map error line numbers back to original source files
-//! @c4-pattern Normalization Strategy (multi-file → single-file)
 
 /// Tracks file boundaries in a combined/concatenated source file
 ///
-/// @c4-component FileBoundaryMapper
 #[derive(Debug, Clone)]
 pub struct FileBoundaryMap {
     boundaries: Vec<FileBoundary>,

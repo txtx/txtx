@@ -83,18 +83,6 @@ pub fn validate_content_with_manifest(
         );
     }
 
-    // Convert errors to our type
-    let errors: Vec<Diagnostic> = core_result
-        .errors
-        .into_iter()
-        .map(|e| Diagnostic::error_from_string(e.message.clone()))
-        .collect();
-
-    let warnings: Vec<Diagnostic> = core_result
-        .warnings
-        .into_iter()
-        .map(|w| Diagnostic::warning_from_string(w.message.clone()))
-        .collect();
-
-    ValidationResult { success: errors.is_empty(), errors, warnings }
+    // Use diagnostics directly - don't recreate them and lose metadata like error codes!
+    ValidationResult { success: core_result.errors.is_empty(), errors: core_result.errors, warnings: core_result.warnings }
 }
