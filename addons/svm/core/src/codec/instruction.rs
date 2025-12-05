@@ -339,10 +339,17 @@ impl InstructionBuilder {
             .ok_or(diagnosed_error!("each account entry must have a 'public_key' field"))?
             .map_err(|e| diagnosed_error!("invalid 'public_key': {e}"))?;
 
+        let provided_is_writable = account.get(IS_WRITABLE).and_then(|v| v.as_bool());
+
         let (_, is_signer, is_writable) = self
             .parse_idl_account_item(account_spec, Some(pubkey))
             .map_err(|e| e.to_diagnostic())?;
-        Ok(AccountMeta { pubkey, is_signer, is_writable })
+
+        Ok(AccountMeta {
+            pubkey,
+            is_signer,
+            is_writable: provided_is_writable.unwrap_or(is_writable),
+        })
     }
 
     fn parse_idl_account_pubkey(
