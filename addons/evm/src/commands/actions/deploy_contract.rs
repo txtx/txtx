@@ -40,7 +40,7 @@ use crate::constants::{
     PROXY_CONTRACT_ADDRESS, RPC_API_URL, TRANSACTION_TYPE, VERIFICATION_RESULTS,
 };
 use crate::rpc::EvmRpc;
-use crate::signers::common::get_signer_nonce;
+use crate::signers::common::NonceManager;
 use crate::typing::{
     EvmValue, CONTRACT_METADATA, CONTRACT_VERIFICATION_OPTS_TYPE, CREATE2_OPTS, DECODED_LOG_OUTPUT,
     LINKED_LIBRARIES_TYPE, PROXIED_CONTRACT_INITIALIZER, PROXY_CONTRACT_OPTS, RAW_LOG_OUTPUT,
@@ -336,7 +336,8 @@ impl CommandImplementation for DeployContract {
 
             let from = signer_state
                 .get_expected_value("signer_address")
-                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?
+                .clone();
 
             let rpc_api_url = values
                 .get_expected_string(RPC_API_URL)
@@ -348,9 +349,10 @@ impl CommandImplementation for DeployContract {
             let deployer = ContractDeploymentTransactionRequestBuilder::new(
                 &rpc_api_url,
                 chain_id,
-                from,
-                &signer_state,
+                &from,
+                &mut signer_state,
                 &values,
+                &construct_did,
             )
             .await
             .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
@@ -677,11 +679,21 @@ impl ContractDeploymentTransactionRequestBuilder {
         rpc_api_url: &str,
         chain_id: u64,
         from_address: &Value,
-        signer_state: &ValueStore,
+        signer_state: &mut ValueStore,
         values: &ValueStore,
+        construct_did: &ConstructDid,
     ) -> Result<Self, String> {
         let rpc = EvmRpc::new(&rpc_api_url)?;
         let from_address = get_expected_address(from_address)?;
+
+        crate::signers::common::NonceManager::claim_next_nonce(
+            signer_state,
+            &construct_did,
+            chain_id,
+            rpc_api_url,
+            &from_address,
+        )
+        .await?;
 
         let is_proxy_contract =
             values.get_bool("proxied").unwrap_or(false) || values.get_value("proxy").is_some();
@@ -737,8 +749,10 @@ impl ContractDeploymentTransactionRequestBuilder {
         let signer_starting_nonce = match nonce {
             Some(user_set_nonce) => user_set_nonce,
             None => {
-                if let Some(signer_nonce) = get_signer_nonce(signer_state, chain_id)? {
-                    signer_nonce + 1
+                if let Some(signer_nonce) =
+                    NonceManager::get_nonce_for_construct(signer_state, chain_id, &construct_did)
+                {
+                    signer_nonce
                 } else {
                     let signer_nonce = rpc
                         .get_nonce(&from_address)

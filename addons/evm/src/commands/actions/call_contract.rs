@@ -233,7 +233,7 @@ impl CommandImplementation for SignEvmContractCall {
         let future = async move {
             use txtx_addon_kit::constants::META_DESCRIPTION;
 
-            use crate::commands::actions::get_meta_description;
+            use crate::{commands::actions::get_meta_description, constants::CHAIN_ID};
 
             let mut actions = Actions::none();
             let mut signer_state = signers.pop_signer_state(&signer_did).unwrap();
@@ -242,15 +242,39 @@ impl CommandImplementation for SignEvmContractCall {
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
+
+            let rpc_api_url = values.get_expected_string(RPC_API_URL).unwrap();
+            let chain_id = values.get_expected_uint(CHAIN_ID).unwrap();
+            let from = signer_state.get_expected_value("signer_address").unwrap().clone();
+            let address = crate::typing::EvmValue::to_address(&from).unwrap();
+
+            crate::signers::common::NonceManager::claim_next_nonce(
+                &mut signer_state,
+                &construct_did,
+                chain_id,
+                rpc_api_url,
+                &address,
+            )
+            .await
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e)))?;
+
             let (
                 transaction,
                 transaction_cost,
                 sim_result_raw,
                 sim_result_with_encoding,
                 meta_description,
-            ) = build_unsigned_contract_call(&signer_state, &spec, &values)
-                .await
-                .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
+            ) = build_unsigned_contract_call(
+                &signer_state,
+                &spec,
+                &values,
+                &from,
+                rpc_api_url,
+                chain_id,
+                &construct_did,
+            )
+            .await
+            .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
             let meta_description =
                 get_meta_description(meta_description, &signer_did, &signers_instances);
@@ -443,6 +467,10 @@ async fn build_unsigned_contract_call(
     signer_state: &ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
+    from: &Value,
+    rpc_api_url: &str,
+    chain_id: u64,
+    construct_did: &ConstructDid,
 ) -> Result<(TransactionRequest, i128, String, Value, String), Diagnostic> {
     use crate::{
         codec::{
@@ -451,17 +479,11 @@ async fn build_unsigned_contract_call(
         },
         commands::actions::get_common_tx_params_from_args,
         constants::{
-            CHAIN_ID, CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS,
-            CONTRACT_FUNCTION_NAME, TRANSACTION_TYPE,
+            CONTRACT_ABI, CONTRACT_ADDRESS, CONTRACT_FUNCTION_ARGS, CONTRACT_FUNCTION_NAME,
+            TRANSACTION_TYPE,
         },
-        signers::common::get_signer_nonce,
         typing::EvmValue,
     };
-
-    let from = signer_state.get_expected_value("signer_address")?;
-
-    let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
-    let chain_id = values.get_expected_uint(CHAIN_ID)?;
 
     let contract_address_value = values.get_expected_value(CONTRACT_ADDRESS)?;
     let contract_abi = values.get_string(CONTRACT_ABI);
@@ -493,10 +515,12 @@ async fn build_unsigned_contract_call(
     let (amount, gas_limit, mut nonce) =
         get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{}", e))?;
     if nonce.is_none() {
+        use crate::signers::common::NonceManager;
+
         if let Some(signer_nonce) =
-            get_signer_nonce(signer_state, chain_id).map_err(|e| diagnosed_error!("{}", e))?
+            NonceManager::get_nonce_for_construct(signer_state, chain_id, construct_did)
         {
-            nonce = Some(signer_nonce + 1);
+            nonce = Some(signer_nonce);
         }
     }
 

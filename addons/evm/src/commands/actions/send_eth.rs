@@ -194,8 +194,9 @@ impl CommandImplementation for SendEth {
             {
                 return Ok((signers, signer_state, Actions::none()));
             }
+
             let (transaction, transaction_cost, _, tx_description) =
-                build_unsigned_transfer(&signer_state, &spec, &values)
+                build_unsigned_transfer(&mut signer_state, &spec, &values, &construct_did)
                     .await
                     .map_err(|diag| (signers.clone(), signer_state.clone(), diag))?;
 
@@ -347,31 +348,44 @@ impl CommandImplementation for SendEth {
 
 #[cfg(not(feature = "wasm"))]
 async fn build_unsigned_transfer(
-    signer_state: &ValueStore,
+    signer_state: &mut ValueStore,
     _spec: &CommandSpecification,
     values: &ValueStore,
+    construct_did: &ConstructDid,
 ) -> Result<(TransactionRequest, i128, String, String), Diagnostic> {
     use crate::{
         codec::{build_unsigned_transaction, TransactionType},
         commands::actions::get_common_tx_params_from_args,
         constants::{CHAIN_ID, TRANSACTION_TYPE},
-        signers::common::get_signer_nonce,
         typing::EvmValue,
     };
 
-    let from = signer_state.get_expected_value("signer_address")?;
+    let from = signer_state.get_expected_value("signer_address")?.clone();
 
     let rpc_api_url = values.get_expected_string(RPC_API_URL)?;
     let chain_id = values.get_expected_uint(CHAIN_ID)?;
+
+    let from_address = crate::typing::EvmValue::to_address(&from).unwrap();
+
+    crate::signers::common::NonceManager::claim_next_nonce(
+        signer_state,
+        &construct_did,
+        chain_id,
+        rpc_api_url,
+        &from_address,
+    )
+    .await?;
 
     let recipient_address_value = values.get_expected_value("recipient_address")?;
 
     let (amount, gas_limit, mut nonce) =
         get_common_tx_params_from_args(values).map_err(|e| diagnosed_error!("{}", e))?;
     if nonce.is_none() {
-        if let Some(signer_nonce) =
-            get_signer_nonce(signer_state, chain_id).map_err(|e| diagnosed_error!("{}", e))?
-        {
+        if let Some(signer_nonce) = crate::signers::common::NonceManager::get_nonce_for_construct(
+            signer_state,
+            chain_id,
+            construct_did,
+        ) {
             nonce = Some(signer_nonce + 1);
         }
     }
@@ -380,7 +394,6 @@ async fn build_unsigned_transfer(
 
     let rpc = EvmRpc::new(&rpc_api_url).map_err(|e| diagnosed_error!("{}", e))?;
 
-    let from_address = EvmValue::to_address(from)?;
     let recipient_address = EvmValue::to_address(&recipient_address_value)?;
 
     let common = CommonTransactionFields {

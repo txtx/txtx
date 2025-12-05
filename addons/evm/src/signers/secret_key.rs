@@ -1,4 +1,3 @@
-use alloy::consensus::Transaction;
 use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
 use alloy_rpc_types::TransactionRequest;
@@ -37,8 +36,6 @@ use crate::typing::EvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 
 use crate::constants::PUBLIC_KEYS;
-
-use super::common::set_signer_nonce;
 
 lazy_static! {
     pub static ref EVM_SECRET_KEY_SIGNER: SignerSpecification = define_signer! {
@@ -278,7 +275,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         _payload: &Value,
         _spec: &SignerSpecification,
         values: &ValueStore,
-        mut signer_state: ValueStore,
+        signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
     ) -> SignerSignFutureResult {
@@ -321,17 +318,16 @@ impl SignerImplementation for EvmSecretKeySigner {
                     diagnosed_error!("failed to build transaction envelope: {e}"),
                 )
             })?;
-            let tx_nonce = tx_envelope.nonce();
-            let tx_chain_id = tx_envelope.chain_id().unwrap();
 
             let rpc = EvmWalletRpc::new(&rpc_api_url, eth_signer)
                 .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
+
             let tx_hash = rpc.sign_and_send_tx(tx_envelope).await.map_err(|e| {
                 (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e.to_string()))
             })?;
 
             result.outputs.insert(TX_HASH.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
-            set_signer_nonce(&mut signer_state, tx_chain_id, tx_nonce);
+
             Ok((signers, signer_state, result))
         };
         Ok(Box::pin(future))

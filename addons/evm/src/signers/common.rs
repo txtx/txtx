@@ -1,18 +1,21 @@
 use alloy::primitives::{utils::format_units, Address};
-use txtx_addon_kit::types::{
-    frontend::{
-        ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
-        ReviewInputRequest,
+use txtx_addon_kit::{
+    indexmap::IndexMap,
+    types::{
+        frontend::{
+            ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
+            ReviewInputRequest,
+        },
+        stores::ValueStore,
+        types::Value,
+        ConstructDid,
     },
-    stores::ValueStore,
-    types::Value,
-    ConstructDid,
 };
 
 use crate::{
     constants::{
         ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-        DEFAULT_MESSAGE, NAMESPACE, NONCE,
+        DEFAULT_MESSAGE, NAMESPACE,
     },
     rpc::EvmRpc,
 };
@@ -110,17 +113,50 @@ pub async fn get_additional_actions_for_address(
     Ok(action_items)
 }
 
-pub fn get_signer_nonce(signer_state: &ValueStore, chain_id: u64) -> Result<Option<u64>, String> {
-    signer_state
-        .get_scoped_value(&format!("chain_id_{}", chain_id), NONCE)
-        .map(|v| v.expect_uint())
-        .transpose()
-}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NonceManager(IndexMap<u64, IndexMap<ConstructDid, u64>>);
+impl NonceManager {
+    const KEY: &str = "nonce_manager";
+    pub fn get_nonce_for_construct(
+        signer_state: &ValueStore,
+        chain_id: u64,
+        construct_did: &ConstructDid,
+    ) -> Option<u64> {
+        let manager = Self::from_signer_state(signer_state).ok()?;
+        manager.0.get(&chain_id).and_then(|map_for_chain| map_for_chain.get(construct_did).cloned())
+    }
+    pub async fn claim_next_nonce(
+        signer_state: &mut ValueStore,
+        construct_did: &ConstructDid,
+        chain_id: u64,
+        rpc_api_url: &str,
+        address: &Address,
+    ) -> Result<(), String> {
+        let mut manager = Self::from_signer_state(signer_state)?;
+        let map_for_chain = manager.0.entry(chain_id).or_insert(IndexMap::new());
+        if map_for_chain.is_empty() {
+            let rpc = EvmRpc::new(&rpc_api_url)?;
+            let nonce =
+                rpc.get_nonce(address).await.map_err(|e| format!("failed to get nonce: {e}"))?;
+            map_for_chain.insert(construct_did.clone(), nonce);
+        } else if map_for_chain.get(construct_did).is_none() {
+            let last_nonce = map_for_chain.values().max().cloned().unwrap();
+            map_for_chain.insert(construct_did.clone(), last_nonce + 1);
+        }
+        let serialized = serde_json::to_string(&manager)
+            .map_err(|e| format!("failed to serialize nonce manager: {e}"))?;
+        signer_state.insert(Self::KEY, Value::string(serialized));
+        Ok(())
+    }
 
-pub fn set_signer_nonce(signer_state: &mut ValueStore, chain_id: u64, nonce: u64) {
-    signer_state.insert_scoped_value(
-        &format!("chain_id_{}", chain_id),
-        NONCE,
-        Value::integer(nonce as i128),
-    );
+    pub fn from_signer_state(signer_state: &ValueStore) -> Result<Self, String> {
+        if let Some(value) = signer_state.get_value(Self::KEY) {
+            let nonce_manager =
+                serde_json::from_str::<NonceManager>(&value.as_string().unwrap())
+                    .map_err(|e| format!("failed to parse nonce manager from signer state: {e}"))?;
+
+            return Ok(nonce_manager);
+        }
+        Ok(NonceManager(IndexMap::new()))
+    }
 }
