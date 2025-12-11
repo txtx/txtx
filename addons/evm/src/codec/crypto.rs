@@ -66,9 +66,19 @@ pub fn resolve_keystore_path(
         }
     };
 
-    // If keystore_account is already an absolute path, use it directly
+    // If keystore_account is already an absolute path, use it directly.
+    // Security note: This is a CLI tool run by the user who provides both the path
+    // and password interactively. The file must also be a valid encrypted keystore
+    // (eth_keystore::decrypt_key will reject anything else). We validate the .json
+    // extension primarily to catch typos and provide clearer error messages.
     let account_path = PathBuf::from(keystore_account);
     if account_path.is_absolute() {
+        if !account_path.extension().map_or(false, |ext| ext == "json") {
+            return Err(format!(
+                "absolute keystore path should have .json extension: {:?}",
+                account_path
+            ));
+        }
         return Ok(account_path);
     }
 
@@ -167,13 +177,20 @@ mod tests {
     // ============ resolve_keystore_path tests ============
 
     #[test]
-    fn test_resolve_keystore_path_absolute_path() {
+    fn test_resolve_keystore_path_absolute_path_with_json() {
         let result = resolve_keystore_path("/absolute/path/to/keystore.json", None);
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap().to_str().unwrap(),
             "/absolute/path/to/keystore.json"
         );
+    }
+
+    #[test]
+    fn test_resolve_keystore_path_absolute_path_without_json_rejected() {
+        let result = resolve_keystore_path("/some/path/without/extension", None);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains(".json extension"));
     }
 
     #[test]
