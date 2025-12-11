@@ -55,6 +55,10 @@ wasm = [
   "txtx-addon-kit/wasm",
 ]
 
+[dev-dependencies]
+tempfile = "3"
+rand = "0.8"
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"

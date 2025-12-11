@@ -296,3 +296,279 @@ pub async fn sign_transaction(
 
     Ok((signers, signer_state, result))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use txtx_addon_kit::types::types::RunbookSupervisionContext;
+    use txtx_addon_kit::types::Did;
+
+    fn create_test_construct_did(name: &str) -> ConstructDid {
+        ConstructDid(Did::from_components(vec![name.as_bytes()]))
+    }
+
+    fn create_test_value_store(name: &str) -> ValueStore {
+        ValueStore::new(name, &Did::from_components(vec![name.as_bytes()]))
+    }
+
+    // ============ NonceManager tests ============
+
+    #[test]
+    fn test_nonce_manager_empty_state() {
+        let signer_state = create_test_value_store("test");
+        let result = NonceManager::from_signer_state(&signer_state);
+        assert!(result.is_ok());
+        let manager = result.unwrap();
+        assert!(manager.0.is_empty());
+    }
+
+    #[test]
+    fn test_nonce_manager_get_nonce_empty() {
+        let signer_state = create_test_value_store("test");
+        let construct_did = create_test_construct_did("test-construct");
+
+        let nonce = NonceManager::get_nonce_for_construct(&signer_state, 1, &construct_did);
+        assert!(nonce.is_none());
+    }
+
+    #[test]
+    fn test_nonce_manager_serialization_roundtrip() {
+        let mut manager = NonceManager(IndexMap::new());
+        let chain_id = 1u64;
+        let construct_did = create_test_construct_did("test-construct");
+
+        let mut chain_map = IndexMap::new();
+        chain_map.insert(construct_did.clone(), 42u64);
+        manager.0.insert(chain_id, chain_map);
+
+        let serialized = serde_json::to_string(&manager).unwrap();
+        let deserialized: NonceManager = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(
+            deserialized
+                .0
+                .get(&chain_id)
+                .unwrap()
+                .get(&construct_did),
+            Some(&42u64)
+        );
+    }
+
+    #[test]
+    fn test_nonce_manager_get_nonce_after_storing() {
+        let mut signer_state = create_test_value_store("test");
+        let chain_id = 1u64;
+        let construct_did = create_test_construct_did("test-construct");
+
+        // Manually create and store a nonce manager
+        let mut manager = NonceManager(IndexMap::new());
+        let mut chain_map = IndexMap::new();
+        chain_map.insert(construct_did.clone(), 100u64);
+        manager.0.insert(chain_id, chain_map);
+
+        let serialized = serde_json::to_string(&manager).unwrap();
+        signer_state.insert(NonceManager::KEY, Value::string(serialized));
+
+        // Now retrieve it
+        let nonce =
+            NonceManager::get_nonce_for_construct(&signer_state, chain_id, &construct_did);
+        assert_eq!(nonce, Some(100u64));
+    }
+
+    #[test]
+    fn test_nonce_manager_get_nonce_wrong_chain() {
+        let mut signer_state = create_test_value_store("test");
+        let chain_id = 1u64;
+        let construct_did = create_test_construct_did("test-construct");
+
+        let mut manager = NonceManager(IndexMap::new());
+        let mut chain_map = IndexMap::new();
+        chain_map.insert(construct_did.clone(), 100u64);
+        manager.0.insert(chain_id, chain_map);
+
+        let serialized = serde_json::to_string(&manager).unwrap();
+        signer_state.insert(NonceManager::KEY, Value::string(serialized));
+
+        // Try to get nonce for a different chain
+        let nonce =
+            NonceManager::get_nonce_for_construct(&signer_state, 42u64, &construct_did);
+        assert!(nonce.is_none());
+    }
+
+    #[test]
+    fn test_nonce_manager_invalid_json() {
+        let mut signer_state = create_test_value_store("test");
+        signer_state.insert(NonceManager::KEY, Value::string("not valid json".to_string()));
+
+        let result = NonceManager::from_signer_state(&signer_state);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("failed to parse"));
+    }
+
+    // ============ activate_signer tests ============
+
+    #[test]
+    fn test_activate_signer_success() {
+        let mut signer_state = create_test_value_store("test");
+        signer_state.insert(
+            "signer_address",
+            Value::string("0x1234567890abcdef".to_string()),
+        );
+        let signers = SignersState::new();
+
+        let result = activate_signer(signer_state, signers);
+        assert!(result.is_ok());
+
+        let (_, _, execution_result) = result.unwrap();
+        assert!(execution_result.outputs.contains_key("address"));
+        assert_eq!(
+            execution_result.outputs.get("address").unwrap().as_string(),
+            Some("0x1234567890abcdef")
+        );
+    }
+
+    #[test]
+    fn test_activate_signer_missing_address() {
+        let signer_state = create_test_value_store("test");
+        let signers = SignersState::new();
+
+        let result = activate_signer(signer_state, signers);
+        assert!(result.is_err());
+    }
+
+    // ============ check_signability tests ============
+
+    #[test]
+    fn test_check_signability_no_review_returns_empty_actions() {
+        let signer_state = create_test_value_store("test");
+        let signers = SignersState::new();
+        let construct_did = create_test_construct_did("test");
+        let mut values = create_test_value_store("values");
+        values.insert(CHAIN_ID, Value::integer(1));
+
+        let supervision_context = RunbookSupervisionContext {
+            review_input_values: false,
+            review_input_default_values: false,
+            is_supervised: false,
+        };
+
+        let result = check_signability(
+            &construct_did,
+            "Test Transaction",
+            &None,
+            &None,
+            &None,
+            &Value::null(),
+            &values,
+            signer_state,
+            signers,
+            &supervision_context,
+        );
+
+        assert!(result.is_ok());
+        let (_, _, actions) = result.unwrap();
+        assert!(actions.store.is_empty());
+    }
+
+    #[test]
+    fn test_check_signability_with_review_returns_signing_action() {
+        let signer_state = create_test_value_store("test");
+        let signers = SignersState::new();
+        let construct_did = create_test_construct_did("test");
+        let mut values = create_test_value_store("values");
+        values.insert(CHAIN_ID, Value::integer(1));
+
+        let supervision_context = RunbookSupervisionContext {
+            review_input_values: true,
+            review_input_default_values: false,
+            is_supervised: true,
+        };
+
+        let result = check_signability(
+            &construct_did,
+            "Test Transaction",
+            &Some("Description".to_string()),
+            &None,
+            &None,
+            &Value::null(),
+            &values,
+            signer_state,
+            signers,
+            &supervision_context,
+        );
+
+        assert!(result.is_ok());
+        let (_, _, actions) = result.unwrap();
+        assert!(!actions.store.is_empty());
+    }
+
+    #[test]
+    fn test_check_signability_already_approved_returns_empty() {
+        let mut signer_state = create_test_value_store("test");
+        let construct_did = create_test_construct_did("test-construct");
+
+        // Mark as already approved
+        signer_state.insert_scoped_value(
+            &construct_did.to_string(),
+            SIGNATURE_APPROVED,
+            Value::bool(true),
+        );
+
+        let signers = SignersState::new();
+        let mut values = create_test_value_store("values");
+        values.insert(CHAIN_ID, Value::integer(1));
+
+        let supervision_context = RunbookSupervisionContext {
+            review_input_values: true,
+            review_input_default_values: false,
+            is_supervised: true,
+        };
+
+        let result = check_signability(
+            &construct_did,
+            "Test Transaction",
+            &None,
+            &None,
+            &None,
+            &Value::null(),
+            &values,
+            signer_state,
+            signers,
+            &supervision_context,
+        );
+
+        assert!(result.is_ok());
+        let (_, _, actions) = result.unwrap();
+        assert!(actions.store.is_empty());
+    }
+
+    #[test]
+    fn test_check_signability_missing_chain_id() {
+        let signer_state = create_test_value_store("test");
+        let signers = SignersState::new();
+        let construct_did = create_test_construct_did("test");
+        let values = create_test_value_store("values");
+        // Note: not inserting CHAIN_ID
+
+        let supervision_context = RunbookSupervisionContext {
+            review_input_values: true,
+            review_input_default_values: false,
+            is_supervised: true,
+        };
+
+        let result = check_signability(
+            &construct_did,
+            "Test Transaction",
+            &None,
+            &None,
+            &None,
+            &Value::null(),
+            &values,
+            signer_state,
+            signers,
+            &supervision_context,
+        );
+
+        assert!(result.is_err());
+    }
+}
