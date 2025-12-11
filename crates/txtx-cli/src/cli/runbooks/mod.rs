@@ -1280,34 +1280,103 @@ fn handle_log_event(
     }
 }
 
+/// Trait for providing passwords for keystore signers.
+/// This abstraction enables testing without interactive prompts.
+trait PasswordProvider {
+    fn get_password(
+        &mut self,
+        keystore_account: &str,
+        keystore_path: Option<&str>,
+    ) -> Result<String, String>;
+}
+
+/// Default password provider using dialoguer for interactive prompts.
+struct DialoguerPasswordProvider;
+
+impl PasswordProvider for DialoguerPasswordProvider {
+    fn get_password(
+        &mut self,
+        keystore_account: &str,
+        _keystore_path: Option<&str>,
+    ) -> Result<String, String> {
+        Password::with_theme(&ColorfulTheme::default())
+            .with_prompt(format!("Enter password for keystore '{}'", keystore_account))
+            .interact()
+            .map_err(|e| format!("Failed to read password: {}", e))
+    }
+}
+
 /// Prompts for passwords for all keystore signers in the runbook.
 /// This is called before unsupervised execution to gather passwords interactively.
 /// Password is never stored in the manifest - always prompted securely.
+/// If the same keystore account appears in multiple flows, only prompts once.
 fn prompt_for_keystore_passwords(runbook: &mut Runbook) -> Result<(), String> {
+    prompt_for_keystore_passwords_with_provider(runbook, &mut DialoguerPasswordProvider)
+}
+
+/// Cached password resolver that prompts only once per unique (account, path) pair.
+/// Returns the password for each request, using cached values when available.
+struct CachedPasswordResolver<'a, P: PasswordProvider> {
+    provider: &'a mut P,
+    cache: std::collections::HashMap<(String, Option<String>), String>,
+}
+
+impl<'a, P: PasswordProvider> CachedPasswordResolver<'a, P> {
+    fn new(provider: &'a mut P) -> Self {
+        Self {
+            provider,
+            cache: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Get password for the given account/path, prompting only if not cached.
+    fn get_password(
+        &mut self,
+        keystore_account: &str,
+        keystore_path: Option<&str>,
+    ) -> Result<String, String> {
+        let key = (keystore_account.to_string(), keystore_path.map(String::from));
+
+        if let Some(password) = self.cache.get(&key) {
+            return Ok(password.clone());
+        }
+
+        let password = self.provider.get_password(keystore_account, keystore_path)?;
+        self.cache.insert(key, password.clone());
+        Ok(password)
+    }
+}
+
+/// Internal implementation that accepts a password provider for testability.
+fn prompt_for_keystore_passwords_with_provider<P: PasswordProvider>(
+    runbook: &mut Runbook,
+    provider: &mut P,
+) -> Result<(), String> {
+    let mut resolver = CachedPasswordResolver::new(provider);
+
     for flow_context in runbook.flow_contexts.iter_mut() {
         for (construct_did, signer_instance) in
             flow_context.execution_context.signers_instances.iter()
         {
-            // Check if this is a keystore signer
             if signer_instance.specification.matcher != "keystore" {
                 continue;
             }
 
-            // Display name for the password prompt
-            let display_name = signer_instance
+            let keystore_account = signer_instance
                 .block
                 .body
                 .get_attribute("keystore_account")
                 .map(|attr| attr.value.to_string().trim_matches('"').to_string())
                 .unwrap_or_else(|| signer_instance.name.clone());
 
-            // Prompt for password (Foundry-style UX)
-            let password = Password::with_theme(&ColorfulTheme::default())
-                .with_prompt(format!("Enter password for keystore '{}'", display_name))
-                .interact()
-                .map_err(|e| format!("Failed to read password: {}", e))?;
+            let keystore_path = signer_instance
+                .block
+                .body
+                .get_attribute("keystore_path")
+                .map(|attr| attr.value.to_string().trim_matches('"').to_string());
 
-            // Store password in the signer's input evaluation results
+            let password = resolver.get_password(&keystore_account, keystore_path.as_deref())?;
+
             let eval_result = flow_context
                 .execution_context
                 .commands_inputs_evaluation_results
@@ -1319,5 +1388,228 @@ fn prompt_for_keystore_passwords(runbook: &mut Runbook) -> Result<(), String> {
             eval_result.inputs.insert("password", Value::string(password));
         }
     }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod keystore_password_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    /// Mock password provider for testing the password caching logic
+    struct MockPasswordProvider {
+        passwords: HashMap<(String, Option<String>), String>,
+        requests: Vec<(String, Option<String>)>,
+    }
+
+    impl MockPasswordProvider {
+        fn new(passwords: HashMap<(String, Option<String>), String>) -> Self {
+            Self { passwords, requests: Vec::new() }
+        }
+
+        fn request_count(&self) -> usize {
+            self.requests.len()
+        }
+
+        fn get_requests(&self) -> &[(String, Option<String>)] {
+            &self.requests
+        }
+    }
+
+    impl PasswordProvider for MockPasswordProvider {
+        fn get_password(
+            &mut self,
+            keystore_account: &str,
+            keystore_path: Option<&str>,
+        ) -> Result<String, String> {
+            let key = (keystore_account.to_string(), keystore_path.map(String::from));
+            self.requests.push(key.clone());
+            self.passwords
+                .get(&key)
+                .cloned()
+                .ok_or_else(|| format!("No password for '{}'", keystore_account))
+        }
+    }
+
+    #[test]
+    fn test_mock_provider_returns_configured_password() {
+        let mut passwords = HashMap::new();
+        passwords.insert(("account1".to_string(), None), "password1".to_string());
+        passwords.insert(
+            ("account2".to_string(), Some("/path".to_string())),
+            "password2".to_string(),
+        );
+
+        let mut provider = MockPasswordProvider::new(passwords);
+
+        assert_eq!(
+            provider.get_password("account1", None).unwrap(),
+            "password1"
+        );
+        assert_eq!(
+            provider.get_password("account2", Some("/path")).unwrap(),
+            "password2"
+        );
+        assert_eq!(provider.request_count(), 2);
+    }
+
+    #[test]
+    fn test_mock_provider_tracks_requests() {
+        let mut passwords = HashMap::new();
+        passwords.insert(("acc".to_string(), None), "pass".to_string());
+
+        let mut provider = MockPasswordProvider::new(passwords);
+
+        let _ = provider.get_password("acc", None);
+        let _ = provider.get_password("acc", None);
+        let _ = provider.get_password("acc", None);
+
+        assert_eq!(provider.request_count(), 3);
+    }
+
+    #[test]
+    fn test_mock_provider_missing_password_returns_error() {
+        let provider_passwords = HashMap::new();
+        let mut provider = MockPasswordProvider::new(provider_passwords);
+
+        let result = provider.get_password("unknown", None);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("unknown"));
+    }
+
+    #[test]
+    fn test_mock_provider_different_paths_are_different_keys() {
+        let mut passwords = HashMap::new();
+        passwords.insert(("acc".to_string(), Some("/a".to_string())), "pass_a".to_string());
+        passwords.insert(("acc".to_string(), Some("/b".to_string())), "pass_b".to_string());
+
+        let mut provider = MockPasswordProvider::new(passwords);
+
+        assert_eq!(provider.get_password("acc", Some("/a")).unwrap(), "pass_a");
+        assert_eq!(provider.get_password("acc", Some("/b")).unwrap(), "pass_b");
+
+        // Same account with no path should fail
+        assert!(provider.get_password("acc", None).is_err());
+    }
+
+    #[test]
+    fn test_dialoguer_provider_struct_exists() {
+        // Verify the DialoguerPasswordProvider can be instantiated
+        let _provider = DialoguerPasswordProvider;
+    }
+
+    // ==================== CachedPasswordResolver Tests ====================
+    // These tests prove that the caching logic only prompts once per unique key
+
+    #[test]
+    fn test_cached_resolver_same_account_prompts_once() {
+        // Simulates: same keystore account in 2 different flows
+        let mut passwords = HashMap::new();
+        passwords.insert(("deployer".to_string(), None), "secret123".to_string());
+        let mut provider = MockPasswordProvider::new(passwords);
+
+        let mut resolver = CachedPasswordResolver::new(&mut provider);
+
+        // First flow requests password for "deployer"
+        let pw1 = resolver.get_password("deployer", None).unwrap();
+        // Second flow requests password for same "deployer"
+        let pw2 = resolver.get_password("deployer", None).unwrap();
+
+        assert_eq!(pw1, "secret123");
+        assert_eq!(pw2, "secret123");
+        // Provider should only have been called ONCE
+        assert_eq!(provider.request_count(), 1);
+    }
+
+    #[test]
+    fn test_cached_resolver_different_accounts_prompt_separately() {
+        let mut passwords = HashMap::new();
+        passwords.insert(("alice".to_string(), None), "alice_pw".to_string());
+        passwords.insert(("bob".to_string(), None), "bob_pw".to_string());
+        let mut provider = MockPasswordProvider::new(passwords);
+
+        let mut resolver = CachedPasswordResolver::new(&mut provider);
+
+        let pw_alice = resolver.get_password("alice", None).unwrap();
+        let pw_bob = resolver.get_password("bob", None).unwrap();
+
+        assert_eq!(pw_alice, "alice_pw");
+        assert_eq!(pw_bob, "bob_pw");
+        // Two different accounts = two prompts
+        assert_eq!(provider.request_count(), 2);
+    }
+
+    #[test]
+    fn test_cached_resolver_same_account_different_paths_prompt_separately() {
+        // Same account name but different keystore_path = different keystores
+        let mut passwords = HashMap::new();
+        passwords.insert(
+            ("deployer".to_string(), Some("/keys/prod".to_string())),
+            "prod_pw".to_string(),
+        );
+        passwords.insert(
+            ("deployer".to_string(), Some("/keys/dev".to_string())),
+            "dev_pw".to_string(),
+        );
+        let mut provider = MockPasswordProvider::new(passwords);
+
+        let mut resolver = CachedPasswordResolver::new(&mut provider);
+
+        let pw_prod = resolver.get_password("deployer", Some("/keys/prod")).unwrap();
+        let pw_dev = resolver.get_password("deployer", Some("/keys/dev")).unwrap();
+
+        assert_eq!(pw_prod, "prod_pw");
+        assert_eq!(pw_dev, "dev_pw");
+        // Different paths = different keystores = two prompts
+        assert_eq!(provider.request_count(), 2);
+    }
+
+    #[test]
+    fn test_cached_resolver_multiple_flows_same_signer_prompts_once() {
+        // Simulates: 3 flows all using the same keystore signer
+        let mut passwords = HashMap::new();
+        passwords.insert(("shared_signer".to_string(), None), "shared_pw".to_string());
+        let mut provider = MockPasswordProvider::new(passwords);
+
+        let mut resolver = CachedPasswordResolver::new(&mut provider);
+
+        // Flow 1
+        let pw1 = resolver.get_password("shared_signer", None).unwrap();
+        // Flow 2
+        let pw2 = resolver.get_password("shared_signer", None).unwrap();
+        // Flow 3
+        let pw3 = resolver.get_password("shared_signer", None).unwrap();
+
+        assert_eq!(pw1, "shared_pw");
+        assert_eq!(pw2, "shared_pw");
+        assert_eq!(pw3, "shared_pw");
+        // Only ONE prompt despite 3 flows
+        assert_eq!(provider.request_count(), 1);
+    }
+
+    #[test]
+    fn test_cached_resolver_mixed_signers_correct_prompt_count() {
+        // Complex scenario: 2 flows, each with 2 signers
+        // Flow 1: alice, bob
+        // Flow 2: alice, charlie
+        // Expected: 3 prompts (alice cached on second use)
+        let mut passwords = HashMap::new();
+        passwords.insert(("alice".to_string(), None), "alice_pw".to_string());
+        passwords.insert(("bob".to_string(), None), "bob_pw".to_string());
+        passwords.insert(("charlie".to_string(), None), "charlie_pw".to_string());
+        let mut provider = MockPasswordProvider::new(passwords);
+
+        let mut resolver = CachedPasswordResolver::new(&mut provider);
+
+        // Flow 1
+        resolver.get_password("alice", None).unwrap();
+        resolver.get_password("bob", None).unwrap();
+        // Flow 2
+        resolver.get_password("alice", None).unwrap(); // Should be cached
+        resolver.get_password("charlie", None).unwrap();
+
+        // alice=1, bob=1, charlie=1 = 3 total prompts
+        assert_eq!(provider.request_count(), 3);
+    }
 }
