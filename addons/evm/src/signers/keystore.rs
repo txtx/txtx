@@ -144,37 +144,8 @@ impl SignerImplementation for EvmKeystoreSigner {
             Value::string(resolved_path.to_string_lossy().into_owned()),
         );
 
-        if let Some(password) = signer_state.get_string(KEYSTORE_PASSWORD) {
-            let signer = keystore_to_secret_key_signer(&resolved_path, password)
-                .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
-
-            let expected_address: Address = signer.address();
-
-            signer_state.insert(
-                "signer_field_bytes",
-                EvmValue::signer_field_bytes(signer.to_field_bytes().to_vec()),
-            );
-            signer_state.insert("signer_address", Value::string(expected_address.to_string()));
-
-            if supervision_context.review_input_values {
-                if signer_state.get_expected_string(CHECKED_ADDRESS).is_ok() {
-                    signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
-                } else {
-                    actions.push_sub_group(
-                        None,
-                        vec![ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
-                            .to_action_type()
-                            .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
-                            .with_construct_did(construct_did)
-                            .with_some_description(description.clone())
-                            .with_meta_description(&format!("Check {} expected address", instance_name))
-                            .with_some_markdown(markdown.clone())],
-                    );
-                }
-            } else {
-                signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
-            }
-        } else {
+        // If no password yet, prompt for it and return early
+        let Some(password) = signer_state.get_string(KEYSTORE_PASSWORD) else {
             let keystore_display = resolved_path
                 .file_name()
                 .map(|f| f.to_string_lossy().into_owned())
@@ -196,6 +167,40 @@ impl SignerImplementation for EvmKeystoreSigner {
                     .with_some_markdown(markdown.clone())
                     .with_status(ActionItemStatus::Todo)],
             );
+
+            let future = async move { Ok((signers, signer_state, actions)) };
+            return Ok(Box::pin(future));
+        };
+
+        // Password available - decrypt keystore
+        let signer = keystore_to_secret_key_signer(&resolved_path, password)
+            .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
+
+        let expected_address: Address = signer.address();
+
+        signer_state.insert(
+            "signer_field_bytes",
+            EvmValue::signer_field_bytes(signer.to_field_bytes().to_vec()),
+        );
+        signer_state.insert("signer_address", Value::string(expected_address.to_string()));
+
+        // Handle address verification based on supervision context
+        let needs_review = supervision_context.review_input_values
+            && signer_state.get_expected_string(CHECKED_ADDRESS).is_err();
+
+        if needs_review {
+            actions.push_sub_group(
+                None,
+                vec![ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
+                    .to_action_type()
+                    .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
+                    .with_construct_did(construct_did)
+                    .with_some_description(description.clone())
+                    .with_meta_description(&format!("Check {} expected address", instance_name))
+                    .with_some_markdown(markdown.clone())],
+            );
+        } else {
+            signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
         }
 
         let future = async move { Ok((signers, signer_state, actions)) };
