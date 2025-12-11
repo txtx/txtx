@@ -1,23 +1,31 @@
+use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::{utils::format_units, Address};
+use alloy_rpc_types::TransactionRequest;
 use txtx_addon_kit::{
+    constants::SIGNATURE_APPROVED,
     indexmap::IndexMap,
     types::{
+        commands::CommandExecutionResult,
         frontend::{
-            ActionItemRequest, ActionItemRequestType, ActionItemStatus, ProvidePublicKeyRequest,
-            ReviewInputRequest,
+            ActionItemRequest, ActionItemRequestType, ActionItemStatus, Actions,
+            ProvidePublicKeyRequest, ProvideSignedTransactionRequest, ReviewInputRequest,
         },
+        signers::{SignerActionErr, SignersState},
         stores::ValueStore,
-        types::Value,
+        types::{RunbookSupervisionContext, Value},
         ConstructDid,
     },
 };
 
 use crate::{
+    codec::crypto::field_bytes_to_secret_key_signer,
     constants::{
         ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, ACTION_ITEM_PROVIDE_PUBLIC_KEY,
-        DEFAULT_MESSAGE, NAMESPACE,
+        ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID, DEFAULT_MESSAGE, FORMATTED_TRANSACTION,
+        NAMESPACE, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES, TX_HASH,
     },
-    rpc::EvmRpc,
+    rpc::{EvmRpc, EvmWalletRpc},
+    typing::EvmValue,
 };
 
 pub async fn get_additional_actions_for_address(
@@ -159,4 +167,132 @@ impl NonceManager {
         }
         Ok(NonceManager(IndexMap::new()))
     }
+}
+
+/// Shared activate implementation for secret_key and keystore signers
+pub fn activate_signer(
+    signer_state: ValueStore,
+    signers: SignersState,
+) -> Result<(SignersState, ValueStore, CommandExecutionResult), (SignersState, ValueStore, txtx_addon_kit::types::diagnostics::Diagnostic)> {
+    let mut result = CommandExecutionResult::new();
+    let address = signer_state
+        .get_expected_value("signer_address")
+        .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+    result.outputs.insert("address".into(), address.clone());
+    Ok((signers, signer_state, result))
+}
+
+/// Shared check_signability implementation for secret_key and keystore signers
+pub fn check_signability(
+    construct_did: &ConstructDid,
+    title: &str,
+    description: &Option<String>,
+    meta_description: &Option<String>,
+    markdown: &Option<String>,
+    payload: &Value,
+    values: &ValueStore,
+    signer_state: ValueStore,
+    signers: SignersState,
+    supervision_context: &RunbookSupervisionContext,
+) -> Result<(SignersState, ValueStore, Actions), SignerActionErr> {
+    let actions = if supervision_context.review_input_values {
+        let construct_did_str = construct_did.to_string();
+        if signer_state.get_scoped_value(&construct_did_str, SIGNATURE_APPROVED).is_some() {
+            return Ok((signers, signer_state, Actions::none()));
+        }
+
+        let chain_id = values
+            .get_expected_uint(CHAIN_ID)
+            .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+
+        let formatted_payload =
+            signer_state.get_scoped_value(&construct_did_str, FORMATTED_TRANSACTION);
+
+        let request = ProvideSignedTransactionRequest::new(
+            &signer_state.uuid,
+            payload,
+            NAMESPACE,
+            &chain_id.to_string(),
+        )
+        .check_expectation_action_uuid(construct_did)
+        .only_approval_needed()
+        .formatted_payload(formatted_payload)
+        .to_action_type()
+        .to_request(title, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION)
+        .with_construct_did(construct_did)
+        .with_some_description(description.clone())
+        .with_some_meta_description(meta_description.clone())
+        .with_some_markdown(markdown.clone())
+        .with_status(ActionItemStatus::Todo);
+
+        Actions::append_item(
+            request,
+            Some("Review and sign the transactions from the list below"),
+            Some("Transaction Signing"),
+        )
+    } else {
+        Actions::none()
+    };
+    Ok((signers, signer_state, actions))
+}
+
+/// Shared sign implementation for secret_key and keystore signers
+pub async fn sign_transaction(
+    caller_uuid: &ConstructDid,
+    values: &ValueStore,
+    signer_state: ValueStore,
+    signers: SignersState,
+) -> Result<(SignersState, ValueStore, CommandExecutionResult), (SignersState, ValueStore, txtx_addon_kit::types::diagnostics::Diagnostic)> {
+    let mut result = CommandExecutionResult::new();
+
+    let rpc_api_url = values
+        .get_expected_string(RPC_API_URL)
+        .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+
+    let signer_field_bytes = signer_state
+        .get_expected_buffer_bytes("signer_field_bytes")
+        .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+
+    let payload_bytes = signer_state
+        .get_expected_scoped_buffer_bytes(
+            &caller_uuid.to_string(),
+            SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
+        )
+        .map_err(|e| (signers.clone(), signer_state.clone(), e))?;
+
+    let secret_key_signer = field_bytes_to_secret_key_signer(&signer_field_bytes)
+        .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
+
+    let eth_signer = EthereumWallet::from(secret_key_signer);
+
+    let mut tx: TransactionRequest = serde_json::from_slice(&payload_bytes).map_err(|e| {
+        (
+            signers.clone(),
+            signer_state.clone(),
+            diagnosed_error!("failed to deserialize transaction: {e}"),
+        )
+    })?;
+
+    if tx.to.is_none() {
+        tx.set_create();
+    }
+
+    let tx_envelope = tx.build(&eth_signer).await.map_err(|e| {
+        (
+            signers.clone(),
+            signer_state.clone(),
+            diagnosed_error!("failed to build transaction envelope: {e}"),
+        )
+    })?;
+
+    let rpc = EvmWalletRpc::new(rpc_api_url, eth_signer)
+        .map_err(|e| (signers.clone(), signer_state.clone(), diagnosed_error!("{e}")))?;
+
+    let tx_hash = rpc.sign_and_send_tx(tx_envelope).await.map_err(|e| {
+        (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e.to_string()))
+    })?;
+
+    result.outputs.insert(TX_HASH.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
+
+    Ok((signers, signer_state, result))
 }
