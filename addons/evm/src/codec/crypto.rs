@@ -67,10 +67,8 @@ pub fn resolve_keystore_path(
     };
 
     // If keystore_account is already an absolute path, use it directly.
-    // Security note: This is a CLI tool run by the user who provides both the path
-    // and password interactively. The file must also be a valid encrypted keystore
-    // (eth_keystore::decrypt_key will reject anything else). We validate the .json
-    // extension primarily to catch typos and provide clearer error messages.
+    // Security: The user provides both the path and password interactively; only valid encrypted keystores are accepted.
+    // UX: The .json extension check is mainly to catch typos and provide clearer error messages.
     let account_path = PathBuf::from(keystore_account);
     if account_path.is_absolute() {
         if !account_path.extension().map_or(false, |ext| ext == "json") {
