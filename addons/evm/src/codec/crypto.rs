@@ -49,6 +49,70 @@ pub fn field_bytes_to_secret_key_signer(field_bytes: &Vec<u8>) -> Result<SecretK
         .map_err(|e| format!("failed to generate signer: {}", e))
 }
 
+/// Resolves the keystore file path from the account name and optional directory.
+/// If keystore_path is None, defaults to ~/.foundry/keystores
+pub fn resolve_keystore_path(
+    keystore_account: &str,
+    keystore_path: Option<&str>,
+) -> Result<std::path::PathBuf, String> {
+    use std::path::PathBuf;
+
+    let keystore_dir = match keystore_path {
+        Some(path) => PathBuf::from(path),
+        None => {
+            let home = dirs::home_dir()
+                .ok_or_else(|| "could not determine home directory".to_string())?;
+            home.join(".foundry").join("keystores")
+        }
+    };
+
+    // If keystore_account is already an absolute path, use it directly
+    let account_path = PathBuf::from(keystore_account);
+    if account_path.is_absolute() {
+        return Ok(account_path);
+    }
+
+    // Otherwise, join with the keystore directory
+    // Try with .json extension first, then without
+    let with_json = keystore_dir.join(format!("{}.json", keystore_account));
+    if with_json.exists() {
+        return Ok(with_json);
+    }
+
+    let without_json = keystore_dir.join(keystore_account);
+    if without_json.exists() {
+        return Ok(without_json);
+    }
+
+    // Return the path with .json extension (will fail at decrypt time with better error)
+    Ok(with_json)
+}
+
+/// Decrypts a keystore file and returns a SecretKeySigner
+pub fn keystore_to_secret_key_signer(
+    keystore_path: &std::path::Path,
+    password: &str,
+) -> Result<SecretKeySigner, String> {
+    if !keystore_path.exists() {
+        return Err(format!("keystore file not found: {:?}", keystore_path));
+    }
+
+    if keystore_path.is_dir() {
+        return Err(format!(
+            "keystore path is a directory, expected a file: {:?}",
+            keystore_path
+        ));
+    }
+
+    let secret_key = eth_keystore::decrypt_key(keystore_path, password)
+        .map_err(|e| format!("failed to decrypt keystore: {}", e))?;
+
+    let signing_key = SigningKey::from_slice(&secret_key)
+        .map_err(|e| format!("invalid key in keystore: {}", e))?;
+
+    Ok(SecretKeySigner::from_signing_key(signing_key))
+}
+
 pub fn public_key_to_address(public_key_bytes: &Vec<u8>) -> Result<Address, String> {
     let pubkey = VerifyingKey::from_sec1_bytes(&public_key_bytes)
         .map_err(|e| format!("invalid public key: {}", e))?;

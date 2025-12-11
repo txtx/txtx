@@ -38,7 +38,9 @@ alloy-chains = "0.2.14"
 alloy-primitives = { version = "1.4.1" }
 alloy-provider = { version = "1.0.41", default-features = false, features = ["debug-api"] }
 alloy-rpc-types = { version = "1.0.41", features = ["trace"] }
-alloy-signer-local = { version = "1.0.41", features = ["mnemonic"] }
+alloy-signer-local = { version = "1.0.41", features = ["mnemonic", "keystore"] }
+eth-keystore = "0.5.0"
+dirs = "5.0"
 thiserror = "1.0.62"
 toml = "0.5"
 foundry-block-explorers = "0.22.0"
