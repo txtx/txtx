@@ -1,10 +1,7 @@
 use alloy::primitives::Address;
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::types::frontend::{
-    ActionItemRequestType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
-    ReviewInputRequest,
-};
+use txtx_addon_kit::types::frontend::{Actions, BlockEvent};
 use txtx_addon_kit::types::signers::{
     return_synchronous_result, CheckSignabilityOk, SignerActionErr, SignerActionsFutureResult,
     SignerActivateFutureResult, SignerImplementation, SignerInstance, SignerSignFutureResult,
@@ -17,12 +14,8 @@ use txtx_addon_kit::types::{diagnostics::Diagnostic, AuthorizationContext, Const
 
 use super::common::{activate_signer, check_signability, sign_transaction};
 use crate::codec::crypto::{keystore_to_secret_key_signer, resolve_keystore_path};
-use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_KEYSTORE_PASSWORD, CHECKED_ADDRESS,
-    KEYSTORE_ACCOUNT, KEYSTORE_PASSWORD, KEYSTORE_PATH, PUBLIC_KEYS,
-};
+use crate::constants::{CHECKED_ADDRESS, KEYSTORE_ACCOUNT, KEYSTORE_PATH, PASSWORD, PUBLIC_KEYS};
 use crate::typing::EvmValue;
-use txtx_addon_kit::constants::DESCRIPTION;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
 
 lazy_static! {
@@ -32,7 +25,8 @@ lazy_static! {
           matcher: "keystore",
           documentation: txtx_addon_kit::indoc! {r#"
 The `evm::keystore` signer uses a Foundry-compatible encrypted keystore file to sign transactions.
-The keystore password will be prompted at runtime for security.
+
+**Note:** This signer is only supported in unsupervised mode (`--unsupervised` flag). For supervised/interactive mode, use `evm::web_wallet` instead.
 
 ### Inputs
 
@@ -47,11 +41,15 @@ The keystore password will be prompted at runtime for security.
 |-----------|--------|------------------------------------------|
 | `address` | string | The Ethereum address derived from the keystore |
 
+### Password
+
+The keystore password is prompted interactively at CLI startup (Foundry-style UX). The password is never stored in the manifest or on disk.
+
 ### Security
 
-- The keystore password is never stored in manifests
-- Password is prompted interactively at runtime
 - Compatible with keystores created by `cast wallet import`
+- Password is prompted securely (hidden input) before execution begins
+- Password is held only in memory during execution
 "#},
           inputs: [
             keystore_account: {
@@ -67,6 +65,13 @@ The keystore password will be prompted at runtime for security.
                 optional: true,
                 tainting: true,
                 sensitive: false
+            },
+            password: {
+                documentation: "Internal use only - populated by CLI interactive prompt.",
+                typing: Type::string(),
+                optional: true,
+                tainting: false,
+                sensitive: true
             }
           ],
           outputs: [
@@ -108,28 +113,35 @@ impl SignerImplementation for EvmKeystoreSigner {
 
     #[cfg(not(feature = "wasm"))]
     fn check_activability(
-        construct_did: &ConstructDid,
-        instance_name: &str,
+        _construct_did: &ConstructDid,
+        _instance_name: &str,
         _spec: &SignerSpecification,
         values: &ValueStore,
         mut signer_state: ValueStore,
         signers: SignersState,
         _signers_instances: &HashMap<ConstructDid, SignerInstance>,
         supervision_context: &RunbookSupervisionContext,
-        auth_ctx: &AuthorizationContext,
+        _auth_ctx: &AuthorizationContext,
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
+        // Keystore signer only supports unsupervised mode - for supervised mode use web_wallet
+        if supervision_context.is_supervised {
+            return Err((
+                signers,
+                signer_state,
+                diagnosed_error!(
+                    "evm::keystore signer is only supported in unsupervised mode. \
+                    For supervised mode, use evm::web_wallet instead."
+                ),
+            ));
+        }
+
         let mut actions = Actions::none();
 
         if signer_state.get_value(PUBLIC_KEYS).is_some() {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
-
-        let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
-        let markdown = values
-            .get_markdown(auth_ctx)
-            .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
 
         let keystore_account = values
             .get_expected_string(KEYSTORE_ACCOUNT)
@@ -144,33 +156,18 @@ impl SignerImplementation for EvmKeystoreSigner {
             Value::string(resolved_path.to_string_lossy().into_owned()),
         );
 
-        // If no password yet, prompt for it and return early
-        let Some(password) = signer_state.get_string(KEYSTORE_PASSWORD) else {
-            let keystore_display = resolved_path
-                .file_name()
-                .map(|f| f.to_string_lossy().into_owned())
-                .unwrap_or_else(|| keystore_account.to_string());
-
-            let request = ProvideInputRequest {
-                default_value: None,
-                input_name: KEYSTORE_PASSWORD.to_string(),
-                typing: Type::string(),
-            };
-
-            actions.push_sub_group(
-                Some(format!("Enter password for keystore '{}'", keystore_display)),
-                vec![ActionItemRequestType::ProvideInput(request)
-                    .to_request(instance_name, ACTION_ITEM_PROVIDE_KEYSTORE_PASSWORD)
-                    .with_construct_did(construct_did)
-                    .with_some_description(description.clone())
-                    .with_meta_description(&format!("Unlock keystore for {}", instance_name))
-                    .with_some_markdown(markdown.clone())
-                    .with_status(ActionItemStatus::Todo)],
-            );
-
-            let future = async move { Ok((signers, signer_state, actions)) };
-            return Ok(Box::pin(future));
-        };
+        // Password is injected by CLI before execution (interactive prompt)
+        // Password is never stored in the manifest
+        let password = values.get_string(PASSWORD).ok_or_else(|| {
+            (
+                signers.clone(),
+                signer_state.clone(),
+                diagnosed_error!(
+                    "keystore password not provided. This should not happen in unsupervised mode - \
+                    the password should be prompted interactively before execution."
+                ),
+            )
+        })?;
 
         // Password available - decrypt keystore
         let signer = keystore_to_secret_key_signer(&resolved_path, password)
@@ -184,24 +181,8 @@ impl SignerImplementation for EvmKeystoreSigner {
         );
         signer_state.insert("signer_address", Value::string(expected_address.to_string()));
 
-        // Handle address verification based on supervision context
-        let needs_review = supervision_context.review_input_values
-            && signer_state.get_expected_string(CHECKED_ADDRESS).is_err();
-
-        if needs_review {
-            actions.push_sub_group(
-                None,
-                vec![ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
-                    .to_action_type()
-                    .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
-                    .with_construct_did(construct_did)
-                    .with_some_description(description.clone())
-                    .with_meta_description(&format!("Check {} expected address", instance_name))
-                    .with_some_markdown(markdown.clone())],
-            );
-        } else {
-            signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
-        }
+        // In unsupervised mode, we don't need interactive address review
+        signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
 
         let future = async move { Ok((signers, signer_state, actions)) };
         Ok(Box::pin(future))

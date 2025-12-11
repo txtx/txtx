@@ -2,7 +2,7 @@ use super::{env::TxtxEnv, CheckRunbook, Context, CreateRunbook, ExecuteRunbook, 
 use crate::{get_addon_by_namespace, get_available_addons};
 use ascii_table::AsciiTable;
 use console::Style;
-use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
+use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use log::{debug, error, info, trace, warn};
@@ -17,7 +17,7 @@ use std::{
 use tokio::sync::RwLock;
 use txtx_cloud::router::TxtxAuthenticatedCloudServiceRouter;
 use txtx_core::{
-    kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
+    kit::types::{commands::UnevaluatedInputsMap, stores::{ValueMap, ValueStore}},
     mustache,
     templates::{TXTX_MANIFEST_TEMPLATE, TXTX_README_TEMPLATE},
     utils::try_write_outputs_to_file,
@@ -684,6 +684,11 @@ pub async fn handle_run_command(
     setup_logger(runbook.to_instance_context(), &cmd.log_level).unwrap();
     let log_filter: LogLevel = cmd.log_level.as_str().into();
 
+    // Prompt for keystore passwords before unsupervised execution
+    if is_execution_unsupervised {
+        prompt_for_keystore_passwords(&mut runbook)?;
+    }
+
     // should not be generating actions
     if is_execution_unsupervised {
         let _ = hiro_system_kit::thread_named("Display background tasks logs").spawn(move || {
@@ -1273,4 +1278,46 @@ fn handle_log_event(
             }
         },
     }
+}
+
+/// Prompts for passwords for all keystore signers in the runbook.
+/// This is called before unsupervised execution to gather passwords interactively.
+/// Password is never stored in the manifest - always prompted securely.
+fn prompt_for_keystore_passwords(runbook: &mut Runbook) -> Result<(), String> {
+    for flow_context in runbook.flow_contexts.iter_mut() {
+        for (construct_did, signer_instance) in
+            flow_context.execution_context.signers_instances.iter()
+        {
+            // Check if this is a keystore signer
+            if signer_instance.specification.matcher != "keystore" {
+                continue;
+            }
+
+            // Display name for the password prompt
+            let display_name = signer_instance
+                .block
+                .body
+                .get_attribute("keystore_account")
+                .map(|attr| attr.value.to_string().trim_matches('"').to_string())
+                .unwrap_or_else(|| signer_instance.name.clone());
+
+            // Prompt for password (Foundry-style UX)
+            let password = Password::with_theme(&ColorfulTheme::default())
+                .with_prompt(format!("Enter password for keystore '{}'", display_name))
+                .interact()
+                .map_err(|e| format!("Failed to read password: {}", e))?;
+
+            // Store password in the signer's input evaluation results
+            let eval_result = flow_context
+                .execution_context
+                .commands_inputs_evaluation_results
+                .entry(construct_did.clone())
+                .or_insert_with(|| {
+                    CommandInputsEvaluationResult::new(&signer_instance.name, &ValueMap::new())
+                });
+
+            eval_result.inputs.insert("password", Value::string(password));
+        }
+    }
+    Ok(())
 }

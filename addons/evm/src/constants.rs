@@ -28,6 +28,7 @@ pub const WEB_WALLET_UNSIGNED_TRANSACTION_BYTES: &str = "web_wallet_unsigned_tra
 pub const KEYSTORE_PASSWORD: &str = "keystore_password";
 pub const KEYSTORE_ACCOUNT: &str = "keystore_account";
 pub const KEYSTORE_PATH: &str = "keystore_path";
+pub const PASSWORD: &str = "password";
 
 // Default keystore directory (Foundry default)
 pub const DEFAULT_FOUNDRY_KEYSTORES_DIR: &str = ".foundry/keystores";
