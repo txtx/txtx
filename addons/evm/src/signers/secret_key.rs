@@ -144,9 +144,8 @@ impl SignerImplementation for EvmSecretKeySigner {
         signer_state.insert("signer_address", Value::string(expected_address.to_string()));
 
         if supervision_context.review_input_values {
-            if signer_state.get_expected_string(CHECKED_ADDRESS).is_ok() {
-                signer_state.insert(CHECKED_ADDRESS, Value::string(expected_address.to_string()));
-            } else {
+            // Only show review action if address hasn't been checked yet
+            if signer_state.get_expected_string(CHECKED_ADDRESS).is_err() {
                 actions.push_sub_group(
                     None,
                     vec![ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
