@@ -25,13 +25,10 @@ pub const PUBLIC_KEYS: &str = "public_keys";
 pub const SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES: &str =
     "secret_key_wallet_unsigned_transaction_bytes";
 pub const WEB_WALLET_UNSIGNED_TRANSACTION_BYTES: &str = "web_wallet_unsigned_transaction_bytes";
-pub const KEYSTORE_PASSWORD: &str = "keystore_password";
 pub const KEYSTORE_ACCOUNT: &str = "keystore_account";
 pub const KEYSTORE_PATH: &str = "keystore_path";
 pub const PASSWORD: &str = "password";
 
-// Default keystore directory (Foundry default)
-pub const DEFAULT_FOUNDRY_KEYSTORES_DIR: &str = ".foundry/keystores";
 pub const TRANSACTION_PAYLOAD_BYTES: &str = "transaction_payload_bytes";
 pub const SIGNED_MESSAGE_BYTES: &str = "signed_message_bytes";
 pub const MESSAGE_BYTES: &str = "message_bytes";
@@ -103,7 +100,6 @@ pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
 pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
 pub const ACTION_ITEM_SEND_TRANSACTION: &str = "send_transaction";
 pub const ACTION_OPEN_MODAL: &str = "open_modal";
-pub const ACTION_ITEM_PROVIDE_KEYSTORE_PASSWORD: &str = "provide_keystore_password";
 
 // Default contracts
 pub const DEFAULT_CREATE2_FACTORY_ADDRESS: &str = "0x4e59b44847b379578588920cA78FbF26c0B4956C";
