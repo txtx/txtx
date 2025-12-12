@@ -39,7 +39,7 @@ impl FunctionImplementation for Base58Encode {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -47,7 +47,7 @@ impl FunctionImplementation for Base58Encode {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let hex = args.get(0).unwrap().to_string();

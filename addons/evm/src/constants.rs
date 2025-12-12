@@ -87,15 +87,6 @@ pub const DEFAULT_CREATE2_SALT: &str =
 pub const EMPTY_CREATE2_SALT: &str =
     "0x0000000000000000000000000000000000000000000000000000000000000000";
 
-// Actions items keys
-pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
-pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
-pub const ACTION_ITEM_CHECK_NONCE: &str = "check_nonce";
-pub const ACTION_ITEM_CHECK_FEE: &str = "check_fee";
-pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
-pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
-pub const ACTION_ITEM_SEND_TRANSACTION: &str = "send_transaction";
-pub const ACTION_OPEN_MODAL: &str = "open_modal";
 
 // Default contracts
 pub const DEFAULT_CREATE2_FACTORY_ADDRESS: &str = "0x4e59b44847b379578588920cA78FbF26c0B4956C";

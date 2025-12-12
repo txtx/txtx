@@ -61,7 +61,7 @@ thiserror = "1.0"
 strum = { version = "0.26", features = ["derive"] }
 
 [features]
-default = ["cli", "supervisor_ui"]
+default = ["cli"]
 cli = ["clap", "clap_generate", "ctrlc", "hiro-system-kit/log"]
 supervisor_ui = ["txtx-supervisor-ui"]
 txtx_serve = ["txtx-serve"]

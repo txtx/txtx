@@ -1,13 +1,14 @@
 use std::{borrow::BorrowMut, collections::BTreeMap, fmt::Display};
 
 use crate::{
-    constants::ACTION_ITEM_BEGIN_FLOW,
+    constants::ActionItemKey,
     types::{stores::AddonDefaults, types::RunbookCompleteAdditionalInfo},
 };
 
 use super::{
     block_id::BlockId,
     diagnostics::Diagnostic,
+    namespace::Namespace,
     types::{Type, Value},
     ConstructDid, Did,
 };
@@ -118,8 +119,8 @@ impl LogEvent {
 
     pub fn namespace(&self) -> &str {
         match self {
-            LogEvent::Static(event) => &event.namespace,
-            LogEvent::Transient(event) => &event.namespace,
+            LogEvent::Static(event) => event.namespace.as_str(),
+            LogEvent::Transient(event) => event.namespace.as_str(),
         }
     }
 }
@@ -130,7 +131,7 @@ pub struct StaticLogEvent {
     pub level: LogLevel,
     pub uuid: Uuid,
     pub details: LogDetails,
-    pub namespace: String,
+    pub namespace: Namespace,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,7 +155,7 @@ pub struct TransientLogEvent {
     pub level: LogLevel,
     pub uuid: Uuid,
     pub status: TransientLogEventStatus,
-    pub namespace: String,
+    pub namespace: Namespace,
 }
 
 impl TransientLogEvent {
@@ -186,7 +187,7 @@ impl TransientLogEvent {
         uuid: Uuid,
         summary: impl ToString,
         message: impl ToString,
-        namespace: impl ToString,
+        namespace: impl Into<Namespace>,
     ) -> Self {
         TransientLogEvent {
             level: LogLevel::Info,
@@ -195,7 +196,7 @@ impl TransientLogEvent {
                 message: message.to_string(),
                 summary: summary.to_string(),
             }),
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
         }
     }
 
@@ -203,7 +204,7 @@ impl TransientLogEvent {
         uuid: Uuid,
         summary: impl ToString,
         message: impl ToString,
-        namespace: impl ToString,
+        namespace: impl Into<Namespace>,
     ) -> Self {
         TransientLogEvent {
             level: LogLevel::Info,
@@ -212,7 +213,7 @@ impl TransientLogEvent {
                 message: message.to_string(),
                 summary: summary.to_string(),
             }),
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
         }
     }
 
@@ -220,7 +221,7 @@ impl TransientLogEvent {
         uuid: Uuid,
         summary: impl ToString,
         message: impl ToString,
-        namespace: impl ToString,
+        namespace: impl Into<Namespace>,
     ) -> Self {
         TransientLogEvent {
             level: LogLevel::Error,
@@ -229,19 +230,19 @@ impl TransientLogEvent {
                 message: message.to_string(),
                 summary: summary.to_string(),
             }),
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
         }
     }
 }
 
 pub struct LogDispatcher {
     uuid: Uuid,
-    namespace: String,
+    namespace: Namespace,
     tx: channel::Sender<BlockEvent>,
 }
 impl LogDispatcher {
     pub fn new(uuid: Uuid, namespace: &str, tx: &channel::Sender<BlockEvent>) -> Self {
-        LogDispatcher { uuid, namespace: format!("txtx::{}", namespace), tx: tx.clone() }
+        LogDispatcher { uuid, namespace: Namespace::custom(format!("txtx::{}", namespace)), tx: tx.clone() }
     }
 
     fn log_static(&self, level: LogLevel, summary: impl ToString, message: impl ToString) {
@@ -307,7 +308,7 @@ impl BlockEvent {
     pub fn static_log(
         level: LogLevel,
         uuid: Uuid,
-        namespace: String,
+        namespace: Namespace,
         summary: impl ToString,
         message: impl ToString,
     ) -> Self {
@@ -443,7 +444,7 @@ pub struct ActionItemRequestUpdate {
 #[derive(Debug, Clone, Serialize)]
 pub enum ActionItemRequestUpdateIdentifier {
     Id(BlockId),
-    ConstructDidWithKey((ConstructDid, String)),
+    ConstructDidWithKey((ConstructDid, ActionItemKey)),
 }
 
 impl ActionItemRequestUpdate {
@@ -454,11 +455,11 @@ impl ActionItemRequestUpdate {
             action_type: None,
         }
     }
-    pub fn from_context(construct_did: &ConstructDid, internal_key: &str) -> Self {
+    pub fn from_context(construct_did: &ConstructDid, internal_key: ActionItemKey) -> Self {
         ActionItemRequestUpdate {
             id: ActionItemRequestUpdateIdentifier::ConstructDidWithKey((
                 construct_did.clone(),
-                internal_key.to_string(),
+                internal_key,
             )),
             action_status: None,
             action_type: None,
@@ -743,7 +744,7 @@ impl ErrorPanelData {
             let mut action = ActionItemRequestType::DisplayErrorLog(DisplayErrorLogRequest {
                 diagnostic: diag.clone(),
             })
-            .to_request("", "diagnostic")
+            .to_request("", ActionItemKey::Diagnostic)
             .with_status(ActionItemStatus::Error(diag.clone()));
 
             action.index = (i + 1) as u16;
@@ -917,13 +918,13 @@ pub struct ActionItemRequest {
     pub markdown: Option<String>,
     pub action_status: ActionItemStatus,
     pub action_type: ActionItemRequestType,
-    pub internal_key: String,
+    pub internal_key: ActionItemKey,
 }
 
 impl ActionItemRequest {
     fn new(
         construct_instance_name: &str,
-        internal_key: &str,
+        internal_key: ActionItemKey,
         action_type: ActionItemRequestType,
     ) -> Self {
         let mut req = ActionItemRequest {
@@ -936,7 +937,7 @@ impl ActionItemRequest {
             markdown: None,
             action_status: ActionItemStatus::Todo,
             action_type,
-            internal_key: internal_key.to_string(),
+            internal_key,
         };
         req.recompute_id();
         req
@@ -1117,7 +1118,7 @@ impl Actions {
                         name: flow_name.to_string(),
                         description: flow_description.clone(),
                     })
-                    .to_request("", ACTION_ITEM_BEGIN_FLOW)
+                    .to_request("", ActionItemKey::BeginFlow)
                     .with_status(ActionItemStatus::Success(None))],
                     allow_batch_completion: false,
                 }],
@@ -1552,7 +1553,7 @@ impl ActionItemRequestType {
     pub fn to_request(
         self,
         construct_instance_name: &str,
-        internal_key: &str,
+        internal_key: ActionItemKey,
     ) -> ActionItemRequest {
         ActionItemRequest::new(construct_instance_name, internal_key, self)
     }
@@ -1989,7 +1990,7 @@ impl InputOption {
 pub struct ProvidePublicKeyRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub message: String,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
 }
 
@@ -2003,7 +2004,7 @@ pub struct ProvideSignedTransactionRequest {
     pub only_approval_needed: bool,
     pub payload: Value,
     pub formatted_payload: Option<Value>,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
 }
 
@@ -2016,7 +2017,7 @@ impl ProvideSignedTransactionRequest {
             skippable: false,
             payload: payload.clone(),
             formatted_payload: None,
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
             network_id: network_id.to_string(),
             only_approval_needed: false,
         }
@@ -2057,7 +2058,7 @@ impl ProvideSignedTransactionRequest {
 pub struct VerifyThirdPartySignatureRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub signer_uuid: ConstructDid,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
     pub signer_name: String,
     pub third_party_name: String,
@@ -2082,7 +2083,7 @@ impl VerifyThirdPartySignatureRequest {
             signer_name: signer_name.to_string(),
             third_party_name: third_party_name.to_string(),
             url: url.to_string(),
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
             network_id: network_id.to_string(),
             payload: payload.clone(),
             formatted_payload: None,
@@ -2112,7 +2113,7 @@ pub struct SendTransactionRequest {
     pub expected_signer_address: Option<String>,
     pub payload: Value,
     pub formatted_payload: Option<Value>,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
 }
 
@@ -2124,7 +2125,7 @@ impl SendTransactionRequest {
             expected_signer_address: None,
             payload: payload.clone(),
             formatted_payload: None,
-            namespace: namespace.to_string(),
+            namespace: namespace.into(),
             network_id: network_id.to_string(),
         }
     }
@@ -2155,7 +2156,7 @@ pub struct ProvideSignedMessageRequest {
     pub check_expectation_action_uuid: Option<ConstructDid>,
     pub signer_uuid: ConstructDid,
     pub message: Value,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub network_id: String,
 }
 
@@ -2310,5 +2311,67 @@ impl SupervisorAddonData {
     pub fn new(addon_name: &str, addon_defaults: &AddonDefaults) -> Self {
         let rpc_api_url = addon_defaults.store.get_string("rpc_api_url").map(|s| s.to_string());
         Self { addon_name: addon_name.to_string(), rpc_api_url }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_action_item_request_serialization_compatibility() {
+        // Test that ActionItemRequest with ActionItemKey enum serializes correctly
+        let request = ActionItemRequest::new(
+            "test-action",
+            ActionItemKey::CheckAddress,
+            ActionItemRequestType::ValidateModal,
+        );
+
+        let json = serde_json::to_string(&request).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // Verify the internal_key is serialized as "check_address" string
+        assert_eq!(
+            parsed["internalKey"].as_str().unwrap(),
+            "check_address",
+            "ActionItemKey::CheckAddress should serialize to \"check_address\""
+        );
+
+        // Test deserialization back to the struct
+        let deserialized: ActionItemRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            deserialized.internal_key,
+            ActionItemKey::CheckAddress,
+            "Should deserialize back to the correct enum variant"
+        );
+    }
+
+    #[test]
+    fn test_action_item_key_all_variants() {
+        // Test all ActionItemKey variants serialize to their expected string values
+        let test_cases = vec![
+            (ActionItemKey::CheckAddress, "check_address"),
+            (ActionItemKey::CheckedAddress, "checked_address"),
+            (ActionItemKey::CheckBalance, "check_balance"),
+            (ActionItemKey::IsBalanceChecked, "is_balance_checked"),
+            (ActionItemKey::BeginFlow, "begin_flow"),
+            (ActionItemKey::ReExecuteCommand, "re_execute_command"),
+            (ActionItemKey::Diagnostic, "diagnostic"),
+        ];
+
+        for (key, expected) in test_cases {
+            let json = serde_json::to_string(&key).unwrap();
+            let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+            assert_eq!(
+                parsed.as_str().unwrap(),
+                expected,
+                "ActionItemKey::{:?} should serialize to \"{}\"", key, expected
+            );
+
+            // Test round-trip
+            let deserialized: ActionItemKey = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, key, "Should deserialize back to the same variant");
+        }
     }
 }

@@ -4,9 +4,7 @@
 //! phase (block_processors) and the validation phase (visitor).
 
 use std::collections::HashMap;
-use txtx_addon_kit::constants::{
-    DEPENDS_ON, DESCRIPTION, MARKDOWN, MARKDOWN_FILEPATH, POST_CONDITION, PRE_CONDITION,
-};
+use txtx_addon_kit::constants::{ConditionKey, DocumentationKey};
 
 use crate::kit::types::commands::CommandSpecification;
 use super::visitor::ValidationError;
@@ -57,8 +55,10 @@ pub fn validate_action(
 
 /// Check if an attribute is an inherited property
 pub fn is_inherited_property(attr_name: &str) -> bool {
-    matches!(
-        attr_name,
-        MARKDOWN | MARKDOWN_FILEPATH | DESCRIPTION | DEPENDS_ON | PRE_CONDITION | POST_CONDITION
-    )
+    attr_name == DocumentationKey::Markdown.as_ref()
+        || attr_name == DocumentationKey::MarkdownFilepath.as_ref()
+        || attr_name == DocumentationKey::Description.as_ref()
+        || attr_name == DocumentationKey::DependsOn.as_ref()
+        || attr_name == ConditionKey::PreCondition.as_ref()
+        || attr_name == ConditionKey::PostCondition.as_ref()
 }

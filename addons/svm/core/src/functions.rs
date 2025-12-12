@@ -11,6 +11,7 @@ use txtx_addon_kit::types::{
     functions::{
         arg_checker_with_ctx, fn_diag_with_ctx, FunctionImplementation, FunctionSpecification,
     },
+    namespace::Namespace,
     types::{ObjectType, Type, Value},
     AuthorizationContext,
 };
@@ -36,12 +37,12 @@ pub fn lamports_to_sol(lamports: u64) -> f64 {
     lamports as f64 / LAMPORTS_PER_SOL_F64
 }
 
-pub fn arg_checker(fn_spec: &FunctionSpecification, args: &Vec<Value>) -> Result<(), Diagnostic> {
-    let checker = arg_checker_with_ctx(NAMESPACE.to_string());
+pub fn arg_checker(fn_spec: &FunctionSpecification, args: &[Value]) -> Result<(), Diagnostic> {
+    let checker = arg_checker_with_ctx(Namespace::from(NAMESPACE));
     checker(fn_spec, args)
 }
 pub fn to_diag<T: ToString>(fn_spec: &FunctionSpecification, e: T) -> Diagnostic {
-    let error_fn = fn_diag_with_ctx(NAMESPACE.to_string());
+    let error_fn = fn_diag_with_ctx(Namespace::from(NAMESPACE));
     error_fn(fn_spec, e.to_string())
 }
 
@@ -435,7 +436,7 @@ impl FunctionImplementation for SystemProgramId {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -443,7 +444,7 @@ impl FunctionImplementation for SystemProgramId {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         Ok(SvmValue::pubkey(system_program::id().to_bytes().to_vec()))
@@ -454,7 +455,7 @@ impl FunctionImplementation for DefaultPubkey {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -462,7 +463,7 @@ impl FunctionImplementation for DefaultPubkey {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         Ok(SvmValue::pubkey(Pubkey::default().to_bytes().to_vec()))
@@ -473,7 +474,7 @@ impl FunctionImplementation for GetInstructionDataFromIdl {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -481,7 +482,7 @@ impl FunctionImplementation for GetInstructionDataFromIdl {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         // let idl_bytes = &args.get(0).unwrap().as_addon_data().unwrap().bytes;
@@ -513,7 +514,7 @@ impl FunctionImplementation for GetInstructionDataFromIdlPath {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -521,7 +522,7 @@ impl FunctionImplementation for GetInstructionDataFromIdlPath {
     fn run(
         fn_spec: &FunctionSpecification,
         auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let idl_path_str = args.get(0).unwrap().as_string().unwrap();
@@ -550,7 +551,7 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -558,7 +559,7 @@ impl FunctionImplementation for GetProgramFromAnchorProject {
     fn run(
         fn_spec: &FunctionSpecification,
         auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let program_name = args.get(0).unwrap().as_string().unwrap();
@@ -617,7 +618,7 @@ impl FunctionImplementation for GetProgramFromNativeProject {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -625,7 +626,7 @@ impl FunctionImplementation for GetProgramFromNativeProject {
     fn run(
         fn_spec: &FunctionSpecification,
         auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let program_name = args.get(0).unwrap().as_string().unwrap();
@@ -691,7 +692,7 @@ impl FunctionImplementation for SolToLamports {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -699,7 +700,7 @@ impl FunctionImplementation for SolToLamports {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let sol = args.get(0).unwrap();
@@ -731,7 +732,7 @@ impl FunctionImplementation for LamportsToSol {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -739,7 +740,7 @@ impl FunctionImplementation for LamportsToSol {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let lamports = args.get(0).unwrap().as_uint().unwrap().map_err(|e| to_diag(fn_spec, e))?;
@@ -754,7 +755,7 @@ impl FunctionImplementation for FindPda {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -762,7 +763,7 @@ impl FunctionImplementation for FindPda {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let program_id = SvmValue::to_pubkey(args.get(0).unwrap())
@@ -791,7 +792,7 @@ impl FunctionImplementation for GetAssociatedTokenAccount {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -799,7 +800,7 @@ impl FunctionImplementation for GetAssociatedTokenAccount {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let wallet_address = SvmValue::to_pubkey(args.get(0).unwrap()).map_err(|e| {
@@ -831,7 +832,7 @@ impl FunctionImplementation for CreateTokenAccountInstruction {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -839,7 +840,7 @@ impl FunctionImplementation for CreateTokenAccountInstruction {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let funding_address = SvmValue::to_pubkey(args.get(0).unwrap()).map_err(|e| {
@@ -877,7 +878,7 @@ impl FunctionImplementation for SvmU64 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -885,7 +886,7 @@ impl FunctionImplementation for SvmU64 {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let value = args.get(0).unwrap().as_uint().unwrap().map_err(|e| to_diag(fn_spec, e))?;
@@ -897,7 +898,7 @@ impl FunctionImplementation for SvmI64 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -905,7 +906,7 @@ impl FunctionImplementation for SvmI64 {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let value = args.get(0).unwrap().as_integer().unwrap();

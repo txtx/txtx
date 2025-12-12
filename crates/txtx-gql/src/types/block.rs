@@ -291,7 +291,7 @@ impl GqlActionItemRequest {
     }
 
     pub fn internal_key(&self) -> String {
-        self.action_item.internal_key.clone()
+        self.action_item.internal_key.to_string()
     }
 
     pub fn description(&self) -> Option<String> {

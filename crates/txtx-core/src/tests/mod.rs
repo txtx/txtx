@@ -1,3 +1,4 @@
+use txtx_addon_kit::constants::ActionItemKey;
 use txtx_addon_kit::types::{
     frontend::{
         ActionItemResponse, ActionItemResponseType, ActionItemStatus, ProvidedInputResponse,
@@ -55,8 +56,8 @@ fn test_ab_c_runbook_no_env() {
         let input_a_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[0];
         let input_b_action = &inputs_panel_data.groups[0].sub_groups[0].action_items[1];
 
-        assert_eq!(&input_a_action.internal_key, "check_input");
-        assert_eq!(&input_b_action.internal_key, "provide_input");
+        assert_eq!(input_a_action.internal_key, ActionItemKey::CheckInput);
+        assert_eq!(input_b_action.internal_key, ActionItemKey::ProvideInput);
 
         // review input a and expect action item update
         harness.send_and_expect_action_item_update(

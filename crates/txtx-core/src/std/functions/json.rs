@@ -49,7 +49,7 @@ impl FunctionImplementation for JsonQuery {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -57,7 +57,7 @@ impl FunctionImplementation for JsonQuery {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let input_str = args.get(0).unwrap().encode_to_string();

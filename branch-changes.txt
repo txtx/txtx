@@ -1,0 +1,124 @@
+Branch: feat/addon-kit-factor
+Description: Type-safe constant enums refactoring
+Rebased onto: main (2025-12-12)
+
+================================================================================
+SUMMARY
+================================================================================
+
+This branch replaces string constants throughout the codebase with type-safe
+enums using Strum derives (AsRefStr, Display, EnumString, IntoStaticStr).
+This provides compile-time safety, better IDE support, and eliminates typo bugs.
+
+================================================================================
+COMMITS (20 total)
+================================================================================
+
+Foundation (txtx-addon-kit):
+1. Add Strum traits to Type enum and structured FunctionError
+2. Replace string namespaces with Namespace enum
+3. Apply idiomatic Rust patterns to function APIs
+4. Extract type compatibility logic into dedicated module
+5. Derive Display for DiagnosticLevel using Strum
+6. Replace string constants with type-safe enums (SignerKey, ActionItemKey, etc.)
+7. Replace internal_key string field with ActionItemKey enum
+8. Add enum variants and Ord traits to constants
+
+Migration:
+9.  Migrate txtx-core to type-safe constant enums
+10. Fix Namespace type conversions in txtx-cli
+11. Migrate txtx-cloud and txtx-gql to type-safe constant enums
+12. Migrate bitcoin addon to type-safe function signatures
+13. Migrate evm addon to type-safe constant enums
+14. Migrate stacks addon to type-safe constant enums
+15. Migrate svm addon to type-safe constant enums
+
+Cleanup:
+16. Update Cargo dependency versions
+17. Eliminate DRY violation in Diagnostic constructors
+18. Remove redundant per-variant attributes from ActionItemKey
+19. Improve ValueStore API ergonomics with impl AsRef<str> and impl ToString
+20. Fix post-rebase integration with validation infrastructure
+
+================================================================================
+KEY CHANGES
+================================================================================
+
+New Enums in txtx-addon-kit/src/constants.rs:
+- SignerKey: SignedMessageBytes, SignedTransactionBytes, TxHash, SignatureApproved
+- ActionItemKey: CheckAddress, CheckBalance, CheckInput, ProvideInput, etc.
+- DocumentationKey: Description, DependsOn, MetaDescription, Markdown, MarkdownFilepath
+- ConditionKey: PreCondition, PostCondition
+- RunbookKey: ThirdPartySignatureStatus, RunbookCompleteAdditionalInfo
+- NestedConstructKey: NestedConstructIndex
+
+New Modules:
+- txtx-addon-kit/src/types/function_errors.rs - Structured FunctionError type
+- txtx-addon-kit/src/types/namespace.rs - Namespace enum
+- txtx-addon-kit/src/types/type_compatibility.rs - Type compatibility logic
+
+API Changes:
+- ValueStore methods accept impl AsRef<str> and impl ToString
+- ActionItem.internal_key changed from String to ActionItemKey enum
+- Function signatures use structured error types
+
+================================================================================
+REBASE CONFLICT RESOLUTION STRATEGY
+================================================================================
+
+Rebased 19 commits onto main which had 17 new commits including:
+- Linter command feature
+- Validation infrastructure (new validation module)
+- SVM fixes and improvements
+- EVM nonce manager removal
+
+Key Conflicts Resolved:
+
+1. crates/txtx-addon-kit/src/types/types.rs
+   - Main changed Type::Null to Type::Null(Option<Box<Type>>)
+   - Resolution: Keep main's parameterized Null, update all pattern matches
+     from Type::Null to Type::Null(_)
+
+2. crates/txtx-addon-kit/src/constants.rs
+   - Main added DEPENDS_ON, PRE_CONDITION, POST_CONDITION string constants
+   - Branch rewrote entire file to use enums
+   - Resolution: Keep branch's enum structure, add new variants:
+     * DocumentationKey::DependsOn
+     * ConditionKey::PreCondition, ConditionKey::PostCondition
+
+3. crates/txtx-addon-kit/src/types/mod.rs
+   - Main added: construct_type, typed_block, diagnostic_types modules
+   - Branch added: function_errors, namespace, type_compatibility modules
+   - Resolution: Keep all module declarations from both branches
+
+4. crates/txtx-core/src/lib.rs
+   - Main added: pub mod validation
+   - Branch changed: constant imports to enum imports
+   - Resolution: Keep both changes
+
+5. addons/evm/src/signers/*.rs
+   - Main removed nonce tracking (behavioral change)
+   - Branch added type-safe enum conversions
+   - Resolution: Accept main's nonce removal + apply branch's enum changes
+
+6. crates/txtx-addon-kit/src/types/diagnostics.rs
+   - Main added re-exports from diagnostic_types
+   - Branch added DRY with_level constructor
+   - Resolution: Keep both, fix incomplete Default impl
+
+Post-Rebase Integration Fixes:
+- validation_helpers.rs: Convert string constants to enum usage
+- tests/mod.rs: Fix ActionItemKey enum comparison
+- deploy_program.rs: Use NestedConstructKey enum
+- Cargo.toml: Remove duplicate strum dependency
+
+================================================================================
+TESTING
+================================================================================
+
+All tests pass after rebase:
+- txtx-core: 66 tests passed
+- txtx-cli: 42 tests passed
+
+Build command: cargo build --package txtx-cli --no-default-features --features cli
+Test command: cargo test --package txtx-cli --no-default-features --features cli

@@ -17,10 +17,7 @@ use hcl_edit::{expr::Expression, structure::Block, Span};
 use indexmap::IndexMap;
 
 use crate::{
-    constants::{
-        DESCRIPTION, MARKDOWN, MARKDOWN_FILEPATH, RUNBOOK_COMPLETE_ADDITIONAL_INFO,
-        SIGNED_MESSAGE_BYTES, SIGNED_TRANSACTION_BYTES,
-    },
+    constants::{DocumentationKey, RunbookKey, SignerKey},
     helpers::hcl::{
         collect_constructs_references_from_expression, visit_optional_untyped_attribute,
     },
@@ -37,6 +34,7 @@ use super::{
         ActionItemResponseType, ActionItemStatus, Actions, BlockEvent, ProvideInputRequest,
         ProvidedInputResponse, ReviewedInputResponse,
     },
+    namespace::Namespace,
     signers::{
         consolidate_nested_execution_result, consolidate_signer_activate_future_result,
         consolidate_signer_future_result, return_synchronous, PrepareSignedNestedExecutionResult,
@@ -110,7 +108,7 @@ impl CommandExecutionResult {
 
     pub fn runbook_complete_additional_info(&self) -> Option<RunbookCompleteAdditionalInfo> {
         self.outputs
-            .get(RUNBOOK_COMPLETE_ADDITIONAL_INFO)
+            .get(RunbookKey::RunbookCompleteAdditionalInfo.as_ref())
             .and_then(|i| i.as_runbook_complete_additional_info())
     }
 }
@@ -399,7 +397,7 @@ impl CommandSpecification {
     pub fn default_inputs() -> Vec<CommandInput> {
         vec![
             CommandInput {
-                name: DESCRIPTION.into(),
+                name: DocumentationKey::Description.as_ref().into(),
                 documentation: "Allows you to describe and comment steps of your runbook".into(),
                 typing: Type::string(),
                 optional: true,
@@ -411,7 +409,7 @@ impl CommandSpecification {
                 self_referencing: false,
             },
             CommandInput {
-                name: MARKDOWN.into(),
+                name: DocumentationKey::Markdown.as_ref().into(),
                 documentation: "Allows you to describe and comment steps of your runbook with in-line markdown".into(),
                 typing: Type::string(),
                 optional: true,
@@ -423,7 +421,7 @@ impl CommandSpecification {
                 self_referencing: false,
             },
             CommandInput {
-                name: MARKDOWN_FILEPATH.into(),
+                name: DocumentationKey::MarkdownFilepath.as_ref().into(),
                 documentation: "Allows you to describe and comment steps of your runbook with a reference to a markdown file in the filesystem".into(),
                 typing: Type::string(),
                 optional: true,
@@ -685,7 +683,7 @@ pub struct CommandInstance {
     pub name: String,
     pub block: Block,
     pub package_id: PackageId,
-    pub namespace: String,
+    pub namespace: Namespace,
     pub typing: CommandInstanceType,
 }
 pub enum CommandExecutionStatus {
@@ -908,13 +906,13 @@ impl CommandInstance {
                         ActionItemResponseType::ProvideSignedTransaction(response) => {
                             match &response.signed_transaction_bytes {
                                 Some(bytes) => values
-                                    .insert(SIGNED_TRANSACTION_BYTES, Value::string(bytes.clone())),
-                                None => values.insert(SIGNED_TRANSACTION_BYTES, Value::null()),
+                                    .insert(SignerKey::SignedTransactionBytes.as_ref(), Value::string(bytes.clone())),
+                                None => values.insert(SignerKey::SignedTransactionBytes.as_ref(), Value::null()),
                             }
                         }
                         ActionItemResponseType::ProvideSignedMessage(response) => {
                             values.insert(
-                                SIGNED_MESSAGE_BYTES,
+                                SignerKey::SignedMessageBytes.as_ref(),
                                 Value::string(response.signed_message_bytes.clone()),
                             );
                         }
@@ -1508,7 +1506,7 @@ pub fn add_ctx_to_diag(
     command_type: String,
     matcher: String,
     command_instance_name: String,
-    namespace: String,
+    namespace: Namespace,
 ) -> impl Fn(&Diagnostic) -> Diagnostic {
     let diag_with_command_ctx = move |diag: &Diagnostic| -> Diagnostic {
         let mut diag = diag.clone();

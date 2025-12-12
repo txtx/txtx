@@ -3,7 +3,7 @@ use alloy::primitives::Address;
 use alloy_rpc_types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::channel;
-use txtx_addon_kit::constants::SIGNATURE_APPROVED;
+use txtx_addon_kit::constants::SignerKey;
 use txtx_addon_kit::types::commands::CommandExecutionResult;
 use txtx_addon_kit::types::frontend::{
     ActionItemStatus, ProvideSignedTransactionRequest, ReviewInputRequest,
@@ -27,10 +27,10 @@ use txtx_addon_kit::types::{
 
 use crate::codec::crypto::field_bytes_to_secret_key_signer;
 use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, CHAIN_ID,
-    FORMATTED_TRANSACTION, NAMESPACE, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
+    CHAIN_ID, FORMATTED_TRANSACTION, NAMESPACE, RPC_API_URL, SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES,
     TX_HASH,
 };
+use txtx_addon_kit::constants::ActionItemKey;
 use crate::rpc::EvmWalletRpc;
 use crate::typing::EvmValue;
 use txtx_addon_kit::types::signers::return_synchronous_actions;
@@ -128,7 +128,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         _is_balance_check_required: bool,
         _is_public_key_required: bool,
     ) -> SignerActionsFutureResult {
-        use txtx_addon_kit::constants::DESCRIPTION;
+        use txtx_addon_kit::constants::DocumentationKey;
 
         use crate::{
             codec::crypto::{mnemonic_to_secret_key_signer, secret_key_to_secret_key_signer},
@@ -140,7 +140,7 @@ impl SignerImplementation for EvmSecretKeySigner {
         if signer_state.get_value(PUBLIC_KEYS).is_some() {
             return return_synchronous_actions(Ok((signers, signer_state, actions)));
         }
-        let description = values.get_string(DESCRIPTION).map(|d| d.to_string());
+        let description = values.get_string(DocumentationKey::Description).map(|d| d.to_string());
         let markdown = values
             .get_markdown(auth_ctx)
             .map_err(|d| (signers.clone(), signer_state.clone(), d))?;
@@ -175,7 +175,7 @@ impl SignerImplementation for EvmSecretKeySigner {
                     None,
                     vec![ReviewInputRequest::new("", &Value::string(expected_address.to_string()))
                         .to_action_type()
-                        .to_request(instance_name, ACTION_ITEM_CHECK_ADDRESS)
+                        .to_request(instance_name, ActionItemKey::CheckAddress)
                         .with_construct_did(construct_did)
                         .with_some_description(description.clone())
                         .with_meta_description(&format!("Check {} expected address", instance_name))
@@ -228,7 +228,7 @@ impl SignerImplementation for EvmSecretKeySigner {
     ) -> Result<CheckSignabilityOk, SignerActionErr> {
         let actions = if supervision_context.review_input_values {
             let construct_did_str = &construct_did.to_string();
-            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SIGNATURE_APPROVED) {
+            if let Some(_) = signer_state.get_scoped_value(&construct_did_str, SignerKey::SignatureApproved) {
                 return Ok((signers, signer_state, Actions::none()));
             }
 
@@ -251,7 +251,7 @@ impl SignerImplementation for EvmSecretKeySigner {
             .only_approval_needed()
             .formatted_payload(formatted_payload)
             .to_action_type()
-            .to_request(title, ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION)
+            .to_request(title, ActionItemKey::ProvideSignedTransaction)
             .with_construct_did(construct_did)
             .with_some_description(description.clone())
             .with_some_meta_description(meta_description.clone())
@@ -326,7 +326,7 @@ impl SignerImplementation for EvmSecretKeySigner {
                 (signers.clone(), signer_state.clone(), diagnosed_error!("{}", e.to_string()))
             })?;
 
-            result.outputs.insert(TX_HASH.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
+            result.outputs.insert(SignerKey::TxHash.to_string(), EvmValue::tx_hash(tx_hash.to_vec()));
 
             Ok((signers, signer_state, result))
         };

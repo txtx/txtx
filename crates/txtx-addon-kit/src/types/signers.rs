@@ -1,7 +1,4 @@
-use crate::constants::{
-    ACTION_ITEM_CHECK_ADDRESS, ACTION_ITEM_CHECK_BALANCE, CHECKED_ADDRESS, IS_BALANCE_CHECKED,
-    PROVIDE_PUBLIC_KEY_ACTION_RESULT,
-};
+use crate::constants::{ActionItemKey, SignerKey};
 use crate::helpers::hcl::visit_optional_untyped_attribute;
 use crate::types::stores::ValueStore;
 use futures::future;
@@ -13,6 +10,7 @@ use super::{
     commands::{
         CommandExecutionResult, CommandInput, CommandInputsEvaluationResult, CommandOutput,
     },
+    namespace::Namespace,
     diagnostics::Diagnostic,
     frontend::{
         ActionItemRequest, ActionItemResponse, ActionItemResponseType, Actions, BlockEvent,
@@ -314,7 +312,7 @@ pub struct SignerInstance {
     pub name: String,
     pub block: Block,
     pub package_id: PackageId,
-    pub namespace: String,
+    pub namespace: Namespace,
 }
 
 impl SignerInstance {
@@ -384,7 +382,7 @@ impl SignerInstance {
                     match payload {
                         ActionItemResponseType::ProvidePublicKey(update) => {
                             values.insert(
-                                PROVIDE_PUBLIC_KEY_ACTION_RESULT,
+                                SignerKey::ProvidePublicKeyActionResult.as_ref(),
                                 Value::string(update.public_key.clone()),
                             );
                         }
@@ -396,22 +394,26 @@ impl SignerInstance {
                                 if let Some(signer_did) = &request.construct_did {
                                     let mut signer_state =
                                         signers.pop_signer_state(signer_did).unwrap();
-                                    if request.internal_key == ACTION_ITEM_CHECK_ADDRESS {
-                                        if response.value_checked {
-                                            let data = request
-                                                .action_type
-                                                .as_review_input()
-                                                .expect("review input action item");
+                                    match request.internal_key {
+                                        ActionItemKey::CheckAddress => {
+                                            if response.value_checked {
+                                                let data = request
+                                                    .action_type
+                                                    .as_review_input()
+                                                    .expect("review input action item");
+                                                signer_state.insert(
+                                                    ActionItemKey::CheckedAddress.as_ref(),
+                                                    Value::string(data.value.to_string()),
+                                                );
+                                            }
+                                        }
+                                        ActionItemKey::CheckBalance => {
                                             signer_state.insert(
-                                                CHECKED_ADDRESS,
-                                                Value::string(data.value.to_string()),
+                                                ActionItemKey::IsBalanceChecked.as_ref(),
+                                                Value::bool(response.value_checked),
                                             );
                                         }
-                                    } else if request.internal_key == ACTION_ITEM_CHECK_BALANCE {
-                                        signer_state.insert(
-                                            IS_BALANCE_CHECKED,
-                                            Value::bool(response.value_checked),
-                                        );
+                                        _ => {} // Handle other cases
                                     }
                                     signers.push_signer_state(signer_state);
                                 }

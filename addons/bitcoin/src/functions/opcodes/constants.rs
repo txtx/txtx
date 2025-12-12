@@ -95,7 +95,7 @@ impl FunctionImplementation for OpZero {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -103,7 +103,7 @@ impl FunctionImplementation for OpZero {
     fn run(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Value>,
+        _args: &[Value],
     ) -> Result<Value, Diagnostic> {
         Ok(BitcoinValue::opcode(BitcoinOpcode::Op0.get_code()))
     }
@@ -115,7 +115,7 @@ impl FunctionImplementation for PushData {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -123,7 +123,7 @@ impl FunctionImplementation for PushData {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let expected_bytes_length = args.get(0).unwrap().as_integer().unwrap();
@@ -165,7 +165,7 @@ impl FunctionImplementation for PushData1 {
     fn check_instantiability(
         _fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        _args: &Vec<Type>,
+        _args: &[Type],
     ) -> Result<Type, Diagnostic> {
         unimplemented!()
     }
@@ -173,7 +173,7 @@ impl FunctionImplementation for PushData1 {
     fn run(
         fn_spec: &FunctionSpecification,
         _auth_ctx: &AuthorizationContext,
-        args: &Vec<Value>,
+        args: &[Value],
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
         let expected_bytes_length = args.get(0).unwrap().as_integer().unwrap();

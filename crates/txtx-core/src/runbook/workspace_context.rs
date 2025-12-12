@@ -22,6 +22,7 @@ use txtx_addon_kit::types::package::Package;
 use txtx_addon_kit::types::signers::SignerInstance;
 use txtx_addon_kit::types::stores::AddonDefaults;
 use txtx_addon_kit::types::types::Value;
+use txtx_addon_kit::types::namespace::Namespace;
 use txtx_addon_kit::types::AddonInstance;
 use txtx_addon_kit::types::{ConstructDid, ConstructId, Did, PackageDid, PackageId, RunbookId};
 use crate::types::ConstructType;
@@ -52,7 +53,7 @@ pub struct RunbookWorkspaceContext {
     /// Lookup: Retrieve a value given an environment variable construct did
     pub top_level_inputs_values: BTreeMap<ConstructDid, Value>,
     /// Lookup: Retrieve an addon's defaults given a package and addon id
-    pub addons_defaults: HashMap<(PackageDid, String), AddonDefaults>,
+    pub addons_defaults: HashMap<(PackageDid, Namespace), AddonDefaults>,
 
     std_defaults: AddonDefaults,
 }
@@ -70,7 +71,7 @@ impl RunbookWorkspaceContext {
         }
     }
 
-    pub fn get_addon_defaults(&self, key: &(PackageDid, String)) -> &AddonDefaults {
+    pub fn get_addon_defaults(&self, key: &(PackageDid, Namespace)) -> &AddonDefaults {
         self.addons_defaults.get(key).unwrap_or(&self.std_defaults)
     }
 
@@ -83,7 +84,7 @@ impl RunbookWorkspaceContext {
                 .into_iter()
                 .map(|((package_did, addon_id), defaults)| {
                     let mut addon_defaults_values = IndexMap::from([(
-                        addon_id,
+                        addon_id.to_string(),
                         defaults
                             .store
                             .store
@@ -500,7 +501,7 @@ impl RunbookWorkspaceContext {
                     name: construct_name.clone(),
                     block: block.clone(),
                     package_id: package_id.clone(),
-                    namespace: construct_name.clone(),
+                    namespace: Namespace::from(&construct_name),
                     typing: CommandInstanceType::Module,
                 })
             }
@@ -512,7 +513,7 @@ impl RunbookWorkspaceContext {
                     name: construct_name.clone(),
                     block: block.clone(),
                     package_id: package_id.clone(),
-                    namespace: construct_name.clone(),
+                    namespace: Namespace::from(&construct_name),
                     typing: CommandInstanceType::Variable,
                 })
             }
@@ -533,7 +534,7 @@ impl RunbookWorkspaceContext {
                     name: construct_name.clone(),
                     block: block.clone(),
                     package_id: package_id.clone(),
-                    namespace: construct_name.clone(),
+                    namespace: Namespace::from(&construct_name),
                     typing: CommandInstanceType::Output,
                 })
             }
@@ -640,7 +641,7 @@ impl RunbookWorkspaceContext {
             {
                 let addon_defaults = self.get_addon_defaults(&(
                     addon_instance.package_id.did(),
-                    addon_instance.addon_id.clone(),
+                    Namespace::from(addon_instance.addon_id.clone()),
                 ));
                 for input_name in input_names {
                     if let Some(value) = addon_defaults.store.get_value(&input_name) {

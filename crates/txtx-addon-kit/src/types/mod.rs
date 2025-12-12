@@ -29,10 +29,13 @@ pub use diagnostic_types::{DiagnosticLevel, DiagnosticSpan, RelatedLocation};
 
 pub mod embedded_runbooks;
 pub mod frontend;
+pub mod function_errors;
 pub mod functions;
+pub mod namespace;
 pub mod package;
 pub mod signers;
 pub mod stores;
+pub mod type_compatibility;
 pub mod types;
 
 pub const CACHED_NONCE: &str = "cached_nonce";
