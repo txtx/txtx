@@ -725,7 +725,7 @@ impl CommandImplementation for DeployProgram {
                 values.get_expected_construct_did(NestedConstructKey::NestedConstructDid).unwrap();
 
             let nested_construct_index = values
-                .get_scoped_integer(&nested_construct_did.to_string(), NESTED_CONSTRUCT_INDEX)
+                .get_scoped_integer(&nested_construct_did.to_string(), NestedConstructKey::NestedConstructIndex)
                 .unwrap();
             authority_signer_state.insert_scoped_value(
                 &construct_did.to_string(),

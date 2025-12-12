@@ -31,12 +31,19 @@ pub struct Diagnostic {
 impl Default for Diagnostic {
     fn default() -> Self {
         Self {
+            level: DiagnosticLevel::Error,
+            message: String::new(),
+            code: None,
             span: None,
             span_range: None,
             location: None,
-            message: String::new(),
-            level: DiagnosticLevel::Error,
+            file: None,
+            line: None,
+            column: None,
+            context: None,
+            related_locations: Vec::new(),
             documentation: None,
+            suggestion: None,
             example: None,
             parent_diagnostic: None,
         }
