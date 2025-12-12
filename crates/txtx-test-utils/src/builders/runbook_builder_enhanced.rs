@@ -155,14 +155,14 @@ impl RunbookBuilder {
                     &file_path_str,
                     addon_specs,
                 ) {
-                    Ok(input_refs) => {
+                    Ok(refs) => {
                         // If we have manifest context, validate inputs
                         if let (Some(manifest), Some(env_name)) = (&manifest, &environment) {
                             // Convert CLI inputs from builder
                             let cli_inputs: Vec<(String, String)> = vec![];
 
                             validate_inputs_against_manifest(
-                                &input_refs,
+                                &refs.inputs,
                                 &content,
                                 manifest,
                                 Some(env_name),

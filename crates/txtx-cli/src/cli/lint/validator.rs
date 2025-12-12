@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use txtx_core::validation::{ValidationResult, Diagnostic};
 use txtx_core::manifest::WorkspaceManifest;
 use txtx_addon_kit::helpers::fs::FileLocation;
+use txtx_addon_network_evm::codec::crypto::resolve_keystore_path;
 use crate::cli::common::addon_registry;
 
 use super::config::LinterConfig;
@@ -133,10 +134,12 @@ impl Linter {
             file_path,
             addon_specs,
         ) {
-            Ok(input_refs) => {
+            Ok(refs) => {
                 if let Some(ref manifest) = manifest {
-                    self.validate_with_rules(&input_refs, content, file_path, manifest, environment, &mut result);
+                    self.validate_with_rules(&refs.inputs, content, file_path, manifest, environment, &mut result);
                 }
+                // Validate signers (e.g., keystore paths)
+                self.validate_signers(&refs.signers, file_path, &mut result);
             }
             Err(e) => {
                 result.errors.push(
@@ -274,6 +277,55 @@ impl Linter {
     fn format_and_print(&self, result: ValidationResult) {
         let formatter = super::formatter::get_formatter(self.config.format);
         formatter.format(&result);
+    }
+
+    /// Validate signers, specifically keystore signers for path validity
+    fn validate_signers(
+        &self,
+        signers: &[txtx_core::validation::LocatedSignerRef],
+        file_path: &str,
+        result: &mut ValidationResult,
+    ) {
+        for signer in signers.iter().filter(|s| s.signer_type == "evm::keystore") {
+            let Some(keystore_account) = signer.attributes.get("keystore_account") else {
+                continue; // Missing required attribute - caught by HCL validation
+            };
+
+            let keystore_path = signer.attributes.get("keystore_path").map(|s| s.as_str());
+
+            match resolve_keystore_path(keystore_account, keystore_path) {
+                Ok(resolved_path) if !resolved_path.exists() => {
+                    let location_hint = keystore_path
+                        .map(|p| format!("looked in directory '{}'", p))
+                        .unwrap_or_else(|| "looked in ~/.foundry/keystores".to_string());
+
+                    result.warnings.push(
+                        Diagnostic::warning(format!(
+                            "keystore file not found: '{}' ({})",
+                            keystore_account, location_hint
+                        ))
+                        .with_code("keystore-not-found".to_string())
+                        .with_file(file_path.to_string())
+                        .with_line(signer.line)
+                        .with_column(signer.column)
+                        .with_suggestion(format!(
+                            "Ensure the keystore file exists. Create one with: cast wallet import {} --interactive",
+                            keystore_account
+                        ))
+                    );
+                }
+                Ok(_) => {} // File exists, all good
+                Err(e) => {
+                    result.errors.push(
+                        Diagnostic::error(format!("invalid keystore configuration: {}", e))
+                            .with_code("keystore-invalid".to_string())
+                            .with_file(file_path.to_string())
+                            .with_line(signer.line)
+                            .with_column(signer.column)
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -915,6 +967,183 @@ action "test" {
         for warning in &result.warnings {
             assert!(warning.code.is_some(),
                 "Warning should have code: {:?}", warning.message);
+        }
+    }
+
+    mod keystore_linting_tests {
+        use super::*;
+        use tempfile::TempDir;
+        use std::fs;
+
+        fn minimal_manifest() -> WorkspaceManifest {
+            WorkspaceManifest {
+                name: "test".to_string(),
+                id: "test-id".to_string(),
+                runbooks: vec![],
+                environments: Default::default(),
+                location: None,
+            }
+        }
+
+        // TODO: This local builder is a workaround. The proper fix is to extend
+        // RunbookBuilder in txtx-test-utils with a `validate_with_cli_linter()` method
+        // that uses the full CLI Linter instead of just hcl_validator.
+        struct SignerBuilder {
+            name: String,
+            signer_type: String,
+            attributes: Vec<(String, String)>,
+        }
+
+        impl SignerBuilder {
+            fn new(name: &str, signer_type: &str) -> Self {
+                Self {
+                    name: name.to_string(),
+                    signer_type: signer_type.to_string(),
+                    attributes: Vec::new(),
+                }
+            }
+
+            fn keystore(name: &str) -> Self {
+                Self::new(name, "evm::keystore")
+            }
+
+            fn web_wallet(name: &str) -> Self {
+                Self::new(name, "evm::web_wallet")
+            }
+
+            fn attr(mut self, key: &str, value: &str) -> Self {
+                self.attributes.push((key.to_string(), value.to_string()));
+                self
+            }
+
+            fn keystore_account(self, account: &str) -> Self {
+                self.attr("keystore_account", account)
+            }
+
+            fn keystore_path(self, path: &str) -> Self {
+                self.attr("keystore_path", path)
+            }
+
+            fn expected_address(self, address: &str) -> Self {
+                self.attr("expected_address", address)
+            }
+
+            fn build(&self) -> String {
+                let attrs = self.attributes
+                    .iter()
+                    .map(|(k, v)| format!("    {} = \"{}\"", k, v))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                format!(
+                    "signer \"{}\" \"{}\" {{\n{}\n}}",
+                    self.name, self.signer_type, attrs
+                )
+            }
+
+            fn validate(&self) -> ValidationResult {
+                let linter = Linter::with_defaults();
+                linter.validate_content(&self.build(), "test.tx", minimal_manifest(), None)
+            }
+        }
+
+        #[test]
+        fn test_keystore_signer_with_existing_file() {
+            // Arrange
+            let temp_dir = TempDir::new().unwrap();
+            let keystore_file = temp_dir.path().join("myaccount.json");
+            fs::write(&keystore_file, "{}").unwrap();
+
+            // Act
+            let result = SignerBuilder::keystore("deployer")
+                .keystore_account("myaccount")
+                .keystore_path(&temp_dir.path().display().to_string())
+                .validate();
+
+            // Assert
+            let keystore_warnings: Vec<_> = result.warnings.iter()
+                .filter(|w| w.code.as_ref().is_some_and(|c| c.contains("keystore")))
+                .collect();
+            assert!(keystore_warnings.is_empty(),
+                "Should not warn about existing keystore file: {:?}", keystore_warnings);
+        }
+
+        #[test]
+        fn test_keystore_signer_with_missing_file() {
+            // Arrange
+            let temp_dir = TempDir::new().unwrap();
+            let nonexistent_path = temp_dir.path().join("nonexistent");
+
+            // Act
+            let result = SignerBuilder::keystore("deployer")
+                .keystore_account("myaccount")
+                .keystore_path(&nonexistent_path.display().to_string())
+                .validate();
+
+            // Assert
+            let keystore_warnings: Vec<_> = result.warnings.iter()
+                .filter(|w| w.code.as_deref() == Some("keystore-not-found"))
+                .collect();
+            assert_eq!(keystore_warnings.len(), 1,
+                "Should warn about missing keystore file");
+            assert!(keystore_warnings[0].message.contains("keystore file not found"),
+                "Warning should mention 'keystore file not found': {:?}", keystore_warnings[0].message);
+        }
+
+        #[test]
+        fn test_keystore_signer_absolute_path_without_json_extension() {
+            // Arrange & Act
+            let result = SignerBuilder::keystore("deployer")
+                .keystore_account("/some/absolute/path/without/extension")
+                .validate();
+
+            // Assert
+            let keystore_errors: Vec<_> = result.errors.iter()
+                .filter(|e| e.code.as_deref() == Some("keystore-invalid"))
+                .collect();
+            assert_eq!(keystore_errors.len(), 1,
+                "Should error on absolute path without .json extension");
+            assert!(keystore_errors[0].message.contains(".json extension"),
+                "Error should mention .json extension: {:?}", keystore_errors[0].message);
+        }
+
+        #[test]
+        fn test_keystore_signer_includes_suggestion() {
+            // Arrange
+            let temp_dir = TempDir::new().unwrap();
+
+            // Act
+            let result = SignerBuilder::keystore("deployer")
+                .keystore_account("myaccount")
+                .keystore_path(&temp_dir.path().display().to_string())
+                .validate();
+
+            // Assert
+            let keystore_warnings: Vec<_> = result.warnings.iter()
+                .filter(|w| w.code.as_deref() == Some("keystore-not-found"))
+                .collect();
+            assert_eq!(keystore_warnings.len(), 1);
+            assert!(keystore_warnings[0].suggestion.is_some(),
+                "Warning should include a suggestion");
+            let suggestion = keystore_warnings[0].suggestion.as_ref().unwrap();
+            assert!(suggestion.contains("cast wallet import"),
+                "Suggestion should mention 'cast wallet import': {:?}", suggestion);
+        }
+
+        #[test]
+        fn test_non_keystore_signer_not_validated() {
+            // Arrange & Act
+            let result = SignerBuilder::web_wallet("deployer")
+                .expected_address("0x1234567890123456789012345678901234567890")
+                .validate();
+
+            // Assert
+            let keystore_issues: Vec<_> = result.warnings.iter()
+                .chain(result.errors.iter())
+                .filter(|d| d.code.as_ref().is_some_and(|c| c.contains("keystore")))
+                .collect();
+            assert!(keystore_issues.is_empty(),
+                "Non-keystore signers should not trigger keystore validation");
         }
     }
 }
