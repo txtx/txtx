@@ -1,5 +1,6 @@
 use super::{env::TxtxEnv, CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 use crate::{get_addon_by_namespace, get_available_addons};
+use txtx_addon_network_evm::codec::crypto::{keystore_to_secret_key_signer, resolve_keystore_path};
 use ascii_table::AsciiTable;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
@@ -1402,9 +1403,15 @@ fn prompt_for_keystore_passwords_with_provider<P: PasswordProvider>(
             })
             .collect();
 
-        // Now prompt for passwords and update evaluation results (mutable borrow)
+        // Now prompt for passwords, validate them, and update evaluation results (mutable borrow)
         for (construct_did, signer_name, keystore_account, keystore_path) in keystore_entries {
             let password = resolver.get_password(&keystore_account, keystore_path.as_deref())?;
+
+            // Validate password immediately by attempting to decrypt the keystore.
+            // The returned signer is discarded; its key material is automatically zeroed
+            // on drop via ZeroizeOnDrop implemented by the underlying SigningKey.
+            let resolved_path = resolve_keystore_path(&keystore_account, keystore_path.as_deref())?;
+            let _ = keystore_to_secret_key_signer(&resolved_path, &password)?;
 
             let eval_result = flow_context
                 .execution_context
