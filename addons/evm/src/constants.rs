@@ -25,6 +25,10 @@ pub const PUBLIC_KEYS: &str = "public_keys";
 pub const SECRET_KEY_WALLET_UNSIGNED_TRANSACTION_BYTES: &str =
     "secret_key_wallet_unsigned_transaction_bytes";
 pub const WEB_WALLET_UNSIGNED_TRANSACTION_BYTES: &str = "web_wallet_unsigned_transaction_bytes";
+pub const KEYSTORE_ACCOUNT: &str = "keystore_account";
+pub const KEYSTORE_PATH: &str = "keystore_path";
+pub const PASSWORD: &str = "password";
+
 pub const TRANSACTION_PAYLOAD_BYTES: &str = "transaction_payload_bytes";
 pub const SIGNED_MESSAGE_BYTES: &str = "signed_message_bytes";
 pub const MESSAGE_BYTES: &str = "message_bytes";

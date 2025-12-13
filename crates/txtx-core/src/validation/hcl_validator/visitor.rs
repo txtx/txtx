@@ -28,7 +28,7 @@ use txtx_addon_kit::hcl::{
 
 use crate::runbook::location::{SourceMapper, BlockContext};
 use crate::types::ConstructType;
-use crate::validation::types::{LocatedInputRef, ValidationResult};
+use crate::validation::types::{HclValidationRefs, LocatedInputRef, LocatedSignerRef, ValidationResult};
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use crate::kit::types::commands::CommandSpecification;
 
@@ -147,7 +147,12 @@ pub enum CollectedItem {
 #[derive(Debug)]
 pub enum DefinitionItem {
     Variable { name: String, position: Position },
-    Signer { name: String, signer_type: String },
+    Signer {
+        name: String,
+        signer_type: String,
+        attributes: std::collections::HashMap<String, String>,
+        position: Position,
+    },
     Output(String),
 }
 
@@ -235,6 +240,7 @@ struct Declarations {
     variables: HashMap<String, VariableDeclaration>,
     actions: HashMap<String, ActionDeclaration>,
     flows: HashMap<String, FlowDeclaration>,
+    signers: HashMap<String, SignerDeclaration>,
 }
 
 struct VariableDeclaration {
@@ -249,6 +255,12 @@ struct ActionDeclaration {
 
 struct FlowDeclaration {
     inputs: Vec<String>,
+    position: Position,
+}
+
+struct SignerDeclaration {
+    signer_type: String,
+    attributes: HashMap<String, String>,
     position: Position,
 }
 
@@ -272,8 +284,13 @@ impl ValidationState {
                     self.dependency_graphs.variables.add_node(name.clone(), None);
                     self.declarations.variables.insert(name, VariableDeclaration { position });
                 }
-                Signer { name, signer_type } => {
-                    self.definitions.signers.insert(name, signer_type);
+                Signer { name, signer_type, attributes, position } => {
+                    self.definitions.signers.insert(name.clone(), signer_type.clone());
+                    self.declarations.signers.insert(name, SignerDeclaration {
+                        signer_type,
+                        attributes,
+                        position,
+                    });
                 }
                 Output(name) => {
                     self.definitions.outputs.insert(name);
@@ -450,7 +467,7 @@ impl<'a> HclValidationVisitor<'a> {
         }
     }
 
-    pub fn validate(&mut self, body: &Body) -> Vec<LocatedInputRef> {
+    pub fn validate(&mut self, body: &Body) -> HclValidationRefs {
         // Phase 1: Collection (functional approach)
         self.collect_definitions(body);
 
@@ -466,7 +483,22 @@ impl<'a> HclValidationVisitor<'a> {
         // Validate flow inputs after references are collected
         self.validate_all_flow_inputs();
 
-        std::mem::take(&mut self.state.input_refs)
+        // Collect signer refs from declarations
+        let signer_refs: Vec<LocatedSignerRef> = self.state.declarations.signers
+            .iter()
+            .map(|(name, decl)| LocatedSignerRef {
+                name: name.clone(),
+                signer_type: decl.signer_type.clone(),
+                attributes: decl.attributes.clone(),
+                line: decl.position.line,
+                column: decl.position.column,
+            })
+            .collect();
+
+        HclValidationRefs {
+            inputs: std::mem::take(&mut self.state.input_refs),
+            signers: signer_refs,
+        }
     }
 
     fn collect_definitions(&mut self, body: &Body) {
@@ -1000,7 +1032,7 @@ impl<'a> BasicHclValidator<'a> {
         Self { result, file_path, source }
     }
 
-    pub fn validate(&mut self, body: &Body) -> Vec<LocatedInputRef> {
+    pub fn validate(&mut self, body: &Body) -> HclValidationRefs {
         // Create empty specs inline - no self-reference needed
         let empty_specs = HashMap::new();
         let mut validator = HclValidationVisitor::new(
@@ -1023,7 +1055,7 @@ impl<'a> FullHclValidator<'a> {
         Self { result, file_path, source, addon_specs }
     }
 
-    pub fn validate(&mut self, body: &Body) -> Vec<LocatedInputRef> {
+    pub fn validate(&mut self, body: &Body) -> HclValidationRefs {
         let mut validator = HclValidationVisitor::new(
             self.result,
             self.file_path,
@@ -1038,7 +1070,7 @@ pub fn validate_with_hcl(
     content: &str,
     result: &mut ValidationResult,
     file_path: &str,
-) -> Result<Vec<LocatedInputRef>, String> {
+) -> Result<HclValidationRefs, String> {
     let body: Body = content.parse().map_err(|e| format!("Failed to parse: {}", e))?;
     let mut validator = BasicHclValidator::new(result, file_path, content);
     Ok(validator.validate(&body))
@@ -1049,7 +1081,7 @@ pub fn validate_with_hcl_and_addons(
     result: &mut ValidationResult,
     file_path: &str,
     addon_specs: HashMap<String, Vec<(String, CommandSpecification)>>,
-) -> Result<Vec<LocatedInputRef>, String> {
+) -> Result<HclValidationRefs, String> {
     let body: Body = content.parse().map_err(|e| format!("Failed to parse: {}", e))?;
     let mut validator = FullHclValidator::new(result, file_path, content, addon_specs);
     Ok(validator.validate(&body))

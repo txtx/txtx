@@ -7,7 +7,7 @@ extern crate txtx_addon_kit;
 #[macro_use]
 extern crate serde_derive;
 
-mod codec;
+pub mod codec;
 mod commands;
 #[allow(dead_code)]
 mod constants;

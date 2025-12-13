@@ -27,7 +27,7 @@ pub use manifest_validator::{
 pub use rule_id::{AddonScope, CoreRuleId, RuleIdentifier};
 pub use file_boundary::FileBoundaryMap;
 pub use types::{
-    LocatedInputRef, ValidationResult, ValidationSuggestion,
+    HclValidationRefs, LocatedInputRef, LocatedSignerRef, ValidationResult, ValidationSuggestion,
 };
 pub use txtx_addon_kit::types::diagnostics::Diagnostic;
 pub use validator::{validate_runbook, ValidatorConfig};
