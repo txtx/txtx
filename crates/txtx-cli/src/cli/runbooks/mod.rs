@@ -1347,6 +1347,29 @@ impl<'a, P: PasswordProvider> CachedPasswordResolver<'a, P> {
     }
 }
 
+/// Extracts a string literal value from an HCL attribute.
+/// Returns None if the attribute value is not a simple string literal.
+///
+/// This uses `.value()` to get the decoded string content, which properly handles:
+/// - Embedded quotes: `"my\"account"` -> `my"account`
+/// - Unicode escapes: `"\u0041"` -> `A`
+/// - Other escape sequences
+///
+/// This is preferred over `attr.value.to_string().trim_matches('"')` which is fragile
+/// and fails on strings with embedded quotes or other edge cases.
+///
+/// Note: A similar helper `extract_string_value` exists in block_processors.rs but is
+/// private to that module. If this pattern is needed more broadly, consider making
+/// that function public and exporting it from txtx-core, or promoting to a shared
+/// helper in txtx-addon-kit/helpers/hcl.rs.
+fn get_string_literal(attr: &txtx_addon_kit::hcl::structure::Attribute) -> Option<String> {
+    use txtx_addon_kit::hcl::expr::Expression;
+    match &attr.value {
+        Expression::String(s) => Some(s.value().to_string()),
+        _ => None,
+    }
+}
+
 /// Internal implementation that accepts a password provider for testability.
 fn prompt_for_keystore_passwords_with_provider<P: PasswordProvider>(
     runbook: &mut Runbook,
@@ -1366,14 +1389,14 @@ fn prompt_for_keystore_passwords_with_provider<P: PasswordProvider>(
                 .block
                 .body
                 .get_attribute("keystore_account")
-                .map(|attr| attr.value.to_string().trim_matches('"').to_string())
+                .and_then(get_string_literal)
                 .unwrap_or_else(|| signer_instance.name.clone());
 
             let keystore_path = signer_instance
                 .block
                 .body
                 .get_attribute("keystore_path")
-                .map(|attr| attr.value.to_string().trim_matches('"').to_string());
+                .and_then(get_string_literal);
 
             let password = resolver.get_password(&keystore_account, keystore_path.as_deref())?;
 
