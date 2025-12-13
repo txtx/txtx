@@ -230,17 +230,17 @@ impl ValidationContextExt for ValidationContext {
     fn validate_hcl(&mut self, result: &mut ValidationResult) -> Result<(), String> {
         // Delegate to HCL validator
         if let Some(specs) = self.addon_specs.clone() {
-            let input_refs = super::hcl_validator::validate_with_hcl_and_addons(
+            let refs = super::hcl_validator::validate_with_hcl_and_addons(
                 &self.content,
                 result,
                 &self.file_path,
                 specs,
             )?;
-            self.input_refs = input_refs;
+            self.input_refs = refs.inputs;
         } else {
-            let input_refs =
+            let refs =
                 super::hcl_validator::validate_with_hcl(&self.content, result, &self.file_path)?;
-            self.input_refs = input_refs;
+            self.input_refs = refs.inputs;
         }
         Ok(())
     }

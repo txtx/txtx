@@ -104,7 +104,7 @@ impl RunbookVariableIterator {
 
         // Run HCL validation to collect input references
         let mut validation_result = ValidationResult::default();
-        let input_refs = validate_with_hcl_and_addons(
+        let refs = validate_with_hcl_and_addons(
             &combined_content,
             &mut validation_result,
             "runbook",
@@ -112,7 +112,7 @@ impl RunbookVariableIterator {
         )?;
 
         // Process collected input references
-        for input_ref in input_refs {
+        for input_ref in refs.inputs {
             let var_name = Self::extract_variable_name(&input_ref.name);
 
             // Find which file this reference is in

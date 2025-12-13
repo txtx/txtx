@@ -14,6 +14,23 @@ pub struct LocatedInputRef {
     pub column: usize,
 }
 
+/// A located signer reference with its type and attributes
+#[derive(Debug, Clone)]
+pub struct LocatedSignerRef {
+    pub name: String,
+    pub signer_type: String,
+    pub attributes: std::collections::HashMap<String, String>,
+    pub line: usize,
+    pub column: usize,
+}
+
+/// Result of HCL validation containing located references
+#[derive(Debug, Clone, Default)]
+pub struct HclValidationRefs {
+    pub inputs: Vec<LocatedInputRef>,
+    pub signers: Vec<LocatedSignerRef>,
+}
+
 #[derive(Debug, Default)]
 pub struct ValidationResult {
     pub errors: Vec<Diagnostic>,

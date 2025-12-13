@@ -38,7 +38,7 @@ pub fn process_block(
     source_mapper: &SourceMapper,
 ) -> Result<Vec<CollectedItem>, ValidationError> {
     match block_type {
-        BlockType::Signer => process_signer(block),
+        BlockType::Signer => process_signer(block, source_mapper),
         BlockType::Variable => process_variable(block, source_mapper),
         BlockType::Output => process_output(block),
         BlockType::Action => process_action(block, addon_specs, source_mapper),
@@ -47,19 +47,40 @@ pub fn process_block(
     }
 }
 
-fn process_signer(block: &Block) -> Result<Vec<CollectedItem>, ValidationError> {
+fn process_signer(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<CollectedItem>, ValidationError> {
     let name = block.labels.extract_name()
         .ok_or(ValidationError::MissingLabel("signer name"))?;
 
     let signer_type = block.labels.extract_type()
         .ok_or(ValidationError::MissingLabel("signer type"))?;
 
+    let position = extract_block_position(block, source_mapper);
+
+    // Extract string attributes from the block body
+    let mut attributes = HashMap::new();
+    for attr in block.body.attributes() {
+        if let Some(value) = extract_string_value(&attr.value) {
+            attributes.insert(attr.key.to_string(), value);
+        }
+    }
+
     Ok(vec![
         CollectedItem::Definition(DefinitionItem::Signer {
             name: name.to_string(),
             signer_type: signer_type.to_string(),
+            attributes,
+            position,
         })
     ])
+}
+
+/// Extract a string value from an expression, if it is a simple string literal
+fn extract_string_value(expr: &txtx_addon_kit::hcl::expr::Expression) -> Option<String> {
+    use txtx_addon_kit::hcl::expr::Expression;
+    match expr {
+        Expression::String(s) => Some(s.value().to_string()),
+        _ => None,
+    }
 }
 
 fn process_variable(block: &Block, source_mapper: &SourceMapper) -> Result<Vec<CollectedItem>, ValidationError> {

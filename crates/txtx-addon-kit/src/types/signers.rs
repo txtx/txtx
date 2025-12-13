@@ -417,7 +417,18 @@ impl SignerInstance {
                                 }
                             }
                         }
+                        ActionItemResponseType::ProvideInput(response) => {
+                            let Some(requests) = action_item_requests else { continue };
+                            let Some(request) = requests.iter().find(|r| r.id.eq(&action_item_id))
+                            else {
+                                continue;
+                            };
+                            let Some(signer_did) = &request.construct_did else { continue };
 
+                            let mut signer_state = signers.pop_signer_state(signer_did).unwrap();
+                            signer_state.insert(&response.input_name, response.updated_value.clone());
+                            signers.push_signer_state(signer_state);
+                        }
                         _ => {}
                     }
                 }
