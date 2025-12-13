@@ -1378,34 +1378,40 @@ fn prompt_for_keystore_passwords_with_provider<P: PasswordProvider>(
     let mut resolver = CachedPasswordResolver::new(provider);
 
     for flow_context in runbook.flow_contexts.iter_mut() {
-        for (construct_did, signer_instance) in
-            flow_context.execution_context.signers_instances.iter()
-        {
-            if signer_instance.specification.matcher != "keystore" {
-                continue;
-            }
+        // Collect keystore signer info first (immutable borrow of signers_instances)
+        let keystore_entries: Vec<_> = flow_context
+            .execution_context
+            .signers_instances
+            .iter()
+            .filter(|(_, signer)| signer.specification.matcher == "keystore")
+            .map(|(construct_did, signer)| {
+                let keystore_account = signer
+                    .block
+                    .body
+                    .get_attribute("keystore_account")
+                    .and_then(get_string_literal)
+                    .unwrap_or_else(|| signer.name.clone());
 
-            let keystore_account = signer_instance
-                .block
-                .body
-                .get_attribute("keystore_account")
-                .and_then(get_string_literal)
-                .unwrap_or_else(|| signer_instance.name.clone());
+                let keystore_path = signer
+                    .block
+                    .body
+                    .get_attribute("keystore_path")
+                    .and_then(get_string_literal);
 
-            let keystore_path = signer_instance
-                .block
-                .body
-                .get_attribute("keystore_path")
-                .and_then(get_string_literal);
+                (construct_did.clone(), signer.name.clone(), keystore_account, keystore_path)
+            })
+            .collect();
 
+        // Now prompt for passwords and update evaluation results (mutable borrow)
+        for (construct_did, signer_name, keystore_account, keystore_path) in keystore_entries {
             let password = resolver.get_password(&keystore_account, keystore_path.as_deref())?;
 
             let eval_result = flow_context
                 .execution_context
                 .commands_inputs_evaluation_results
-                .entry(construct_did.clone())
+                .entry(construct_did)
                 .or_insert_with(|| {
-                    CommandInputsEvaluationResult::new(&signer_instance.name, &ValueMap::new())
+                    CommandInputsEvaluationResult::new(&signer_name, &ValueMap::new())
                 });
 
             eval_result.inputs.insert("password", Value::string(password));
