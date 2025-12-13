@@ -112,8 +112,14 @@ pub fn keystore_to_secret_key_signer(
         ));
     }
 
-    let secret_key = eth_keystore::decrypt_key(keystore_path, password)
-        .map_err(|e| format!("failed to decrypt keystore: {}", e))?;
+    let secret_key = eth_keystore::decrypt_key(keystore_path, password).map_err(|e| {
+        let err_str = e.to_string();
+        if err_str.contains("Mac Mismatch") {
+            format!("incorrect password for keystore '{}'", keystore_path.display())
+        } else {
+            format!("failed to decrypt keystore '{}': {}", keystore_path.display(), err_str)
+        }
+    })?;
 
     let signing_key = SigningKey::from_slice(&secret_key)
         .map_err(|e| format!("invalid key in keystore: {}", e))?;
@@ -317,7 +323,7 @@ mod tests {
         let keystore_path = temp_dir.path().join("test");
         let result = keystore_to_secret_key_signer(&keystore_path, "wrong_password");
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("decrypt"));
+        assert!(result.unwrap_err().contains("incorrect password"));
     }
 
     #[test]
