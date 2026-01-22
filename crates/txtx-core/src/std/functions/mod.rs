@@ -1,6 +1,7 @@
 pub mod assertions;
 pub mod base58;
 pub mod base64;
+pub mod big_endian;
 pub mod crypto;
 pub mod hash;
 pub mod hex;
