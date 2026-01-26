@@ -7,7 +7,8 @@
 </picture>
 
 **BUILD CONFIDENCE WITH WEB3 RUNBOOKS**
-______________________________________________________________________
+
+---
 
 <!-- [![License](https://img.shields.io/badge/License-Apache2-blue)](/LICENSE) -->
 <!-- [![chat](https://img.shields.io/discord/1179456777406922913?logo=discord&logoColor=white&color=%235765F2)](https://discord.gg/rqXmWsn2ja) -->
@@ -17,19 +18,17 @@ ______________________________________________________________________
 
 - Added support for deployments of Solana programs - including support for other SVM chains (Eclipse, etc.)
 - Added support for EVM deterministic deployments via CREATE2
-- Added support for Zero Knowledge Proof based transaction flows with [Sp1 addon](https://github.com/txtx/txtx/pull/140)
 - The 1st runbook ever executed on Mainnet moved [$2.5M](https://explorer.hiro.so/txid/70f0b5d238fae566756526678939307b18673bd864b6d74eb5f050b3f8226855?chain=mainnet&api=https://api.hiro.so)!
-- Added support for distributed multisig ceremonies in Stacks addon.
 
 ## What is Txtx?
 
 Have you ever tried to deploy some open source Smart contracts on a local devnet, just to get stuck on the first steps of understanding how the deployment should be executed? Have you lost hundreds, thousands or millions of tokens because your master private key got compromised after copy/pasting in your deployment scripts, or missed some contracts initializations making your deployments vulnerable and flawed?
 
-**Txtx** turns the stress, pain and complexity of Smart Contract Infrastructure management into a secure, reproducible and proficient developer experience. 
+**Txtx** turns the stress, pain and complexity of Smart Contract Infrastructure management into a secure, reproducible and proficient developer experience.
 
-Txtx introduces **Smart Contract Runbooks** to assist developers to deploy and operate on their Smart Contracts / Solana Programs / Bitcoin Scripts.
+Txtx introduces **Smart Contract Runbooks** to assist developers to deploy and operate on their Smart Contracts / Solana Programs.
 
-**Smart Contract Runbooks** are the blueprint for Engineering Excellence, setting the gold standard for Web3 Infrastructures. 
+**Smart Contract Runbooks** are the blueprint for Engineering Excellence, setting the gold standard for Web3 Infrastructures.
 
 Txtx is to Web3 what Hashicorp Terraform is to cloud infrastructure management: thanks to infrastructure as code, developers now have the ability to enhance their Web3 operations by leveling up security, composability, and reproducibility.
 
@@ -51,7 +50,7 @@ With Txtx we're introducing:
 > [!IMPORTANT]
 > Txtx is currently in beta: We’re still testing and refining the platform. Please use it for testing purposes only. Your feedback is welcome! 🙌
 
-## Txtx in action: 101 Demos 
+## Txtx in action: 101 Demos
 
 <a href="https://www.youtube.com/playlist?list=PL0FMgRjJMRzMcA23x6y_1lkxXUmuqOlKu">
   <picture>
@@ -77,7 +76,6 @@ Txtx is eliminating these risky practices by introducing script execution in the
 In addition to boosting security, the Web Supervisor UI helps developers by identifying common pitfalls and guiding them toward safer practices.
 
 Finally, the declarative nature of Txtx runbooks, combined with a state-aware runtime, ensures that smart contracts are always configured as intended. This class of issues has historically led to some of the [largest hacks](https://www.theverge.com/2022/2/3/22916111/wormhole-hack-github-error-325-million-theft-ethereum-solana) in Web3 history.
-
 
 ## Quick Start
 
