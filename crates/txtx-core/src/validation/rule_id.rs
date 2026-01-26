@@ -71,7 +71,6 @@ pub enum CoreRuleId {
     NoDefaultValues,
     RequiredProductionInputs,
     // Future addon-specific rules can be added here
-    // BitcoinAddressFormat,
     // EvmGasLimitRequired,
     // EvmChainIdRequired,
     // SvmProgramIdFormat
@@ -92,7 +91,6 @@ impl CoreRuleId {
             | NoDefaultValues
             | RequiredProductionInputs => AddonScope::Global,
             // Future addon-specific rules would be handled here
-            // BitcoinAddressFormat => AddonScope::single("bitcoin"),
             // EvmGasLimitRequired | EvmChainIdRequired => AddonScope::single("evm"),
             // SvmProgramIdFormat => AddonScope::single("svm"),
         }
@@ -170,7 +168,7 @@ mod tests {
     fn test_addon_scope_applies_to() {
         let mut active = HashSet::new();
         active.insert("evm".to_string());
-        active.insert("bitcoin".to_string());
+        active.insert("svm".to_string());
 
         // Global scope always applies
         assert!(AddonScope::Global.applies_to(&active));

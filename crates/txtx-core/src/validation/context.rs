@@ -103,9 +103,7 @@ impl ValidationContext {
         if self.effective_inputs.is_none() {
             self.effective_inputs = Some(self.compute_effective_inputs());
         }
-        self.effective_inputs
-            .as_ref()
-            .expect("effective_inputs was just initialized")
+        self.effective_inputs.as_ref().expect("effective_inputs was just initialized")
     }
 
     /// Compute effective inputs from manifest, environment, and CLI
@@ -143,7 +141,7 @@ impl ValidationContext {
             // TODO: This is a stopgap solution until we implement a proper compiler pipeline.
             //
             // Current limitation: txtx-core cannot directly depend on addon implementations
-            // (evm, bitcoin, svm, etc.) due to:
+            // (evm, svm, etc.) due to:
             // - Heavy dependencies that would bloat core
             // - WASM compatibility requirements
             // - Optional addon features
