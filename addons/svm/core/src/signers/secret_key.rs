@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use solana_client::rpc_client::RpcClient;
 use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
-use solana_keypair::Keypair;
+use solana_keypair::{keypair_from_seed, Keypair};
 use solana_transaction::Transaction;
 use txtx_addon_kit::channel;
 use txtx_addon_kit::constants::{SIGNATURE_APPROVED, SIGNATURE_SKIPPABLE};
@@ -137,7 +137,7 @@ impl SignerImplementation for SvmSecretKey {
         };
         use solana_keypair::Keypair;
         use solana_signer::Signer;
-        use txtx_addon_kit::{constants::DESCRIPTION, crypto::secret_key_bytes_from_mnemonic};
+        use txtx_addon_kit::{constants::DESCRIPTION, crypto::ed25519_secret_key_from_mnemonic};
         let mut actions = Actions::none();
 
         if signer_state.get_value(CHECKED_PUBLIC_KEY).is_some() {
@@ -199,7 +199,7 @@ impl SignerImplementation for SvmSecretKey {
                         values.get_string(DERIVATION_PATH).unwrap_or(DEFAULT_DERIVATION_PATH);
                     let is_encrypted = values.get_bool(IS_ENCRYPTED).unwrap_or(false);
                     let password = values.get_string(PASSWORD);
-                    secret_key_bytes_from_mnemonic(
+                    ed25519_secret_key_from_mnemonic(
                         mnemonic,
                         derivation_path,
                         is_encrypted,
@@ -224,10 +224,18 @@ impl SignerImplementation for SvmSecretKey {
             },
         };
 
-        let keypair = Keypair::try_from(secret_key_bytes.as_ref()).map_err(|e| {
-            (signers.clone(), signer_state.clone(), diagnosed_error!("invalid secret key: {e}"))
-        })?;
-
+        // Handle both 32-byte seeds (from mnemonic) and 64-byte keypairs (from keypair.json)
+        let keypair = if secret_key_bytes.len() == 32 {
+            keypair_from_seed(&secret_key_bytes).map_err(|e| {
+                (signers.clone(), signer_state.clone(), diagnosed_error!("invalid seed: {e}"))
+            })?
+        } else {
+            Keypair::try_from(secret_key_bytes.as_ref()).map_err(|e| {
+                (signers.clone(), signer_state.clone(), diagnosed_error!("invalid secret key: {e}"))
+            })?
+        };
+        // Store the full 64-byte keypair for signing operations
+        let secret_key_bytes = keypair.to_bytes().to_vec();
         let public_key_value = Value::string(keypair.pubkey().to_string());
         let secret_key = Value::buffer(secret_key_bytes);
 
@@ -476,5 +484,86 @@ impl SignerImplementation for SvmSecretKey {
         );
 
         return_synchronous_result(Ok((signers, signer_state, result)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use solana_keypair::keypair_from_seed;
+    use solana_signer::Signer;
+    use txtx_addon_kit::crypto::ed25519_secret_key_from_mnemonic;
+
+    // Standard BIP39 test mnemonic (12 words)
+    const TEST_MNEMONIC: &str =
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+    // Solana's default derivation path
+    const SOLANA_DERIVATION_PATH: &str = "m/44'/501'/0'/0'";
+
+    #[test]
+    fn test_mnemonic_to_solana_keypair() {
+        // Derive the Ed25519 seed from the mnemonic
+        let secret_key_bytes =
+            ed25519_secret_key_from_mnemonic(TEST_MNEMONIC, SOLANA_DERIVATION_PATH, false, None)
+                .expect("Failed to derive secret key from mnemonic");
+
+        // Create a Solana Keypair from the 32-byte seed
+        let keypair = keypair_from_seed(&secret_key_bytes)
+            .expect("Failed to create Keypair from secret key bytes");
+
+        // The expected public key for this mnemonic + path using SLIP-0010 Ed25519 derivation
+        let expected_pubkey = "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk";
+
+        assert_eq!(
+            keypair.pubkey().to_string(),
+            expected_pubkey,
+            "Public key should match expected value from Solana wallet"
+        );
+    }
+
+    #[test]
+    fn test_mnemonic_different_account_indices() {
+        // Test account index 0
+        let seed_0 =
+            ed25519_secret_key_from_mnemonic(TEST_MNEMONIC, "m/44'/501'/0'/0'", false, None)
+                .unwrap();
+        let keypair_0 = keypair_from_seed(&seed_0).unwrap();
+
+        // Test account index 1
+        let seed_1 =
+            ed25519_secret_key_from_mnemonic(TEST_MNEMONIC, "m/44'/501'/1'/0'", false, None)
+                .unwrap();
+        let keypair_1 = keypair_from_seed(&seed_1).unwrap();
+
+        // They should produce different public keys
+        assert_ne!(
+            keypair_0.pubkey().to_string(),
+            keypair_1.pubkey().to_string(),
+            "Different derivation paths should produce different public keys"
+        );
+    }
+
+    #[test]
+    fn test_mnemonic_with_password() {
+        let seed_no_password =
+            ed25519_secret_key_from_mnemonic(TEST_MNEMONIC, SOLANA_DERIVATION_PATH, false, None)
+                .unwrap();
+        let keypair_no_password = keypair_from_seed(&seed_no_password).unwrap();
+
+        let seed_with_password = ed25519_secret_key_from_mnemonic(
+            TEST_MNEMONIC,
+            SOLANA_DERIVATION_PATH,
+            false,
+            Some("test_password"),
+        )
+        .unwrap();
+        let keypair_with_password = keypair_from_seed(&seed_with_password).unwrap();
+
+        // Passwords should produce different keypairs
+        assert_ne!(
+            keypair_no_password.pubkey().to_string(),
+            keypair_with_password.pubkey().to_string(),
+            "Mnemonic with password should produce different keypair"
+        );
     }
 }

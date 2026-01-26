@@ -106,7 +106,7 @@ jobs:
           key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock', './crates/txtx-cli/build.rs', 'addons/evm/src/contracts/**') }}
 
       - name: Build Project
-        run: cargo build --manifest-path ./txtx/Cargo.toml --workspace --exclude txtx-addon-network-stacks --release
+        run: cargo build --manifest-path ./txtx/Cargo.toml --workspace --release
 
       - name: Run Tests
-        run: cargo test --manifest-path ./txtx/Cargo.toml --workspace --exclude txtx-addon-network-stacks --exclude txtx-addon-sp1
+        run: cargo test --manifest-path ./txtx/Cargo.toml --workspace

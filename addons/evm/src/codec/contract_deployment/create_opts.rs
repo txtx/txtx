@@ -1,7 +1,7 @@
-use alloy::dyn_abi::{DynSolValue, Word};
-use alloy::hex;
-use alloy::json_abi::JsonAbi;
-use alloy::primitives::Address;
+use alloy_dyn_abi::{DynSolValue, Word};
+use alloy_json_abi::JsonAbi;
+use alloy_primitives::{hex, keccak256, Address, Keccak256};
+use alloy_rlp::{encode_list, BufMut, Encodable};
 use txtx_addon_kit::types::stores::{ValueMap, ValueStore};
 use txtx_addon_kit::types::types::Value;
 
@@ -15,8 +15,6 @@ use crate::constants::{
     FACTORY_FUNCTION_NAME, PROXY_FACTORY_ADDRESS, SALT,
 };
 use crate::rpc::EvmRpc;
-use alloy::primitives::{keccak256, Keccak256};
-use alloy::rlp::{encode_list, BufMut, Encodable};
 
 use super::proxy_opts::ProxiedCreationOpts;
 use super::{

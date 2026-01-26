@@ -9,10 +9,8 @@ use txtx_core::std::StdAddon;
 pub fn get_all_addons() -> Vec<Box<dyn Addon>> {
     vec![
         Box::new(StdAddon::new()),
-        Box::new(txtx_addon_network_bitcoin::BitcoinNetworkAddon::new()),
         Box::new(txtx_addon_network_evm::EvmNetworkAddon::new()),
         Box::new(txtx_addon_network_svm::SvmNetworkAddon::new()),
-        Box::new(txtx_addon_telegram::TelegramAddon::new()),
     ]
 }
 

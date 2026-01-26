@@ -67,10 +67,7 @@ pub struct ASTSymbols {
 
 impl<'a> ASTSymbols {
     pub fn new() -> ASTSymbols {
-        Self {
-            symbols: Vec::new(),
-            children_map: HashMap::new(),
-        }
+        Self { symbols: Vec::new(), children_map: HashMap::new() }
     }
 
     pub fn get_symbols(mut self, expressions: &'a [SymbolicExpression]) -> Vec<DocumentSymbol> {
@@ -318,13 +315,7 @@ impl<'a> ASTVisitor<'a> for ASTSymbols {
 
         self.children_map.insert(
             expr.id,
-            vec![build_symbol(
-                "begin",
-                None,
-                ClaritySymbolKind::BEGIN,
-                &expr.span,
-                Some(children),
-            )],
+            vec![build_symbol("begin", None, ClaritySymbolKind::BEGIN, &expr.span, Some(children))],
         );
         true
     }
@@ -393,13 +384,7 @@ impl<'a> ASTVisitor<'a> for ASTSymbols {
 
         self.children_map.insert(
             expr.id,
-            vec![build_symbol(
-                "let",
-                None,
-                ClaritySymbolKind::LET,
-                &expr.span,
-                Some(children),
-            )],
+            vec![build_symbol("let", None, ClaritySymbolKind::LET, &expr.span, Some(children))],
         );
         true
     }
@@ -437,13 +422,7 @@ impl<'a> ASTVisitor<'a> for ASTSymbols {
         let children = self.children_map.remove(&input.id);
         self.children_map.insert(
             expr.id,
-            vec![build_symbol(
-                "try!",
-                None,
-                ClaritySymbolKind::FLOW,
-                &expr.span,
-                children,
-            )],
+            vec![build_symbol("try!", None, ClaritySymbolKind::FLOW, &expr.span, children)],
         );
 
         true
@@ -453,13 +432,7 @@ impl<'a> ASTVisitor<'a> for ASTSymbols {
         let children = self.children_map.remove(&value.id);
         self.children_map.insert(
             expr.id,
-            vec![build_symbol(
-                "ok",
-                None,
-                ClaritySymbolKind::RESPONSE,
-                &expr.span,
-                children,
-            )],
+            vec![build_symbol("ok", None, ClaritySymbolKind::RESPONSE, &expr.span, children)],
         );
         true
     }
@@ -468,409 +441,8 @@ impl<'a> ASTVisitor<'a> for ASTSymbols {
         let children = self.children_map.remove(&value.id);
         self.children_map.insert(
             expr.id,
-            vec![build_symbol(
-                "err",
-                None,
-                ClaritySymbolKind::RESPONSE,
-                &expr.span,
-                children,
-            )],
+            vec![build_symbol("err", None, ClaritySymbolKind::RESPONSE, &expr.span, children)],
         );
         true
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use clarity_repl::clarity::ast::{build_ast_with_rules, ASTRules};
-    use clarity_repl::clarity::StacksEpochId;
-    use clarity_repl::clarity::{
-        representations::Span, vm::types::QualifiedContractIdentifier, ClarityVersion,
-        SymbolicExpression,
-    };
-    use lsp_types::{DocumentSymbol, SymbolKind};
-
-    use crate::common::requests::document_symbols::{build_symbol, ClaritySymbolKind};
-
-    use super::ASTSymbols;
-
-    // use crate::common::ast_to_symbols::{build_symbol, ASTSymbols, ClaritySymbolKind};
-
-    fn new_span(start_line: u32, start_column: u32, end_line: u32, end_column: u32) -> Span {
-        Span {
-            start_line,
-            start_column,
-            end_line,
-            end_column,
-        }
-    }
-
-    #[derive(Debug, Eq, PartialEq, Clone)]
-    pub struct PartialDocumentSymbol {
-        pub name: String,
-        pub detail: Option<String>,
-        pub kind: SymbolKind,
-        pub children: Option<Vec<PartialDocumentSymbol>>,
-    }
-
-    fn build_partial_symbol(
-        name: &str,
-        detail: Option<String>,
-        kind: SymbolKind,
-        children: Option<Vec<PartialDocumentSymbol>>,
-    ) -> PartialDocumentSymbol {
-        PartialDocumentSymbol {
-            name: name.to_string(),
-            kind,
-            detail,
-            children,
-        }
-    }
-
-    // ranges are painful to test and just reflects the `span`s
-    // of the ast, it can be safe to not test it
-    fn to_partial(symbol: &DocumentSymbol) -> PartialDocumentSymbol {
-        let children = symbol
-            .children
-            .as_ref()
-            .map(|children| children.iter().map(to_partial).collect());
-        PartialDocumentSymbol {
-            name: symbol.name.to_string(),
-            detail: symbol.detail.clone(),
-            kind: symbol.kind,
-            children,
-        }
-    }
-
-    fn get_ast(source: &str) -> Vec<SymbolicExpression> {
-        let contract_ast = build_ast_with_rules(
-            &QualifiedContractIdentifier::transient(),
-            source,
-            &mut (),
-            ClarityVersion::Clarity1,
-            StacksEpochId::Epoch21,
-            ASTRules::PrecheckSize,
-        )
-        .unwrap();
-
-        contract_ast.expressions
-    }
-
-    fn get_symbols(source: &str) -> Vec<DocumentSymbol> {
-        let expr = get_ast(source);
-        let ast_symbols = ASTSymbols::new();
-        ast_symbols.get_symbols(&expr)
-    }
-
-    #[test]
-    fn test_data_impl_trait() {
-        let symbols = get_symbols("(impl-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)");
-        assert_eq!(
-            symbols,
-            vec![build_symbol(
-                "impl-trait",
-                Some("sip-010-trait".to_owned()),
-                ClaritySymbolKind::IMPL_TRAIT,
-                &new_span(1, 1, 1, 95),
-                None,
-            )]
-        );
-    }
-
-    #[test]
-    fn test_data_var_uint() {
-        let symbols = get_symbols("(define-data-var next-id uint u0)");
-        assert_eq!(
-            symbols,
-            vec![build_symbol(
-                "next-id",
-                Some("uint".to_owned()),
-                ClaritySymbolKind::VARIABLE,
-                &new_span(1, 1, 1, 33),
-                None,
-            )]
-        );
-    }
-
-    #[test]
-    fn test_data_var_list() {
-        let symbols = get_symbols("(define-data-var data (list 4 uint) (list u0))");
-        assert_eq!(
-            symbols,
-            vec![build_symbol(
-                "data",
-                Some("list".to_owned()),
-                ClaritySymbolKind::VARIABLE,
-                &new_span(1, 1, 1, 46),
-                None,
-            )]
-        );
-    }
-
-    #[test]
-    fn test_data_var_tuple() {
-        let symbols = get_symbols(
-            [
-                "(define-data-var owners",
-                "  { addr: principal, p: int }",
-                "  { addr: contract-caller, p: 1 }",
-                ")",
-            ]
-            .join("\n")
-            .as_str(),
-        );
-        assert!(symbols[0].children.as_ref().is_some());
-
-        let children = symbols[0].children.as_ref().unwrap();
-        assert_eq!(children.len(), 2);
-    }
-
-    #[test]
-    fn test_data_var_nested_tuple() {
-        let symbols = get_symbols(
-            [
-                "(define-data-var names",
-                "  { id: { addr: principal, name: (string-ascii 10) }, qt: int }",
-                "  {",
-                "    id: { addr: contract-caller, name: \"sat\" },",
-                "    qt: 10",
-                "  }",
-                ")",
-            ]
-            .join("\n")
-            .as_str(),
-        );
-        assert!(symbols[0].children.as_ref().is_some());
-
-        let children = symbols[0].children.as_ref().unwrap();
-        assert_eq!(children.len(), 2);
-    }
-
-    #[test]
-    fn test_define_constant() {
-        let symbols = get_symbols("(define-constant ERR_PANIC 0)");
-        assert_eq!(
-            symbols,
-            vec![build_symbol(
-                "ERR_PANIC",
-                None,
-                ClaritySymbolKind::CONSTANT,
-                &new_span(1, 1, 1, 29),
-                None,
-            )]
-        );
-
-        let symbols = get_symbols("(define-constant ERR_PANIC (err 0))");
-        assert_eq!(
-            symbols,
-            vec![build_symbol(
-                "ERR_PANIC",
-                None,
-                ClaritySymbolKind::CONSTANT,
-                &new_span(1, 1, 1, 35),
-                None,
-            )]
-        );
-    }
-
-    #[test]
-    fn test_define_map() {
-        let source = "(define-map owners principal { id: uint, qty: uint })";
-        let symbols = get_symbols(source);
-        assert_eq!(
-            to_partial(&symbols[0]),
-            build_partial_symbol(
-                "owners",
-                None,
-                ClaritySymbolKind::MAP,
-                Some(vec![
-                    build_partial_symbol(
-                        "key",
-                        Some("principal".to_owned()),
-                        ClaritySymbolKind::KEY,
-                        None
-                    ),
-                    build_partial_symbol(
-                        "value",
-                        Some("tuple".to_owned()),
-                        ClaritySymbolKind::VALUE,
-                        None
-                    )
-                ]),
-            )
-        );
-    }
-
-    #[test]
-    fn test_define_functions() {
-        let source = [
-            "(define-read-only (get-id) (ok u1))",
-            "(define-public (get-id-again) (ok u1))",
-            "(define-private (set-id (new-id uint)) (ok u1))",
-        ]
-        .join("\n");
-        let symbols = get_symbols(source.as_str());
-
-        assert_eq!(symbols.len(), 3);
-
-        assert_eq!(
-            symbols[0],
-            build_symbol(
-                "get-id",
-                Some("read-only".to_owned()),
-                ClaritySymbolKind::FUNCTION,
-                &new_span(1, 1, 1, 35),
-                Some(vec![build_symbol(
-                    "ok",
-                    None,
-                    ClaritySymbolKind::RESPONSE,
-                    &new_span(1, 28, 1, 34),
-                    None
-                )]),
-            )
-        );
-
-        assert_eq!(
-            symbols[1],
-            build_symbol(
-                "get-id-again",
-                Some("public".to_owned()),
-                ClaritySymbolKind::FUNCTION,
-                &new_span(2, 1, 2, 38),
-                Some(vec![build_symbol(
-                    "ok",
-                    None,
-                    ClaritySymbolKind::RESPONSE,
-                    &new_span(2, 31, 2, 37),
-                    None
-                )]),
-            ),
-        );
-
-        assert_eq!(
-            symbols[2],
-            build_symbol(
-                "set-id",
-                Some("private".to_owned()),
-                ClaritySymbolKind::FUNCTION,
-                &new_span(3, 1, 3, 47),
-                Some(vec![build_symbol(
-                    "ok",
-                    None,
-                    ClaritySymbolKind::RESPONSE,
-                    &new_span(3, 40, 3, 46),
-                    None
-                )]),
-            )
-        );
-    }
-
-    #[test]
-    fn test_begin() {
-        let symbols = get_symbols("(define-public (a-func) (begin (ok true)))");
-
-        assert_eq!(symbols.len(), 1);
-        assert_eq!(
-            symbols[0].children.as_ref().unwrap()[0],
-            build_symbol(
-                "begin",
-                None,
-                ClaritySymbolKind::BEGIN,
-                &new_span(1, 25, 1, 41),
-                Some(vec![build_symbol(
-                    "ok",
-                    None,
-                    ClaritySymbolKind::RESPONSE,
-                    &new_span(1, 32, 1, 40),
-                    None
-                )])
-            )
-        )
-    }
-
-    #[test]
-    fn test_let() {
-        let symbols = get_symbols(
-            [
-                "(define-public (with-let)",
-                "  (let ((id u1))",
-                "    (ok id)))",
-            ]
-            .join("\n")
-            .as_str(),
-        );
-
-        assert_eq!(symbols.len(), 1);
-        assert!(symbols[0].children.as_ref().is_some());
-
-        let let_symbol = symbols[0].children.as_ref().unwrap();
-        assert_eq!(
-            to_partial(&let_symbol[0]),
-            build_partial_symbol(
-                "let",
-                None,
-                ClaritySymbolKind::LET,
-                Some(vec![
-                    build_partial_symbol(
-                        "bindings",
-                        None,
-                        ClaritySymbolKind::NAMESPACE,
-                        Some(vec![build_partial_symbol(
-                            "id",
-                            None,
-                            ClaritySymbolKind::LET_BINDING,
-                            None
-                        )])
-                    ),
-                    build_partial_symbol(
-                        "body",
-                        None,
-                        ClaritySymbolKind::NAMESPACE,
-                        Some(vec![build_partial_symbol(
-                            "ok",
-                            None,
-                            ClaritySymbolKind::RESPONSE,
-                            None
-                        )])
-                    )
-                ])
-            )
-        )
-    }
-
-    #[test]
-    fn test_define_trait() {
-        let symbols = get_symbols(
-            [
-                "(define-trait my-trait (",
-                "  (get-id () (response uint uint))",
-                "  (set-id () (response bool uint))",
-                "))",
-            ]
-            .join("\n")
-            .as_str(),
-        );
-        assert_eq!(
-            to_partial(&symbols[0]),
-            build_partial_symbol(
-                "my-trait",
-                None,
-                ClaritySymbolKind::TRAIT,
-                Some(vec![
-                    build_partial_symbol(
-                        "get-id",
-                        Some("trait method".to_owned()),
-                        ClaritySymbolKind::FUNCTION,
-                        None
-                    ),
-                    build_partial_symbol(
-                        "set-id",
-                        Some("trait method".to_owned()),
-                        ClaritySymbolKind::FUNCTION,
-                        None
-                    )
-                ]),
-            )
-        );
     }
 }

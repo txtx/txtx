@@ -1,4 +1,4 @@
-use alloy::consensus::Transaction;
+use alloy_consensus::Transaction;
 use std::collections::HashMap;
 use txtx_addon_kit::types::commands::{
     CommandExecutionResult, CommandImplementation, PreCommandSpecification,
@@ -95,9 +95,9 @@ impl CommandImplementation for SignEvmTransaction {
         mut signers: SignersState,
         auth_ctx: &AuthorizationContext,
     ) -> SignerActionsFutureResult {
-        use alloy::{
-            network::TransactionBuilder, primitives::TxKind, rpc::types::TransactionRequest,
-        };
+        use alloy_network::TransactionBuilder;
+        use alloy_primitives::TxKind;
+        use alloy_rpc_types::TransactionRequest;
 
         use crate::{
             codec::{

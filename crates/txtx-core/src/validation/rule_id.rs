@@ -70,14 +70,10 @@ pub enum CoreRuleId {
     SensitiveData,
     NoDefaultValues,
     RequiredProductionInputs,
-
     // Future addon-specific rules can be added here
-    // BitcoinAddressFormat,
     // EvmGasLimitRequired,
     // EvmChainIdRequired,
-    // SvmProgramIdFormat,
-    // StacksContractNameFormat,
-    // TelegramBotTokenRequired,
+    // SvmProgramIdFormat
 }
 
 impl CoreRuleId {
@@ -86,16 +82,17 @@ impl CoreRuleId {
         use CoreRuleId::*;
         match self {
             // All current rules are global
-            UndefinedInput | DeprecatedInput | RequiredInput |
-            InputNamingConvention | CliInputOverride |
-            SensitiveData | NoDefaultValues | RequiredProductionInputs => AddonScope::Global,
-
+            UndefinedInput
+            | DeprecatedInput
+            | RequiredInput
+            | InputNamingConvention
+            | CliInputOverride
+            | SensitiveData
+            | NoDefaultValues
+            | RequiredProductionInputs => AddonScope::Global,
             // Future addon-specific rules would be handled here
-            // BitcoinAddressFormat => AddonScope::single("bitcoin"),
             // EvmGasLimitRequired | EvmChainIdRequired => AddonScope::single("evm"),
             // SvmProgramIdFormat => AddonScope::single("svm"),
-            // StacksContractNameFormat => AddonScope::single("stacks"),
-            // TelegramBotTokenRequired => AddonScope::single("telegram"),
         }
     }
 
@@ -171,7 +168,7 @@ mod tests {
     fn test_addon_scope_applies_to() {
         let mut active = HashSet::new();
         active.insert("evm".to_string());
-        active.insert("bitcoin".to_string());
+        active.insert("svm".to_string());
 
         // Global scope always applies
         assert!(AddonScope::Global.applies_to(&active));
@@ -185,11 +182,8 @@ mod tests {
         let evm_scope = AddonScope::single("evm");
         assert!(evm_scope.applies_to(&active));
 
-        let stacks_scope = AddonScope::single("stacks");
-        assert!(!stacks_scope.applies_to(&active));
-
         // Multiple addon scope
-        let multi_scope = AddonScope::multiple(["evm", "stacks"]);
+        let multi_scope = AddonScope::multiple(["evm"]);
         assert!(multi_scope.applies_to(&active)); // Has evm
     }
 

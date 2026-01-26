@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alloy::primitives::Address;
+use alloy_primitives::Address;
 use check_confirmations::CHECK_CONFIRMATIONS;
 use txtx_addon_kit::types::signers::SignerInstance;
 use txtx_addon_kit::types::stores::ValueStore;

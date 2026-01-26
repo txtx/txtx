@@ -5,41 +5,18 @@
 //! access to addon specifications.
 
 use std::sync::Arc;
-use txtx_addon_network_bitcoin::BitcoinNetworkAddon;
 use txtx_addon_network_evm::EvmNetworkAddon;
 use txtx_addon_network_svm::SvmNetworkAddon;
-use txtx_addon_telegram::TelegramAddon;
 use txtx_core::kit::Addon;
 use txtx_core::std::StdAddon;
 
 /// Get all available addons as a shared reference
 pub fn get_all_addons() -> Arc<Vec<Box<dyn Addon>>> {
-    let mut addons: Vec<Box<dyn Addon>> = vec![
+    let addons: Vec<Box<dyn Addon>> = vec![
         Box::new(StdAddon::new()),
-        Box::new(BitcoinNetworkAddon::new()),
         Box::new(EvmNetworkAddon::new()),
         Box::new(SvmNetworkAddon::new()),
-        Box::new(TelegramAddon::new()),
     ];
-
-    // Add optional addons if available
-    #[cfg(feature = "ovm")]
-    {
-        use txtx_addon_network_ovm::OvmNetworkAddon;
-        addons.push(Box::new(OvmNetworkAddon::new()));
-    }
-
-    #[cfg(feature = "stacks")]
-    {
-        use txtx_addon_network_stacks::StacksNetworkAddon;
-        addons.push(Box::new(StacksNetworkAddon::new()));
-    }
-
-    #[cfg(feature = "sp1")]
-    {
-        use txtx_addon_sp1::Sp1NetworkAddon;
-        addons.push(Box::new(Sp1NetworkAddon::new()));
-    }
 
     Arc::new(addons)
 }

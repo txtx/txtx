@@ -24,7 +24,6 @@ pub use hmac;
 pub use indexmap;
 pub use libsecp256k1 as secp256k1;
 pub use pbkdf2;
-pub use tiny_hderive;
 
 pub use hcl_edit as hcl;
 use std::{collections::HashMap, fmt::Debug};

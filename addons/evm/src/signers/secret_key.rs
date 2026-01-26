@@ -1,5 +1,5 @@
-use alloy::network::{EthereumWallet, TransactionBuilder};
-use alloy::primitives::Address;
+use alloy_network::{EthereumWallet, TransactionBuilder};
+use alloy_primitives::Address;
 use alloy_rpc_types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::channel;

@@ -1,6 +1,6 @@
-use alloy::dyn_abi::{DynSolValue, Word};
-use alloy::json_abi::JsonAbi;
-use alloy::primitives::Address;
+use alloy_dyn_abi::{DynSolValue, Word};
+use alloy_json_abi::JsonAbi;
+use alloy_primitives::Address;
 use txtx_addon_kit::types::stores::{ValueMap, ValueStore};
 use txtx_addon_kit::types::types::Value;
 

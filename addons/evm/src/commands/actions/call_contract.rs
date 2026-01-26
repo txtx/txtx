@@ -1,8 +1,8 @@
-use alloy::contract::Interface;
-use alloy::dyn_abi::DynSolValue;
-use alloy::hex;
-use alloy::json_abi::JsonAbi;
-use alloy::rpc::types::TransactionRequest;
+use alloy_contract::Interface;
+use alloy_dyn_abi::DynSolValue;
+use alloy_json_abi::JsonAbi;
+use alloy_primitives::hex;
+use alloy_rpc_types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{

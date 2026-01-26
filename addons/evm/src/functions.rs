@@ -1,13 +1,11 @@
 use std::{path::Path, str::FromStr};
 
 use crate::typing::LINKED_LIBRARIES_TYPE;
-use alloy::{
-    dyn_abi::DynSolValue,
-    hex::FromHex,
-    json_abi::JsonAbi,
-    primitives::{Address, Bytes, B256},
-};
 use alloy_chains::ChainKind;
+use alloy_dyn_abi::DynSolValue;
+use alloy_json_abi::JsonAbi;
+use alloy_primitives::hex::FromHex;
+use alloy_primitives::{Address, Bytes, B256};
 use txtx_addon_kit::{
     helpers::fs::FileLocation,
     types::functions::{arg_checker_with_ctx, fn_diag_with_ctx},
@@ -690,7 +688,7 @@ impl FunctionImplementation for EncodeEvmUint256 {
                 let normalized = if s.starts_with("0x") {
                     decode_hex(&s)?
                 } else {
-                    let u = alloy::primitives::U256::from_str_radix(&s, 10)
+                    let u = alloy_primitives::U256::from_str_radix(&s, 10)
                         .map_err(|e| diagnosed_error!("failed to parse string as number: {}", e))?;
                     u.to_be_bytes_vec()
                 };
@@ -1118,7 +1116,7 @@ impl FunctionImplementation for GenerateCreate2Address {
         };
 
         let init_code = match args.get(1) {
-            Some(Value::String(init_code)) => alloy::hex::decode(init_code)
+            Some(Value::String(init_code)) => alloy_primitives::hex::decode(init_code)
                 .map_err(|e| diagnosed_error!("{}: failed to decode init_code: {}", prefix, e))?,
             Some(Value::Addon(addon_data)) => {
                 if addon_data.id != EVM_INIT_CODE {

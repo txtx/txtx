@@ -1,32 +1,19 @@
 // Access tutorials and documentation at [docs.txtx.sh](https://docs.txtx.sh) 
 // to understand the syntax and discover the powerful features of txtx.
 
-addon "stacks" {
-  network_id = input.stacks_network_id
-  rpc_api_url = input.stacks_api_url
+addon "svm" {
+  network_id = input.network_id
+  rpc_api_url = input.rpc_api_url
 }
 
-signer "alice" "stacks::web_wallet" {
-  expected_address = input.stacks_operator_address
+signer "authority" "svm::secret_key" {
+  description = "Can upgrade programs and manage critical ops"
+  keypair_json = "~/.config/solana/id.json"
 }
 
-variable "step" {
-  description = "Amount of steps to increment"
-  value = 1
+action "deploy_my_program" "svm::deploy_program" {
+    description = "Deploy my_program program"
+    program = svm::get_program_from_anchor_project("my_program") 
+    authority = signer.authority
 }
 
-action "increment_counter" "stacks::call_contract" {
-  description = "Increment counter contract of ${variable.step}"
-  contract_id = "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.counter"
-  function_name = "increment"
-  function_args = [
-      stacks::cv_uint(variable.step),
-  ]
-  signer = signer.alice
-  confirmations = 1
-}
-
-output "counter_value" {
-  description = "Increment counter contract of ${variable.step}"
-  value = action.increment_counter.tx_id
-}

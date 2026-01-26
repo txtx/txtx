@@ -67,10 +67,6 @@ use actix_web::dev::ServerHandle;
 #[cfg(feature = "supervisor_ui")]
 use txtx_gql::kit::types::frontend::SupervisorAddonData;
 
-#[cfg(feature = "ovm")]
-use txtx_addon_network_ovm::OvmNetworkAddon;
-#[cfg(feature = "sp1")]
-use txtx_addon_sp1::Sp1Addon;
 #[cfg(feature = "supervisor_ui")]
 use txtx_supervisor_ui::{self, cloud_relayer::RelayerChannelEvent};
 
@@ -415,9 +411,8 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
 
     if cmd.envs {
         // List environments
-        let mut env_names: Vec<&String> = manifest.environments.keys()
-            .filter(|name| *name != "global")
-            .collect();
+        let mut env_names: Vec<&String> =
+            manifest.environments.keys().filter(|name| *name != "global").collect();
 
         if env_names.is_empty() {
             println!("No environments defined in manifest");
@@ -431,7 +426,7 @@ pub async fn handle_list_command(cmd: &ListRunbooks, _ctx: &Context) -> Result<(
         }
 
         return Ok(());
-    } 
+    }
 
     // List runbooks
     if manifest.runbooks.is_empty() {

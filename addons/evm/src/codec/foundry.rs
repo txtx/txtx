@@ -1,4 +1,4 @@
-use alloy::json_abi::JsonAbi;
+use alloy_json_abi::JsonAbi;
 use foundry_compilers_artifacts_solc::Metadata;
 use foundry_config::figment::{
     providers::{Format, Toml},

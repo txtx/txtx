@@ -1,6 +1,6 @@
-use alloy::dyn_abi::DynSolValue;
-use alloy::json_abi::JsonAbi;
-use alloy::primitives::Address;
+use alloy_dyn_abi::DynSolValue;
+use alloy_json_abi::JsonAbi;
+use alloy_primitives::Address;
 use std::collections::HashMap;
 use txtx_addon_kit::indexmap::IndexMap;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;

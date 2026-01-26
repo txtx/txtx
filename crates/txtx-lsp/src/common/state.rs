@@ -11,14 +11,13 @@ use txtx_addon_kit::types::diagnostics::{Diagnostic as TxtxDiagnostic, Diagnosti
 use txtx_addon_kit::types::RunbookId;
 use txtx_addon_kit::Addon;
 use txtx_addon_network_evm::EvmNetworkAddon;
-use txtx_addon_telegram::TelegramAddon;
 use txtx_core::std::StdAddon;
 
 use super::requests::capabilities::InitializationOptions;
 
 lazy_static! {
     pub static ref FUNCTIONS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for func in addon.get_functions() {
@@ -111,7 +110,7 @@ lazy_static! {
     };
 
     pub static ref ACTIONS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for action in addon.get_actions() {
@@ -203,7 +202,7 @@ lazy_static! {
 
 
     pub static ref WALLETS: Vec<CompletionItem> = {
-        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new()), Box::new(TelegramAddon::new())];
+        let addons: Vec<Box<dyn Addon>> = vec![Box::new(StdAddon::new()), Box::new(EvmNetworkAddon::new())];
         let mut completion_items = vec![];
         for addon in addons.iter() {
             for signer in addon.get_signers() {
@@ -728,23 +727,6 @@ pub async fn build_state(
     //                 .await;
     //         }
 
-    // let (deployment, mut artifacts) = generate_default_deployment(
-    //     &manifest,
-    //     &StacksNetwork::Simnet,
-    //     false,
-    //     file_accessor,
-    //     Some(StacksEpochId::Epoch21),
-    // )
-    // .await?;
-
-    // let mut session = initiate_session_from_deployment(&manifest);
-    // let UpdateSessionExecutionResult { contracts, .. } = update_session_with_contracts_executions(
-    //     &mut session,
-    //     &deployment,
-    //     Some(&artifacts.asts),
-    //     false,
-    //     Some(StacksEpochId::Epoch21),
-    // );
     // for (contract_id, mut result) in contracts.into_iter() {
     //     let (_, runbook_location) = match deployment.contracts.get(&contract_id) {
     //         Some(entry) => entry,
