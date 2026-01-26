@@ -34,6 +34,5 @@ txtx-gql = { path = "crates/txtx-gql" }
 txtx-supervisor-ui = { path = "crates/txtx-supervisor-ui" }
 txtx-serve = { path = "crates/txtx-serve" }
 txtx-addon-network-evm = { path = "addons/evm" }
-txtx-addon-network-ovm = { path = "addons/ovm" }
  txtx-addon-network-svm = { path = "addons/svm/core" }
 uuid = { version = "1.15.1", features = ["v4", "serde", "js"] }
