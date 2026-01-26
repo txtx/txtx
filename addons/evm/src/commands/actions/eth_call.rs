@@ -1,4 +1,4 @@
-use alloy::dyn_abi::DynSolValue;
+use alloy_dyn_abi::DynSolValue;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     PreCommandSpecification,
@@ -197,7 +197,7 @@ async fn build_eth_call(
     _spec: &CommandSpecification,
     values: &ValueStore,
 ) -> Result<Value, Diagnostic> {
-    use alloy::json_abi::JsonAbi;
+    use alloy_json_abi::JsonAbi;
 
     use crate::{
         codec::{

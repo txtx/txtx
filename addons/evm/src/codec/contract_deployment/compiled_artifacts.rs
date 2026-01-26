@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
-use alloy::json_abi::JsonAbi;
+use alloy_json_abi::JsonAbi;
 use foundry_compilers::Project;
 use foundry_compilers_artifacts_solc::Metadata;
 use foundry_config::Config;

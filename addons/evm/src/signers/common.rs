@@ -1,4 +1,4 @@
-use alloy::primitives::{utils::format_units, Address};
+use alloy_primitives::{utils::format_units, Address};
 use txtx_addon_kit::{
     indexmap::IndexMap,
     types::{

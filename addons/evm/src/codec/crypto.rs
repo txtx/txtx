@@ -1,8 +1,5 @@
-use alloy::{
-    hex::FromHex,
-    primitives::{keccak256, Address},
-    signers::k256::ecdsa::{SigningKey, VerifyingKey},
-};
+use alloy_primitives::{hex::FromHex, keccak256, Address};
+use k256::ecdsa::{SigningKey, VerifyingKey};
 use alloy_signer_local::{coins_bip39::English, LocalSigner, MnemonicBuilder};
 use hmac::digest::generic_array::GenericArray;
 use libsecp256k1::{recover, Message, RecoveryId, Signature};

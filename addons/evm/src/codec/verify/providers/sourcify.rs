@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs, path::PathBuf};
 
-use alloy::primitives::Address;
+use alloy_primitives::Address;
 use alloy_chains::Chain;
 use foundry_compilers::{multi::MultiCompilerParser, Graph};
 use foundry_compilers_artifacts_solc::Source;

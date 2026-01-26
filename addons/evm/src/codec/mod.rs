@@ -14,15 +14,15 @@ use crate::typing::{
     DecodedLog, EvmValue, EVM_ADDRESS, EVM_BYTES, EVM_BYTES32, EVM_FUNCTION_CALL, EVM_INIT_CODE,
     EVM_KNOWN_SOL_PARAM, EVM_SIM_RESULT, EVM_UINT256, EVM_UINT32, EVM_UINT8,
 };
-use alloy::consensus::{SignableTransaction, Transaction, TypedTransaction};
-use alloy::dyn_abi::parser::TypeSpecifier;
-use alloy::dyn_abi::{DynSolValue, EventExt, FunctionExt, Word};
-use alloy::hex::{self, FromHex};
-use alloy::json_abi::{Constructor, JsonAbi, Param};
-use alloy::network::TransactionBuilder;
-use alloy::primitives::utils::format_units;
-use alloy::primitives::{Address, TxKind, U256};
-use alloy::rpc::types::TransactionRequest;
+use alloy_consensus::{SignableTransaction, Transaction, TypedTransaction};
+use alloy_dyn_abi::parser::TypeSpecifier;
+use alloy_dyn_abi::{DynSolValue, EventExt, FunctionExt, Word};
+use alloy_json_abi::{Constructor, JsonAbi, Param};
+use alloy_network::TransactionBuilder;
+use alloy_primitives::hex::{self, FromHex};
+use alloy_primitives::utils::format_units;
+use alloy_primitives::{Address, TxKind, U256};
+use alloy_rpc_types::TransactionRequest;
 use alloy_rpc_types::{AccessList, Log};
 use contract_deployment::AddressAbiMap;
 use txtx_addon_kit::types::diagnostics::Diagnostic;

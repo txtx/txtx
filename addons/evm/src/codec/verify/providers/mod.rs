@@ -1,7 +1,7 @@
 pub mod etherscan;
 pub mod sourcify;
 
-use alloy::primitives::Address;
+use alloy_primitives::Address;
 use alloy_chains::Chain;
 use etherscan::EtherscanVerificationClient;
 use sourcify::SourcifyVerificationClient;

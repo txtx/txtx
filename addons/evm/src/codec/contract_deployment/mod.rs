@@ -1,8 +1,6 @@
-use alloy::{
-    dyn_abi::{DynSolValue, JsonAbiExt},
-    json_abi::JsonAbi,
-    primitives::{keccak256, Address},
-};
+use alloy_dyn_abi::{DynSolValue, JsonAbiExt};
+use alloy_json_abi::JsonAbi;
+use alloy_primitives::{keccak256, Address};
 use alloy_rpc_types::TransactionRequest;
 use txtx_addon_kit::{hex, indexmap::IndexMap, types::types::Value};
 
@@ -83,7 +81,7 @@ pub fn create_init_code(
         bytecode_data.object
     };
 
-    let mut init_code = alloy::hex::decode(bytecode)
+    let mut init_code = alloy_primitives::hex::decode(bytecode)
         .map_err(|e| format!("invalid contract bytecode: {}", e.to_string()))?;
     if let Some(constructor_args) = constructor_args {
         // if we have an abi, use it to validate the constructor arguments

@@ -19,31 +19,24 @@ serde_json = { version = "1.0.113", features = ["arbitrary_precision"] }
 serde = "1"
 serde_derive = "1"
 async-recursion = "1"
-alloy = { version = "1.0.41", default-features = false, features = [
-  "consensus", 
-  "dyn-abi", 
-  "json-abi", 
-  "network", 
-  "rpc", 
-  "signers", 
-  "rpc-types", 
-  "contract", 
-  "providers", 
-  "rlp", 
-  "reqwest-rustls-tls",
-  "eip712"
-]}
-alloy-chains = "0.2.14"
+alloy-chains = "0.2"
+alloy-consensus = { version = "1.4.1" }
+alloy-contract = { version = "1.4.1" }
+alloy-dyn-abi = { version = "1.4.1", features = ["eip712"] }
+alloy-json-abi = { version = "1.4.1" }
+alloy-network ={ version = "1.4.1" }
 alloy-primitives = { version = "1.4.1" }
-alloy-provider = { version = "1.0.41", default-features = false, features = ["debug-api"] }
-alloy-rpc-types = { version = "1.0.41", features = ["trace"] }
-alloy-signer-local = { version = "1.0.41", features = ["mnemonic"] }
+alloy-provider = { version = "1.1.1", default-features = false, features = ["debug-api", "reqwest"] }
+alloy-rlp = { version = "0.3" }
+alloy-rpc-types = { version = "1.1.1", features = ["trace"] }
+alloy-signer-local = { version = "1.1.1", features = ["mnemonic"] }
+k256 = "0.13"
 thiserror = "1.0.62"
 toml = "0.5"
 foundry-block-explorers = "0.22.0"
 foundry-compilers-artifacts-solc = "0.19.5"
 foundry-compilers = "0.19.5"
-foundry-config = { version = "1.4.2", git = "https://github.com/txtx/foundry.git", branch = "txtx-next"}
+foundry-config = { version = "1.5.1", git = "https://github.com/foundry-rs/foundry.git", tag = "v1.5.1"}
 semver = "1.0.26"
 
 [features]

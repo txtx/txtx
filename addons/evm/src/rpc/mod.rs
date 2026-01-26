@@ -4,24 +4,24 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
-use alloy::consensus::TxEnvelope;
-use alloy::hex;
-use alloy::network::EthereumWallet;
-use alloy::primitives::{Address, BlockHash, Bytes, FixedBytes, Uint};
-use alloy::providers::utils::Eip1559Estimation;
-use alloy::providers::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
-use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
+use alloy_consensus::TxEnvelope;
+use alloy_network::EthereumWallet;
+use alloy_primitives::{Address, BlockHash, Bytes, FixedBytes, Uint};
 use alloy_provider::fillers::{
     BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
 };
+use alloy_provider::utils::Eip1559Estimation;
 use alloy_provider::utils::{
     EIP1559_FEE_ESTIMATION_PAST_BLOCKS, EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
 };
 use alloy_provider::Identity;
+use alloy_provider::{ext::DebugApi, Provider, ProviderBuilder, RootProvider};
 use alloy_rpc_types::trace::geth::{
     GethDebugTracingCallOptions, GethDebugTracingOptions, GethTrace,
 };
 use alloy_rpc_types::{Block, BlockId, BlockNumberOrTag, FeeHistory};
+use alloy_rpc_types::{TransactionReceipt, TransactionRequest};
+use txtx_addon_kit::hex;
 use txtx_addon_kit::reqwest::Url;
 
 #[derive(Debug)]
@@ -74,7 +74,7 @@ impl EvmWalletRpc {
     pub fn new(url: &str, wallet: EthereumWallet) -> Result<Self, String> {
         let url = Url::try_from(url).map_err(|e| format!("invalid rpc url {}: {}", url, e))?;
 
-        let provider = ProviderBuilder::new().on_http(url.clone());
+        let provider = ProviderBuilder::new().connect_http(url.clone());
         Ok(Self { url, wallet, provider })
     }
     pub async fn sign_and_send_tx(&self, tx_envelope: TxEnvelope) -> Result<[u8; 32], RpcError> {
@@ -121,7 +121,7 @@ impl EvmRpc {
     }
     pub fn new(url: &str) -> Result<Self, String> {
         let url = Url::try_from(url).map_err(|e| format!("invalid rpc url {}: {}", url, e))?;
-        let provider = ProviderBuilder::new().on_http(url.clone());
+        let provider = ProviderBuilder::new().connect_http(url.clone());
         Ok(Self { url, provider })
     }
 

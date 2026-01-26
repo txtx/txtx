@@ -1,4 +1,4 @@
-use alloy::rpc::types::TransactionRequest;
+use alloy_rpc_types::TransactionRequest;
 use std::collections::HashMap;
 use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{

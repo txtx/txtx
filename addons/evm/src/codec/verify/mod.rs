@@ -5,8 +5,8 @@ use crate::constants::{
     CHAIN_ID, CONTRACT, CONTRACT_ADDRESS, CONTRACT_CONSTRUCTOR_ARGS, CONTRACT_VERIFICATION_OPTS,
 };
 use crate::typing::EvmValue;
-use alloy::dyn_abi::JsonAbiExt;
-use alloy::{dyn_abi::DynSolValue, hex};
+use alloy_dyn_abi::{DynSolValue, JsonAbiExt};
+use alloy_primitives::hex;
 use alloy_chains::Chain;
 use providers::{CheckVerificationStatusResult, SubmitVerificationResult, VerificationClient};
 use std::fmt::{self, Display, Formatter};

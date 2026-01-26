@@ -1,9 +1,7 @@
 use std::str::FromStr;
 
-use alloy::{
-    json_abi::{Function, Param},
-    primitives::Address,
-};
+use alloy_json_abi::{Function, Param};
+use alloy_primitives::Address;
 use alloy_rpc_types::Log;
 use foundry_compilers_artifacts_solc::Metadata;
 use txtx_addon_kit::{

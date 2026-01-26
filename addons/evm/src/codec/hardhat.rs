@@ -1,4 +1,4 @@
-use alloy::json_abi::JsonAbi;
+use alloy_json_abi::JsonAbi;
 use std::{collections::HashMap, path::PathBuf};
 
 const BUILD_INFO_DIR: &str = "build-info";
