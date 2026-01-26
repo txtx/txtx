@@ -5,7 +5,7 @@ pub const PAYER: &str = "payer";
 pub const AUTHORITY: &str = "authority";
 pub const OWNER: &str = "owner";
 
-pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0/0";
+pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0'";
 pub const DEFAULT_ANCHOR_TARGET_PATH: &str = "target";
 pub const DEFAULT_NATIVE_TARGET_PATH: &str = "target";
 pub const DEFAULT_SHANK_IDL_PATH: &str = "idl";
