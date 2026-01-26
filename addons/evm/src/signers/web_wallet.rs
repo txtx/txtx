@@ -88,12 +88,7 @@ impl SignerImplementation for EvmWebWallet {
     }
 
     // check_activability analyses the signer constructs.
-    // it will returns all the ActionItemRequests required for a given signer, which includes:
-    // - ProvidePublicKey:
-    // - ReviewInput (StacksAddress): Most of the case, unknown the first time it's being executed unless expected_address is provided in the construct
-    // - ReviewInput (StacksBalance):
-    // - ReviewInput (Assosiated Costs):
-    // If the all of the informations above are present in the signer state, nothing is returned.
+    // it will returns all the ActionItemRequests required for a given signer.
     #[cfg(not(feature = "wasm"))]
     fn check_activability(
         construct_did: &ConstructDid,

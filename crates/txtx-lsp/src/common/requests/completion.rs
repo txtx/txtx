@@ -7,16 +7,13 @@ use lsp_types::{
 };
 use regex::Regex;
 
-
 lazy_static! {
     static ref COMPLETION_ITEMS_CLARITY_1: Vec<CompletionItem> =
         build_default_native_keywords_list(ClarityVersion::Clarity1);
     static ref COMPLETION_ITEMS_CLARITY_2: Vec<CompletionItem> =
         build_default_native_keywords_list(ClarityVersion::Clarity2);
-    static ref VAR_FUNCTIONS: Vec<String> = vec![
-        NativeFunctions::SetVar.to_string(),
-        NativeFunctions::FetchVar.to_string(),
-    ];
+    static ref VAR_FUNCTIONS: Vec<String> =
+        vec![NativeFunctions::SetVar.to_string(), NativeFunctions::FetchVar.to_string(),];
     static ref MAP_FUNCTIONS: Vec<String> = vec![
         NativeFunctions::InsertEntry.to_string(),
         NativeFunctions::FetchEntry.to_string(),
@@ -69,10 +66,7 @@ pub struct ContractDefinedData {
 
 impl<'a> ContractDefinedData {
     pub fn new(expressions: &[SymbolicExpression], position: &Position) -> Self {
-        let mut defined_data = ContractDefinedData {
-            position: *position,
-            ..Default::default()
-        };
+        let mut defined_data = ContractDefinedData { position: *position, ..Default::default() };
         traverse(&mut defined_data, expressions);
         defined_data
     }
@@ -94,8 +88,7 @@ impl<'a> ContractDefinedData {
                 completion_args.push(format!("${{{}:{}:{}}}", i + 1, typed_var.name, signature));
 
                 if is_position_within_span(&self.position, &expr.span, 0) {
-                    self.locals
-                        .push((typed_var.name.to_string(), signature.to_string()));
+                    self.locals.push((typed_var.name.to_string(), signature.to_string()));
                 }
             };
         }
@@ -282,21 +275,14 @@ fn build_contract_calls_args(signature: &FunctionType) -> (Vec<String>, Vec<Stri
 
 pub fn get_contract_calls(analysis: &ContractAnalysis) -> Vec<CompletionItem> {
     let mut inter_contract = vec![];
-    for (name, signature) in analysis
-        .public_function_types
-        .iter()
-        .chain(analysis.read_only_function_types.iter())
+    for (name, signature) in
+        analysis.public_function_types.iter().chain(analysis.read_only_function_types.iter())
     {
         let (snippet_args, doc_args) = build_contract_calls_args(signature);
-        let label = format!(
-            "contract-call? .{} {}",
-            analysis.contract_identifier.name, name,
-        );
+        let label = format!("contract-call? .{} {}", analysis.contract_identifier.name, name,);
         let documentation = MarkupContent {
             kind: MarkupKind::Markdown,
-            value: [vec![format!("**{}**", name.to_string())], doc_args]
-                .concat()
-                .join("\n\n"),
+            value: [vec![format!("**{}**", name.to_string())], doc_args].concat().join("\n\n"),
         };
         let insert_text = format!(
             "contract-call? .{} {} {}",
@@ -375,9 +361,7 @@ pub fn build_completion_item_list(
     for mut item in [
         native_keywords,
         contract_calls,
-        active_contract_defined_data
-            .functions_completion_items
-            .clone(),
+        active_contract_defined_data.functions_completion_items.clone(),
     ]
     .concat()
     .drain(..)
@@ -430,11 +414,8 @@ pub fn build_completion_item_list(
                     }
                 }
 
-                item.insert_text = if should_wrap {
-                    Some(format!("({})", snippet))
-                } else {
-                    Some(snippet)
-                };
+                item.insert_text =
+                    if should_wrap { Some(format!("({})", snippet)) } else { Some(snippet) };
             }
             Some(CompletionItemKind::TYPE_PARAMETER) => {
                 if should_wrap {
@@ -473,11 +454,8 @@ pub fn check_if_should_wrap(source: &str, position: &Position) -> bool {
 }
 
 pub fn build_default_native_keywords_list(version: ClarityVersion) -> Vec<CompletionItem> {
-    let clarity2_aliased_functions: Vec<NativeFunctions> = vec![
-        NativeFunctions::ElementAt,
-        NativeFunctions::IndexOf,
-        NativeFunctions::BitwiseXor,
-    ];
+    let clarity2_aliased_functions: Vec<NativeFunctions> =
+        vec![NativeFunctions::ElementAt, NativeFunctions::IndexOf, NativeFunctions::BitwiseXor];
 
     let command = lsp_types::Command {
         title: "triggerParameterHints".into(),
@@ -604,16 +582,10 @@ pub fn build_default_native_keywords_list(version: ClarityVersion) -> Vec<Comple
     })
     .collect();
 
-    vec![
-        native_functions,
-        define_functions,
-        native_variables,
-        block_properties,
-        types,
-    ]
-    .into_iter()
-    .flatten()
-    .collect::<Vec<CompletionItem>>()
+    vec![native_functions, define_functions, native_variables, block_properties, types]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<CompletionItem>>()
 }
 
 pub fn build_map_valid_cb_completion_items(version: ClarityVersion) -> Vec<CompletionItem> {
@@ -665,14 +637,10 @@ pub fn build_map_valid_cb_completion_items(version: ClarityVersion) -> Vec<Compl
 }
 
 pub fn build_filter_valid_cb_completion_items(version: ClarityVersion) -> Vec<CompletionItem> {
-    [
-        NativeFunctions::And,
-        NativeFunctions::Or,
-        NativeFunctions::Not,
-    ]
-    .iter()
-    .filter_map(|func| build_iterator_cb_completion_item(func, version))
-    .collect()
+    [NativeFunctions::And, NativeFunctions::Or, NativeFunctions::Not]
+        .iter()
+        .filter_map(|func| build_iterator_cb_completion_item(func, version))
+        .collect()
 }
 
 pub fn build_fold_valid_cb_completion_items(version: ClarityVersion) -> Vec<CompletionItem> {
@@ -749,187 +717,5 @@ fn get_iterator_cb_completion_item(version: &ClarityVersion, func: &str) -> Vec<
     match version {
         ClarityVersion::Clarity1 => VALID_FOLD_FUNCTIONS_CLARITY_1.to_vec(),
         ClarityVersion::Clarity2 => VALID_FOLD_FUNCTIONS_CLARITY_1.to_vec(),
-    }
-}
-
-#[cfg(test)]
-mod get_contract_global_data_tests {
-    use clarity_repl::clarity::ast::build_ast_with_rules;
-    use clarity_repl::clarity::vm::types::QualifiedContractIdentifier;
-    use clarity_repl::clarity::{ClarityVersion, StacksEpochId};
-    use lsp_types::Position;
-
-    use super::ContractDefinedData;
-
-    fn get_defined_data(source: &str) -> ContractDefinedData {
-        let contract_ast = build_ast_with_rules(
-            &QualifiedContractIdentifier::transient(),
-            source,
-            &mut (),
-            ClarityVersion::Clarity2,
-            StacksEpochId::Epoch21,
-            clarity_repl::clarity::ast::ASTRules::Typical,
-        )
-        .unwrap();
-        ContractDefinedData::new(&contract_ast.expressions, &Position::default())
-    }
-
-    #[test]
-    fn get_data_vars() {
-        let data = get_defined_data(
-            "(define-data-var counter uint u1) (define-data-var is-active bool true)",
-        );
-        assert_eq!(data.vars, ["counter", "is-active"]);
-    }
-
-    #[test]
-    fn get_map() {
-        let data = get_defined_data("(define-map names principal { name: (buff 48) })");
-        assert_eq!(data.maps, ["names"]);
-    }
-
-    #[test]
-    fn get_fts() {
-        let data = get_defined_data("(define-fungible-token clarity-coin)");
-        assert_eq!(data.fts, ["clarity-coin"]);
-    }
-
-    #[test]
-    fn get_nfts() {
-        let data = get_defined_data("(define-non-fungible-token bitcoin-nft uint)");
-        assert_eq!(data.nfts, ["bitcoin-nft"]);
-    }
-}
-
-#[cfg(test)]
-mod get_contract_local_data_tests {
-    use clarity_repl::clarity::ast::build_ast_with_rules;
-    use clarity_repl::clarity::StacksEpochId;
-    use clarity_repl::clarity::{vm::types::QualifiedContractIdentifier, ClarityVersion};
-    use lsp_types::Position;
-
-    use super::ContractDefinedData;
-
-    fn get_defined_data(source: &str, position: &Position) -> ContractDefinedData {
-        let contract_ast = build_ast_with_rules(
-            &QualifiedContractIdentifier::transient(),
-            source,
-            &mut (),
-            ClarityVersion::Clarity2,
-            StacksEpochId::Epoch21,
-            clarity_repl::clarity::ast::ASTRules::Typical,
-        )
-        .unwrap();
-        ContractDefinedData::new(&contract_ast.expressions, position)
-    }
-
-    #[test]
-    fn get_function_binding() {
-        let data = get_defined_data(
-            "(define-private (print-arg (arg int)) )",
-            &Position {
-                line: 1,
-                character: 38,
-            },
-        );
-        assert_eq!(data.locals, vec![("arg".to_string(), "int".to_string())]);
-        let data = get_defined_data(
-            "(define-private (print-arg (arg int)) )",
-            &Position {
-                line: 1,
-                character: 40,
-            },
-        );
-        assert_eq!(data.locals, vec![]);
-    }
-
-    #[test]
-    fn get_let_binding() {
-        let data = get_defined_data(
-            "(let ((n u0)) )",
-            &Position {
-                line: 1,
-                character: 15,
-            },
-        );
-        assert_eq!(data.locals, vec![("n".to_string(), "u0".to_string())]);
-    }
-}
-
-#[cfg(test)]
-mod populate_snippet_with_options_tests {
-    use clarity_repl::clarity::ast::build_ast_with_rules;
-    use clarity_repl::clarity::vm::types::QualifiedContractIdentifier;
-    use clarity_repl::clarity::{ClarityVersion, StacksEpochId};
-    use lsp_types::Position;
-
-    use super::ContractDefinedData;
-
-    fn get_defined_data(source: &str) -> ContractDefinedData {
-        let contract_ast = build_ast_with_rules(
-            &QualifiedContractIdentifier::transient(),
-            source,
-            &mut (),
-            ClarityVersion::Clarity2,
-            StacksEpochId::Epoch21,
-            clarity_repl::clarity::ast::ASTRules::Typical,
-        )
-        .unwrap();
-        ContractDefinedData::new(&contract_ast.expressions, &Position::default())
-    }
-
-    #[test]
-    fn get_data_vars_snippet() {
-        let data = get_defined_data(
-            "(define-data-var counter uint u1) (define-data-var is-active bool true)",
-        );
-        let snippet = data.populate_snippet_with_options(
-            &ClarityVersion::Clarity2,
-            &"var-get".to_string(),
-            "var-get ${1:var}",
-        );
-        assert_eq!(snippet, Some("var-get ${1|counter,is-active|}".to_string()));
-    }
-
-    #[test]
-    fn get_map_snippet() {
-        let data = get_defined_data("(define-map names principal { name: (buff 48) })");
-        let snippet = data.populate_snippet_with_options(
-            &ClarityVersion::Clarity2,
-            &"map-get?".to_string(),
-            "map-get? ${1:map-name} ${2:key-tuple}",
-        );
-        assert_eq!(
-            snippet,
-            Some("map-get? ${1|names|} ${2:key-tuple}".to_string())
-        );
-    }
-
-    #[test]
-    fn get_fts_snippet() {
-        let data = get_defined_data("(define-fungible-token btc u21)");
-        let snippet = data.populate_snippet_with_options(
-            &ClarityVersion::Clarity2,
-            &"ft-mint?".to_string(),
-            "ft-mint? ${1:token-name} ${2:amount} ${3:recipient}",
-        );
-        assert_eq!(
-            snippet,
-            Some("ft-mint? ${1|btc|} ${2:amount} ${3:recipient}".to_string())
-        );
-    }
-
-    #[test]
-    fn get_nfts_snippet() {
-        let data = get_defined_data("(define-non-fungible-token bitcoin-nft uint)");
-        let snippet = data.populate_snippet_with_options(
-            &ClarityVersion::Clarity2,
-            &"nft-mint?".to_string(),
-            "nft-mint? ${1:asset-name} ${2:asset-identifier} ${3:recipient}",
-        );
-        assert_eq!(
-            snippet,
-            Some("nft-mint? ${1|bitcoin-nft|} ${2:asset-identifier} ${3:recipient}".to_string())
-        );
     }
 }

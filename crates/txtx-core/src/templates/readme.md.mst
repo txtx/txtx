@@ -36,13 +36,13 @@ Additionally, the [Visual Studio Code extension](https://marketplace.visualstudi
 ### List runbooks available in this repository
 ```console
 $ txtx ls
-Name                ID               Description
-BNS Multisig        bns-multisig     Register a BNS name using a multisig signer
+Name                Description
+deployment          Deploy programs
 ```
 
 ### Execute an existing runbook
 ```console
-$ txtx run bns-multisig
+$ txtx run deployment
 ```
 
 ### Update the README documentation

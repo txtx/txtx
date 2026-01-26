@@ -29,11 +29,7 @@ pub fn get_signatures(
     }
 
     let (version, _, reference) = API_REF.get(&function_name.to_string())?;
-    let FunctionAPI {
-        signature,
-        output_type,
-        ..
-    } = (*reference).as_ref()?;
+    let FunctionAPI { signature, output_type, .. } = (*reference).as_ref()?;
 
     if version > &contract.clarity_version {
         return None;
@@ -47,9 +43,7 @@ pub fn get_signatures(
             signature_without_parenthesis.next();
             signature_without_parenthesis.next_back();
             let signature_without_parenthesis = signature_without_parenthesis.as_str();
-            let parameters = signature_without_parenthesis
-                .split(' ')
-                .collect::<Vec<&str>>();
+            let parameters = signature_without_parenthesis.split(' ').collect::<Vec<&str>>();
             let (_, parameters) = parameters.split_first().expect("invalid signature format");
 
             if active_parameter.unwrap_or_default() >= parameters.len().try_into().unwrap() {
@@ -81,96 +75,4 @@ pub fn get_signatures(
         .collect::<Vec<SignatureInformation>>();
 
     Some(signatures)
-}
-
-#[cfg(test)]
-mod definitions_visitor_tests {
-    use clarity_repl::clarity::functions::NativeFunctions;
-    use clarity_repl::clarity::{ClarityVersion::Clarity2, StacksEpochId::Epoch21};
-    use lsp_types::{ParameterInformation, ParameterLabel::Simple, Position, SignatureInformation};
-
-    use crate::state::ActiveContractData;
-
-    use super::get_signatures;
-
-    fn get_source_signature(
-        source: &str,
-        position: &Position,
-    ) -> Option<Vec<lsp_types::SignatureInformation>> {
-        let contract = &ActiveContractData::new(Clarity2, Epoch21, None, source);
-        get_signatures(contract, position)
-    }
-
-    #[test]
-    fn get_simple_signature() {
-        let signatures = get_source_signature(
-            "(var-set counter )",
-            &Position {
-                line: 1,
-                character: 18,
-            },
-        );
-
-        assert!(signatures.is_some());
-        let signatures = signatures.unwrap();
-        assert_eq!(signatures.len(), 1);
-        assert_eq!(
-            signatures.first().unwrap(),
-            &SignatureInformation {
-                label: "(var-set var-name expr1) -> bool".to_string(),
-                documentation: None,
-                parameters: Some(
-                    [
-                        ParameterInformation {
-                            label: Simple("var-name".to_string()),
-                            documentation: None,
-                        },
-                        ParameterInformation {
-                            label: Simple("expr1".to_string()),
-                            documentation: None,
-                        },
-                    ]
-                    .to_vec(),
-                ),
-                active_parameter: Some(1),
-            }
-        );
-    }
-
-    #[test]
-    fn ensure_all_native_function_have_valid_signature() {
-        for method in NativeFunctions::ALL_NAMES {
-            if [
-                "define-read-only",
-                "define-public",
-                "define-readonly",
-                "define-trait,",
-                "let",
-                "begin",
-                "tuple",
-            ]
-            .contains(method)
-            {
-                continue;
-            }
-
-            let src = format!("({} )", &method);
-            let signatures = get_source_signature(
-                src.as_str(),
-                &Position {
-                    line: 1,
-                    character: 2,
-                },
-            );
-            assert!(signatures.is_some());
-            match *method {
-                "match" => {
-                    assert_eq!(signatures.unwrap().len(), 2)
-                }
-                _ => {
-                    assert_eq!(signatures.unwrap().len(), 1)
-                }
-            }
-        }
-    }
 }

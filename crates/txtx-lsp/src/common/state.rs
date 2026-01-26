@@ -727,23 +727,6 @@ pub async fn build_state(
     //                 .await;
     //         }
 
-    // let (deployment, mut artifacts) = generate_default_deployment(
-    //     &manifest,
-    //     &StacksNetwork::Simnet,
-    //     false,
-    //     file_accessor,
-    //     Some(StacksEpochId::Epoch21),
-    // )
-    // .await?;
-
-    // let mut session = initiate_session_from_deployment(&manifest);
-    // let UpdateSessionExecutionResult { contracts, .. } = update_session_with_contracts_executions(
-    //     &mut session,
-    //     &deployment,
-    //     Some(&artifacts.asts),
-    //     false,
-    //     Some(StacksEpochId::Epoch21),
-    // );
     // for (contract_id, mut result) in contracts.into_iter() {
     //     let (_, runbook_location) = match deployment.contracts.get(&contract_id) {
     //         Some(entry) => entry,
