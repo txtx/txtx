@@ -109,4 +109,4 @@ jobs:
         run: cargo build --manifest-path ./txtx/Cargo.toml --workspace --release
 
       - name: Run Tests
-        run: cargo test --manifest-path ./txtx/Cargo.toml --workspace --exclude txtx-addon-sp1
+        run: cargo test --manifest-path ./txtx/Cargo.toml --workspace
