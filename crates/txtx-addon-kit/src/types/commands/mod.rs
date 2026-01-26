@@ -354,6 +354,7 @@ impl PreCommandSpecification {
     }
 }
 
+#[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CommandSpecification {
     pub name: String,
@@ -384,6 +385,7 @@ pub struct CommandSpecification {
     pub evaluate_post_conditions: CommandEvaluatePostConditions,
 }
 
+#[allow(unpredictable_function_pointer_comparisons)]
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct CompositeCommandSpecification {
     pub name: String,

@@ -1,0 +1,44 @@
+[graph]
+targets = []
+all-features = true
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",  # Required by unicode-ident (OSI approved, permissive)
+    "CC0-1.0",
+    "Unlicense",
+    "0BSD",
+    "MPL-2.0",
+    "CDLA-Permissive-2.0",
+]
+
+confidence-threshold = 0.8
+
+[licenses.private]
+ignore = true
+
+# ring crate is ISC + OpenSSL dual-licensed, but cargo-deny can't parse it correctly
+[[licenses.clarify]]
+crate = "ring"
+expression = "ISC AND MIT"
+license-files = [
+    { path = "LICENSE", hash = 0xbd0eed23 }
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+
