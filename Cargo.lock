@@ -15227,7 +15227,6 @@ dependencies = [
  "libsecp256k1 0.7.1",
  "pbkdf2 0.12.2",
  "serde_json",
- "tiny-hderive",
  "txtx-addon-kit",
 ]
 
@@ -15256,7 +15255,6 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "thiserror 1.0.69",
- "tiny-hderive",
  "toml 0.5.11",
  "txtx-addon-kit",
 ]
