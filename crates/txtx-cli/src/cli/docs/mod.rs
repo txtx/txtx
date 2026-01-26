@@ -5,12 +5,7 @@ use super::{Context, GetDocumentation};
 use itertools::Itertools;
 use serde_json::json;
 use txtx_addon_network_evm::EvmNetworkAddon;
-#[cfg(feature = "ovm")]
-use txtx_addon_network_ovm::OvmNetworkAddon;
-#[cfg(feature = "stacks")]
-use txtx_addon_network_stacks::StacksNetworkAddon;
 use txtx_addon_network_svm::SvmNetworkAddon;
-use txtx_addon_telegram::TelegramAddon;
 use txtx_core::kit::helpers::fs::FileLocation;
 use txtx_core::kit::indexmap::IndexMap;
 use txtx_core::kit::types::commands::{CommandOutput, PreCommandSpecification};
@@ -31,17 +26,8 @@ pub async fn handle_docs_command(_cmd: &GetDocumentation, _ctx: &Context) -> Res
     let std: Box<dyn Addon> = Box::new(StdAddon::new());
     let evm: Box<dyn Addon> = Box::new(EvmNetworkAddon::new());
     let svm: Box<dyn Addon> = Box::new(SvmNetworkAddon::new());
-    let telegram: Box<dyn Addon> = Box::new(TelegramAddon::new());
 
-    let mut addons = vec![&std, &evm, &svm, &telegram];
-    #[cfg(feature = "ovm")]
-    let ovm: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
-    #[cfg(feature = "ovm")]
-    addons.push(&ovm);
-    #[cfg(feature = "stacks")]
-    let stacks: Box<dyn Addon> = Box::new(OvmNetworkAddon::new());
-    #[cfg(feature = "stacks")]
-    addons.push(&stacks);
+    let addons = vec![&std, &evm, &svm];
 
     display_documentation(&addons);
     generate_mdx(&addons);
