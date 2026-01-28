@@ -165,16 +165,10 @@ impl SurfpoolDeployProgram {
             )
             .await?;
             if let Some(idl) = &program_deployment.idl {
-                let idl_str = match idl {
-                    IdlKind::Anchor(anchor_idl) => serde_json::to_string(anchor_idl),
-                    IdlKind::Shank(shank_idl) => serde_json::to_string(shank_idl),
-                }
-                .map_err(|e| diagnosed_error!("failed to serialize idl for rpc call: {e}"))?;
-
                 rpc_client
                     .send::<serde_json::Value>(
                         RpcRequest::Custom { method: "surfnet_registerIdl" },
-                        json!([idl_str]),
+                        json!([idl.to_json_value().unwrap()]),
                     )
                     .await
                     .map_err(|e| diagnosed_error!("failed to register idl via rpc call: {e}"))?;
