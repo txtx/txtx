@@ -15,6 +15,8 @@ use std::fmt::Display;
 // ============================================================================
 // Local type definitions that mirror shank_idl internal types
 // These are needed because shank_idl doesn't export its internal modules
+// TODO: Remove local types once shank_idl exposes them publicly
+// https://github.com/txtx/txtx/issues/382
 // ============================================================================
 
 /// Shank IDL type representation
