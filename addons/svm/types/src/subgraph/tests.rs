@@ -936,8 +936,7 @@ fn test_bad_data(bad_data: Vec<u8>, expected_type: IdlTypeDefTy, expected_err: &
 
 lazy_static! {
     pub static ref SHANK_IDL: shank_idl::idl::Idl =
-        serde_json::from_slice(&include_bytes!("../test_fixtures/shank_test_idl.json").to_vec())
-            .unwrap();
+        serde_json::from_slice(&include_bytes!("./fixtures/shank_test_idl.json").to_vec()).unwrap();
     pub static ref SHANK_TYPES: Vec<ShankIdlTypeDef> = extract_shank_types(&SHANK_IDL).unwrap();
     pub static ref SHANK_CONSTANTS: Vec<ShankIdlConst> = vec![];
 }
