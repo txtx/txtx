@@ -1,6 +1,5 @@
 //! Shank IDL codec functions for converting between Shank IDL types, txtx types, and bytes.
 //!
-//! This module provides functions similar to those in `idl.rs` but specifically for Shank IDLs.
 //! Since shank_idl doesn't export its internal types directly, we define local types that mirror
 //! the shank_idl structure for use in function signatures.
 
@@ -305,10 +304,7 @@ fn find_discriminator_field_offset(
         let field_size = get_shank_type_size_with_types(&field.ty, idl_types)?;
         offset += field_size;
     }
-    Err(format!(
-        "discriminator field of type '{}' not found in struct",
-        enum_type_name
-    ))
+    Err(format!("discriminator field of type '{}' not found in struct", enum_type_name))
 }
 
 /// Find the account type by reading the discriminator byte from the data.
@@ -333,11 +329,8 @@ pub fn find_account_by_discriminator(idl: &shank_idl::idl::Idl, data: &[u8]) -> 
     let mapping = build_discriminator_mapping(idl, &enum_type_name)?;
 
     // Build reverse mapping (account name -> expected variant index)
-    let account_to_variant: BTreeMap<String, u8> = mapping
-        .variant_to_account
-        .iter()
-        .map(|(idx, name)| (name.clone(), *idx))
-        .collect();
+    let account_to_variant: BTreeMap<String, u8> =
+        mapping.variant_to_account.iter().map(|(idx, name)| (name.clone(), *idx)).collect();
 
     // Try each account that participates in the discriminator pattern
     for account in &idl.accounts {
@@ -998,7 +991,10 @@ fn get_shank_type_size_with_types(
                     if variants.iter().all(|v| v.fields.is_none()) {
                         Ok(1)
                     } else {
-                        Err(format!("cannot determine fixed size for enum with data: {}", def.defined))
+                        Err(format!(
+                            "cannot determine fixed size for enum with data: {}",
+                            def.defined
+                        ))
                     }
                 }
                 ShankIdlTypeDefTy::Struct { fields } => {
