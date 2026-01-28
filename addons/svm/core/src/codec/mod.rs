@@ -7,6 +7,7 @@ pub mod squads;
 pub mod ui_encode;
 pub mod utils;
 
+use crate::codec::idl::IdlKind;
 use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::codec::ui_encode::message_to_formatted_tx;
 use crate::codec::utils::wait_n_slots;
@@ -1711,9 +1712,16 @@ impl ProgramArtifacts {
     }
     pub fn idl(&self) -> Result<Option<String>, Diagnostic> {
         match self {
-            ProgramArtifacts::Native(_) => Ok(None),
+            ProgramArtifacts::Native(artifacts) => artifacts
+                .idl
+                .as_ref()
+                .map(|idl| {
+                    serde_json::to_string(idl)
+                        .map_err(|e| diagnosed_error!("invalid native idl: {e}"))
+                })
+                .transpose(),
             ProgramArtifacts::Anchor(artifacts) => Some(
-                serde_json::to_string(&artifacts.idl)
+                serde_json::to_string(&IdlKind::Anchor(artifacts.idl.clone()))
                     .map_err(|e| diagnosed_error!("invalid anchor idl: {e}")),
             )
             .transpose(),

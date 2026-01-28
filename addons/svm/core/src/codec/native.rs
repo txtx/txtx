@@ -151,8 +151,7 @@ impl NativeProgramArtifacts {
             let idl_str = idl_value.as_string().ok_or(diagnosed_error!(
                 "native program artifacts value had invalid idl data: expected string"
             ))?;
-            let idl_ref =
-                IdlRef::from_str(idl_str).map_err(|e| diagnosed_error!("{e}"))?;
+            let idl_ref = IdlRef::from_str(idl_str).map_err(|e| diagnosed_error!("{e}"))?;
             Some(idl_ref.idl)
         } else {
             None

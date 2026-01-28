@@ -10,6 +10,9 @@ use anchor_lang_idl::types::{
     IdlTypeDef, IdlTypeDefGeneric, IdlTypeDefTy,
 };
 use convert_idl::classic_idl_to_anchor_idl;
+use log::debug;
+use serde::Deserialize;
+use serde::Serialize;
 use shank_idl::idl::Idl as ShankIdl;
 use solana_pubkey::Pubkey;
 use std::fmt::Display;
@@ -22,12 +25,22 @@ use txtx_addon_network_svm_types::I256;
 use txtx_addon_network_svm_types::U256;
 
 /// Represents the kind of IDL format being used.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IdlKind {
     /// Anchor IDL format (v0.30+)
     Anchor(AnchorIdl),
     /// Shank IDL format
     Shank(ShankIdl),
+}
+impl IdlKind {
+    pub fn to_json_value(&self) -> Result<serde_json::Value, Diagnostic> {
+        match self {
+            IdlKind::Anchor(idl) => serde_json::to_value(idl)
+                .map_err(|e| diagnosed_error!("failed to serialize Anchor IDL: {}", e)),
+            IdlKind::Shank(idl) => serde_json::to_value(idl)
+                .map_err(|e| diagnosed_error!("failed to serialize Shank IDL: {}", e)),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -94,6 +107,10 @@ impl IdlRef {
         }
     }
 
+    pub fn idl(&self) -> &IdlKind {
+        &self.idl
+    }
+
     pub fn get_program_pubkey(&self) -> Result<Pubkey, Diagnostic> {
         let address = match &self.idl {
             IdlKind::Anchor(idl) => idl.address.clone(),
@@ -110,23 +127,17 @@ impl IdlRef {
     pub fn get_discriminator(&self, instruction_name: &str) -> Result<Vec<u8>, Diagnostic> {
         match &self.idl {
             IdlKind::Anchor(idl) => {
-                let instruction = idl
-                    .instructions
-                    .iter()
-                    .find(|i| i.name == instruction_name)
-                    .ok_or_else(|| {
-                        diagnosed_error!("instruction '{instruction_name}' not found in IDL")
-                    })?;
+                let instruction =
+                    idl.instructions.iter().find(|i| i.name == instruction_name).ok_or_else(
+                        || diagnosed_error!("instruction '{instruction_name}' not found in IDL"),
+                    )?;
                 Ok(instruction.discriminator.clone())
             }
             IdlKind::Shank(idl) => {
-                let instruction = idl
-                    .instructions
-                    .iter()
-                    .find(|i| i.name == instruction_name)
-                    .ok_or_else(|| {
-                        diagnosed_error!("instruction '{instruction_name}' not found in IDL")
-                    })?;
+                let instruction =
+                    idl.instructions.iter().find(|i| i.name == instruction_name).ok_or_else(
+                        || diagnosed_error!("instruction '{instruction_name}' not found in IDL"),
+                    )?;
                 // Shank uses a single u8 discriminant
                 Ok(vec![instruction.discriminant.value])
             }
@@ -135,16 +146,14 @@ impl IdlRef {
 
     pub fn get_instruction(&self, instruction_name: &str) -> Result<&IdlInstruction, Diagnostic> {
         match &self.idl {
-            IdlKind::Anchor(idl) => idl
-                .instructions
-                .iter()
-                .find(|i| i.name == instruction_name)
-                .ok_or_else(|| {
+            IdlKind::Anchor(idl) => {
+                idl.instructions.iter().find(|i| i.name == instruction_name).ok_or_else(|| {
                     diagnosed_error!("instruction '{instruction_name}' not found in IDL")
-                }),
-            IdlKind::Shank(_) => Err(diagnosed_error!(
-                "get_instruction is not supported for Shank IDL"
-            )),
+                })
+            }
+            IdlKind::Shank(_) => {
+                Err(diagnosed_error!("get_instruction is not supported for Shank IDL"))
+            }
         }
     }
 
@@ -167,13 +176,10 @@ impl IdlRef {
     ) -> Result<IndexMap<String, Vec<u8>>, Diagnostic> {
         match &self.idl {
             IdlKind::Anchor(idl) => {
-                let instruction = idl
-                    .instructions
-                    .iter()
-                    .find(|i| i.name == instruction_name)
-                    .ok_or_else(|| {
-                        diagnosed_error!("instruction '{instruction_name}' not found in IDL")
-                    })?;
+                let instruction =
+                    idl.instructions.iter().find(|i| i.name == instruction_name).ok_or_else(
+                        || diagnosed_error!("instruction '{instruction_name}' not found in IDL"),
+                    )?;
                 if args.len() != instruction.args.len() {
                     return Err(diagnosed_error!(
                         "{} arguments provided for instruction {}, which expects {} arguments",
@@ -192,27 +198,23 @@ impl IdlRef {
                 for (user_arg_idx, arg) in args.iter().enumerate() {
                     let idl_arg = instruction.args.get(user_arg_idx).unwrap();
                     let encoded_arg =
-                        borsh_encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None).map_err(
-                            |e| {
+                        borsh_encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None)
+                            .map_err(|e| {
                                 diagnosed_error!(
                                     "error in argument at position {}: {}",
                                     user_arg_idx + 1,
                                     e
                                 )
-                            },
-                        )?;
+                            })?;
                     encoded_args.insert(idl_arg.name.clone(), encoded_arg);
                 }
                 Ok(encoded_args)
             }
             IdlKind::Shank(idl) => {
-                let instruction = idl
-                    .instructions
-                    .iter()
-                    .find(|i| i.name == instruction_name)
-                    .ok_or_else(|| {
-                        diagnosed_error!("instruction '{instruction_name}' not found in IDL")
-                    })?;
+                let instruction =
+                    idl.instructions.iter().find(|i| i.name == instruction_name).ok_or_else(
+                        || diagnosed_error!("instruction '{instruction_name}' not found in IDL"),
+                    )?;
                 if args.len() != instruction.args.len() {
                     return Err(diagnosed_error!(
                         "{} arguments provided for instruction {}, which expects {} arguments",
@@ -232,18 +234,19 @@ impl IdlRef {
                 let mut encoded_args = IndexMap::new();
                 for (user_arg_idx, arg) in args.iter().enumerate() {
                     let idl_arg = instruction.args.get(user_arg_idx).unwrap();
-                    let arg_type = extract_shank_instruction_arg_type(idl, instruction_name, user_arg_idx)
-                        .map_err(|e| diagnosed_error!("failed to extract arg type: {}", e))?;
-                    let encoded_arg =
-                        borsh_encode_value_to_shank_idl_type(arg, &arg_type, &idl_types).map_err(
-                            |e| {
-                                diagnosed_error!(
-                                    "error in argument at position {}: {}",
-                                    user_arg_idx + 1,
-                                    e
-                                )
-                            },
-                        )?;
+                    let arg_type =
+                        extract_shank_instruction_arg_type(idl, instruction_name, user_arg_idx)
+                            .map_err(|e| diagnosed_error!("failed to extract arg type: {}", e))?;
+                    let encoded_arg = borsh_encode_value_to_shank_idl_type(
+                        arg, &arg_type, &idl_types,
+                    )
+                    .map_err(|e| {
+                        diagnosed_error!(
+                            "error in argument at position {}: {}",
+                            user_arg_idx + 1,
+                            e
+                        )
+                    })?;
                     encoded_args.insert(idl_arg.name.clone(), encoded_arg);
                 }
                 Ok(encoded_args)
@@ -259,13 +262,10 @@ impl IdlRef {
     ) -> Result<Vec<u8>, Diagnostic> {
         match &self.idl {
             IdlKind::Anchor(idl) => {
-                let instruction = idl
-                    .instructions
-                    .iter()
-                    .find(|i| i.name == instruction_name)
-                    .ok_or_else(|| {
-                        diagnosed_error!("instruction '{instruction_name}' not found in IDL")
-                    })?;
+                let instruction =
+                    idl.instructions.iter().find(|i| i.name == instruction_name).ok_or_else(
+                        || diagnosed_error!("instruction '{instruction_name}' not found in IDL"),
+                    )?;
                 if args.len() != instruction.args.len() {
                     return Err(diagnosed_error!(
                         "{} arguments provided for instruction {}, which expects {} arguments",
@@ -284,27 +284,23 @@ impl IdlRef {
                 for (user_arg_idx, arg) in args.iter().enumerate() {
                     let idl_arg = instruction.args.get(user_arg_idx).unwrap();
                     let mut encoded_arg =
-                        borsh_encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None).map_err(
-                            |e| {
+                        borsh_encode_value_to_idl_type(arg, &idl_arg.ty, &idl_types, None)
+                            .map_err(|e| {
                                 diagnosed_error!(
                                     "error in argument at position {}: {}",
                                     user_arg_idx + 1,
                                     e
                                 )
-                            },
-                        )?;
+                            })?;
                     encoded_args.append(&mut encoded_arg);
                 }
                 Ok(encoded_args)
             }
             IdlKind::Shank(idl) => {
-                let instruction = idl
-                    .instructions
-                    .iter()
-                    .find(|i| i.name == instruction_name)
-                    .ok_or_else(|| {
-                        diagnosed_error!("instruction '{instruction_name}' not found in IDL")
-                    })?;
+                let instruction =
+                    idl.instructions.iter().find(|i| i.name == instruction_name).ok_or_else(
+                        || diagnosed_error!("instruction '{instruction_name}' not found in IDL"),
+                    )?;
                 if args.len() != instruction.args.len() {
                     return Err(diagnosed_error!(
                         "{} arguments provided for instruction {}, which expects {} arguments",
@@ -323,18 +319,19 @@ impl IdlRef {
 
                 let mut encoded_args = vec![];
                 for (user_arg_idx, arg) in args.iter().enumerate() {
-                    let arg_type = extract_shank_instruction_arg_type(idl, instruction_name, user_arg_idx)
-                        .map_err(|e| diagnosed_error!("failed to extract arg type: {}", e))?;
-                    let mut encoded_arg =
-                        borsh_encode_value_to_shank_idl_type(arg, &arg_type, &idl_types).map_err(
-                            |e| {
-                                diagnosed_error!(
-                                    "error in argument at position {}: {}",
-                                    user_arg_idx + 1,
-                                    e
-                                )
-                            },
-                        )?;
+                    let arg_type =
+                        extract_shank_instruction_arg_type(idl, instruction_name, user_arg_idx)
+                            .map_err(|e| diagnosed_error!("failed to extract arg type: {}", e))?;
+                    let mut encoded_arg = borsh_encode_value_to_shank_idl_type(
+                        arg, &arg_type, &idl_types,
+                    )
+                    .map_err(|e| {
+                        diagnosed_error!(
+                            "error in argument at position {}: {}",
+                            user_arg_idx + 1,
+                            e
+                        )
+                    })?;
                     encoded_args.append(&mut encoded_arg);
                 }
                 Ok(encoded_args)
@@ -345,13 +342,19 @@ impl IdlRef {
 
 fn parse_idl_string(idl_str: &str) -> Result<IdlKind, Diagnostic> {
     // Try parsing as Anchor IDL first (modern format)
-    if let Ok(anchor_idl) = serde_json::from_str::<AnchorIdl>(idl_str) {
-        return Ok(IdlKind::Anchor(anchor_idl));
+    match serde_json::from_str::<AnchorIdl>(idl_str) {
+        Ok(anchor_idl) => return Ok(IdlKind::Anchor(anchor_idl)),
+        Err(e) => {
+            debug!("Failed to parse as Anchor IDL: {}", e);
+        }
     }
 
     // Try parsing as Shank IDL
-    if let Ok(shank_idl) = serde_json::from_str::<ShankIdl>(idl_str) {
-        return Ok(IdlKind::Shank(shank_idl));
+    match serde_json::from_str::<ShankIdl>(idl_str) {
+        Ok(shank_idl) => return Ok(IdlKind::Shank(shank_idl)),
+        Err(e) => {
+            debug!("Failed to parse as Shank IDL: {}", e);
+        }
     }
 
     // Try parsing as classic/legacy Anchor IDL and convert to modern format
@@ -572,7 +575,9 @@ pub fn borsh_encode_value_to_idl_type(
                     // Handle two enum formats:
                     // 1. {"variant": "VariantName", "value": ...} (explicit format)
                     // 2. {"VariantName": ...} (decoded format from parse_bytes_to_value)
-                    let (enum_variant, enum_variant_value) = if let Some(variant_field) = enum_value.get("variant") {
+                    let (enum_variant, enum_variant_value) = if let Some(variant_field) =
+                        enum_value.get("variant")
+                    {
                         // Format 1: explicit variant field
                         let variant_name = variant_field.as_string().ok_or_else(|| {
                             format!(
@@ -595,12 +600,13 @@ pub fn borsh_encode_value_to_idl_type(
                                 value.to_string(),
                             ));
                         }
-                        let (variant_name, variant_value) = enum_value.iter().next().ok_or_else(|| {
-                            format!(
-                                "unable to encode value ({}) as borsh enum: empty object",
-                                value.to_string(),
-                            )
-                        })?;
+                        let (variant_name, variant_value) =
+                            enum_value.iter().next().ok_or_else(|| {
+                                format!(
+                                    "unable to encode value ({}) as borsh enum: empty object",
+                                    value.to_string(),
+                                )
+                            })?;
                         (variant_name.as_str(), variant_value)
                     };
 
@@ -932,12 +938,10 @@ fn borsh_encode_bytes_to_idl_type(
                 name
             ))
         }
-        IdlType::Generic(name) => {
-            Err(format!(
-                "cannot convert raw bytes to generic type '{}'; type must be resolved first",
-                name
-            ))
-        }
+        IdlType::Generic(name) => Err(format!(
+            "cannot convert raw bytes to generic type '{}'; type must be resolved first",
+            name
+        )),
         t => Err(format!("IDL type {:?} is not yet supported for bytes encoding", t)),
     }
 }

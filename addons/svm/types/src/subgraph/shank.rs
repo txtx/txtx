@@ -195,18 +195,188 @@ pub fn extract_shank_types(idl: &shank_idl::idl::Idl) -> Result<Vec<ShankIdlType
 }
 
 /// Extracts instruction argument type from a Shank IDL instruction
-pub fn extract_shank_instruction_arg_type(idl: &shank_idl::idl::Idl, instruction_name: &str, arg_index: usize) -> Result<ShankIdlType, String> {
-    let instruction = idl.instructions.iter()
+pub fn extract_shank_instruction_arg_type(
+    idl: &shank_idl::idl::Idl,
+    instruction_name: &str,
+    arg_index: usize,
+) -> Result<ShankIdlType, String> {
+    let instruction = idl
+        .instructions
+        .iter()
         .find(|i| i.name == instruction_name)
         .ok_or_else(|| format!("instruction '{}' not found", instruction_name))?;
 
-    let arg = instruction.args.get(arg_index)
-        .ok_or_else(|| format!("argument {} not found in instruction '{}'", arg_index, instruction_name))?;
+    let arg = instruction.args.get(arg_index).ok_or_else(|| {
+        format!("argument {} not found in instruction '{}'", arg_index, instruction_name)
+    })?;
 
     let arg_json = serde_json::to_string(&arg.ty)
         .map_err(|e| format!("failed to serialize arg type: {}", e))?;
-    serde_json::from_str(&arg_json)
-        .map_err(|e| format!("failed to deserialize arg type: {}", e))
+    serde_json::from_str(&arg_json).map_err(|e| format!("failed to deserialize arg type: {}", e))
+}
+
+// ============================================================================
+// Discriminator-based account detection
+// ============================================================================
+
+use std::collections::BTreeMap;
+
+/// Mapping from discriminator byte value to account type name
+#[derive(Debug, Clone)]
+pub struct DiscriminatorMapping {
+    /// The name of the enum type used as discriminator
+    pub enum_type_name: String,
+    /// Maps variant index (discriminator byte) to account name
+    pub variant_to_account: BTreeMap<u8, String>,
+}
+
+/// Find the account_discriminator constant in a Shank IDL.
+/// Returns the enum type name it points to, if found.
+pub fn find_account_discriminator_const(idl: &shank_idl::idl::Idl) -> Option<String> {
+    for constant in &idl.constants {
+        if constant.name == "account_discriminator" {
+            // The value is typically a quoted string like "\"AccountType\""
+            // Strip the quotes if present
+            let value = constant.value.trim();
+            return Some(if value.starts_with('"') && value.ends_with('"') {
+                value[1..value.len() - 1].to_string()
+            } else {
+                value.to_string()
+            });
+        }
+    }
+    None
+}
+
+/// Build a mapping from discriminator values to account names.
+/// This looks for an enum type with the given name and maps its variant indices
+/// to account names that match the variant names.
+pub fn build_discriminator_mapping(
+    idl: &shank_idl::idl::Idl,
+    enum_type_name: &str,
+) -> Option<DiscriminatorMapping> {
+    let types = extract_shank_types(idl).ok()?;
+
+    // Find the enum type
+    let enum_type = types.iter().find(|t| t.name == enum_type_name)?;
+
+    // Make sure it's an enum
+    let variants = match &enum_type.ty {
+        ShankIdlTypeDefTy::Enum { variants } => variants,
+        _ => return None,
+    };
+
+    // Build a set of account names for quick lookup
+    let account_names: std::collections::HashSet<String> =
+        idl.accounts.iter().map(|a| a.name.clone()).collect();
+
+    // Map variant index to account name (if the account exists)
+    let mut variant_to_account = BTreeMap::new();
+    for (index, variant) in variants.iter().enumerate() {
+        // Check if there's an account with the same name as the variant
+        if account_names.contains(&variant.name) {
+            variant_to_account.insert(index as u8, variant.name.clone());
+        }
+    }
+
+    if variant_to_account.is_empty() {
+        return None;
+    }
+
+    Some(DiscriminatorMapping { enum_type_name: enum_type_name.to_string(), variant_to_account })
+}
+
+/// Find the byte offset of a discriminator field within a struct's fields.
+/// Returns the offset in bytes where the discriminator enum field is located.
+fn find_discriminator_field_offset(
+    fields: &[ShankIdlField],
+    enum_type_name: &str,
+    idl_types: &[ShankIdlTypeDef],
+) -> Result<usize, String> {
+    let mut offset = 0;
+    for field in fields {
+        // Check if this field is the discriminator enum type
+        if let ShankIdlType::Defined(def) = &field.ty {
+            if def.defined == enum_type_name {
+                return Ok(offset);
+            }
+        }
+        // Add this field's size to the offset
+        let field_size = get_shank_type_size_with_types(&field.ty, idl_types)?;
+        offset += field_size;
+    }
+    Err(format!(
+        "discriminator field of type '{}' not found in struct",
+        enum_type_name
+    ))
+}
+
+/// Find the account type by reading the discriminator byte from the data.
+///
+/// This function locates the discriminator field within each candidate account struct
+/// and reads the discriminator byte at the correct offset. This handles cases where
+/// the discriminator is not the first field (e.g., `struct Pool { authority: Pubkey, account_type: AccountType }`).
+///
+/// Returns the account name if a matching discriminator is found.
+pub fn find_account_by_discriminator(idl: &shank_idl::idl::Idl, data: &[u8]) -> Option<String> {
+    if data.is_empty() {
+        return None;
+    }
+
+    // Get the discriminator enum name from the IDL constant
+    let enum_type_name = find_account_discriminator_const(idl)?;
+
+    // Get all type definitions (needed for offset calculation)
+    let types = extract_shank_types(idl).ok()?;
+
+    // Build the discriminator mapping (variant index -> account name)
+    let mapping = build_discriminator_mapping(idl, &enum_type_name)?;
+
+    // Build reverse mapping (account name -> expected variant index)
+    let account_to_variant: BTreeMap<String, u8> = mapping
+        .variant_to_account
+        .iter()
+        .map(|(idx, name)| (name.clone(), *idx))
+        .collect();
+
+    // Try each account that participates in the discriminator pattern
+    for account in &idl.accounts {
+        // Check if this account is in our discriminator mapping
+        let Some(&expected_variant) = account_to_variant.get(&account.name) else {
+            continue;
+        };
+
+        // Find this account's type definition to get its fields
+        let Some(account_type) = types.iter().find(|t| t.name == account.name) else {
+            continue;
+        };
+
+        // Get the struct fields
+        let fields = match &account_type.ty {
+            ShankIdlTypeDefTy::Struct { fields } => fields,
+            _ => continue,
+        };
+
+        // Calculate the offset of the discriminator field
+        let Ok(offset) = find_discriminator_field_offset(fields, &enum_type_name, &types) else {
+            continue;
+        };
+
+        // Check if we have enough data to read at this offset
+        if offset >= data.len() {
+            continue;
+        }
+
+        // Read the discriminator byte at the calculated offset
+        let discriminator = data[offset];
+
+        // Check if this matches the expected variant for this account
+        if discriminator == expected_variant {
+            return Some(account.name.clone());
+        }
+    }
+
+    None
 }
 
 // ============================================================================
@@ -237,9 +407,11 @@ pub fn shank_idl_type_to_txtx_type(
         ShankIdlType::Option(opt) => {
             Type::typed_null(shank_idl_type_to_txtx_type(&opt.option, idl_types, _idl_constants)?)
         }
-        ShankIdlType::FixedSizeOption(opt) => {
-            Type::typed_null(shank_idl_type_to_txtx_type(&opt.fixed_size_option.inner, idl_types, _idl_constants)?)
-        }
+        ShankIdlType::FixedSizeOption(opt) => Type::typed_null(shank_idl_type_to_txtx_type(
+            &opt.fixed_size_option.inner,
+            idl_types,
+            _idl_constants,
+        )?),
         ShankIdlType::Vec(vec) => {
             Type::array(shank_idl_type_to_txtx_type(&vec.vec, idl_types, _idl_constants)?)
         }
@@ -272,11 +444,13 @@ pub fn shank_idl_type_to_txtx_type(
             )?
         }
         ShankIdlType::HashMap(map) => {
-            let value_type = shank_idl_type_to_txtx_type(&map.hash_map.1, idl_types, _idl_constants)?;
+            let value_type =
+                shank_idl_type_to_txtx_type(&map.hash_map.1, idl_types, _idl_constants)?;
             Type::array(value_type)
         }
         ShankIdlType::BTreeMap(map) => {
-            let value_type = shank_idl_type_to_txtx_type(&map.b_tree_map.1, idl_types, _idl_constants)?;
+            let value_type =
+                shank_idl_type_to_txtx_type(&map.b_tree_map.1, idl_types, _idl_constants)?;
             Type::array(value_type)
         }
         ShankIdlType::HashSet(set) => {
@@ -299,10 +473,10 @@ pub fn get_expected_type_from_shank_idl_type_def_ty(
         ShankIdlTypeDefTy::Struct { fields } => {
             let mut props = vec![];
             for field in fields {
-                let field_type =
-                    shank_idl_type_to_txtx_type(&field.ty, idl_types, idl_constants).map_err(
-                        |e| format!("could not determine expected type for field '{}': {e}", field.name),
-                    )?;
+                let field_type = shank_idl_type_to_txtx_type(&field.ty, idl_types, idl_constants)
+                    .map_err(|e| {
+                    format!("could not determine expected type for field '{}': {e}", field.name)
+                })?;
                 props.push(ObjectProperty {
                     documentation: "".into(),
                     typing: field_type,
@@ -346,8 +520,7 @@ fn get_expected_type_from_shank_enum_fields(
         ShankEnumFields::Named(idl_fields) => {
             let mut props = vec![];
             for field in idl_fields {
-                let field_type =
-                    shank_idl_type_to_txtx_type(&field.ty, idl_types, idl_constants)?;
+                let field_type = shank_idl_type_to_txtx_type(&field.ty, idl_types, idl_constants)?;
                 props.push(ObjectProperty {
                     documentation: "".into(),
                     typing: field_type,
@@ -387,8 +560,11 @@ pub fn parse_bytes_to_value_with_shank_idl_type_def_ty(
     expected_type: &ShankIdlTypeDefTy,
     idl_types: &[ShankIdlTypeDef],
 ) -> Result<Value, String> {
-    let (value, rest) =
-        parse_bytes_to_value_with_shank_idl_type_def_ty_with_leftover_bytes(data, expected_type, idl_types)?;
+    let (value, rest) = parse_bytes_to_value_with_shank_idl_type_def_ty_with_leftover_bytes(
+        data,
+        expected_type,
+        idl_types,
+    )?;
     if !rest.is_empty() && rest.iter().any(|&byte| byte != 0) {
         return Err(format!(
             "expected no leftover bytes after parsing type, but found {} bytes of non-zero data",
@@ -435,8 +611,11 @@ fn parse_bytes_to_shank_struct_with_leftover_bytes<'a>(
     let mut map = IndexMap::new();
     let mut remaining_data = data;
     for field in fields {
-        let (value, rest) =
-            parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(remaining_data, &field.ty, idl_types)?;
+        let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+            remaining_data,
+            &field.ty,
+            idl_types,
+        )?;
         remaining_data = rest;
         map.insert(field.name.clone(), value);
     }
@@ -467,8 +646,11 @@ fn parse_bytes_to_shank_enum_variant_with_leftover_bytes<'a>(
             let mut values = Vec::with_capacity(types.len());
             let mut remaining_data = data;
             for ty in types {
-                let (value, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(remaining_data, ty, idl_types)?;
+                let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    remaining_data,
+                    ty,
+                    idl_types,
+                )?;
                 remaining_data = rest;
                 values.push(value);
             }
@@ -495,21 +677,27 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
         ShankIdlType::U16 => {
             let (v, rest) = data.split_at_checked(2).ok_or(bytes_err("u16"))?;
             Ok((
-                SvmValue::u16(u16::from_le_bytes(<[u8; 2]>::try_from(v).map_err(|e| err("u16", &e))?)),
+                SvmValue::u16(u16::from_le_bytes(
+                    <[u8; 2]>::try_from(v).map_err(|e| err("u16", &e))?,
+                )),
                 rest,
             ))
         }
         ShankIdlType::U32 => {
             let (v, rest) = data.split_at_checked(4).ok_or(bytes_err("u32"))?;
             Ok((
-                SvmValue::u32(u32::from_le_bytes(<[u8; 4]>::try_from(v).map_err(|e| err("u32", &e))?)),
+                SvmValue::u32(u32::from_le_bytes(
+                    <[u8; 4]>::try_from(v).map_err(|e| err("u32", &e))?,
+                )),
                 rest,
             ))
         }
         ShankIdlType::U64 => {
             let (v, rest) = data.split_at_checked(8).ok_or(bytes_err("u64"))?;
             Ok((
-                SvmValue::u64(u64::from_le_bytes(<[u8; 8]>::try_from(v).map_err(|e| err("u64", &e))?)),
+                SvmValue::u64(u64::from_le_bytes(
+                    <[u8; 8]>::try_from(v).map_err(|e| err("u64", &e))?,
+                )),
                 rest,
             ))
         }
@@ -529,21 +717,27 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
         ShankIdlType::I16 => {
             let (v, rest) = data.split_at_checked(2).ok_or(bytes_err("i16"))?;
             Ok((
-                SvmValue::i16(i16::from_le_bytes(<[u8; 2]>::try_from(v).map_err(|e| err("i16", &e))?)),
+                SvmValue::i16(i16::from_le_bytes(
+                    <[u8; 2]>::try_from(v).map_err(|e| err("i16", &e))?,
+                )),
                 rest,
             ))
         }
         ShankIdlType::I32 => {
             let (v, rest) = data.split_at_checked(4).ok_or(bytes_err("i32"))?;
             Ok((
-                SvmValue::i32(i32::from_le_bytes(<[u8; 4]>::try_from(v).map_err(|e| err("i32", &e))?)),
+                SvmValue::i32(i32::from_le_bytes(
+                    <[u8; 4]>::try_from(v).map_err(|e| err("i32", &e))?,
+                )),
                 rest,
             ))
         }
         ShankIdlType::I64 => {
             let (v, rest) = data.split_at_checked(8).ok_or(bytes_err("i64"))?;
             Ok((
-                SvmValue::i64(i64::from_le_bytes(<[u8; 8]>::try_from(v).map_err(|e| err("i64", &e))?)),
+                SvmValue::i64(i64::from_le_bytes(
+                    <[u8; 8]>::try_from(v).map_err(|e| err("i64", &e))?,
+                )),
                 rest,
             ))
         }
@@ -569,7 +763,8 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let string_len = u32::from_le_bytes(
                 <[u8; 4]>::try_from(string_len).map_err(|e| err("string length", &e))?,
             ) as usize;
-            let (string_bytes, rest) = rest.split_at_checked(string_len).ok_or(bytes_err("string"))?;
+            let (string_bytes, rest) =
+                rest.split_at_checked(string_len).ok_or(bytes_err("string"))?;
             let string_value = String::from_utf8_lossy(string_bytes).to_string();
             Ok((Value::string(string_value), rest))
         }
@@ -586,12 +781,17 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             if is_some[0] == 0 {
                 Ok((Value::null(), rest))
             } else {
-                parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(rest, &opt.option, idl_types)
+                parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    rest,
+                    &opt.option,
+                    idl_types,
+                )
             }
         }
         ShankIdlType::FixedSizeOption(opt) => {
             let inner_size = get_shank_type_size(&opt.fixed_size_option.inner)?;
-            let (inner_bytes, rest) = data.split_at_checked(inner_size).ok_or(bytes_err("fixed_size_option"))?;
+            let (inner_bytes, rest) =
+                data.split_at_checked(inner_size).ok_or(bytes_err("fixed_size_option"))?;
 
             if let Some(ref sentinel_bytes) = opt.fixed_size_option.sentinel {
                 if inner_bytes == sentinel_bytes.as_slice() {
@@ -599,7 +799,11 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 }
             }
 
-            let (value, _) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(inner_bytes, &opt.fixed_size_option.inner, idl_types)?;
+            let (value, _) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                inner_bytes,
+                &opt.fixed_size_option.inner,
+                idl_types,
+            )?;
             Ok((value, rest))
         }
         ShankIdlType::Vec(vec) => {
@@ -612,8 +816,11 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let mut remaining_data = rest;
 
             for _ in 0..vec_len {
-                let (value, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(remaining_data, &vec.vec, idl_types)?;
+                let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    remaining_data,
+                    &vec.vec,
+                    idl_types,
+                )?;
                 vec_values.push(value);
                 remaining_data = rest;
             }
@@ -625,8 +832,11 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let mut vec_values = Vec::with_capacity(len);
             let mut remaining_data = data;
             for _ in 0..len {
-                let (value, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(remaining_data, &arr.array.0, idl_types)?;
+                let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    remaining_data,
+                    &arr.array.0,
+                    idl_types,
+                )?;
                 vec_values.push(value);
                 remaining_data = rest;
             }
@@ -636,8 +846,11 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let mut values = Vec::with_capacity(tuple.tuple.len());
             let mut remaining_data = data;
             for ty in &tuple.tuple {
-                let (value, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(remaining_data, ty, idl_types)?;
+                let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    remaining_data,
+                    ty,
+                    idl_types,
+                )?;
                 values.push(value);
                 remaining_data = rest;
             }
@@ -665,10 +878,16 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let mut remaining_data = rest;
 
             for _ in 0..map_len {
-                let (key, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(remaining_data, &map.hash_map.0, idl_types)?;
-                let (value, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(rest, &map.hash_map.1, idl_types)?;
+                let (key, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    remaining_data,
+                    &map.hash_map.0,
+                    idl_types,
+                )?;
+                let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    rest,
+                    &map.hash_map.1,
+                    idl_types,
+                )?;
                 remaining_data = rest;
                 result_map.insert(key.to_string(), value);
             }
@@ -685,10 +904,16 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let mut remaining_data = rest;
 
             for _ in 0..map_len {
-                let (key, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(remaining_data, &map.b_tree_map.0, idl_types)?;
-                let (value, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(rest, &map.b_tree_map.1, idl_types)?;
+                let (key, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    remaining_data,
+                    &map.b_tree_map.0,
+                    idl_types,
+                )?;
+                let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    rest,
+                    &map.b_tree_map.1,
+                    idl_types,
+                )?;
                 remaining_data = rest;
                 result_map.insert(key.to_string(), value);
             }
@@ -705,8 +930,11 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let mut remaining_data = rest;
 
             for _ in 0..set_len {
-                let (value, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(remaining_data, &set.hash_set, idl_types)?;
+                let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    remaining_data,
+                    &set.hash_set,
+                    idl_types,
+                )?;
                 values.push(value);
                 remaining_data = rest;
             }
@@ -723,8 +951,11 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let mut remaining_data = rest;
 
             for _ in 0..set_len {
-                let (value, rest) =
-                    parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(remaining_data, &set.b_tree_set, idl_types)?;
+                let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
+                    remaining_data,
+                    &set.b_tree_set,
+                    idl_types,
+                )?;
                 values.push(value);
                 remaining_data = rest;
             }
@@ -736,6 +967,15 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
 
 /// Returns the size in bytes of a Shank IDL type (for fixed-size types).
 fn get_shank_type_size(ty: &ShankIdlType) -> Result<usize, String> {
+    get_shank_type_size_with_types(ty, &[])
+}
+
+/// Returns the size in bytes of a Shank IDL type, with access to type definitions
+/// for resolving defined types.
+fn get_shank_type_size_with_types(
+    ty: &ShankIdlType,
+    idl_types: &[ShankIdlTypeDef],
+) -> Result<usize, String> {
     match ty {
         ShankIdlType::Bool | ShankIdlType::U8 | ShankIdlType::I8 => Ok(1),
         ShankIdlType::U16 | ShankIdlType::I16 => Ok(2),
@@ -744,8 +984,31 @@ fn get_shank_type_size(ty: &ShankIdlType) -> Result<usize, String> {
         ShankIdlType::U128 | ShankIdlType::I128 => Ok(16),
         ShankIdlType::PublicKey => Ok(32),
         ShankIdlType::Array(arr) => {
-            let inner_size = get_shank_type_size(&arr.array.0)?;
+            let inner_size = get_shank_type_size_with_types(&arr.array.0, idl_types)?;
             Ok(inner_size * arr.array.1)
+        }
+        ShankIdlType::Defined(def) => {
+            let type_def = idl_types
+                .iter()
+                .find(|t| t.name == def.defined)
+                .ok_or_else(|| format!("cannot determine fixed size for type {:?}", ty))?;
+            match &type_def.ty {
+                ShankIdlTypeDefTy::Enum { variants } => {
+                    // Simple enum without data fields = 1 byte discriminator
+                    if variants.iter().all(|v| v.fields.is_none()) {
+                        Ok(1)
+                    } else {
+                        Err(format!("cannot determine fixed size for enum with data: {}", def.defined))
+                    }
+                }
+                ShankIdlTypeDefTy::Struct { fields } => {
+                    let mut size = 0;
+                    for field in fields {
+                        size += get_shank_type_size_with_types(&field.ty, idl_types)?;
+                    }
+                    Ok(size)
+                }
+            }
         }
         _ => Err(format!("cannot determine fixed size for type {:?}", ty)),
     }
@@ -762,11 +1025,7 @@ pub fn borsh_encode_value_to_shank_idl_type(
     idl_types: &[ShankIdlTypeDef],
 ) -> Result<Vec<u8>, String> {
     let mismatch_err = |expected: &str| {
-        format!(
-            "invalid value for idl type: expected {}, found {:?}",
-            expected,
-            value.get_type()
-        )
+        format!("invalid value for idl type: expected {}, found {:?}", expected, value.get_type())
     };
     let encode_err = |expected: &str, e: &dyn Display| {
         format!("unable to encode value ({}) as borsh {}: {}", value.to_string(), expected, e)
@@ -774,7 +1033,9 @@ pub fn borsh_encode_value_to_shank_idl_type(
 
     // Handle Buffer and Addon values by encoding their bytes directly
     match value {
-        Value::Buffer(bytes) => return borsh_encode_bytes_to_shank_idl_type(bytes, idl_type, idl_types),
+        Value::Buffer(bytes) => {
+            return borsh_encode_bytes_to_shank_idl_type(bytes, idl_type, idl_types)
+        }
         Value::Addon(addon_data) => {
             return borsh_encode_bytes_to_shank_idl_type(&addon_data.bytes, idl_type, idl_types)
         }
@@ -831,7 +1092,8 @@ pub fn borsh_encode_value_to_shank_idl_type(
             if value.as_null().is_some() {
                 Ok(vec![0u8]) // None discriminator
             } else {
-                let encoded_inner = borsh_encode_value_to_shank_idl_type(value, &opt.option, idl_types)?;
+                let encoded_inner =
+                    borsh_encode_value_to_shank_idl_type(value, &opt.option, idl_types)?;
                 let mut result = vec![1u8]; // Some discriminator
                 result.extend(encoded_inner);
                 Ok(result)
@@ -898,10 +1160,9 @@ pub fn borsh_encode_value_to_shank_idl_type(
             Ok(result)
         }
         ShankIdlType::Defined(def) => {
-            let typing = idl_types
-                .iter()
-                .find(|t| t.name == def.defined)
-                .ok_or_else(|| format!("unable to find type definition for {} in idl", def.defined))?;
+            let typing = idl_types.iter().find(|t| t.name == def.defined).ok_or_else(|| {
+                format!("unable to find type definition for {} in idl", def.defined)
+            })?;
 
             borsh_encode_value_to_shank_idl_type_def_ty(value, &typing.ty, idl_types)
         }
@@ -910,8 +1171,10 @@ pub fn borsh_encode_value_to_shank_idl_type(
             let mut result = (obj.len() as u32).to_le_bytes().to_vec();
             for (k, v) in obj.iter() {
                 let key_value = Value::string(k.clone());
-                let encoded_key = borsh_encode_value_to_shank_idl_type(&key_value, &map.hash_map.0, idl_types)?;
-                let encoded_value = borsh_encode_value_to_shank_idl_type(v, &map.hash_map.1, idl_types)?;
+                let encoded_key =
+                    borsh_encode_value_to_shank_idl_type(&key_value, &map.hash_map.0, idl_types)?;
+                let encoded_value =
+                    borsh_encode_value_to_shank_idl_type(v, &map.hash_map.1, idl_types)?;
                 result.extend(encoded_key);
                 result.extend(encoded_value);
             }
@@ -922,8 +1185,10 @@ pub fn borsh_encode_value_to_shank_idl_type(
             let mut result = (obj.len() as u32).to_le_bytes().to_vec();
             for (k, v) in obj.iter() {
                 let key_value = Value::string(k.clone());
-                let encoded_key = borsh_encode_value_to_shank_idl_type(&key_value, &map.b_tree_map.0, idl_types)?;
-                let encoded_value = borsh_encode_value_to_shank_idl_type(v, &map.b_tree_map.1, idl_types)?;
+                let encoded_key =
+                    borsh_encode_value_to_shank_idl_type(&key_value, &map.b_tree_map.0, idl_types)?;
+                let encoded_value =
+                    borsh_encode_value_to_shank_idl_type(v, &map.b_tree_map.1, idl_types)?;
                 result.extend(encoded_key);
                 result.extend(encoded_value);
             }
@@ -958,16 +1223,17 @@ fn borsh_encode_value_to_shank_idl_type_def_ty(
     match idl_type_def_ty {
         ShankIdlTypeDefTy::Struct { fields } => {
             let mut encoded_fields = vec![];
-            let user_values_map = value
-                .as_object()
-                .ok_or_else(|| format!("expected object for struct, found {:?}", value.get_type()))?;
+            let user_values_map = value.as_object().ok_or_else(|| {
+                format!("expected object for struct, found {:?}", value.get_type())
+            })?;
 
             for field in fields {
-                let user_value = user_values_map.get(&field.name).ok_or_else(|| {
-                    format!("missing field '{}' in object", field.name)
-                })?;
-                let encoded = borsh_encode_value_to_shank_idl_type(user_value, &field.ty, idl_types)
-                    .map_err(|e| format!("failed to encode field '{}': {}", field.name, e))?;
+                let user_value = user_values_map
+                    .get(&field.name)
+                    .ok_or_else(|| format!("missing field '{}' in object", field.name))?;
+                let encoded =
+                    borsh_encode_value_to_shank_idl_type(user_value, &field.ty, idl_types)
+                        .map_err(|e| format!("failed to encode field '{}': {}", field.name, e))?;
                 encoded_fields.extend(encoded);
             }
             Ok(encoded_fields)
@@ -980,21 +1246,21 @@ fn borsh_encode_value_to_shank_idl_type_def_ty(
             // Handle two enum formats:
             // 1. {"variant": "VariantName", "value": ...} (explicit format)
             // 2. {"VariantName": ...} (decoded format from parse_bytes_to_value)
-            let (enum_variant_name, enum_variant_value) = if let Some(variant_field) = enum_value.get("variant") {
-                let variant_name = variant_field.as_string().ok_or_else(|| {
-                    "expected variant field to be a string".to_string()
-                })?;
-                let variant_value = enum_value.get("value").ok_or_else(|| {
-                    "missing 'value' field".to_string()
-                })?;
+            let (enum_variant_name, enum_variant_value) = if let Some(variant_field) =
+                enum_value.get("variant")
+            {
+                let variant_name = variant_field
+                    .as_string()
+                    .ok_or_else(|| "expected variant field to be a string".to_string())?;
+                let variant_value =
+                    enum_value.get("value").ok_or_else(|| "missing 'value' field".to_string())?;
                 (variant_name.to_string(), variant_value.clone())
             } else {
                 if enum_value.len() != 1 {
                     return Err("expected exactly one field (the variant name)".to_string());
                 }
-                let (variant_name, variant_value) = enum_value.iter().next().ok_or_else(|| {
-                    "empty object".to_string()
-                })?;
+                let (variant_name, variant_value) =
+                    enum_value.iter().next().ok_or_else(|| "empty object".to_string())?;
                 (variant_name.clone(), variant_value.clone())
             };
 
@@ -1008,21 +1274,22 @@ fn borsh_encode_value_to_shank_idl_type_def_ty(
 
             match &expected_variant.fields {
                 Some(ShankEnumFields::Named(fields)) => {
-                    let user_values_map = enum_variant_value.as_object().ok_or_else(|| {
-                        format!("expected object for enum variant fields")
-                    })?;
+                    let user_values_map = enum_variant_value
+                        .as_object()
+                        .ok_or_else(|| format!("expected object for enum variant fields"))?;
                     for field in fields {
                         let user_value = user_values_map.get(&field.name).ok_or_else(|| {
                             format!("missing field '{}' in enum variant", field.name)
                         })?;
-                        let field_encoded = borsh_encode_value_to_shank_idl_type(user_value, &field.ty, idl_types)?;
+                        let field_encoded =
+                            borsh_encode_value_to_shank_idl_type(user_value, &field.ty, idl_types)?;
                         encoded.extend(field_encoded);
                     }
                 }
                 Some(ShankEnumFields::Tuple(types)) => {
-                    let values = enum_variant_value.as_array().ok_or_else(|| {
-                        format!("expected array for enum tuple variant")
-                    })?;
+                    let values = enum_variant_value
+                        .as_array()
+                        .ok_or_else(|| format!("expected array for enum tuple variant"))?;
                     if values.len() != types.len() {
                         return Err(format!(
                             "expected {} tuple fields, found {}",
@@ -1160,5 +1427,302 @@ fn borsh_encode_bytes_to_shank_idl_type(
             }
         }
         _ => Err(format!("cannot convert raw bytes to {:?}", idl_type)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_idl_with_discriminator() -> shank_idl::idl::Idl {
+        let idl_json = r#"{
+            "name": "test_program",
+            "version": "0.1.0",
+            "metadata": {
+                "origin": "shank",
+                "address": "TestProgram11111111111111111111111111111111"
+            },
+            "constants": [
+                {
+                    "name": "account_discriminator",
+                    "type": "string",
+                    "value": "\"AccountType\""
+                }
+            ],
+            "types": [
+                {
+                    "name": "AccountType",
+                    "type": {
+                        "kind": "enum",
+                        "variants": [
+                            { "name": "Account1" },
+                            { "name": "Account2" },
+                            { "name": "Account3" }
+                        ]
+                    }
+                },
+                {
+                    "name": "Account1",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "account_type", "type": { "defined": "AccountType" } },
+                            { "name": "data", "type": "u64" }
+                        ]
+                    }
+                },
+                {
+                    "name": "Account2",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "account_type", "type": { "defined": "AccountType" } },
+                            { "name": "value", "type": "u32" }
+                        ]
+                    }
+                }
+            ],
+            "accounts": [
+                {
+                    "name": "Account1",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "account_type", "type": { "defined": "AccountType" } },
+                            { "name": "data", "type": "u64" }
+                        ]
+                    }
+                },
+                {
+                    "name": "Account2",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "account_type", "type": { "defined": "AccountType" } },
+                            { "name": "value", "type": "u32" }
+                        ]
+                    }
+                }
+            ],
+            "instructions": []
+        }"#;
+
+        serde_json::from_str(idl_json).expect("Failed to parse test IDL")
+    }
+
+    fn create_test_idl_without_discriminator() -> shank_idl::idl::Idl {
+        let idl_json = r#"{
+            "name": "test_program",
+            "version": "0.1.0",
+            "metadata": {
+                "origin": "shank",
+                "address": "TestProgram11111111111111111111111111111111"
+            },
+            "constants": [],
+            "types": [
+                {
+                    "name": "SimpleAccount",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "data", "type": "u64" }
+                        ]
+                    }
+                }
+            ],
+            "accounts": [
+                {
+                    "name": "SimpleAccount",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "data", "type": "u64" }
+                        ]
+                    }
+                }
+            ],
+            "instructions": []
+        }"#;
+
+        serde_json::from_str(idl_json).expect("Failed to parse test IDL")
+    }
+
+    #[test]
+    fn test_find_account_discriminator_const() {
+        let idl = create_test_idl_with_discriminator();
+        let result = find_account_discriminator_const(&idl);
+        assert_eq!(result, Some("AccountType".to_string()));
+    }
+
+    #[test]
+    fn test_find_account_discriminator_const_not_found() {
+        let idl = create_test_idl_without_discriminator();
+        let result = find_account_discriminator_const(&idl);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_build_discriminator_mapping() {
+        let idl = create_test_idl_with_discriminator();
+        let mapping = build_discriminator_mapping(&idl, "AccountType");
+
+        assert!(mapping.is_some());
+        let mapping = mapping.unwrap();
+
+        assert_eq!(mapping.enum_type_name, "AccountType");
+        // Variant 0 = Account1, Variant 1 = Account2
+        // Account3 is in the enum but has no matching account, so it's not in the mapping
+        assert_eq!(mapping.variant_to_account.get(&0), Some(&"Account1".to_string()));
+        assert_eq!(mapping.variant_to_account.get(&1), Some(&"Account2".to_string()));
+        assert_eq!(mapping.variant_to_account.get(&2), None); // No Account3 account
+    }
+
+    #[test]
+    fn test_find_account_by_discriminator() {
+        let idl = create_test_idl_with_discriminator();
+
+        // Data with discriminator 0 (Account1): [0, <8 bytes of u64>]
+        let data_account1 = [0u8, 42, 0, 0, 0, 0, 0, 0, 0]; // discriminator 0, data = 42
+        let result = find_account_by_discriminator(&idl, &data_account1);
+        assert_eq!(result, Some("Account1".to_string()));
+
+        // Data with discriminator 1 (Account2): [1, <4 bytes of u32>]
+        let data_account2 = [1u8, 100, 0, 0, 0]; // discriminator 1, value = 100
+        let result = find_account_by_discriminator(&idl, &data_account2);
+        assert_eq!(result, Some("Account2".to_string()));
+
+        // Data with discriminator 2 (Account3) - no matching account
+        let data_account3 = [2u8, 0, 0, 0, 0];
+        let result = find_account_by_discriminator(&idl, &data_account3);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_find_account_by_discriminator_no_const() {
+        let idl = create_test_idl_without_discriminator();
+
+        let data = [0u8, 42, 0, 0, 0, 0, 0, 0, 0];
+        let result = find_account_by_discriminator(&idl, &data);
+        assert_eq!(result, None); // No discriminator constant, so returns None
+    }
+
+    #[test]
+    fn test_find_account_by_discriminator_empty_data() {
+        let idl = create_test_idl_with_discriminator();
+
+        let result = find_account_by_discriminator(&idl, &[]);
+        assert_eq!(result, None);
+    }
+
+    fn create_test_idl_with_discriminator_at_offset() -> shank_idl::idl::Idl {
+        // IDL where discriminator is NOT the first field
+        // Account structure: { authority: Pubkey (32 bytes), account_type: AccountType (1 byte), ... }
+        let idl_json = r#"{
+            "name": "test_program",
+            "version": "0.1.0",
+            "metadata": {
+                "origin": "shank",
+                "address": "TestProgram11111111111111111111111111111111"
+            },
+            "constants": [
+                {
+                    "name": "account_discriminator",
+                    "type": "string",
+                    "value": "\"AccountType\""
+                }
+            ],
+            "types": [
+                {
+                    "name": "AccountType",
+                    "type": {
+                        "kind": "enum",
+                        "variants": [
+                            { "name": "Pool" },
+                            { "name": "Position" }
+                        ]
+                    }
+                },
+                {
+                    "name": "Pool",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "authority", "type": "publicKey" },
+                            { "name": "account_type", "type": { "defined": "AccountType" } },
+                            { "name": "liquidity", "type": "u64" }
+                        ]
+                    }
+                },
+                {
+                    "name": "Position",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "owner", "type": "publicKey" },
+                            { "name": "account_type", "type": { "defined": "AccountType" } },
+                            { "name": "amount", "type": "u64" }
+                        ]
+                    }
+                }
+            ],
+            "accounts": [
+                {
+                    "name": "Pool",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "authority", "type": "publicKey" },
+                            { "name": "account_type", "type": { "defined": "AccountType" } },
+                            { "name": "liquidity", "type": "u64" }
+                        ]
+                    }
+                },
+                {
+                    "name": "Position",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            { "name": "owner", "type": "publicKey" },
+                            { "name": "account_type", "type": { "defined": "AccountType" } },
+                            { "name": "amount", "type": "u64" }
+                        ]
+                    }
+                }
+            ],
+            "instructions": []
+        }"#;
+
+        serde_json::from_str(idl_json).expect("Failed to parse test IDL")
+    }
+
+    #[test]
+    fn test_find_account_by_discriminator_at_offset() {
+        let idl = create_test_idl_with_discriminator_at_offset();
+
+        // Pool account: 32 bytes pubkey + 1 byte discriminator (0) + 8 bytes u64
+        // Discriminator is at byte offset 32
+        let mut pool_data = vec![0u8; 41]; // 32 + 1 + 8
+        pool_data[32] = 0; // AccountType::Pool variant index
+        let result = find_account_by_discriminator(&idl, &pool_data);
+        assert_eq!(result, Some("Pool".to_string()));
+
+        // Position account: 32 bytes pubkey + 1 byte discriminator (1) + 8 bytes u64
+        let mut position_data = vec![0u8; 41];
+        position_data[32] = 1; // AccountType::Position variant index
+        let result = find_account_by_discriminator(&idl, &position_data);
+        assert_eq!(result, Some("Position".to_string()));
+    }
+
+    #[test]
+    fn test_find_account_by_discriminator_at_offset_wrong_discriminator() {
+        let idl = create_test_idl_with_discriminator_at_offset();
+
+        // Data with discriminator at wrong position (first byte instead of byte 32)
+        // This should not match because we read from the correct offset
+        let mut data = vec![0u8; 41];
+        data[0] = 0; // Wrong position - this is the pubkey, not the discriminator
+        data[32] = 99; // Invalid discriminator value at correct position
+        let result = find_account_by_discriminator(&idl, &data);
+        assert_eq!(result, None);
     }
 }
