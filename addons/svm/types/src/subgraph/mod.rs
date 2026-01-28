@@ -22,6 +22,7 @@ use txtx_addon_kit::{
 mod event;
 pub mod idl;
 mod pda;
+pub mod shank;
 pub mod token_account;
 
 pub use event::EventSubgraphSource;

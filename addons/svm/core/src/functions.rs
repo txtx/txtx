@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{codec::utils::get_seeds_from_value, typing::anchor::types::Idl};
+use crate::codec::utils::get_seeds_from_value;
 
 use crate::constants::{DEFAULT_NATIVE_TARGET_PATH, DEFAULT_SHANK_IDL_PATH};
 use solana_pubkey::Pubkey;
@@ -490,12 +490,8 @@ impl FunctionImplementation for GetInstructionDataFromIdl {
         let arguments =
             args.get(2).and_then(|a| Some(a.as_array().unwrap().to_vec())).unwrap_or(vec![]);
 
-        // let idl: Idl = serde_json::from_slice(&idl_bytes)
-        //     .map_err(|e| to_diag(fn_spec, format!("invalid idl: {e}")))?;
-        let idl: Idl = serde_json::from_str(idl_str)
+        let idl_ref = IdlRef::from_str(idl_str)
             .map_err(|e| to_diag(fn_spec, format!("invalid idl: {e}")))?;
-
-        let idl_ref = IdlRef::from_idl(idl);
 
         let mut data =
             idl_ref.get_discriminator(&instruction_name).map_err(|e| to_diag(fn_spec, e))?;

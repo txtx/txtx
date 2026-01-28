@@ -1,0 +1,1327 @@
+{
+  "version": "0.1.0",
+  "name": "swap_program",
+  "instructions": [
+    {
+      "name": "ProcessPrimitives",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Payer account"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Account to initialize"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "primitives",
+          "type": {
+            "defined": "AllPrimitives"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "ProcessStrings",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Data account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "strings",
+          "type": {
+            "defined": "StringContainer"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    },
+    {
+      "name": "ProcessBytes",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "dataAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Data account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "bytes",
+          "type": {
+            "defined": "BytesContainer"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 2
+      }
+    },
+    {
+      "name": "ProcessPubkeys",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Target account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pubkeys",
+          "type": {
+            "defined": "PubkeyContainer"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 3
+      }
+    },
+    {
+      "name": "ProcessOptions",
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Owner"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Target account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "options",
+          "type": {
+            "defined": "OptionPrimitives"
+          }
+        },
+        {
+          "name": "optionString",
+          "type": {
+            "defined": "OptionString"
+          }
+        },
+        {
+          "name": "optionNested",
+          "type": {
+            "defined": "OptionNested"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 4
+      }
+    },
+    {
+      "name": "ProcessVecs",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Target account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "vecs",
+          "type": {
+            "defined": "VecPrimitives"
+          }
+        },
+        {
+          "name": "vecStrings",
+          "type": {
+            "defined": "VecStrings"
+          }
+        },
+        {
+          "name": "vecNested",
+          "type": {
+            "defined": "VecNested"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 5
+      }
+    },
+    {
+      "name": "ProcessArrays",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Target account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "arrays",
+          "type": {
+            "defined": "ArrayContainer"
+          }
+        },
+        {
+          "name": "boolArray",
+          "type": {
+            "defined": "BoolArray"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 6
+      }
+    },
+    {
+      "name": "ProcessEnums",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Target account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "status",
+          "type": {
+            "defined": "Status"
+          }
+        },
+        {
+          "name": "priority",
+          "type": {
+            "defined": "Priority"
+          }
+        },
+        {
+          "name": "singleValue",
+          "type": {
+            "defined": "SingleValueEnum"
+          }
+        },
+        {
+          "name": "structVariant",
+          "type": {
+            "defined": "StructVariantEnum"
+          }
+        },
+        {
+          "name": "mixed",
+          "type": {
+            "defined": "MixedEnum"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 7
+      }
+    },
+    {
+      "name": "ProcessNested",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Target account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "nested",
+          "type": {
+            "defined": "NestedStructs"
+          }
+        },
+        {
+          "name": "complex",
+          "type": {
+            "defined": "ComplexContainer"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 8
+      }
+    },
+    {
+      "name": "ProcessAccountState",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Target account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "state",
+          "type": {
+            "defined": "TestAccountState"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 9
+      }
+    },
+    {
+      "name": "ProcessDirectPrimitives",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Payer"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "boolVal",
+          "type": "bool"
+        },
+        {
+          "name": "u8Val",
+          "type": "u8"
+        },
+        {
+          "name": "u16Val",
+          "type": "u16"
+        },
+        {
+          "name": "u32Val",
+          "type": "u32"
+        },
+        {
+          "name": "u64Val",
+          "type": "u64"
+        },
+        {
+          "name": "u128Val",
+          "type": "u128"
+        },
+        {
+          "name": "i8Val",
+          "type": "i8"
+        },
+        {
+          "name": "i16Val",
+          "type": "i16"
+        },
+        {
+          "name": "i32Val",
+          "type": "i32"
+        },
+        {
+          "name": "i64Val",
+          "type": "i64"
+        },
+        {
+          "name": "i128Val",
+          "type": "i128"
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 10
+      }
+    },
+    {
+      "name": "ProcessDirectString",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "value",
+          "type": "string"
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 11
+      }
+    },
+    {
+      "name": "ProcessDirectVec",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "values",
+          "type": {
+            "vec": "u64"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 12
+      }
+    },
+    {
+      "name": "ProcessDirectOption",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "maybeValue",
+          "type": {
+            "option": "u64"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 13
+      }
+    },
+    {
+      "name": "ProcessDirectArray",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "fixedData",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 14
+      }
+    },
+    {
+      "name": "ProcessInstructionData",
+      "accounts": [
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Authority"
+          ]
+        },
+        {
+          "name": "account",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "simple",
+          "type": {
+            "defined": "SimpleInstructionData"
+          }
+        },
+        {
+          "name": "complex",
+          "type": {
+            "defined": "ComplexInstructionData"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 15
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "AllPrimitives",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "boolField",
+            "type": "bool"
+          },
+          {
+            "name": "u8Field",
+            "type": "u8"
+          },
+          {
+            "name": "u16Field",
+            "type": "u16"
+          },
+          {
+            "name": "u32Field",
+            "type": "u32"
+          },
+          {
+            "name": "u64Field",
+            "type": "u64"
+          },
+          {
+            "name": "u128Field",
+            "type": "u128"
+          },
+          {
+            "name": "i8Field",
+            "type": "i8"
+          },
+          {
+            "name": "i16Field",
+            "type": "i16"
+          },
+          {
+            "name": "i32Field",
+            "type": "i32"
+          },
+          {
+            "name": "i64Field",
+            "type": "i64"
+          },
+          {
+            "name": "i128Field",
+            "type": "i128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StringContainer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "label",
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BytesContainer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "name": "rawBytes",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PubkeyContainer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "authority",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "destination",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "OptionPrimitives",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "optionalU8",
+            "type": {
+              "option": "u8"
+            }
+          },
+          {
+            "name": "optionalU64",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "optionalU128",
+            "type": {
+              "option": "u128"
+            }
+          },
+          {
+            "name": "optionalBool",
+            "type": {
+              "option": "bool"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "OptionString",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "optionalString",
+            "type": {
+              "option": "string"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Point",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "x",
+            "type": "i32"
+          },
+          {
+            "name": "y",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OptionNested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "optionalPoint",
+            "type": {
+              "option": {
+                "defined": "Point"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VecPrimitives",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "u8Vec",
+            "type": "bytes"
+          },
+          {
+            "name": "u64Vec",
+            "type": {
+              "vec": "u64"
+            }
+          },
+          {
+            "name": "boolVec",
+            "type": {
+              "vec": "bool"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VecStrings",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "strings",
+            "type": {
+              "vec": "string"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "VecNested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "points",
+            "type": {
+              "vec": {
+                "defined": "Point"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ArrayContainer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "smallArray",
+            "type": {
+              "array": [
+                "u8",
+                4
+              ]
+            }
+          },
+          {
+            "name": "mediumArray",
+            "type": {
+              "array": [
+                "u32",
+                8
+              ]
+            }
+          },
+          {
+            "name": "largeArray",
+            "type": {
+              "array": [
+                "u64",
+                16
+              ]
+            }
+          },
+          {
+            "name": "pubkeyLike",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "BoolArray",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "flags",
+            "type": {
+              "array": [
+                "bool",
+                8
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "NestedStructs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "point",
+            "type": {
+              "defined": "Point"
+            }
+          },
+          {
+            "name": "primitives",
+            "type": {
+              "defined": "AllPrimitives"
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": "Status"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ComplexContainer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "point",
+            "type": {
+              "defined": "Point"
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": "Status"
+            }
+          },
+          {
+            "name": "optionalPoint",
+            "type": {
+              "option": {
+                "defined": "Point"
+              }
+            }
+          },
+          {
+            "name": "points",
+            "type": {
+              "vec": {
+                "defined": "Point"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TestAccountState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "discriminator",
+            "type": {
+              "array": [
+                "u8",
+                8
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "authority",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "balance",
+            "type": "u64"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": "Status"
+            }
+          },
+          {
+            "name": "lastUpdated",
+            "type": {
+              "option": "i64"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SimpleInstructionData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "count",
+            "type": "u32"
+          },
+          {
+            "name": "flag",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ComplexInstructionData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amounts",
+            "type": {
+              "vec": "u64"
+            }
+          },
+          {
+            "name": "label",
+            "type": "string"
+          },
+          {
+            "name": "optionalPoint",
+            "type": {
+              "option": {
+                "defined": "Point"
+              }
+            }
+          },
+          {
+            "name": "data",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SupportDex",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Pump"
+          },
+          {
+            "name": "PumpAmm"
+          },
+          {
+            "name": "RaydiumAmm"
+          },
+          {
+            "name": "RaydiumCP"
+          },
+          {
+            "name": "RaydiumCLMM"
+          },
+          {
+            "name": "DLMM"
+          },
+          {
+            "name": "WhirlPool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Status",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Inactive"
+          },
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Paused"
+          },
+          {
+            "name": "Completed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Priority",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Low"
+          },
+          {
+            "name": "Medium"
+          },
+          {
+            "name": "High"
+          },
+          {
+            "name": "Critical"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SingleValueEnum",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Empty"
+          },
+          {
+            "name": "WithU64",
+            "fields": [
+              "u64"
+            ]
+          },
+          {
+            "name": "WithU128",
+            "fields": [
+              "u128"
+            ]
+          },
+          {
+            "name": "WithBool",
+            "fields": [
+              "bool"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "StructVariantEnum",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "WithAmount",
+            "fields": [
+              {
+                "name": "amount",
+                "type": "u64"
+              }
+            ]
+          },
+          {
+            "name": "WithCoordinates",
+            "fields": [
+              {
+                "name": "x",
+                "type": "i32"
+              },
+              {
+                "name": "y",
+                "type": "i32"
+              }
+            ]
+          },
+          {
+            "name": "WithDetails",
+            "fields": [
+              {
+                "name": "id",
+                "type": "u32"
+              },
+              {
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "name": "active",
+                "type": "bool"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "MixedEnum",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Unit"
+          },
+          {
+            "name": "Data",
+            "fields": [
+              {
+                "name": "value",
+                "type": "u64"
+              },
+              {
+                "name": "flag",
+                "type": "bool"
+              }
+            ]
+          },
+          {
+            "name": "Complex",
+            "fields": [
+              {
+                "name": "point",
+                "type": {
+                  "defined": "Point"
+                }
+              },
+              {
+                "name": "label",
+                "type": "string"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "D7Nv2Yt9i7r1xSGgTZo9zGHgZ8wwiAX13nFodBXdpox4"
+  }
+}

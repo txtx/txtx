@@ -969,7 +969,14 @@ impl CommandImplementation for DeployProgram {
                         .and_then(|v| v.as_string())
                     {
                         if let Ok(idl_ref) = IdlRef::from_str(idl) {
-                            let value = serde_json::to_value(&idl_ref.idl).unwrap();
+                            let value = match idl_ref.kind() {
+                                crate::codec::idl::IdlKind::Anchor(anchor_idl) => {
+                                    serde_json::to_value(anchor_idl).unwrap()
+                                }
+                                crate::codec::idl::IdlKind::Shank(shank_idl) => {
+                                    serde_json::to_value(shank_idl).unwrap()
+                                }
+                            };
                             let params = serde_json::to_value(&vec![value]).unwrap();
 
                             let router = cloud_service_context

@@ -30,6 +30,7 @@ lazy_static = "1.4.0"
 serde = "1"
 serde_json = "1"
 serde_derive = "1"
+shank_idl = "0.4.6"
 
 [dev-dependencies]
 test-case = "3.3"
