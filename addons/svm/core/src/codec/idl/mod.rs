@@ -125,6 +125,8 @@ impl IdlRef {
                     diagnosed_error!("instruction '{instruction_name}' not found in IDL")
                 })
             }
+            // TODO: Once we have internal types from shank (https://github.com/txtx/txtx/issues/382)
+            // we should expand this to return a Shank instruction as well.
             IdlKind::Shank(_) => {
                 Err(diagnosed_error!("get_instruction is not supported for Shank IDL"))
             }
