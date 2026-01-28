@@ -236,8 +236,7 @@ pub struct DiscriminatorMapping {
 pub fn find_account_discriminator_const(idl: &shank_idl::idl::Idl) -> Option<String> {
     for constant in &idl.constants {
         if constant.name == "account_discriminator" {
-            // The value is typically a quoted string like "\"AccountType\""
-            // Strip the quotes if present
+            // Strip the quotes if encoded like "\"AccountType\""
             let value = constant.value.trim();
             return Some(if value.starts_with('"') && value.ends_with('"') {
                 value[1..value.len() - 1].to_string()
