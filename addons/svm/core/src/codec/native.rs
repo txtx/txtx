@@ -9,10 +9,11 @@ use txtx_addon_kit::{
         types::{ObjectType, Value},
     },
 };
+use txtx_addon_network_svm_types::subgraph::idl::IdlKind;
 
 use crate::typing::SvmValue;
 
-use super::idl::{IdlKind, IdlRef};
+use super::idl::IdlRef;
 
 pub struct NativeProgramArtifacts {
     /// The binary of the native program, stored for a native project at `target/deploy/<program_name>.so`.

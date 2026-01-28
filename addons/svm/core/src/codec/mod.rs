@@ -7,7 +7,6 @@ pub mod squads;
 pub mod ui_encode;
 pub mod utils;
 
-use crate::codec::idl::IdlKind;
 use crate::codec::ui_encode::get_formatted_transaction_meta_description;
 use crate::codec::ui_encode::message_to_formatted_tx;
 use crate::codec::utils::wait_n_slots;
@@ -33,6 +32,7 @@ use solana_signer::Signer;
 use solana_system_interface::instruction as system_instruction;
 use solana_system_interface::MAX_PERMITTED_DATA_LENGTH;
 use txtx_addon_kit::types::frontend::LogDispatcher;
+use txtx_addon_network_svm_types::subgraph::idl::IdlKind;
 use crate::typing::DeploymentTransactionType;
 use solana_loader_v3_interface::instruction as bpf_loader_upgradeable;
 use solana_instruction::Instruction;

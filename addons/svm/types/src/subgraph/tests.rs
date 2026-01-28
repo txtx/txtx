@@ -1,7 +1,7 @@
 use crate::{
     subgraph::{
-        idl::parse_bytes_to_value_with_expected_idl_type_def_ty,
-        shank::{
+        idl::anchor::parse_bytes_to_value_with_expected_idl_type_def_ty,
+        idl::shank::{
             borsh_encode_value_to_shank_idl_type, extract_shank_types,
             parse_bytes_to_value_with_shank_idl_type_def_ty,
             parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes,

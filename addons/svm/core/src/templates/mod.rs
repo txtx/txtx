@@ -153,9 +153,10 @@ pub fn get_interpolated_anchor_subgraph_template(
     let idl_ref =
         IdlRef::from_str(idl_str).map_err(|e| format!("failed to parse program idl: {e}"))?;
 
-    let idl = idl_ref.as_anchor().ok_or_else(|| {
-        "expected Anchor IDL for subgraph template, but found a different IDL format".to_string()
-    })?;
+    let idl = match idl_ref.as_anchor() {
+        Some(idl) => idl,
+        None => return Ok(None),
+    };
 
     let subgraph_runbook = if idl.events.is_empty() {
         None

@@ -33,9 +33,9 @@ use txtx_addon_kit::types::types::{
 };
 use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
+use txtx_addon_network_svm_types::subgraph::idl::IdlKind;
 use txtx_addon_network_svm_types::{SVM_KEYPAIR, SVM_PUBKEY};
 
-use crate::codec::idl::IdlKind;
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::utils::cheatcode_deploy_program;
 use crate::codec::{DeploymentTransaction, ProgramArtifacts, UpgradeableProgramDeployer};

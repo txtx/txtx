@@ -11,8 +11,9 @@ use txtx_addon_kit::{
 };
 
 use crate::subgraph::{
-    idl::parse_bytes_to_value_with_expected_idl_type_def_ty, IntrinsicField, SubgraphRequest,
-    SubgraphSourceType, SLOT_INTRINSIC_FIELD, TRANSACTION_SIGNATURE_INTRINSIC_FIELD,
+    idl::anchor::parse_bytes_to_value_with_expected_idl_type_def_ty, IntrinsicField,
+    SubgraphRequest, SubgraphSourceType, SLOT_INTRINSIC_FIELD,
+    TRANSACTION_SIGNATURE_INTRINSIC_FIELD,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

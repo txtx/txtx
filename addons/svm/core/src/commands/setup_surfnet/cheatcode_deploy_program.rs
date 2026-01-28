@@ -12,10 +12,10 @@ use txtx_addon_kit::{
         AuthorizationContext,
     },
 };
-use txtx_addon_network_svm_types::SvmValue;
+use txtx_addon_network_svm_types::{subgraph::idl::IdlKind, SvmValue};
 
 use crate::{
-    codec::{idl::IdlKind, utils::cheatcode_deploy_program, validate_program_so},
+    codec::{utils::cheatcode_deploy_program, validate_program_so},
     constants::DEPLOY_PROGRAM,
 };
 

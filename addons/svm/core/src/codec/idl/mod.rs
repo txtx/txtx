@@ -11,37 +11,17 @@ use anchor_lang_idl::types::{
 };
 use convert_idl::classic_idl_to_anchor_idl;
 use log::debug;
-use serde::Deserialize;
-use serde::Serialize;
 use shank_idl::idl::Idl as ShankIdl;
 use solana_pubkey::Pubkey;
 use std::fmt::Display;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::{helpers::fs::FileLocation, indexmap::IndexMap, types::types::Value};
-use txtx_addon_network_svm_types::subgraph::shank::{
+use txtx_addon_network_svm_types::subgraph::idl::shank::{
     borsh_encode_value_to_shank_idl_type, extract_shank_instruction_arg_type, extract_shank_types,
 };
+use txtx_addon_network_svm_types::subgraph::idl::IdlKind;
 use txtx_addon_network_svm_types::I256;
 use txtx_addon_network_svm_types::U256;
-
-/// Represents the kind of IDL format being used.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum IdlKind {
-    /// Anchor IDL format (v0.30+)
-    Anchor(AnchorIdl),
-    /// Shank IDL format
-    Shank(ShankIdl),
-}
-impl IdlKind {
-    pub fn to_json_value(&self) -> Result<serde_json::Value, Diagnostic> {
-        match self {
-            IdlKind::Anchor(idl) => serde_json::to_value(idl)
-                .map_err(|e| diagnosed_error!("failed to serialize Anchor IDL: {}", e)),
-            IdlKind::Shank(idl) => serde_json::to_value(idl)
-                .map_err(|e| diagnosed_error!("failed to serialize Shank IDL: {}", e)),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct IdlRef {
