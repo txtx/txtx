@@ -1135,12 +1135,12 @@ Returns the logical negation of the given boolean value.
 ---
 
 
-## base64_decode {{ tag: 'function' }}
+## decode_base64 {{ tag: 'function' }}
 
 <Row>
   <Col>
 
-`base64_decode` decodes a base64 encoded string and returns the result as a hex string.
+`decode_base64` decodes a base64 encoded string and returns the result as a hex string.
 
 ### Inputs
 
@@ -1163,12 +1163,12 @@ Returns the logical negation of the given boolean value.
 </Properties>
 
 
-<CodeGroup title="Example using base64_decode">
+<CodeGroup title="Example using decode_base64">
 
 
 ```hcl {{ title: 'main.tx' }}
 output "decoded" { 
-    value = base64_decode("SGVsbG8gd29ybGQh")
+    value = decode_base64("SGVsbG8gd29ybGQh")
 }
 > decoded: 0x48656c6c6f20776f726c6421
 

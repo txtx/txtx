@@ -12,11 +12,11 @@ use txtx_addon_kit::{
 lazy_static! {
     pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
         Base64Decode => {
-            name: "base64_decode",
-            documentation: "`base64_decode` decodes a base64 encoded string and returns the result as a hex string.",
+            name: "decode_base64",
+            documentation: "`decode_base64` decodes a base64 encoded string and returns the result as a hex string.",
             example: indoc!{r#"
-            output "decoded" { 
-                value = base64_decode("SGVsbG8gd29ybGQh")
+            output "decoded" {
+                value = decode_base64("SGVsbG8gd29ybGQh")
             }
             > decoded: 0x48656c6c6f20776f726c6421
           "#},
