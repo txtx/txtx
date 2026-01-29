@@ -10,28 +10,52 @@ use txtx_addon_kit::{
 };
 
 lazy_static! {
-    pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![define_function! {
-        Base64Decode => {
-            name: "decode_base64",
-            documentation: "`decode_base64` decodes a base64 encoded string and returns the result as a hex string.",
-            example: indoc!{r#"
-            output "decoded" {
-                value = decode_base64("SGVsbG8gd29ybGQh")
-            }
-            > decoded: 0x48656c6c6f20776f726c6421
-          "#},
-            inputs: [
-                base64_string: {
-                    documentation: "The base64 string to decode.",
-                    typing: vec![Type::string()]
+    pub static ref FUNCTIONS: Vec<FunctionSpecification> = vec![
+        define_function! {
+            Base64Decode => {
+                name: "decode_base64",
+                documentation: "`decode_base64` decodes a base64 encoded string and returns the result as a buffer.",
+                example: indoc!{r#"
+                output "decoded" {
+                    value = decode_base64("SGVsbG8gd29ybGQh")
                 }
-            ],
-            output: {
-                documentation: "The decoded base64 string, as a hex string.",
-                typing: Type::string()
-            },
-        }
-    },];
+                > decoded: 0x48656c6c6f20776f726c6421
+              "#},
+                inputs: [
+                    base64_string: {
+                        documentation: "The base64 string to decode.",
+                        typing: vec![Type::string()]
+                    }
+                ],
+                output: {
+                    documentation: "The decoded base64 string, as a buffer.",
+                    typing: Type::buffer()
+                },
+            }
+        },
+        define_function! {
+            Base64Encode => {
+                name: "encode_base64",
+                documentation: "`encode_base64` encodes a buffer or hex string as a base64 string.",
+                example: indoc!{r#"
+                output "encoded" {
+                    value = encode_base64("0x48656c6c6f20776f726c6421")
+                }
+                > encoded: SGVsbG8gd29ybGQh
+              "#},
+                inputs: [
+                    value: {
+                        documentation: "The buffer or hex string to encode.",
+                        typing: vec![Type::buffer(), Type::string(), Type::addon("any")]
+                    }
+                ],
+                output: {
+                    documentation: "The input, encoded as a base64 string.",
+                    typing: Type::string()
+                },
+            }
+        },
+    ];
 }
 
 pub struct Base64Decode;
@@ -56,7 +80,32 @@ impl FunctionImplementation for Base64Decode {
                 encoded, e
             ))
         })?;
-        let decoded = txtx_addon_kit::hex::encode(decoded);
-        Ok(Value::string(format!("0x{decoded}")))
+        Ok(Value::buffer(decoded))
+    }
+}
+
+pub struct Base64Encode;
+impl FunctionImplementation for Base64Encode {
+    fn check_instantiability(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        _args: &Vec<Type>,
+    ) -> Result<Type, Diagnostic> {
+        unimplemented!()
+    }
+
+    fn run(
+        _fn_spec: &FunctionSpecification,
+        _auth_ctx: &AuthorizationContext,
+        args: &Vec<Value>,
+    ) -> Result<Value, Diagnostic> {
+        let bytes = args
+            .get(0)
+            .unwrap()
+            .get_buffer_bytes_result()
+            .map_err(|e| Diagnostic::error_from_string(e))?;
+
+        let encoded = general_purpose::STANDARD.encode(bytes);
+        Ok(Value::string(encoded))
     }
 }
