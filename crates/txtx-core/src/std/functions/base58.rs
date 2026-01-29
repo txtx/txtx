@@ -110,3 +110,73 @@ impl FunctionImplementation for Base58Decode {
         Ok(Value::buffer(decoded))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use test_case::test_case;
+    use txtx_addon_kit::helpers::fs::FileLocation;
+    use txtx_addon_kit::hex as kit_hex;
+
+    use super::*;
+
+    fn get_spec_by_name(name: &str) -> FunctionSpecification {
+        FUNCTIONS.iter().find(|f| f.name == name).cloned().unwrap()
+    }
+
+    fn dummy_auth_ctx() -> AuthorizationContext {
+        AuthorizationContext { workspace_location: FileLocation::working_dir() }
+    }
+
+    fn hex_to_buffer(hex: &str) -> Value {
+        Value::buffer(kit_hex::decode(hex).unwrap())
+    }
+
+    #[test_case(
+        hex_to_buffer("aca1e2ae0c54a9a8f12da5dde27a93bb5ff94aeef722b1e474a16318234f83c8"),
+        Value::string("CctJBuDbaFtojUWfQ3iEcq77eFDjojCtoS4Q59f6bUtF".to_string());
+        "buffer 32 bytes"
+    )]
+    #[test_case(
+        Value::string("0xaca1e2ae0c54a9a8f12da5dde27a93bb5ff94aeef722b1e474a16318234f83c8".to_string()),
+        Value::string("CctJBuDbaFtojUWfQ3iEcq77eFDjojCtoS4Q59f6bUtF".to_string());
+        "hex string 32 bytes"
+    )]
+    #[test_case(
+        Value::buffer(vec![0]),
+        Value::string("1".to_string());
+        "single zero byte"
+    )]
+    #[test_case(
+        Value::buffer(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+        Value::string("8DfbjXLth7APvt3qQPgtf".to_string());
+        "sequential bytes"
+    )]
+    #[test_case(
+        Value::buffer(vec![0, 0, 0, 1]),
+        Value::string("1112".to_string());
+        "leading zeros preserved"
+    )]
+    fn test_base58_encode_decode_roundtrip(input: Value, expected_encoded: Value) {
+        let encode_spec = get_spec_by_name("encode_base58");
+        let decode_spec = get_spec_by_name("decode_base58");
+        let auth_ctx = dummy_auth_ctx();
+
+        // Encode the input and verify it matches expected
+        let encoded = (encode_spec.runner)(&encode_spec, &auth_ctx, &vec![input.clone()]).unwrap();
+        assert_eq!(encoded, expected_encoded, "encoded value mismatch");
+
+        // Decode the result and verify we get back the original bytes
+        let decoded = (decode_spec.runner)(&decode_spec, &auth_ctx, &vec![encoded]).unwrap();
+        let expected_buffer = Value::buffer(input.get_buffer_bytes_result().unwrap());
+        assert_eq!(decoded, expected_buffer, "decoded value mismatch");
+    }
+
+    #[test]
+    fn test_decode_base58_invalid_input() {
+        let fn_spec = get_spec_by_name("decode_base58");
+        // "0", "O", "I", "l" are not valid in base58
+        let args = vec![Value::string("0OIl".to_string())];
+        let result = (fn_spec.runner)(&fn_spec, &dummy_auth_ctx(), &args);
+        assert!(result.is_err());
+    }
+}

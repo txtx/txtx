@@ -111,3 +111,72 @@ impl FunctionImplementation for DecodeHex {
         Ok(Value::buffer(bytes))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use test_case::test_case;
+    use txtx_addon_kit::helpers::fs::FileLocation;
+
+    use super::*;
+
+    fn get_spec_by_name(name: &str) -> FunctionSpecification {
+        FUNCTIONS.iter().find(|f| f.name == name).cloned().unwrap()
+    }
+
+    fn dummy_auth_ctx() -> AuthorizationContext {
+        AuthorizationContext { workspace_location: FileLocation::working_dir() }
+    }
+
+    #[test_case(
+        Value::buffer(b"hello, world".to_vec()),
+        Value::string("0x68656c6c6f2c20776f726c64".to_string());
+        "buffer hello world"
+    )]
+    #[test_case(
+        Value::string("0x68656c6c6f2c20776f726c64".to_string()),
+        Value::string("0x68656c6c6f2c20776f726c64".to_string());
+        "hex string passthrough"
+    )]
+    #[test_case(
+        Value::buffer(vec![]),
+        Value::string("0x".to_string());
+        "empty buffer"
+    )]
+    #[test_case(
+        Value::buffer(vec![255]),
+        Value::string("0xff".to_string());
+        "single byte max value"
+    )]
+    #[test_case(
+        Value::buffer(vec![0]),
+        Value::string("0x00".to_string());
+        "single byte zero"
+    )]
+    #[test_case(
+        Value::buffer(vec![0, 1, 127, 128, 254, 255]),
+        Value::string("0x00017f80feff".to_string());
+        "binary data with edge bytes"
+    )]
+    fn test_hex_encode_decode_roundtrip(input: Value, expected_encoded: Value) {
+        let encode_spec = get_spec_by_name("encode_hex");
+        let decode_spec = get_spec_by_name("decode_hex");
+        let auth_ctx = dummy_auth_ctx();
+
+        // Encode the input and verify it matches expected
+        let encoded = (encode_spec.runner)(&encode_spec, &auth_ctx, &vec![input.clone()]).unwrap();
+        assert_eq!(encoded, expected_encoded, "encoded value mismatch");
+
+        // Decode the result and verify we get back the original bytes
+        let decoded = (decode_spec.runner)(&decode_spec, &auth_ctx, &vec![encoded]).unwrap();
+        let expected_buffer = Value::buffer(input.get_buffer_bytes_result().unwrap());
+        assert_eq!(decoded, expected_buffer, "decoded value mismatch");
+    }
+
+    #[test_case(Value::string("0xGGGG".to_string()); "invalid hex chars")]
+    #[test_case(Value::string("0x123".to_string()); "odd length hex")]
+    fn test_decode_hex_invalid_input(input: Value) {
+        let fn_spec = get_spec_by_name("decode_hex");
+        let result = (fn_spec.runner)(&fn_spec, &dummy_auth_ctx(), &vec![input]);
+        assert!(result.is_err());
+    }
+}
