@@ -6,20 +6,20 @@ export const metadata = {
 # Standard Library Base64 Functions {{ id: "std-functions" }}
 
 
-## decode_base64 {{ tag: 'function' }}
+## encode_base64 {{ tag: 'function' }}
 
 <Row>
   <Col>
 
-`decode_base64` decodes a base64 encoded string and returns the result as a hex string.
+`encode_base64` encodes a buffer or string as a base64 string.
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="base64_string" required="optional" type="string">
-    The base64 string to decode.
+  <Property name="value" required="required" type="buffer | string | addon">
+    The buffer or string to encode. Strings starting with '0x' are decoded as hex; otherwise, raw UTF-8 bytes are used.
   </Property>
 
 
@@ -30,7 +30,62 @@ export const metadata = {
 
 <Properties>
   <Property name="value" type="string">
-    The decoded base64 string, as a hex string.
+    The input, encoded as a base64 string.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using encode_base64">
+
+
+```hcl {{ title: 'main.tx' }}
+output "encoded" {
+    value = encode_base64("0x48656c6c6f20776f726c6421")
+}
+// > encoded: SGVsbG8gd29ybGQh
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+## decode_base64 {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`decode_base64` decodes a base64 encoded string and returns the result as a buffer.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="base64_string" required="required" type="string">
+    The base64 string to decode.
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="buffer">
+    The decoded base64 string, as a buffer.
   </Property>
 </Properties>
 
@@ -39,10 +94,10 @@ export const metadata = {
 
 
 ```hcl {{ title: 'main.tx' }}
-output "decoded" { 
+output "decoded" {
     value = decode_base64("SGVsbG8gd29ybGQh")
 }
-> decoded: 0x48656c6c6f20776f726c6421
+// > decoded: 0x48656c6c6f20776f726c6421
 
 ```
 

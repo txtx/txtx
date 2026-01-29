@@ -11,15 +11,15 @@ export const metadata = {
 <Row>
   <Col>
 
-`encode_hex` encodes a string as a hexadecimal string.
+`encode_hex` encodes a buffer or string as a hexadecimal string with 0x prefix.
 
 ### Inputs
 
 <Properties>
 
 
-  <Property name="value" required="optional" type="string">
-    Any input string.
+  <Property name="value" required="required" type="buffer | string | addon">
+    The buffer or string to encode. Strings starting with '0x' are decoded as hex; otherwise, raw UTF-8 bytes are used.
   </Property>
 
 
@@ -30,7 +30,7 @@ export const metadata = {
 
 <Properties>
   <Property name="value" type="string">
-    The input string in its hexadecimal representation.
+    The input in its hexadecimal representation with 0x prefix.
   </Property>
 </Properties>
 
@@ -42,7 +42,62 @@ export const metadata = {
 output "encoded_hex" {
     value = encode_hex("hello, world")
 }
-// > encoded_hex: 68656C6C6F2C20776F726C64
+// > encoded_hex: 0x68656c6c6f2c20776f726c64
+
+```
+
+
+```json {{ title: 'main.json' }}
+// Coming soon
+```
+
+```yaml {{ title: 'main.yaml' }}
+# Coming soon
+```
+
+</CodeGroup>
+</Col>
+</Row>
+
+---
+
+## decode_hex {{ tag: 'function' }}
+
+<Row>
+  <Col>
+
+`decode_hex` decodes a hexadecimal string and returns the result as a buffer.
+
+### Inputs
+
+<Properties>
+
+
+  <Property name="hex_string" required="required" type="string">
+    The hex string to decode (with or without 0x prefix).
+  </Property>
+
+
+
+</Properties>
+
+### Output
+
+<Properties>
+  <Property name="value" type="buffer">
+    The decoded hex string as a buffer.
+  </Property>
+</Properties>
+
+
+<CodeGroup title="Example using decode_hex">
+
+
+```hcl {{ title: 'main.tx' }}
+output "decoded_hex" {
+    value = decode_hex("0x68656c6c6f2c20776f726c64")
+}
+// > decoded_hex: 0x68656c6c6f2c20776f726c64
 
 ```
 
