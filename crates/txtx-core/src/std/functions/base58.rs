@@ -14,7 +14,7 @@ lazy_static! {
         define_function! {
             Base58Encode => {
                 name: "encode_base58",
-                documentation: "`encode_base58` encodes a buffer or hex string as a base58 string.",
+                documentation: "`encode_base58` encodes a buffer or string as a base58 string.",
                 example: indoc!{r#"
                 output "encoded" {
                     value = encode_base58("0xaca1e2ae0c54a9a8f12da5dde27a93bb5ff94aeef722b1e474a16318234f83c8")
@@ -23,7 +23,7 @@ lazy_static! {
               "#},
                 inputs: [
                     value: {
-                        documentation: "The buffer or hex string to encode.",
+                        documentation: "The buffer or string to encode. Strings starting with '0x' are decoded as hex; otherwise, raw UTF-8 bytes are used.",
                         typing: vec![Type::buffer(), Type::string(), Type::addon("any")]
                     }
                 ],
@@ -58,6 +58,30 @@ lazy_static! {
     ];
 }
 
+/// Helper to get bytes from a Value for encoding functions.
+/// - Buffer: use bytes directly
+/// - String with "0x" prefix: decode as hex
+/// - String without "0x" prefix: use raw UTF-8 bytes
+/// - Addon: use addon bytes
+fn get_bytes_for_encoding(value: &Value) -> Result<Vec<u8>, Diagnostic> {
+    match value {
+        Value::Buffer(b) => Ok(b.clone()),
+        Value::String(s) => {
+            if s.starts_with("0x") {
+                txtx_addon_kit::hex::decode(&s[2..]).map_err(|e| {
+                    Diagnostic::error_from_string(format!("failed to decode hex string: {}", e))
+                })
+            } else {
+                Ok(s.as_bytes().to_vec())
+            }
+        }
+        Value::Addon(addon) => Ok(addon.bytes.clone()),
+        _ => Err(Diagnostic::error_from_string(
+            "expected a buffer, string, or addon value".to_string(),
+        )),
+    }
+}
+
 pub struct Base58Encode;
 impl FunctionImplementation for Base58Encode {
     fn check_instantiability(
@@ -74,12 +98,7 @@ impl FunctionImplementation for Base58Encode {
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
         arg_checker(fn_spec, args)?;
-        let bytes = args
-            .get(0)
-            .unwrap()
-            .get_buffer_bytes_result()
-            .map_err(|e| to_diag(fn_spec, e))?;
-
+        let bytes = get_bytes_for_encoding(args.get(0).unwrap())?;
         let encoded = bs58::encode(bytes).into_string();
         Ok(Value::string(encoded))
     }
@@ -142,6 +161,16 @@ mod tests {
         "hex string 32 bytes"
     )]
     #[test_case(
+        Value::string("hello".to_string()),
+        Value::string("Cn8eVZg".to_string());
+        "plain string hello"
+    )]
+    #[test_case(
+        Value::string("__event_authority".to_string()),
+        Value::string("tyvCZETMWX6hYsUwTchxRWG".to_string());
+        "plain string with underscores"
+    )]
+    #[test_case(
         Value::buffer(vec![0]),
         Value::string("1".to_string());
         "single zero byte"
@@ -167,8 +196,17 @@ mod tests {
 
         // Decode the result and verify we get back the original bytes
         let decoded = (decode_spec.runner)(&decode_spec, &auth_ctx, &vec![encoded]).unwrap();
-        let expected_buffer = Value::buffer(input.get_buffer_bytes_result().unwrap());
-        assert_eq!(decoded, expected_buffer, "decoded value mismatch");
+
+        // Get expected bytes based on input type
+        let expected_bytes = match &input {
+            Value::Buffer(b) => b.clone(),
+            Value::String(s) if s.starts_with("0x") => {
+                kit_hex::decode(&s[2..]).unwrap()
+            }
+            Value::String(s) => s.as_bytes().to_vec(),
+            _ => unreachable!(),
+        };
+        assert_eq!(decoded, Value::buffer(expected_bytes), "decoded value mismatch");
     }
 
     #[test]

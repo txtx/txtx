@@ -22,7 +22,7 @@ lazy_static! {
               "#},
                 inputs: [
                     value: {
-                        documentation: "The buffer or string to encode.",
+                        documentation: "The buffer or string to encode. Strings starting with '0x' are decoded as hex; otherwise, raw UTF-8 bytes are used.",
                         typing: vec![Type::buffer(), Type::string(), Type::addon("any")]
                     }
                 ],
@@ -57,6 +57,30 @@ lazy_static! {
     ];
 }
 
+/// Helper to get bytes from a Value for encoding functions.
+/// - Buffer: use bytes directly
+/// - String with "0x" prefix: decode as hex
+/// - String without "0x" prefix: use raw UTF-8 bytes
+/// - Addon: use addon bytes
+fn get_bytes_for_encoding(value: &Value) -> Result<Vec<u8>, Diagnostic> {
+    match value {
+        Value::Buffer(b) => Ok(b.clone()),
+        Value::String(s) => {
+            if s.starts_with("0x") {
+                txtx_addon_kit::hex::decode(&s[2..]).map_err(|e| {
+                    Diagnostic::error_from_string(format!("failed to decode hex string: {}", e))
+                })
+            } else {
+                Ok(s.as_bytes().to_vec())
+            }
+        }
+        Value::Addon(addon) => Ok(addon.bytes.clone()),
+        _ => Err(Diagnostic::error_from_string(
+            "expected a buffer, string, or addon value".to_string(),
+        )),
+    }
+}
+
 pub struct EncodeHex;
 impl FunctionImplementation for EncodeHex {
     fn check_instantiability(
@@ -72,12 +96,7 @@ impl FunctionImplementation for EncodeHex {
         _auth_ctx: &AuthorizationContext,
         args: &Vec<Value>,
     ) -> Result<Value, Diagnostic> {
-        let bytes = args
-            .get(0)
-            .unwrap()
-            .get_buffer_bytes_result()
-            .map_err(|e| Diagnostic::error_from_string(e))?;
-
+        let bytes = get_bytes_for_encoding(args.get(0).unwrap())?;
         let hex = txtx_addon_kit::hex::encode(bytes);
         Ok(Value::string(format!("0x{}", hex)))
     }
@@ -133,14 +152,29 @@ mod tests {
         "buffer hello world"
     )]
     #[test_case(
+        Value::string("hello, world".to_string()),
+        Value::string("0x68656c6c6f2c20776f726c64".to_string());
+        "plain string hello world"
+    )]
+    #[test_case(
         Value::string("0x68656c6c6f2c20776f726c64".to_string()),
         Value::string("0x68656c6c6f2c20776f726c64".to_string());
         "hex string passthrough"
     )]
     #[test_case(
+        Value::string("__event_authority".to_string()),
+        Value::string("0x5f5f6576656e745f617574686f72697479".to_string());
+        "plain string with underscores"
+    )]
+    #[test_case(
         Value::buffer(vec![]),
         Value::string("0x".to_string());
         "empty buffer"
+    )]
+    #[test_case(
+        Value::string("".to_string()),
+        Value::string("0x".to_string());
+        "empty string"
     )]
     #[test_case(
         Value::buffer(vec![255]),
@@ -168,8 +202,17 @@ mod tests {
 
         // Decode the result and verify we get back the original bytes
         let decoded = (decode_spec.runner)(&decode_spec, &auth_ctx, &vec![encoded]).unwrap();
-        let expected_buffer = Value::buffer(input.get_buffer_bytes_result().unwrap());
-        assert_eq!(decoded, expected_buffer, "decoded value mismatch");
+
+        // Get expected bytes based on input type
+        let expected_bytes = match &input {
+            Value::Buffer(b) => b.clone(),
+            Value::String(s) if s.starts_with("0x") => {
+                txtx_addon_kit::hex::decode(&s[2..]).unwrap()
+            }
+            Value::String(s) => s.as_bytes().to_vec(),
+            _ => unreachable!(),
+        };
+        assert_eq!(decoded, Value::buffer(expected_bytes), "decoded value mismatch");
     }
 
     #[test_case(Value::string("0xGGGG".to_string()); "invalid hex chars")]
