@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_request::RpcRequest;
@@ -13,24 +12,19 @@ use txtx_addon_kit::{
         AuthorizationContext,
     },
 };
-use txtx_addon_network_svm_types::{anchor::types::Idl, SvmValue};
+use txtx_addon_network_svm_types::{subgraph::idl::IdlKind, SvmValue};
 
 use crate::{
     codec::{utils::cheatcode_deploy_program, validate_program_so},
     constants::DEPLOY_PROGRAM,
 };
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Default)]
 pub struct SurfpoolDeployProgram {
-    #[serde(skip)]
     pub program_id: Pubkey,
-    #[serde(skip)]
     pub binary: Vec<u8>,
-    #[serde(skip)]
     pub authority: Option<Pubkey>,
-    #[serde(skip)]
-    pub idl: Option<Idl>,
+    pub idl: Option<IdlKind>,
 }
 
 impl SurfpoolDeployProgram {
@@ -92,10 +86,10 @@ impl SurfpoolDeployProgram {
                     diagnosed_error!("invalid idl location {}: {}", &idl_path.to_string(), e)
                 })?;
 
-                let idl = crate::codec::idl::IdlRef::from_str(&idl_str).map_err(|e| {
+                let idl_ref = crate::codec::idl::IdlRef::from_str(&idl_str).map_err(|e| {
                     diagnosed_error!("invalid idl at location {}: {}", &idl_path.to_string(), e)
                 })?;
-                Some(idl.idl)
+                Some(idl_ref.idl)
             } else {
                 None
             }
@@ -174,9 +168,7 @@ impl SurfpoolDeployProgram {
                 rpc_client
                     .send::<serde_json::Value>(
                         RpcRequest::Custom { method: "surfnet_registerIdl" },
-                        json!([serde_json::to_string(idl).map_err(|e| {
-                            diagnosed_error!("failed to serialize idl for rpc call: {e}")
-                        })?]),
+                        json!([idl.to_json_value().unwrap()]),
                     )
                     .await
                     .map_err(|e| diagnosed_error!("failed to register idl via rpc call: {e}"))?;

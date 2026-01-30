@@ -23,6 +23,7 @@ use txtx_addon_kit::{
 };
 
 pub use anchor_lang_idl as anchor;
+pub use shank_idl as shank;
 
 pub const SVM_TRANSACTION: &str = "svm::transaction";
 pub const SVM_INSTRUCTION: &str = "svm::instruction";

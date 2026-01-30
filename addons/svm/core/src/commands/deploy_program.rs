@@ -33,9 +33,9 @@ use txtx_addon_kit::types::types::{
 };
 use txtx_addon_kit::types::{ConstructDid, Did};
 use txtx_addon_kit::uuid::Uuid;
+use txtx_addon_network_svm_types::subgraph::idl::IdlKind;
 use txtx_addon_network_svm_types::{SVM_KEYPAIR, SVM_PUBKEY};
 
-use crate::codec::idl::IdlRef;
 use crate::codec::send_transaction::send_transaction_background_task;
 use crate::codec::utils::cheatcode_deploy_program;
 use crate::codec::{DeploymentTransaction, ProgramArtifacts, UpgradeableProgramDeployer};
@@ -968,8 +968,8 @@ impl CommandImplementation for DeployProgram {
                         .get_scoped_value(&nested_construct_did.to_string(), PROGRAM_IDL)
                         .and_then(|v| v.as_string())
                     {
-                        if let Ok(idl_ref) = IdlRef::from_str(idl) {
-                            let value = serde_json::to_value(&idl_ref.idl).unwrap();
+                        if let Ok(idl_kind) = serde_json::from_str::<IdlKind>(idl) {
+                            let value = idl_kind.to_json_value().unwrap();
                             let params = serde_json::to_value(&vec![value]).unwrap();
 
                             let router = cloud_service_context

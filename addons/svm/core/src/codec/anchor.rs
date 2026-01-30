@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use crate::{codec::validate_program_so, typing::anchor::types as anchor_types};
 
@@ -87,14 +87,22 @@ impl AnchorProgramArtifacts {
             None
         };
 
-        let program_id = Pubkey::from_str(&idl_ref.idl.address).map_err(|e| {
+        let program_id = idl_ref.get_program_pubkey().map_err(|e| {
             format!(
                 "invalid anchor program idl at location {}: {}",
                 &idl_path.to_str().unwrap_or(""),
                 e
             )
         })?;
-        Ok(Self { idl: idl_ref.idl, bin, keypair, program_id })
+
+        let idl = idl_ref.as_anchor().ok_or_else(|| {
+            format!(
+                "expected Anchor IDL at location {}, but found a different IDL format",
+                &idl_path.to_str().unwrap_or("")
+            )
+        })?.clone();
+
+        Ok(Self { idl, bin, keypair, program_id })
     }
 
     pub fn to_value(&self) -> Result<Value, String> {

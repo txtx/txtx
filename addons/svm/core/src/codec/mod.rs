@@ -32,6 +32,7 @@ use solana_signer::Signer;
 use solana_system_interface::instruction as system_instruction;
 use solana_system_interface::MAX_PERMITTED_DATA_LENGTH;
 use txtx_addon_kit::types::frontend::LogDispatcher;
+use txtx_addon_network_svm_types::subgraph::idl::IdlKind;
 use crate::typing::DeploymentTransactionType;
 use solana_loader_v3_interface::instruction as bpf_loader_upgradeable;
 use solana_instruction::Instruction;
@@ -1711,9 +1712,16 @@ impl ProgramArtifacts {
     }
     pub fn idl(&self) -> Result<Option<String>, Diagnostic> {
         match self {
-            ProgramArtifacts::Native(_) => Ok(None),
+            ProgramArtifacts::Native(artifacts) => artifacts
+                .idl
+                .as_ref()
+                .map(|idl| {
+                    serde_json::to_string(idl)
+                        .map_err(|e| diagnosed_error!("invalid native idl: {e}"))
+                })
+                .transpose(),
             ProgramArtifacts::Anchor(artifacts) => Some(
-                serde_json::to_string(&artifacts.idl)
+                serde_json::to_string(&IdlKind::Anchor(artifacts.idl.clone()))
                     .map_err(|e| diagnosed_error!("invalid anchor idl: {e}")),
             )
             .transpose(),

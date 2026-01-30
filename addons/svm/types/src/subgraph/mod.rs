@@ -29,7 +29,10 @@ pub use pda::PdaSubgraphSource;
 
 use crate::{
     subgraph::{
-        idl::{get_expected_type_from_idl_type_def_ty, idl_type_to_txtx_type},
+        idl::{
+            anchor::{get_expected_type_from_idl_type_def_ty, idl_type_to_txtx_type},
+            IdlKind,
+        },
         token_account::TokenAccountSubgraphSource,
     },
     SvmValue, SVM_F64, SVM_PUBKEY, SVM_SIGNATURE, SVM_U8,
@@ -254,8 +257,15 @@ impl SubgraphRequestV0 {
         construct_did: &ConstructDid,
         values: &ValueStore,
     ) -> Result<Self, Diagnostic> {
-        let idl = serde_json::from_str(idl_str)
+        let idl_kind = serde_json::from_str::<IdlKind>(idl_str)
             .map_err(|e| diagnosed_error!("could not deserialize IDL: {e}"))?;
+
+        let idl = match idl_kind {
+            IdlKind::Anchor(idl) => idl,
+            IdlKind::Shank(_) => {
+                return Err(diagnosed_error!("Shank IDL not supported for subgraphs"))
+            }
+        };
 
         let (data_source, defined_field_values, intrinsic_field_values) =
             IndexedSubgraphSourceType::parse_values(values, &idl)?;

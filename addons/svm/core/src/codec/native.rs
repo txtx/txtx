@@ -1,6 +1,4 @@
-use std::str::FromStr;
-
-use crate::{codec::validate_program_so, typing::anchor::types as anchor_types};
+use crate::codec::validate_program_so;
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
@@ -11,6 +9,7 @@ use txtx_addon_kit::{
         types::{ObjectType, Value},
     },
 };
+use txtx_addon_network_svm_types::subgraph::idl::IdlKind;
 
 use crate::typing::SvmValue;
 
@@ -24,8 +23,8 @@ pub struct NativeProgramArtifacts {
     pub keypair: Option<Keypair>,
     /// The program pubkey of the native program.
     pub program_id: Pubkey,
-    /// The IDL of the program, if provided. IDLs are converted to anchor-style IDLs.
-    pub idl: Option<anchor_types::Idl>,
+    /// The IDL of the program, if provided. Can be either Anchor or Shank format.
+    pub idl: Option<IdlKind>,
 }
 
 impl NativeProgramArtifacts {
@@ -34,15 +33,15 @@ impl NativeProgramArtifacts {
         idl_path: FileLocation,
         bin_path: FileLocation,
     ) -> Result<Self, Diagnostic> {
-        let some_idl = if idl_path.exists() {
+        let some_idl_ref = if idl_path.exists() {
             let idl_str = idl_path.read_content_as_utf8().map_err(|e| {
                 diagnosed_error!("invalid idl location {}: {}", &idl_path.to_string(), e)
             })?;
 
-            let idl = IdlRef::from_str(&idl_str).map_err(|e| {
+            let idl_ref = IdlRef::from_str(&idl_str).map_err(|e| {
                 diagnosed_error!("invalid idl at location {}: {}", &idl_path.to_string(), e)
             })?;
-            Some(idl.idl)
+            Some(idl_ref)
         } else {
             None
         };
@@ -86,8 +85,8 @@ impl NativeProgramArtifacts {
             None
         };
 
-        let program_id = match (keypair.as_ref(), some_idl.as_ref()) {
-            (_, Some(idl)) => Pubkey::from_str(&idl.address).map_err(|e| {
+        let program_id = match (keypair.as_ref(), some_idl_ref.as_ref()) {
+            (_, Some(idl_ref)) => idl_ref.get_program_pubkey().map_err(|e| {
                 diagnosed_error!(
                     "invalid program id in idl at location {}: {}",
                     &idl_path.to_string(),
@@ -102,6 +101,7 @@ impl NativeProgramArtifacts {
             }
         };
 
+        let some_idl = some_idl_ref.map(|idl_ref| idl_ref.idl);
         Ok(NativeProgramArtifacts { bin, keypair, program_id, idl: some_idl })
     }
 
@@ -112,8 +112,11 @@ impl NativeProgramArtifacts {
             ("framework", Value::string("native".to_string())),
         ]);
         if let Some(idl) = &self.idl {
-            let idl_str = serde_json::to_string_pretty(&idl)
-                .map_err(|e| diagnosed_error!("invalid idl: {e}"))?;
+            let idl_str = match idl {
+                IdlKind::Anchor(anchor_idl) => serde_json::to_string_pretty(anchor_idl),
+                IdlKind::Shank(shank_idl) => serde_json::to_string_pretty(shank_idl),
+            }
+            .map_err(|e| diagnosed_error!("invalid idl: {e}"))?;
 
             obj.insert("idl", Value::string(idl_str));
         };
@@ -149,9 +152,8 @@ impl NativeProgramArtifacts {
             let idl_str = idl_value.as_string().ok_or(diagnosed_error!(
                 "native program artifacts value had invalid idl data: expected string"
             ))?;
-            let idl: anchor_types::Idl =
-                serde_json::from_str(idl_str).map_err(|e| diagnosed_error!("{e}"))?;
-            Some(idl)
+            let idl_ref = IdlRef::from_str(idl_str).map_err(|e| diagnosed_error!("{e}"))?;
+            Some(idl_ref.idl)
         } else {
             None
         };
