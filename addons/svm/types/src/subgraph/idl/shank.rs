@@ -437,15 +437,15 @@ pub fn shank_idl_type_to_txtx_type(
                 _idl_constants,
             )?
         }
-        ShankIdlType::HashMap(map) => {
-            let value_type =
-                shank_idl_type_to_txtx_type(&map.hash_map.1, idl_types, _idl_constants)?;
-            Type::array(value_type)
+        ShankIdlType::HashMap(_) => {
+            // HashMap is parsed as an object with string keys (key.to_string())
+            // Use arbitrary map type since we can't express Map<K,V> in txtx types
+            Type::map(ObjectDefinition::arbitrary())
         }
-        ShankIdlType::BTreeMap(map) => {
-            let value_type =
-                shank_idl_type_to_txtx_type(&map.b_tree_map.1, idl_types, _idl_constants)?;
-            Type::array(value_type)
+        ShankIdlType::BTreeMap(_) => {
+            // BTreeMap is parsed as an object with string keys (key.to_string())
+            // Use arbitrary map type since we can't express Map<K,V> in txtx types
+            Type::map(ObjectDefinition::arbitrary())
         }
         ShankIdlType::HashSet(set) => {
             Type::array(shank_idl_type_to_txtx_type(&set.hash_set, idl_types, _idl_constants)?)
