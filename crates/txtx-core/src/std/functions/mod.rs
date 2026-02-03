@@ -38,6 +38,7 @@ lazy_static! {
         functions.extend(hex::FUNCTIONS.clone());
         functions.extend(base58::FUNCTIONS.clone());
         functions.extend(assertions::FUNCTIONS.clone());
+        functions.extend(big_endian::FUNCTIONS.clone());
         functions
     };
 }
