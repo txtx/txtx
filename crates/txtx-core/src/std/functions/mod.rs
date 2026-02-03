@@ -1,6 +1,7 @@
 pub mod assertions;
 pub mod base58;
 pub mod base64;
+pub mod big_endian;
 pub mod crypto;
 pub mod hash;
 pub mod hex;
@@ -37,6 +38,7 @@ lazy_static! {
         functions.extend(hex::FUNCTIONS.clone());
         functions.extend(base58::FUNCTIONS.clone());
         functions.extend(assertions::FUNCTIONS.clone());
+        functions.extend(big_endian::FUNCTIONS.clone());
         functions
     };
 }
