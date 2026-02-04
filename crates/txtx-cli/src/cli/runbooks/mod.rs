@@ -67,8 +67,6 @@ use actix_web::dev::ServerHandle;
 #[cfg(feature = "supervisor_ui")]
 use txtx_gql::kit::types::frontend::SupervisorAddonData;
 
-#[cfg(feature = "supervisor_ui")]
-use txtx_supervisor_ui::{self, cloud_relayer::RelayerChannelEvent};
 
 lazy_static::lazy_static! {
     static ref CLI_SPINNER_STYLE: ProgressStyle = {
@@ -767,10 +765,6 @@ pub async fn handle_run_command(
     });
 
     #[cfg(feature = "supervisor_ui")]
-    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
-    #[cfg(feature = "supervisor_ui")]
-    let moved_relayer_channel_tx = relayer_channel_tx.clone();
-    #[cfg(feature = "supervisor_ui")]
     let moved_kill_loops_tx = kill_loops_tx.clone();
     #[cfg(feature = "supervisor_ui")]
     let web_ui_handle: Option<ServerHandle> = if cmd.do_start_supervisor_ui() {
@@ -785,8 +779,6 @@ pub async fn handle_run_command(
             block_broadcaster.clone(),
             log_broadcaster.clone(),
             action_item_events_tx,
-            moved_relayer_channel_tx,
-            relayer_channel_rx,
             moved_kill_loops_tx.clone(),
             &cmd.network_binding_ip_address,
             cmd.network_binding_port,
@@ -813,8 +805,6 @@ pub async fn handle_run_command(
         None
     };
 
-    #[cfg(feature = "supervisor_ui")]
-    let moved_relayer_channel_tx = relayer_channel_tx.clone();
     let block_store_handle = tokio::spawn(async move {
         let mut active_spinners: IndexMap<Uuid, ProgressBar> = IndexMap::new();
         let mut multi_progress = MultiProgress::new();
@@ -883,9 +873,6 @@ pub async fn handle_run_command(
 
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
-                    #[cfg(feature = "supervisor_ui")]
-                    let _ = moved_relayer_channel_tx
-                        .send(RelayerChannelEvent::ForwardEventToRelayer(block_event.clone()));
                 }
             }
 
@@ -900,8 +887,6 @@ pub async fn handle_run_command(
                 match kill_loops_rx.recv() {
                     Ok(_) => {
                         let _ = block_tx.send(BlockEvent::Exit);
-                        #[cfg(feature = "supervisor_ui")]
-                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
                         #[cfg(feature = "supervisor_ui")]
                         if let Some(handle) = web_ui_handle {
                             println!("{} Stopping web console", purple!("→"));

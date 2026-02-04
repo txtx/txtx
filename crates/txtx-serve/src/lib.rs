@@ -34,9 +34,6 @@ use txtx_core::std::StdAddon;
 use txtx_core::types::{Runbook, RunbookSources};
 use txtx_gql::Context as GqlContext;
 use txtx_gql::{new_graphql_schema, Context as GraphContext, GraphqlSchema};
-use txtx_supervisor_ui::cloud_relayer::{
-    start_relayer_event_runloop, RelayerChannelEvent, RelayerContext,
-};
 
 pub const SERVE_BINDING_PORT: &str = "18488";
 pub const SERVE_BINDING_ADDRESS: &str = "localhost";
@@ -361,8 +358,6 @@ pub async fn execute_runbook(
     let block_store = Arc::new(RwLock::new(BTreeMap::new()));
     let log_store = Arc::new(RwLock::new(Vec::new()));
     let (kill_loops_tx, kill_loops_rx) = channel::bounded(1);
-    let (relayer_channel_tx, relayer_channel_rx) = channel::unbounded();
-
     let moved_block_tx = block_tx.clone();
     let moved_kill_loops_tx = kill_loops_tx.clone();
     // let moved_ctx = ctx.clone();
@@ -403,27 +398,6 @@ pub async fn execute_runbook(
         });
     }
 
-    let channel_data = Arc::new(RwLock::new(None));
-    let _relayer_context = RelayerContext {
-        relayer_channel_tx: relayer_channel_tx.clone(),
-        channel_data: channel_data.clone(),
-    };
-
-    let moved_relayer_channel_tx = relayer_channel_tx.clone();
-    let moved_kill_loops_tx = kill_loops_tx.clone();
-    let moved_action_item_events_tx = action_item_events_tx.clone();
-    let _ = hiro_system_kit::thread_named("Relayer Interaction").spawn(move || {
-        let future = start_relayer_event_runloop(
-            channel_data,
-            relayer_channel_rx,
-            moved_relayer_channel_tx,
-            moved_action_item_events_tx,
-            moved_kill_loops_tx,
-        );
-        hiro_system_kit::nestable_block_on(future)
-    });
-
-    let moved_relayer_channel_tx = relayer_channel_tx.clone();
     let _block_store_handle = tokio::spawn(async move {
         loop {
             if let Ok(mut block_event) = block_rx.try_recv() {
@@ -473,8 +447,6 @@ pub async fn execute_runbook(
 
                 if do_propagate_event {
                     let _ = block_broadcaster.send(block_event.clone());
-                    let _ = moved_relayer_channel_tx
-                        .send(RelayerChannelEvent::ForwardEventToRelayer(block_event.clone()));
                 }
             }
 
@@ -489,7 +461,6 @@ pub async fn execute_runbook(
                 match kill_loops_rx.recv() {
                     Ok(_) => {
                         let _ = block_tx.send(BlockEvent::Exit);
-                        let _ = relayer_channel_tx.send(RelayerChannelEvent::Exit);
                     }
                     Err(_) => {}
                 };

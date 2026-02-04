@@ -10966,8 +10966,6 @@ version = "0.2.9"
 dependencies = [
  "actix-cors",
  "actix-web",
- "base58",
- "dotenvy",
  "hiro-system-kit",
  "include_dir",
  "juniper_actix",
@@ -10978,8 +10976,6 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "tokio",
- "tokio-tungstenite 0.23.1",
- "totp-rs",
  "txtx-addon-kit",
  "txtx-core",
  "txtx-gql",
