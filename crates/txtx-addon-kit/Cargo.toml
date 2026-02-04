@@ -19,7 +19,6 @@ serde_derive = "1"
 jaq-interpret = "1.2.1"
 url = { version = "2.2.2", features = ["serde"] }
 uuid = { workspace = true }
-getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
 reqwest = { workspace = true }
 lazy_static = "1.4.0"
@@ -32,8 +31,6 @@ serde_json = "1"
 sha2 = "0.10.8"
 indexmap = { version = "2.2.6", features = ["serde"] }
 strum = { version = "0.26", features = ["derive"] }
-wasm-bindgen = { version = "0.2.93", optional = true }
-wasm-bindgen-futures = { version = "0.4.41", optional = true }
 hmac = "0.12.0"
 pbkdf2 = { version = "0.12.2", features = ["simple"], default-features = false }
 libsecp256k1 = { version = "0.7.0" }
@@ -47,7 +44,7 @@ hiro-system-kit = "0.3.4"
 
 [features]
 default=[]
-wasm = ["wasm-bindgen", "wasm-bindgen-futures"]
+wasm = []
 
 [lib]
 crate-type = ["lib", "cdylib"]
