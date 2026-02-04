@@ -14,25 +14,20 @@ use txtx_core::kit::types::frontend::{ClientType, DiscoveryResponse};
 use txtx_gql::Context as GraphContext;
 use txtx_gql::{new_graphql_schema, GraphqlSchema};
 
-use super::cloud_relayer::{delete_channel, get_channel, open_channel, RelayerContext};
-
 pub async fn start_server(
     gql_context: GraphContext,
-    relayer_context: RelayerContext,
     network_binding: &str,
 ) -> Result<ServerHandle, Box<dyn StdError>> {
     let gql_context = Data::new(gql_context);
-    let relayer_context = Data::new(relayer_context);
 
     let server = HttpServer::new(move || {
         App::new()
             .app_data(Data::new(new_graphql_schema()))
             .app_data(gql_context.clone())
-            .app_data(relayer_context.clone())
             .wrap(
                 Cors::default()
                     .allow_any_origin()
-                    .allowed_methods(vec!["POST", "GET", "OPTIONS", "DELETE"])
+                    .allowed_methods(vec!["POST", "GET", "OPTIONS"])
                     .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
                     .allowed_header(header::CONTENT_TYPE)
                     .supports_credentials()
@@ -42,9 +37,6 @@ pub async fn start_server(
             .wrap(middleware::Logger::default())
             .service(
                 web::scope("/api/v1")
-                    .route("/channels", web::post().to(open_channel))
-                    .route("/channels", web::delete().to(delete_channel))
-                    .route("/channels", web::get().to(get_channel))
                     .route("/discovery", web::get().to(discovery)),
             )
             .service(

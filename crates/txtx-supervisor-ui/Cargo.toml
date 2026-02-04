@@ -15,8 +15,6 @@ txtx-core = { workspace = true }
 txtx-gql = { workspace = true }
 actix-cors = "0.7.0"
 actix-web = "4"
-base58 = "0.2.0"
-dotenvy = "0.15.7"
 hiro-system-kit = "0.3.1"
 include_dir = "0.7.4"
 juniper_actix = {version = "0.5.0", features = ["subscriptions"] }
@@ -26,8 +24,6 @@ serde = "1"
 serde_json = "1"
 serde_derive = "1"
 tokio = "1.37.0"
-tokio-tungstenite = { version = "0.23.1", features = ["rustls"] }
-totp-rs = "^5.0"
 
 [build-dependencies]
 npm_rs="1.0.0"
