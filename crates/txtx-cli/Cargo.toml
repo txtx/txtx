@@ -23,7 +23,6 @@ txtx-addon-network-evm = { workspace = true }
 txtx-gql = { workspace = true }
 hiro-system-kit = "0.3.1"
 clap = { version = "4.4.6", features = ["derive"], optional = true }
-clap_generate = { version = "3.0.3", optional = true }
 ctrlc = { version = "3.2.2", optional = true }
 dotenvy = "0.15.7"
 serde = "1"
@@ -40,8 +39,6 @@ openssl = { version = "*", features = ["vendored"] }
 openssl-sys = { version = "*", features = ["vendored"] }
 dialoguer = "0.11.0"
 console = "0.15.8"
-convert_case = "0.6.0"
-rusqlite = "0.31.0"
 tower-lsp = "0.20.0"
 crossbeam-channel = "0.5"
 chrono = "0.4.38"
@@ -51,13 +48,12 @@ fern = "0.7.1"
 colored = "2.1"
 log = "0.4.27"
 lazy_static = "1.4.0"
-yansi = "1.0"
 thiserror = "1.0"
 strum = { version = "0.26", features = ["derive"] }
 
 [features]
 default = ["cli", "supervisor_ui"]
-cli = ["clap", "clap_generate", "ctrlc", "hiro-system-kit/log"]
+cli = ["clap", "ctrlc", "hiro-system-kit/log"]
 supervisor_ui = ["txtx-supervisor-ui"]
 txtx_serve = ["txtx-serve"]
 debug = ["hiro-system-kit/debug"]
