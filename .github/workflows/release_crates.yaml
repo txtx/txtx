@@ -31,7 +31,7 @@ jobs:
       - name: Build Supervisor UI
         run: |
           cd txtx-supervisor-ui
-          npm run i
+          npm i
           npm run build
           cp -r dist ../txtx/crates/txtx-supervisor-ui/supervisor-dist
 
