@@ -2,15 +2,6 @@ name: Setup Environment Variables
 description: Set up the txtx .env file.
 
 inputs:
-  infura_api_key:
-    description: 'The Infura API key'
-    required: true
-  nhost_region:
-    description: 'The nhost region'
-    required: true
-  nhost_subdomain:
-    description: 'The nhost subdomain'
-    required: true
   working_directory:
     description: 'Optional working directory where .env should be created'
     required: false
@@ -22,7 +13,5 @@ runs:
     - run: |
         touch "${{ inputs.working_directory }}/.env"
         echo AUTH_SERVICE_URL="https://id.txtx.run/v1" >> "${{ inputs.working_directory }}/.env"
-        echo NHOST_REGION="${{ inputs.NHOST_REGION }}" >> "${{ inputs.working_directory }}/.env"
-        echo NHOST_SUBDOMAIN="${{ inputs.NHOST_SUBDOMAIN }}" >> "${{ inputs.working_directory }}/.env"
         echo TXTX_CONSOLE_URL="https://txtx.run" >> "${{ inputs.working_directory }}/.env"
       shell: bash
