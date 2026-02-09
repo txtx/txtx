@@ -193,9 +193,7 @@ impl IdlRef {
                     return Ok(IndexMap::new());
                 }
 
-                // Extract types to our local format for encoding
-                let idl_types = extract_shank_types(idl)
-                    .map_err(|e| diagnosed_error!("failed to extract IDL types: {}", e))?;
+                let idl_types = extract_shank_types(idl);
 
                 let mut encoded_args = IndexMap::new();
                 for (user_arg_idx, arg) in args.iter().enumerate() {
@@ -279,9 +277,7 @@ impl IdlRef {
                     return Ok(vec![]);
                 }
 
-                // Extract types to our local format for encoding
-                let idl_types = extract_shank_types(idl)
-                    .map_err(|e| diagnosed_error!("failed to extract IDL types: {}", e))?;
+                let idl_types = extract_shank_types(idl);
 
                 let mut encoded_args = vec![];
                 for (user_arg_idx, arg) in args.iter().enumerate() {

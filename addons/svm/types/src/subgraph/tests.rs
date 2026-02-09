@@ -5,8 +5,7 @@ use crate::{
             borsh_encode_value_to_shank_idl_type, extract_shank_types,
             parse_bytes_to_value_with_shank_idl_type_def_ty,
             parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes,
-            shank_idl_type_to_txtx_type, ShankIdlConst, ShankIdlType, ShankIdlTypeArray,
-            ShankIdlTypeDef, ShankIdlTypeDefined, ShankIdlTypeOption, ShankIdlTypeVec,
+            shank_idl_type_to_txtx_type, IdlConst, IdlType as ShankIdlType, IdlTypeDefinition,
         },
     },
     SvmValue, SVM_PUBKEY, SVM_U64,
@@ -937,8 +936,8 @@ fn test_bad_data(bad_data: Vec<u8>, expected_type: IdlTypeDefTy, expected_err: &
 lazy_static! {
     pub static ref SHANK_IDL: shank_idl::idl::Idl =
         serde_json::from_slice(&include_bytes!("./fixtures/shank_test_idl.json").to_vec()).unwrap();
-    pub static ref SHANK_TYPES: Vec<ShankIdlTypeDef> = extract_shank_types(&SHANK_IDL).unwrap();
-    pub static ref SHANK_CONSTANTS: Vec<ShankIdlConst> = vec![];
+    pub static ref SHANK_TYPES: Vec<IdlTypeDefinition> = extract_shank_types(&SHANK_IDL);
+    pub static ref SHANK_CONSTANTS: Vec<IdlConst> = vec![];
 }
 
 // --------------------------------------------------------------------------
@@ -1015,7 +1014,7 @@ fn test_shank_decode_bytes() {
 #[test]
 fn test_shank_decode_option_none() {
     let data = borsh::to_vec(&None::<u64>).unwrap();
-    let opt_type = ShankIdlType::Option(ShankIdlTypeOption { option: Box::new(ShankIdlType::U64) });
+    let opt_type = ShankIdlType::Option(Box::new(ShankIdlType::U64));
     let (value, rest) =
         parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(&data, &opt_type, &vec![])
             .unwrap();
@@ -1026,7 +1025,7 @@ fn test_shank_decode_option_none() {
 #[test]
 fn test_shank_decode_option_some() {
     let data = borsh::to_vec(&Some(42u64)).unwrap();
-    let opt_type = ShankIdlType::Option(ShankIdlTypeOption { option: Box::new(ShankIdlType::U64) });
+    let opt_type = ShankIdlType::Option(Box::new(ShankIdlType::U64));
     let (value, rest) =
         parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(&data, &opt_type, &vec![])
             .unwrap();
@@ -1041,7 +1040,7 @@ fn test_shank_decode_option_some() {
 #[test]
 fn test_shank_decode_vec_u64() {
     let data = borsh::to_vec(&vec![1u64, 2u64, 3u64]).unwrap();
-    let vec_type = ShankIdlType::Vec(ShankIdlTypeVec { vec: Box::new(ShankIdlType::U64) });
+    let vec_type = ShankIdlType::Vec(Box::new(ShankIdlType::U64));
     let (value, rest) =
         parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(&data, &vec_type, &vec![])
             .unwrap();
@@ -1052,7 +1051,7 @@ fn test_shank_decode_vec_u64() {
 #[test]
 fn test_shank_decode_vec_string() {
     let data = borsh::to_vec(&vec!["hello".to_string(), "world".to_string()]).unwrap();
-    let vec_type = ShankIdlType::Vec(ShankIdlTypeVec { vec: Box::new(ShankIdlType::String) });
+    let vec_type = ShankIdlType::Vec(Box::new(ShankIdlType::String));
     let (value, rest) =
         parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(&data, &vec_type, &vec![])
             .unwrap();
@@ -1071,7 +1070,7 @@ fn test_shank_decode_vec_string() {
 fn test_shank_decode_fixed_array_u8() {
     let data: [u8; 4] = [1, 2, 3, 4];
     let arr_type =
-        ShankIdlType::Array(ShankIdlTypeArray { array: (Box::new(ShankIdlType::U8), 4) });
+        ShankIdlType::Array(Box::new(ShankIdlType::U8), 4);
     let (value, rest) =
         parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(&data, &arr_type, &vec![])
             .unwrap();
@@ -1086,7 +1085,7 @@ fn test_shank_decode_fixed_array_u8() {
 fn test_shank_decode_pubkey_like_array() {
     let pubkey_bytes = [42u8; 32];
     let arr_type =
-        ShankIdlType::Array(ShankIdlTypeArray { array: (Box::new(ShankIdlType::U8), 32) });
+        ShankIdlType::Array(Box::new(ShankIdlType::U8), 32);
     let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
         &pubkey_bytes,
         &arr_type,
@@ -1260,14 +1259,14 @@ fn test_shank_idl_type_to_txtx_type(idl_type: ShankIdlType, expected: Type) {
 
 #[test]
 fn test_shank_option_type_to_txtx_type() {
-    let opt_type = ShankIdlType::Option(ShankIdlTypeOption { option: Box::new(ShankIdlType::U64) });
+    let opt_type = ShankIdlType::Option(Box::new(ShankIdlType::U64));
     let result = shank_idl_type_to_txtx_type(&opt_type, &vec![], &vec![]).unwrap();
     assert_eq!(result, Type::typed_null(Type::addon(crate::SVM_U64)));
 }
 
 #[test]
 fn test_shank_vec_type_to_txtx_type() {
-    let vec_type = ShankIdlType::Vec(ShankIdlTypeVec { vec: Box::new(ShankIdlType::String) });
+    let vec_type = ShankIdlType::Vec(Box::new(ShankIdlType::String));
     let result = shank_idl_type_to_txtx_type(&vec_type, &vec![], &vec![]).unwrap();
     assert_eq!(result, Type::array(Type::string()));
 }
@@ -1275,14 +1274,14 @@ fn test_shank_vec_type_to_txtx_type() {
 #[test]
 fn test_shank_array_type_to_txtx_type() {
     let arr_type =
-        ShankIdlType::Array(ShankIdlTypeArray { array: (Box::new(ShankIdlType::U8), 32) });
+        ShankIdlType::Array(Box::new(ShankIdlType::U8), 32);
     let result = shank_idl_type_to_txtx_type(&arr_type, &vec![], &vec![]).unwrap();
     assert_eq!(result, Type::array(Type::addon(crate::SVM_U8)));
 }
 
 #[test]
 fn test_shank_defined_type_to_txtx_type() {
-    let def_type = ShankIdlType::Defined(ShankIdlTypeDefined { defined: "Point".to_string() });
+    let def_type = ShankIdlType::Defined("Point".to_string());
     let result = shank_idl_type_to_txtx_type(&def_type, &SHANK_TYPES, &vec![]).unwrap();
     // Point should have x: i32, y: i32
     assert!(result.as_object().is_some());
@@ -1314,7 +1313,7 @@ fn test_shank_encode_string() {
 #[test]
 fn test_shank_encode_option_none() {
     let value = Value::null();
-    let opt_type = ShankIdlType::Option(ShankIdlTypeOption { option: Box::new(ShankIdlType::U64) });
+    let opt_type = ShankIdlType::Option(Box::new(ShankIdlType::U64));
     let result = borsh_encode_value_to_shank_idl_type(&value, &opt_type, &vec![]).unwrap();
     assert_eq!(result, borsh::to_vec(&None::<u64>).unwrap());
 }
@@ -1325,7 +1324,7 @@ fn test_shank_encode_option_some_bool() {
     // Addon values go through a different path (borsh_encode_bytes_to_shank_idl_type)
     let value = Value::bool(true);
     let opt_type =
-        ShankIdlType::Option(ShankIdlTypeOption { option: Box::new(ShankIdlType::Bool) });
+        ShankIdlType::Option(Box::new(ShankIdlType::Bool));
     let result = borsh_encode_value_to_shank_idl_type(&value, &opt_type, &vec![]).unwrap();
     // Option encoding: 1 byte discriminator + inner value
     let mut expected = vec![1u8]; // Some
@@ -1337,7 +1336,7 @@ fn test_shank_encode_option_some_bool() {
 fn test_shank_encode_option_some_string() {
     let value = Value::string("test".to_string());
     let opt_type =
-        ShankIdlType::Option(ShankIdlTypeOption { option: Box::new(ShankIdlType::String) });
+        ShankIdlType::Option(Box::new(ShankIdlType::String));
     let result = borsh_encode_value_to_shank_idl_type(&value, &opt_type, &vec![]).unwrap();
     let mut expected = vec![1u8]; // Some
     expected.extend(borsh::to_vec(&"test".to_string()).unwrap());
@@ -1347,7 +1346,7 @@ fn test_shank_encode_option_some_string() {
 #[test]
 fn test_shank_encode_vec() {
     let value = Value::array(vec![SvmValue::u64(1), SvmValue::u64(2), SvmValue::u64(3)]);
-    let vec_type = ShankIdlType::Vec(ShankIdlTypeVec { vec: Box::new(ShankIdlType::U64) });
+    let vec_type = ShankIdlType::Vec(Box::new(ShankIdlType::U64));
     let result = borsh_encode_value_to_shank_idl_type(&value, &vec_type, &vec![]).unwrap();
     let expected = borsh::to_vec(&vec![1u64, 2u64, 3u64]).unwrap();
     assert_eq!(result, expected);
@@ -1358,7 +1357,7 @@ fn test_shank_encode_fixed_array() {
     let value =
         Value::array(vec![SvmValue::u8(1), SvmValue::u8(2), SvmValue::u8(3), SvmValue::u8(4)]);
     let arr_type =
-        ShankIdlType::Array(ShankIdlTypeArray { array: (Box::new(ShankIdlType::U8), 4) });
+        ShankIdlType::Array(Box::new(ShankIdlType::U8), 4);
     let result = borsh_encode_value_to_shank_idl_type(&value, &arr_type, &vec![]).unwrap();
     assert_eq!(result, vec![1, 2, 3, 4]);
 }
@@ -1366,7 +1365,7 @@ fn test_shank_encode_fixed_array() {
 #[test]
 fn test_shank_encode_struct() {
     let value = ObjectType::from([("x", SvmValue::i32(10)), ("y", SvmValue::i32(-20))]).to_value();
-    let def_type = ShankIdlType::Defined(ShankIdlTypeDefined { defined: "Point".to_string() });
+    let def_type = ShankIdlType::Defined("Point".to_string());
     let result = borsh_encode_value_to_shank_idl_type(&value, &def_type, &SHANK_TYPES).unwrap();
 
     #[derive(BorshSerialize)]
@@ -1382,7 +1381,7 @@ fn test_shank_encode_struct() {
 fn test_shank_encode_unit_enum() {
     // {"Active": null} for Status enum
     let value = ObjectType::from([("Active", Value::null())]).to_value();
-    let def_type = ShankIdlType::Defined(ShankIdlTypeDefined { defined: "Status".to_string() });
+    let def_type = ShankIdlType::Defined("Status".to_string());
     let result = borsh_encode_value_to_shank_idl_type(&value, &def_type, &SHANK_TYPES).unwrap();
     // Active is variant index 1 (Inactive=0, Active=1, Paused=2, Completed=3)
     assert_eq!(result, vec![1]);
@@ -1397,7 +1396,7 @@ fn test_shank_encode_struct_enum() {
     )])
     .to_value();
     let def_type =
-        ShankIdlType::Defined(ShankIdlTypeDefined { defined: "StructVariantEnum".to_string() });
+        ShankIdlType::Defined("StructVariantEnum".to_string());
     let result = borsh_encode_value_to_shank_idl_type(&value, &def_type, &SHANK_TYPES).unwrap();
 
     #[derive(BorshSerialize)]
@@ -1443,7 +1442,7 @@ fn test_shank_round_trip_primitives() {
 fn test_shank_round_trip_point_struct() {
     let value =
         ObjectType::from([("x", SvmValue::i32(100)), ("y", SvmValue::i32(-200))]).to_value();
-    let def_type = ShankIdlType::Defined(ShankIdlTypeDefined { defined: "Point".to_string() });
+    let def_type = ShankIdlType::Defined("Point".to_string());
 
     let encoded = borsh_encode_value_to_shank_idl_type(&value, &def_type, &SHANK_TYPES).unwrap();
 
@@ -1462,7 +1461,7 @@ fn test_shank_round_trip_vec() {
         Value::string("second".to_string()),
         Value::string("third".to_string()),
     ]);
-    let vec_type = ShankIdlType::Vec(ShankIdlTypeVec { vec: Box::new(ShankIdlType::String) });
+    let vec_type = ShankIdlType::Vec(Box::new(ShankIdlType::String));
 
     let encoded = borsh_encode_value_to_shank_idl_type(&value, &vec_type, &vec![]).unwrap();
     let (decoded, rest) =
@@ -1493,7 +1492,7 @@ fn test_shank_decode_not_enough_bytes() {
 fn test_shank_decode_undefined_type() {
     let data = vec![0u8; 8];
     let def_type =
-        ShankIdlType::Defined(ShankIdlTypeDefined { defined: "NonExistentType".to_string() });
+        ShankIdlType::Defined("NonExistentType".to_string());
     let result =
         parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(&data, &def_type, &vec![]);
     assert!(result.is_err());
@@ -1503,9 +1502,7 @@ fn test_shank_decode_undefined_type() {
 #[test]
 fn test_shank_encode_wrong_array_length() {
     let value = Value::array(vec![SvmValue::u8(1), SvmValue::u8(2)]); // Only 2 elements
-    let arr_type = ShankIdlType::Array(ShankIdlTypeArray {
-        array: (Box::new(ShankIdlType::U8), 4), // Expects 4 elements
-    });
+    let arr_type = ShankIdlType::Array(Box::new(ShankIdlType::U8), 4); // Expects 4 elements
     let result = borsh_encode_value_to_shank_idl_type(&value, &arr_type, &vec![]);
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("array length"));
@@ -1514,7 +1511,7 @@ fn test_shank_encode_wrong_array_length() {
 #[test]
 fn test_shank_encode_invalid_enum_variant() {
     let value = ObjectType::from([("InvalidVariant", Value::null())]).to_value();
-    let def_type = ShankIdlType::Defined(ShankIdlTypeDefined { defined: "Status".to_string() });
+    let def_type = ShankIdlType::Defined("Status".to_string());
     let result = borsh_encode_value_to_shank_idl_type(&value, &def_type, &SHANK_TYPES);
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("unknown variant"));
@@ -1526,7 +1523,7 @@ fn test_shank_encode_invalid_enum_variant() {
 
 #[test]
 fn test_extract_shank_types_from_idl() {
-    let types = extract_shank_types(&SHANK_IDL).unwrap();
+    let types = extract_shank_types(&SHANK_IDL);
     assert!(!types.is_empty());
 
     // Verify some expected types exist

@@ -1,9 +1,5 @@
 //! Shank IDL codec functions for converting between Shank IDL types, txtx types, and bytes.
-//!
-//! Since shank_idl doesn't export its internal types directly, we define local types that mirror
-//! the shank_idl structure for use in function signatures.
 
-use serde::{Deserialize, Serialize};
 use txtx_addon_kit::{
     indexmap::IndexMap,
     types::types::{ObjectDefinition, ObjectProperty, ObjectType, Type, Value},
@@ -12,187 +8,21 @@ use txtx_addon_kit::{
 use crate::{SvmValue, SVM_PUBKEY};
 use std::fmt::Display;
 
-// ============================================================================
-// Local type definitions that mirror shank_idl internal types
-// These are needed because shank_idl doesn't export its internal modules
-// TODO: Remove local types once shank_idl exposes them publicly
-// https://github.com/txtx/txtx/issues/382
-// ============================================================================
-
-/// Shank IDL type representation
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum ShankIdlType {
-    Bool,
-    U8,
-    U16,
-    U32,
-    U64,
-    U128,
-    I8,
-    I16,
-    I32,
-    I64,
-    I128,
-    Bytes,
-    String,
-    #[serde(rename = "publicKey")]
-    PublicKey,
-    #[serde(untagged)]
-    Option(ShankIdlTypeOption),
-    #[serde(untagged)]
-    FixedSizeOption(ShankIdlTypeFixedSizeOption),
-    #[serde(untagged)]
-    Vec(ShankIdlTypeVec),
-    #[serde(untagged)]
-    Array(ShankIdlTypeArray),
-    #[serde(untagged)]
-    Tuple(ShankIdlTypeTuple),
-    #[serde(untagged)]
-    Defined(ShankIdlTypeDefined),
-    #[serde(untagged)]
-    HashMap(ShankIdlTypeHashMap),
-    #[serde(untagged)]
-    BTreeMap(ShankIdlTypeBTreeMap),
-    #[serde(untagged)]
-    HashSet(ShankIdlTypeHashSet),
-    #[serde(untagged)]
-    BTreeSet(ShankIdlTypeBTreeSet),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlTypeOption {
-    pub option: Box<ShankIdlType>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct ShankIdlTypeFixedSizeOption {
-    pub fixed_size_option: ShankIdlTypeFixedSizeOptionInner,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlTypeFixedSizeOptionInner {
-    pub inner: Box<ShankIdlType>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sentinel: Option<Vec<u8>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlTypeVec {
-    pub vec: Box<ShankIdlType>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlTypeArray {
-    pub array: (Box<ShankIdlType>, usize),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlTypeTuple {
-    pub tuple: Vec<ShankIdlType>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlTypeDefined {
-    pub defined: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct ShankIdlTypeHashMap {
-    pub hash_map: (Box<ShankIdlType>, Box<ShankIdlType>),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct ShankIdlTypeBTreeMap {
-    pub b_tree_map: (Box<ShankIdlType>, Box<ShankIdlType>),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct ShankIdlTypeHashSet {
-    pub hash_set: Box<ShankIdlType>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct ShankIdlTypeBTreeSet {
-    pub b_tree_set: Box<ShankIdlType>,
-}
-
-/// Shank IDL field definition
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlField {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub ty: ShankIdlType,
-}
-
-/// Shank IDL type definition
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlTypeDef {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub ty: ShankIdlTypeDefTy,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pod_sentinel: Option<Vec<u8>>,
-}
-
-/// Shank IDL type definition type (struct or enum)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "kind", rename_all = "lowercase")]
-pub enum ShankIdlTypeDefTy {
-    Struct { fields: Vec<ShankIdlField> },
-    Enum { variants: Vec<ShankIdlEnumVariant> },
-}
-
-/// Shank IDL enum variant
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlEnumVariant {
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fields: Option<ShankEnumFields>,
-}
-
-/// Shank enum fields (named or tuple)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(untagged)]
-pub enum ShankEnumFields {
-    Named(Vec<ShankIdlField>),
-    Tuple(Vec<ShankIdlType>),
-}
-
-/// Shank IDL constant
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ShankIdlConst {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub ty: ShankIdlType,
-    pub value: String,
-}
+pub use shank_idl::idl::IdlConst;
+pub use shank_idl::idl_field::IdlField;
+pub use shank_idl::idl_type::IdlType;
+pub use shank_idl::idl_type_definition::{IdlTypeDefinition, IdlTypeDefinitionTy};
+pub use shank_idl::idl_variant::{EnumFields, IdlEnumVariant};
 
 // ============================================================================
-// Helper function to convert from shank_idl::idl::Idl to our local types
+// Helper function to extract types from shank_idl::idl::Idl
 // ============================================================================
 
-/// Extracts type definitions from a Shank IDL by serializing and deserializing
-pub fn extract_shank_types(idl: &shank_idl::idl::Idl) -> Result<Vec<ShankIdlTypeDef>, String> {
-    // Serialize the IDL types to JSON and deserialize to our local types
-    let types_json = serde_json::to_string(&idl.types)
-        .map_err(|e| format!("failed to serialize IDL types: {}", e))?;
-    let mut types: Vec<ShankIdlTypeDef> = serde_json::from_str(&types_json)
-        .map_err(|e| format!("failed to deserialize IDL types: {}", e))?;
-
-    // Also include accounts as they can be referenced as types
-    let accounts_json = serde_json::to_string(&idl.accounts)
-        .map_err(|e| format!("failed to serialize IDL accounts: {}", e))?;
-    let accounts: Vec<ShankIdlTypeDef> = serde_json::from_str(&accounts_json)
-        .map_err(|e| format!("failed to deserialize IDL accounts: {}", e))?;
-
-    types.extend(accounts);
-    Ok(types)
+/// Extracts type definitions from a Shank IDL
+pub fn extract_shank_types(idl: &shank_idl::idl::Idl) -> Vec<IdlTypeDefinition> {
+    let mut types = idl.types.clone();
+    types.extend(idl.accounts.clone());
+    types
 }
 
 /// Extracts instruction argument type from a Shank IDL instruction
@@ -200,7 +30,7 @@ pub fn extract_shank_instruction_arg_type(
     idl: &shank_idl::idl::Idl,
     instruction_name: &str,
     arg_index: usize,
-) -> Result<ShankIdlType, String> {
+) -> Result<IdlType, String> {
     let instruction = idl
         .instructions
         .iter()
@@ -211,9 +41,7 @@ pub fn extract_shank_instruction_arg_type(
         format!("argument {} not found in instruction '{}'", arg_index, instruction_name)
     })?;
 
-    let arg_json = serde_json::to_string(&arg.ty)
-        .map_err(|e| format!("failed to serialize arg type: {}", e))?;
-    serde_json::from_str(&arg_json).map_err(|e| format!("failed to deserialize arg type: {}", e))
+    Ok(arg.ty.clone())
 }
 
 // ============================================================================
@@ -255,14 +83,14 @@ pub fn build_discriminator_mapping(
     idl: &shank_idl::idl::Idl,
     enum_type_name: &str,
 ) -> Option<DiscriminatorMapping> {
-    let types = extract_shank_types(idl).ok()?;
+    let types = extract_shank_types(idl);
 
     // Find the enum type
     let enum_type = types.iter().find(|t| t.name == enum_type_name)?;
 
     // Make sure it's an enum
     let variants = match &enum_type.ty {
-        ShankIdlTypeDefTy::Enum { variants } => variants,
+        IdlTypeDefinitionTy::Enum { variants } => variants,
         _ => return None,
     };
 
@@ -289,15 +117,15 @@ pub fn build_discriminator_mapping(
 /// Find the byte offset of a discriminator field within a struct's fields.
 /// Returns the offset in bytes where the discriminator enum field is located.
 fn find_discriminator_field_offset(
-    fields: &[ShankIdlField],
+    fields: &[IdlField],
     enum_type_name: &str,
-    idl_types: &[ShankIdlTypeDef],
+    idl_types: &[IdlTypeDefinition],
 ) -> Result<usize, String> {
     let mut offset = 0;
     for field in fields {
         // Check if this field is the discriminator enum type
-        if let ShankIdlType::Defined(def) = &field.ty {
-            if def.defined == enum_type_name {
+        if let IdlType::Defined(name) = &field.ty {
+            if name == enum_type_name {
                 return Ok(offset);
             }
         }
@@ -324,7 +152,7 @@ pub fn find_account_by_discriminator(idl: &shank_idl::idl::Idl, data: &[u8]) -> 
     let enum_type_name = find_account_discriminator_const(idl)?;
 
     // Get all type definitions (needed for offset calculation)
-    let types = extract_shank_types(idl).ok()?;
+    let types = extract_shank_types(idl);
 
     // Build the discriminator mapping (variant index -> account name)
     let mapping = build_discriminator_mapping(idl, &enum_type_name)?;
@@ -347,7 +175,7 @@ pub fn find_account_by_discriminator(idl: &shank_idl::idl::Idl, data: &[u8]) -> 
 
         // Get the struct fields
         let fields = match &account_type.ty {
-            ShankIdlTypeDefTy::Struct { fields } => fields,
+            IdlTypeDefinitionTy::Struct { fields } => fields,
             _ => continue,
         };
 
@@ -379,42 +207,40 @@ pub fn find_account_by_discriminator(idl: &shank_idl::idl::Idl, data: &[u8]) -> 
 
 /// Converts a Shank IDL type to a txtx Type.
 pub fn shank_idl_type_to_txtx_type(
-    idl_type: &ShankIdlType,
-    idl_types: &[ShankIdlTypeDef],
-    _idl_constants: &[ShankIdlConst],
+    idl_type: &IdlType,
+    idl_types: &[IdlTypeDefinition],
+    _idl_constants: &[IdlConst],
 ) -> Result<Type, String> {
     let res = match idl_type {
-        ShankIdlType::Bool => Type::bool(),
-        ShankIdlType::U8 => Type::addon(crate::SVM_U8),
-        ShankIdlType::U16 => Type::addon(crate::SVM_U16),
-        ShankIdlType::U32 => Type::addon(crate::SVM_U32),
-        ShankIdlType::U64 => Type::addon(crate::SVM_U64),
-        ShankIdlType::U128 => Type::addon(crate::SVM_U128),
-        ShankIdlType::I8 => Type::addon(crate::SVM_I8),
-        ShankIdlType::I16 => Type::addon(crate::SVM_I16),
-        ShankIdlType::I32 => Type::addon(crate::SVM_I32),
-        ShankIdlType::I64 => Type::addon(crate::SVM_I64),
-        ShankIdlType::I128 => Type::addon(crate::SVM_I128),
-        ShankIdlType::Bytes => Type::buffer(),
-        ShankIdlType::String => Type::string(),
-        ShankIdlType::PublicKey => Type::addon(SVM_PUBKEY),
-        ShankIdlType::Option(opt) => {
-            Type::typed_null(shank_idl_type_to_txtx_type(&opt.option, idl_types, _idl_constants)?)
+        IdlType::Bool => Type::bool(),
+        IdlType::U8 => Type::addon(crate::SVM_U8),
+        IdlType::U16 => Type::addon(crate::SVM_U16),
+        IdlType::U32 => Type::addon(crate::SVM_U32),
+        IdlType::U64 => Type::addon(crate::SVM_U64),
+        IdlType::U128 => Type::addon(crate::SVM_U128),
+        IdlType::I8 => Type::addon(crate::SVM_I8),
+        IdlType::I16 => Type::addon(crate::SVM_I16),
+        IdlType::I32 => Type::addon(crate::SVM_I32),
+        IdlType::I64 => Type::addon(crate::SVM_I64),
+        IdlType::I128 => Type::addon(crate::SVM_I128),
+        IdlType::Bytes => Type::buffer(),
+        IdlType::String => Type::string(),
+        IdlType::PublicKey => Type::addon(SVM_PUBKEY),
+        IdlType::Option(inner) => {
+            Type::typed_null(shank_idl_type_to_txtx_type(inner, idl_types, _idl_constants)?)
         }
-        ShankIdlType::FixedSizeOption(opt) => Type::typed_null(shank_idl_type_to_txtx_type(
-            &opt.fixed_size_option.inner,
-            idl_types,
-            _idl_constants,
-        )?),
-        ShankIdlType::Vec(vec) => {
-            Type::array(shank_idl_type_to_txtx_type(&vec.vec, idl_types, _idl_constants)?)
+        IdlType::FixedSizeOption { inner, .. } => {
+            Type::typed_null(shank_idl_type_to_txtx_type(inner, idl_types, _idl_constants)?)
         }
-        ShankIdlType::Array(arr) => {
-            Type::array(shank_idl_type_to_txtx_type(&arr.array.0, idl_types, _idl_constants)?)
+        IdlType::Vec(inner) => {
+            Type::array(shank_idl_type_to_txtx_type(inner, idl_types, _idl_constants)?)
         }
-        ShankIdlType::Tuple(tuple) => {
+        IdlType::Array(inner, _) => {
+            Type::array(shank_idl_type_to_txtx_type(inner, idl_types, _idl_constants)?)
+        }
+        IdlType::Tuple(types) => {
             let mut props = vec![];
-            for (i, ty) in tuple.tuple.iter().enumerate() {
+            for (i, ty) in types.iter().enumerate() {
                 let inner_type = shank_idl_type_to_txtx_type(ty, idl_types, _idl_constants)?;
                 props.push(ObjectProperty {
                     documentation: "".into(),
@@ -427,9 +253,9 @@ pub fn shank_idl_type_to_txtx_type(
             }
             Type::object(ObjectDefinition::tuple(props))
         }
-        ShankIdlType::Defined(def) => {
-            let Some(matching_type) = idl_types.iter().find(|t| t.name == def.defined) else {
-                return Err(format!("unable to find defined type '{}'", def.defined));
+        IdlType::Defined(name) => {
+            let Some(matching_type) = idl_types.iter().find(|t| t.name == *name) else {
+                return Err(format!("unable to find defined type '{}'", name));
             };
             get_expected_type_from_shank_idl_type_def_ty(
                 &matching_type.ty,
@@ -437,21 +263,21 @@ pub fn shank_idl_type_to_txtx_type(
                 _idl_constants,
             )?
         }
-        ShankIdlType::HashMap(_) => {
+        IdlType::HashMap(_, _) => {
             // HashMap is parsed as an object with string keys (key.to_string())
             // Use arbitrary map type since we can't express Map<K,V> in txtx types
             Type::map(ObjectDefinition::arbitrary())
         }
-        ShankIdlType::BTreeMap(_) => {
+        IdlType::BTreeMap(_, _) => {
             // BTreeMap is parsed as an object with string keys (key.to_string())
             // Use arbitrary map type since we can't express Map<K,V> in txtx types
             Type::map(ObjectDefinition::arbitrary())
         }
-        ShankIdlType::HashSet(set) => {
-            Type::array(shank_idl_type_to_txtx_type(&set.hash_set, idl_types, _idl_constants)?)
+        IdlType::HashSet(inner) => {
+            Type::array(shank_idl_type_to_txtx_type(inner, idl_types, _idl_constants)?)
         }
-        ShankIdlType::BTreeSet(set) => {
-            Type::array(shank_idl_type_to_txtx_type(&set.b_tree_set, idl_types, _idl_constants)?)
+        IdlType::BTreeSet(inner) => {
+            Type::array(shank_idl_type_to_txtx_type(inner, idl_types, _idl_constants)?)
         }
     };
     Ok(res)
@@ -459,12 +285,12 @@ pub fn shank_idl_type_to_txtx_type(
 
 /// Converts a Shank IDL type definition to a txtx Type.
 pub fn get_expected_type_from_shank_idl_type_def_ty(
-    idl_type_def_ty: &ShankIdlTypeDefTy,
-    idl_types: &[ShankIdlTypeDef],
-    idl_constants: &[ShankIdlConst],
+    idl_type_def_ty: &IdlTypeDefinitionTy,
+    idl_types: &[IdlTypeDefinition],
+    idl_constants: &[IdlConst],
 ) -> Result<Type, String> {
     let ty = match idl_type_def_ty {
-        ShankIdlTypeDefTy::Struct { fields } => {
+        IdlTypeDefinitionTy::Struct { fields } => {
             let mut props = vec![];
             for field in fields {
                 let field_type = shank_idl_type_to_txtx_type(&field.ty, idl_types, idl_constants)
@@ -482,7 +308,7 @@ pub fn get_expected_type_from_shank_idl_type_def_ty(
             }
             Type::object(ObjectDefinition::strict(props))
         }
-        ShankIdlTypeDefTy::Enum { variants } => {
+        IdlTypeDefinitionTy::Enum { variants } => {
             let mut props = vec![];
             for variant in variants {
                 let variant_type = if let Some(ref fields) = variant.fields {
@@ -506,12 +332,12 @@ pub fn get_expected_type_from_shank_idl_type_def_ty(
 }
 
 fn get_expected_type_from_shank_enum_fields(
-    fields: &ShankEnumFields,
-    idl_types: &[ShankIdlTypeDef],
-    idl_constants: &[ShankIdlConst],
+    fields: &EnumFields,
+    idl_types: &[IdlTypeDefinition],
+    idl_constants: &[IdlConst],
 ) -> Result<Type, String> {
     match fields {
-        ShankEnumFields::Named(idl_fields) => {
+        EnumFields::Named(idl_fields) => {
             let mut props = vec![];
             for field in idl_fields {
                 let field_type = shank_idl_type_to_txtx_type(&field.ty, idl_types, idl_constants)?;
@@ -526,7 +352,7 @@ fn get_expected_type_from_shank_enum_fields(
             }
             Ok(Type::object(ObjectDefinition::strict(props)))
         }
-        ShankEnumFields::Tuple(types) => {
+        EnumFields::Tuple(types) => {
             let mut props = vec![];
             for (i, ty) in types.iter().enumerate() {
                 let inner_type = shank_idl_type_to_txtx_type(ty, idl_types, idl_constants)?;
@@ -551,8 +377,8 @@ fn get_expected_type_from_shank_enum_fields(
 /// Parses bytes to a Value using a Shank IDL type definition, consuming all bytes.
 pub fn parse_bytes_to_value_with_shank_idl_type_def_ty(
     data: &[u8],
-    expected_type: &ShankIdlTypeDefTy,
-    idl_types: &[ShankIdlTypeDef],
+    expected_type: &IdlTypeDefinitionTy,
+    idl_types: &[IdlTypeDefinition],
 ) -> Result<Value, String> {
     let (value, rest) = parse_bytes_to_value_with_shank_idl_type_def_ty_with_leftover_bytes(
         data,
@@ -571,14 +397,14 @@ pub fn parse_bytes_to_value_with_shank_idl_type_def_ty(
 /// Parses bytes to a Value using a Shank IDL type definition, returning leftover bytes.
 pub fn parse_bytes_to_value_with_shank_idl_type_def_ty_with_leftover_bytes<'a>(
     data: &'a [u8],
-    expected_type: &ShankIdlTypeDefTy,
-    idl_types: &[ShankIdlTypeDef],
+    expected_type: &IdlTypeDefinitionTy,
+    idl_types: &[IdlTypeDefinition],
 ) -> Result<(Value, &'a [u8]), String> {
     match expected_type {
-        ShankIdlTypeDefTy::Struct { fields } => {
+        IdlTypeDefinitionTy::Struct { fields } => {
             parse_bytes_to_shank_struct_with_leftover_bytes(data, fields, idl_types)
         }
-        ShankIdlTypeDefTy::Enum { variants } => {
+        IdlTypeDefinitionTy::Enum { variants } => {
             let (variant, rest) =
                 data.split_at_checked(1).ok_or("not enough bytes to decode enum variant index")?;
             let variant_index = variant[0] as usize;
@@ -599,8 +425,8 @@ pub fn parse_bytes_to_value_with_shank_idl_type_def_ty_with_leftover_bytes<'a>(
 
 fn parse_bytes_to_shank_struct_with_leftover_bytes<'a>(
     data: &'a [u8],
-    fields: &[ShankIdlField],
-    idl_types: &[ShankIdlTypeDef],
+    fields: &[IdlField],
+    idl_types: &[IdlTypeDefinition],
 ) -> Result<(Value, &'a [u8]), String> {
     let mut map = IndexMap::new();
     let mut remaining_data = data;
@@ -618,11 +444,11 @@ fn parse_bytes_to_shank_struct_with_leftover_bytes<'a>(
 
 fn parse_bytes_to_shank_enum_variant_with_leftover_bytes<'a>(
     data: &'a [u8],
-    variant: &ShankIdlEnumVariant,
-    idl_types: &[ShankIdlTypeDef],
+    variant: &IdlEnumVariant,
+    idl_types: &[IdlTypeDefinition],
 ) -> Result<(Value, &'a [u8]), String> {
     match &variant.fields {
-        Some(ShankEnumFields::Named(fields)) => {
+        Some(EnumFields::Named(fields)) => {
             let mut map = IndexMap::new();
             let mut remaining_data = data;
             for field in fields {
@@ -636,7 +462,7 @@ fn parse_bytes_to_shank_enum_variant_with_leftover_bytes<'a>(
             }
             Ok((ObjectType::from_map(map).to_value(), remaining_data))
         }
-        Some(ShankEnumFields::Tuple(types)) => {
+        Some(EnumFields::Tuple(types)) => {
             let mut values = Vec::with_capacity(types.len());
             let mut remaining_data = data;
             for ty in types {
@@ -657,18 +483,18 @@ fn parse_bytes_to_shank_enum_variant_with_leftover_bytes<'a>(
 /// Parses bytes to a Value using a Shank IDL type, returning leftover bytes.
 pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
     data: &'a [u8],
-    expected_type: &ShankIdlType,
-    idl_types: &[ShankIdlTypeDef],
+    expected_type: &IdlType,
+    idl_types: &[IdlTypeDefinition],
 ) -> Result<(Value, &'a [u8]), String> {
     let err = |ty: &str, e: &dyn Display| format!("unable to decode {ty}: {e}");
     let bytes_err = |ty: &str| err(ty, &"not enough bytes");
 
     match expected_type {
-        ShankIdlType::U8 => {
+        IdlType::U8 => {
             let (v, rest) = data.split_at_checked(1).ok_or(bytes_err("u8"))?;
             Ok((SvmValue::u8(v[0]), rest))
         }
-        ShankIdlType::U16 => {
+        IdlType::U16 => {
             let (v, rest) = data.split_at_checked(2).ok_or(bytes_err("u16"))?;
             Ok((
                 SvmValue::u16(u16::from_le_bytes(
@@ -677,7 +503,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 rest,
             ))
         }
-        ShankIdlType::U32 => {
+        IdlType::U32 => {
             let (v, rest) = data.split_at_checked(4).ok_or(bytes_err("u32"))?;
             Ok((
                 SvmValue::u32(u32::from_le_bytes(
@@ -686,7 +512,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 rest,
             ))
         }
-        ShankIdlType::U64 => {
+        IdlType::U64 => {
             let (v, rest) = data.split_at_checked(8).ok_or(bytes_err("u64"))?;
             Ok((
                 SvmValue::u64(u64::from_le_bytes(
@@ -695,7 +521,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 rest,
             ))
         }
-        ShankIdlType::U128 => {
+        IdlType::U128 => {
             let (v, rest) = data.split_at_checked(16).ok_or(bytes_err("u128"))?;
             Ok((
                 SvmValue::u128(u128::from_le_bytes(
@@ -704,11 +530,11 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 rest,
             ))
         }
-        ShankIdlType::I8 => {
+        IdlType::I8 => {
             let (v, rest) = data.split_at_checked(1).ok_or(bytes_err("i8"))?;
             Ok((SvmValue::i8(i8::from_le_bytes([v[0]])), rest))
         }
-        ShankIdlType::I16 => {
+        IdlType::I16 => {
             let (v, rest) = data.split_at_checked(2).ok_or(bytes_err("i16"))?;
             Ok((
                 SvmValue::i16(i16::from_le_bytes(
@@ -717,7 +543,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 rest,
             ))
         }
-        ShankIdlType::I32 => {
+        IdlType::I32 => {
             let (v, rest) = data.split_at_checked(4).ok_or(bytes_err("i32"))?;
             Ok((
                 SvmValue::i32(i32::from_le_bytes(
@@ -726,7 +552,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 rest,
             ))
         }
-        ShankIdlType::I64 => {
+        IdlType::I64 => {
             let (v, rest) = data.split_at_checked(8).ok_or(bytes_err("i64"))?;
             Ok((
                 SvmValue::i64(i64::from_le_bytes(
@@ -735,7 +561,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 rest,
             ))
         }
-        ShankIdlType::I128 => {
+        IdlType::I128 => {
             let (v, rest) = data.split_at_checked(16).ok_or(bytes_err("i128"))?;
             Ok((
                 SvmValue::i128(i128::from_le_bytes(
@@ -744,15 +570,15 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 rest,
             ))
         }
-        ShankIdlType::Bool => {
+        IdlType::Bool => {
             let (v, rest) = data.split_at_checked(1).ok_or(bytes_err("bool"))?;
             Ok((Value::bool(v[0] != 0), rest))
         }
-        ShankIdlType::PublicKey => {
+        IdlType::PublicKey => {
             let (v, rest) = data.split_at_checked(32).ok_or(bytes_err("pubkey"))?;
             Ok((SvmValue::pubkey(v.to_vec()), rest))
         }
-        ShankIdlType::String => {
+        IdlType::String => {
             let (string_len, rest) = data.split_at_checked(4).ok_or(bytes_err("string length"))?;
             let string_len = u32::from_le_bytes(
                 <[u8; 4]>::try_from(string_len).map_err(|e| err("string length", &e))?,
@@ -762,7 +588,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let string_value = String::from_utf8_lossy(string_bytes).to_string();
             Ok((Value::string(string_value), rest))
         }
-        ShankIdlType::Bytes => {
+        IdlType::Bytes => {
             let (vec_len, rest) = data.split_at_checked(4).ok_or(bytes_err("bytes length"))?;
             let vec_len = u32::from_le_bytes(
                 <[u8; 4]>::try_from(vec_len).map_err(|e| err("bytes length", &e))?,
@@ -770,24 +596,22 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             let (vec_bytes, rest) = rest.split_at_checked(vec_len).ok_or(bytes_err("bytes"))?;
             Ok((Value::buffer(vec_bytes.to_vec()), rest))
         }
-        ShankIdlType::Option(opt) => {
+        IdlType::Option(inner) => {
             let (is_some, rest) = data.split_at_checked(1).ok_or(bytes_err("option"))?;
             if is_some[0] == 0 {
                 Ok((Value::null(), rest))
             } else {
                 parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
-                    rest,
-                    &opt.option,
-                    idl_types,
+                    rest, inner, idl_types,
                 )
             }
         }
-        ShankIdlType::FixedSizeOption(opt) => {
-            let inner_size = get_shank_type_size(&opt.fixed_size_option.inner)?;
+        IdlType::FixedSizeOption { inner, sentinel } => {
+            let inner_size = get_shank_type_size(inner)?;
             let (inner_bytes, rest) =
                 data.split_at_checked(inner_size).ok_or(bytes_err("fixed_size_option"))?;
 
-            if let Some(ref sentinel_bytes) = opt.fixed_size_option.sentinel {
+            if let Some(ref sentinel_bytes) = sentinel {
                 if inner_bytes == sentinel_bytes.as_slice() {
                     return Ok((Value::null(), rest));
                 }
@@ -795,12 +619,12 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
 
             let (value, _) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                 inner_bytes,
-                &opt.fixed_size_option.inner,
+                inner,
                 idl_types,
             )?;
             Ok((value, rest))
         }
-        ShankIdlType::Vec(vec) => {
+        IdlType::Vec(inner) => {
             let (vec_len, rest) = data.split_at_checked(4).ok_or(bytes_err("vec length"))?;
             let vec_len = u32::from_le_bytes(
                 <[u8; 4]>::try_from(vec_len).map_err(|e| err("vec length", &e))?,
@@ -812,7 +636,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             for _ in 0..vec_len {
                 let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                     remaining_data,
-                    &vec.vec,
+                    inner,
                     idl_types,
                 )?;
                 vec_values.push(value);
@@ -821,14 +645,13 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
 
             Ok((Value::array(vec_values), remaining_data))
         }
-        ShankIdlType::Array(arr) => {
-            let len = arr.array.1;
-            let mut vec_values = Vec::with_capacity(len);
+        IdlType::Array(inner, len) => {
+            let mut vec_values = Vec::with_capacity(*len);
             let mut remaining_data = data;
-            for _ in 0..len {
+            for _ in 0..*len {
                 let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                     remaining_data,
-                    &arr.array.0,
+                    inner,
                     idl_types,
                 )?;
                 vec_values.push(value);
@@ -836,10 +659,10 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             }
             Ok((Value::array(vec_values), remaining_data))
         }
-        ShankIdlType::Tuple(tuple) => {
-            let mut values = Vec::with_capacity(tuple.tuple.len());
+        IdlType::Tuple(types) => {
+            let mut values = Vec::with_capacity(types.len());
             let mut remaining_data = data;
-            for ty in &tuple.tuple {
+            for ty in types {
                 let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                     remaining_data,
                     ty,
@@ -850,11 +673,11 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             }
             Ok((Value::array(values), remaining_data))
         }
-        ShankIdlType::Defined(def) => {
+        IdlType::Defined(name) => {
             let matching_type = idl_types
                 .iter()
-                .find(|t| t.name == def.defined)
-                .ok_or(err(&def.defined, &"not found in IDL types"))?;
+                .find(|t| t.name == *name)
+                .ok_or(err(name, &"not found in IDL types"))?;
 
             parse_bytes_to_value_with_shank_idl_type_def_ty_with_leftover_bytes(
                 data,
@@ -862,7 +685,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
                 idl_types,
             )
         }
-        ShankIdlType::HashMap(map) => {
+        IdlType::HashMap(key_type, value_type) => {
             let (map_len, rest) = data.split_at_checked(4).ok_or(bytes_err("hashmap length"))?;
             let map_len = u32::from_le_bytes(
                 <[u8; 4]>::try_from(map_len).map_err(|e| err("hashmap length", &e))?,
@@ -874,12 +697,12 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             for _ in 0..map_len {
                 let (key, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                     remaining_data,
-                    &map.hash_map.0,
+                    key_type,
                     idl_types,
                 )?;
                 let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                     rest,
-                    &map.hash_map.1,
+                    value_type,
                     idl_types,
                 )?;
                 remaining_data = rest;
@@ -888,7 +711,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
 
             Ok((ObjectType::from_map(result_map).to_value(), remaining_data))
         }
-        ShankIdlType::BTreeMap(map) => {
+        IdlType::BTreeMap(key_type, value_type) => {
             let (map_len, rest) = data.split_at_checked(4).ok_or(bytes_err("btreemap length"))?;
             let map_len = u32::from_le_bytes(
                 <[u8; 4]>::try_from(map_len).map_err(|e| err("btreemap length", &e))?,
@@ -900,12 +723,12 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             for _ in 0..map_len {
                 let (key, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                     remaining_data,
-                    &map.b_tree_map.0,
+                    key_type,
                     idl_types,
                 )?;
                 let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                     rest,
-                    &map.b_tree_map.1,
+                    value_type,
                     idl_types,
                 )?;
                 remaining_data = rest;
@@ -914,7 +737,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
 
             Ok((ObjectType::from_map(result_map).to_value(), remaining_data))
         }
-        ShankIdlType::HashSet(set) => {
+        IdlType::HashSet(inner) => {
             let (set_len, rest) = data.split_at_checked(4).ok_or(bytes_err("hashset length"))?;
             let set_len = u32::from_le_bytes(
                 <[u8; 4]>::try_from(set_len).map_err(|e| err("hashset length", &e))?,
@@ -926,7 +749,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             for _ in 0..set_len {
                 let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                     remaining_data,
-                    &set.hash_set,
+                    inner,
                     idl_types,
                 )?;
                 values.push(value);
@@ -935,7 +758,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
 
             Ok((Value::array(values), remaining_data))
         }
-        ShankIdlType::BTreeSet(set) => {
+        IdlType::BTreeSet(inner) => {
             let (set_len, rest) = data.split_at_checked(4).ok_or(bytes_err("btreeset length"))?;
             let set_len = u32::from_le_bytes(
                 <[u8; 4]>::try_from(set_len).map_err(|e| err("btreeset length", &e))?,
@@ -947,7 +770,7 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
             for _ in 0..set_len {
                 let (value, rest) = parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes(
                     remaining_data,
-                    &set.b_tree_set,
+                    inner,
                     idl_types,
                 )?;
                 values.push(value);
@@ -960,45 +783,45 @@ pub fn parse_bytes_to_value_with_shank_idl_type_with_leftover_bytes<'a>(
 }
 
 /// Returns the size in bytes of a Shank IDL type (for fixed-size types).
-fn get_shank_type_size(ty: &ShankIdlType) -> Result<usize, String> {
+fn get_shank_type_size(ty: &IdlType) -> Result<usize, String> {
     get_shank_type_size_with_types(ty, &[])
 }
 
 /// Returns the size in bytes of a Shank IDL type, with access to type definitions
 /// for resolving defined types.
 fn get_shank_type_size_with_types(
-    ty: &ShankIdlType,
-    idl_types: &[ShankIdlTypeDef],
+    ty: &IdlType,
+    idl_types: &[IdlTypeDefinition],
 ) -> Result<usize, String> {
     match ty {
-        ShankIdlType::Bool | ShankIdlType::U8 | ShankIdlType::I8 => Ok(1),
-        ShankIdlType::U16 | ShankIdlType::I16 => Ok(2),
-        ShankIdlType::U32 | ShankIdlType::I32 => Ok(4),
-        ShankIdlType::U64 | ShankIdlType::I64 => Ok(8),
-        ShankIdlType::U128 | ShankIdlType::I128 => Ok(16),
-        ShankIdlType::PublicKey => Ok(32),
-        ShankIdlType::Array(arr) => {
-            let inner_size = get_shank_type_size_with_types(&arr.array.0, idl_types)?;
-            Ok(inner_size * arr.array.1)
+        IdlType::Bool | IdlType::U8 | IdlType::I8 => Ok(1),
+        IdlType::U16 | IdlType::I16 => Ok(2),
+        IdlType::U32 | IdlType::I32 => Ok(4),
+        IdlType::U64 | IdlType::I64 => Ok(8),
+        IdlType::U128 | IdlType::I128 => Ok(16),
+        IdlType::PublicKey => Ok(32),
+        IdlType::Array(inner, size) => {
+            let inner_size = get_shank_type_size_with_types(inner, idl_types)?;
+            Ok(inner_size * size)
         }
-        ShankIdlType::Defined(def) => {
+        IdlType::Defined(name) => {
             let type_def = idl_types
                 .iter()
-                .find(|t| t.name == def.defined)
+                .find(|t| t.name == *name)
                 .ok_or_else(|| format!("cannot determine fixed size for type {:?}", ty))?;
             match &type_def.ty {
-                ShankIdlTypeDefTy::Enum { variants } => {
+                IdlTypeDefinitionTy::Enum { variants } => {
                     // Simple enum without data fields = 1 byte discriminator
                     if variants.iter().all(|v| v.fields.is_none()) {
                         Ok(1)
                     } else {
                         Err(format!(
                             "cannot determine fixed size for enum with data: {}",
-                            def.defined
+                            name
                         ))
                     }
                 }
-                ShankIdlTypeDefTy::Struct { fields } => {
+                IdlTypeDefinitionTy::Struct { fields } => {
                     let mut size = 0;
                     for field in fields {
                         size += get_shank_type_size_with_types(&field.ty, idl_types)?;
@@ -1018,8 +841,8 @@ fn get_shank_type_size_with_types(
 /// Encodes a txtx Value to bytes using a Shank IDL type.
 pub fn borsh_encode_value_to_shank_idl_type(
     value: &Value,
-    idl_type: &ShankIdlType,
-    idl_types: &[ShankIdlTypeDef],
+    idl_type: &IdlType,
+    idl_types: &[IdlTypeDefinition],
 ) -> Result<Vec<u8>, String> {
     let mismatch_err = |expected: &str| {
         format!("invalid value for idl type: expected {}, found {:?}", expected, value.get_type())
@@ -1040,93 +863,92 @@ pub fn borsh_encode_value_to_shank_idl_type(
     }
 
     match idl_type {
-        ShankIdlType::Bool => value
+        IdlType::Bool => value
             .as_bool()
             .and_then(|b| Some(borsh::to_vec(&b).map_err(|e| encode_err("bool", &e))))
             .transpose()?
             .ok_or(mismatch_err("bool")),
-        ShankIdlType::U8 => SvmValue::to_number::<u8>(value)
+        IdlType::U8 => SvmValue::to_number::<u8>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("u8", &e)),
-        ShankIdlType::U16 => SvmValue::to_number::<u16>(value)
+        IdlType::U16 => SvmValue::to_number::<u16>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("u16", &e)),
-        ShankIdlType::U32 => SvmValue::to_number::<u32>(value)
+        IdlType::U32 => SvmValue::to_number::<u32>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("u32", &e)),
-        ShankIdlType::U64 => SvmValue::to_number::<u64>(value)
+        IdlType::U64 => SvmValue::to_number::<u64>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("u64", &e)),
-        ShankIdlType::U128 => SvmValue::to_number::<u128>(value)
+        IdlType::U128 => SvmValue::to_number::<u128>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("u128", &e)),
-        ShankIdlType::I8 => SvmValue::to_number::<i8>(value)
+        IdlType::I8 => SvmValue::to_number::<i8>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("i8", &e)),
-        ShankIdlType::I16 => SvmValue::to_number::<i16>(value)
+        IdlType::I16 => SvmValue::to_number::<i16>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("i16", &e)),
-        ShankIdlType::I32 => SvmValue::to_number::<i32>(value)
+        IdlType::I32 => SvmValue::to_number::<i32>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("i32", &e)),
-        ShankIdlType::I64 => SvmValue::to_number::<i64>(value)
+        IdlType::I64 => SvmValue::to_number::<i64>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("i64", &e)),
-        ShankIdlType::I128 => SvmValue::to_number::<i128>(value)
+        IdlType::I128 => SvmValue::to_number::<i128>(value)
             .and_then(|num| borsh::to_vec(&num).map_err(|e| e.to_string()))
             .map_err(|e| encode_err("i128", &e)),
-        ShankIdlType::Bytes => Ok(value.to_be_bytes().clone()),
-        ShankIdlType::String => value
+        IdlType::Bytes => Ok(value.to_be_bytes().clone()),
+        IdlType::String => value
             .as_string()
             .and_then(|s| Some(borsh::to_vec(&s).map_err(|e| encode_err("string", &e))))
             .transpose()?
             .ok_or(mismatch_err("string")),
-        ShankIdlType::PublicKey => SvmValue::to_pubkey(value)
+        IdlType::PublicKey => SvmValue::to_pubkey(value)
             .map_err(|_| mismatch_err("pubkey"))
             .map(|p| borsh::to_vec(&p))?
             .map_err(|e| encode_err("pubkey", &e)),
-        ShankIdlType::Option(opt) => {
+        IdlType::Option(inner) => {
             if value.as_null().is_some() {
                 Ok(vec![0u8]) // None discriminator
             } else {
                 let encoded_inner =
-                    borsh_encode_value_to_shank_idl_type(value, &opt.option, idl_types)?;
+                    borsh_encode_value_to_shank_idl_type(value, inner, idl_types)?;
                 let mut result = vec![1u8]; // Some discriminator
                 result.extend(encoded_inner);
                 Ok(result)
             }
         }
-        ShankIdlType::FixedSizeOption(opt) => {
+        IdlType::FixedSizeOption { inner, sentinel } => {
             if value.as_null().is_some() {
-                if let Some(ref sentinel_bytes) = opt.fixed_size_option.sentinel {
+                if let Some(ref sentinel_bytes) = sentinel {
                     Ok(sentinel_bytes.clone())
                 } else {
-                    let size = get_shank_type_size(&opt.fixed_size_option.inner)?;
+                    let size = get_shank_type_size(inner)?;
                     Ok(vec![0u8; size])
                 }
             } else {
-                borsh_encode_value_to_shank_idl_type(value, &opt.fixed_size_option.inner, idl_types)
+                borsh_encode_value_to_shank_idl_type(value, inner, idl_types)
             }
         }
-        ShankIdlType::Vec(vec) => match value {
+        IdlType::Vec(inner) => match value {
             Value::String(_) => {
                 let bytes = value.get_buffer_bytes_result().map_err(|_| mismatch_err("vec"))?;
-                borsh_encode_bytes_to_shank_idl_type(&bytes, &vec.vec, idl_types)
+                borsh_encode_bytes_to_shank_idl_type(&bytes, inner, idl_types)
             }
             Value::Array(arr) => {
                 let mut result = (arr.len() as u32).to_le_bytes().to_vec();
                 for v in arr.iter() {
-                    let encoded = borsh_encode_value_to_shank_idl_type(v, &vec.vec, idl_types)?;
+                    let encoded = borsh_encode_value_to_shank_idl_type(v, inner, idl_types)?;
                     result.extend(encoded);
                 }
                 Ok(result)
             }
             _ => Err(mismatch_err("vec")),
         },
-        ShankIdlType::Array(arr) => {
+        IdlType::Array(inner, expected_len) => {
             let array = value.as_array().ok_or(mismatch_err("array"))?;
-            let expected_len = arr.array.1;
-            if array.len() != expected_len {
+            if array.len() != *expected_len {
                 return Err(format!(
                     "invalid value for idl type: expected array length of {}, found {}",
                     expected_len,
@@ -1135,76 +957,76 @@ pub fn borsh_encode_value_to_shank_idl_type(
             }
             let mut result = vec![];
             for v in array.iter() {
-                let encoded = borsh_encode_value_to_shank_idl_type(v, &arr.array.0, idl_types)?;
+                let encoded = borsh_encode_value_to_shank_idl_type(v, inner, idl_types)?;
                 result.extend(encoded);
             }
             Ok(result)
         }
-        ShankIdlType::Tuple(tuple) => {
+        IdlType::Tuple(types) => {
             let array = value.as_array().ok_or(mismatch_err("tuple"))?;
-            if array.len() != tuple.tuple.len() {
+            if array.len() != types.len() {
                 return Err(format!(
                     "invalid value for idl type: expected tuple length of {}, found {}",
-                    tuple.tuple.len(),
+                    types.len(),
                     array.len()
                 ));
             }
             let mut result = vec![];
-            for (v, ty) in array.iter().zip(tuple.tuple.iter()) {
+            for (v, ty) in array.iter().zip(types.iter()) {
                 let encoded = borsh_encode_value_to_shank_idl_type(v, ty, idl_types)?;
                 result.extend(encoded);
             }
             Ok(result)
         }
-        ShankIdlType::Defined(def) => {
-            let typing = idl_types.iter().find(|t| t.name == def.defined).ok_or_else(|| {
-                format!("unable to find type definition for {} in idl", def.defined)
+        IdlType::Defined(name) => {
+            let typing = idl_types.iter().find(|t| t.name == *name).ok_or_else(|| {
+                format!("unable to find type definition for {} in idl", name)
             })?;
 
             borsh_encode_value_to_shank_idl_type_def_ty(value, &typing.ty, idl_types)
         }
-        ShankIdlType::HashMap(map) => {
+        IdlType::HashMap(key_type, value_type) => {
             let obj = value.as_object().ok_or(mismatch_err("hashmap"))?;
             let mut result = (obj.len() as u32).to_le_bytes().to_vec();
             for (k, v) in obj.iter() {
                 let key_value = Value::string(k.clone());
                 let encoded_key =
-                    borsh_encode_value_to_shank_idl_type(&key_value, &map.hash_map.0, idl_types)?;
+                    borsh_encode_value_to_shank_idl_type(&key_value, key_type, idl_types)?;
                 let encoded_value =
-                    borsh_encode_value_to_shank_idl_type(v, &map.hash_map.1, idl_types)?;
+                    borsh_encode_value_to_shank_idl_type(v, value_type, idl_types)?;
                 result.extend(encoded_key);
                 result.extend(encoded_value);
             }
             Ok(result)
         }
-        ShankIdlType::BTreeMap(map) => {
+        IdlType::BTreeMap(key_type, value_type) => {
             let obj = value.as_object().ok_or(mismatch_err("btreemap"))?;
             let mut result = (obj.len() as u32).to_le_bytes().to_vec();
             for (k, v) in obj.iter() {
                 let key_value = Value::string(k.clone());
                 let encoded_key =
-                    borsh_encode_value_to_shank_idl_type(&key_value, &map.b_tree_map.0, idl_types)?;
+                    borsh_encode_value_to_shank_idl_type(&key_value, key_type, idl_types)?;
                 let encoded_value =
-                    borsh_encode_value_to_shank_idl_type(v, &map.b_tree_map.1, idl_types)?;
+                    borsh_encode_value_to_shank_idl_type(v, value_type, idl_types)?;
                 result.extend(encoded_key);
                 result.extend(encoded_value);
             }
             Ok(result)
         }
-        ShankIdlType::HashSet(set) => {
+        IdlType::HashSet(inner) => {
             let array = value.as_array().ok_or(mismatch_err("hashset"))?;
             let mut result = (array.len() as u32).to_le_bytes().to_vec();
             for v in array.iter() {
-                let encoded = borsh_encode_value_to_shank_idl_type(v, &set.hash_set, idl_types)?;
+                let encoded = borsh_encode_value_to_shank_idl_type(v, inner, idl_types)?;
                 result.extend(encoded);
             }
             Ok(result)
         }
-        ShankIdlType::BTreeSet(set) => {
+        IdlType::BTreeSet(inner) => {
             let array = value.as_array().ok_or(mismatch_err("btreeset"))?;
             let mut result = (array.len() as u32).to_le_bytes().to_vec();
             for v in array.iter() {
-                let encoded = borsh_encode_value_to_shank_idl_type(v, &set.b_tree_set, idl_types)?;
+                let encoded = borsh_encode_value_to_shank_idl_type(v, inner, idl_types)?;
                 result.extend(encoded);
             }
             Ok(result)
@@ -1214,11 +1036,11 @@ pub fn borsh_encode_value_to_shank_idl_type(
 
 fn borsh_encode_value_to_shank_idl_type_def_ty(
     value: &Value,
-    idl_type_def_ty: &ShankIdlTypeDefTy,
-    idl_types: &[ShankIdlTypeDef],
+    idl_type_def_ty: &IdlTypeDefinitionTy,
+    idl_types: &[IdlTypeDefinition],
 ) -> Result<Vec<u8>, String> {
     match idl_type_def_ty {
-        ShankIdlTypeDefTy::Struct { fields } => {
+        IdlTypeDefinitionTy::Struct { fields } => {
             let mut encoded_fields = vec![];
             let user_values_map = value.as_object().ok_or_else(|| {
                 format!("expected object for struct, found {:?}", value.get_type())
@@ -1235,7 +1057,7 @@ fn borsh_encode_value_to_shank_idl_type_def_ty(
             }
             Ok(encoded_fields)
         }
-        ShankIdlTypeDefTy::Enum { variants } => {
+        IdlTypeDefinitionTy::Enum { variants } => {
             let enum_value = value
                 .as_object()
                 .ok_or_else(|| format!("expected object for enum, found {:?}", value.get_type()))?;
@@ -1270,7 +1092,7 @@ fn borsh_encode_value_to_shank_idl_type_def_ty(
             let mut encoded = vec![variant_index as u8];
 
             match &expected_variant.fields {
-                Some(ShankEnumFields::Named(fields)) => {
+                Some(EnumFields::Named(fields)) => {
                     let user_values_map = enum_variant_value
                         .as_object()
                         .ok_or_else(|| format!("expected object for enum variant fields"))?;
@@ -1283,7 +1105,7 @@ fn borsh_encode_value_to_shank_idl_type_def_ty(
                         encoded.extend(field_encoded);
                     }
                 }
-                Some(ShankEnumFields::Tuple(types)) => {
+                Some(EnumFields::Tuple(types)) => {
                     let values = enum_variant_value
                         .as_array()
                         .ok_or_else(|| format!("expected array for enum tuple variant"))?;
@@ -1311,104 +1133,103 @@ fn borsh_encode_value_to_shank_idl_type_def_ty(
 
 fn borsh_encode_bytes_to_shank_idl_type(
     bytes: &[u8],
-    idl_type: &ShankIdlType,
-    _idl_types: &[ShankIdlTypeDef],
+    idl_type: &IdlType,
+    _idl_types: &[IdlTypeDefinition],
 ) -> Result<Vec<u8>, String> {
     match idl_type {
-        ShankIdlType::U8 => {
+        IdlType::U8 => {
             if bytes.len() != 1 {
                 return Err(format!("expected 1 byte for u8, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::U16 => {
+        IdlType::U16 => {
             if bytes.len() != 2 {
                 return Err(format!("expected 2 bytes for u16, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::U32 => {
+        IdlType::U32 => {
             if bytes.len() != 4 {
                 return Err(format!("expected 4 bytes for u32, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::U64 => {
+        IdlType::U64 => {
             if bytes.len() != 8 {
                 return Err(format!("expected 8 bytes for u64, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::U128 => {
+        IdlType::U128 => {
             if bytes.len() != 16 {
                 return Err(format!("expected 16 bytes for u128, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::I8 => {
+        IdlType::I8 => {
             if bytes.len() != 1 {
                 return Err(format!("expected 1 byte for i8, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::I16 => {
+        IdlType::I16 => {
             if bytes.len() != 2 {
                 return Err(format!("expected 2 bytes for i16, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::I32 => {
+        IdlType::I32 => {
             if bytes.len() != 4 {
                 return Err(format!("expected 4 bytes for i32, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::I64 => {
+        IdlType::I64 => {
             if bytes.len() != 8 {
                 return Err(format!("expected 8 bytes for i64, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::I128 => {
+        IdlType::I128 => {
             if bytes.len() != 16 {
                 return Err(format!("expected 16 bytes for i128, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::Bool => {
+        IdlType::Bool => {
             if bytes.len() != 1 {
                 return Err(format!("expected 1 byte for bool, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::PublicKey => {
+        IdlType::PublicKey => {
             if bytes.len() != 32 {
                 return Err(format!("expected 32 bytes for Pubkey, found {}", bytes.len()));
             }
             Ok(bytes.to_vec())
         }
-        ShankIdlType::String => {
+        IdlType::String => {
             let s = std::str::from_utf8(bytes)
                 .map_err(|e| format!("invalid UTF-8 for string: {}", e))?;
             borsh::to_vec(&s).map_err(|e| format!("failed to encode string: {}", e))
         }
-        ShankIdlType::Bytes => Ok(bytes.to_vec()),
-        ShankIdlType::Vec(vec) => {
-            match &*vec.vec {
-                ShankIdlType::U8 => {
+        IdlType::Bytes => Ok(bytes.to_vec()),
+        IdlType::Vec(inner) => {
+            match &**inner {
+                IdlType::U8 => {
                     borsh::to_vec(bytes).map_err(|e| format!("failed to encode Vec<u8>: {}", e))
                 }
                 _ => Err(format!(
                     "cannot convert raw bytes to Vec<{:?}>; bytes can only be directly converted to Vec<u8>",
-                    vec.vec
+                    inner
                 ))
             }
         }
-        ShankIdlType::Array(arr) => {
-            match &*arr.array.0 {
-                ShankIdlType::U8 => {
-                    let expected_len = arr.array.1;
-                    if bytes.len() != expected_len {
+        IdlType::Array(inner, expected_len) => {
+            match &**inner {
+                IdlType::U8 => {
+                    if bytes.len() != *expected_len {
                         return Err(format!(
                             "expected {} bytes for array, found {}",
                             expected_len,
@@ -1419,7 +1240,7 @@ fn borsh_encode_bytes_to_shank_idl_type(
                 }
                 _ => Err(format!(
                     "cannot convert raw bytes to [{:?}; {}]",
-                    arr.array.0, arr.array.1
+                    inner, expected_len
                 ))
             }
         }
