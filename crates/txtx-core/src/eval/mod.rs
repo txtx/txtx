@@ -2601,3 +2601,6 @@ fn evaluate_map_object_prop(
 
     Ok(parent_result)
 }
+
+#[cfg(test)]
+mod map_eval_tests;
