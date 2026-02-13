@@ -16,13 +16,13 @@ use txtx_addon_kit::types::signers::{
     SignerActionsFutureResult, SignerInstance, SignerSignFutureResult, SignersState,
 };
 use txtx_addon_kit::types::stores::ValueStore;
-use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type};
+use txtx_addon_kit::types::types::{RunbookSupervisionContext, Type, Value};
 use txtx_addon_kit::types::ConstructDid;
 use txtx_addon_kit::uuid::Uuid;
 
 use crate::codec::instruction::parse_instructions_map;
 use crate::codec::send_transaction::send_transaction_background_task;
-use crate::constants::{RPC_API_URL, TRANSACTION_BYTES};
+use crate::constants::{DO_AWAIT_CONFIRMATION, RPC_API_URL, SKIP_PREFLIGHT, TRANSACTION_BYTES};
 use crate::typing::{SvmValue, INSTRUCTION_TYPE};
 
 use super::get_signers_did;
@@ -85,6 +85,14 @@ lazy_static! {
                         tainting: false,
                         internal: false,
                         sensitive: true
+                    },
+                    skip_preflight: {
+                        documentation: "Whether to skip preflight checks. The default is `false`.",
+                        typing: Type::bool(),
+                        optional: true,
+                        tainting: false,
+                        internal: false,
+                        sensitive: false
                     }
                 ],
                 outputs: [
@@ -218,6 +226,12 @@ impl CommandImplementation for ProcessInstructions {
         supervision_context: &RunbookSupervisionContext,
         _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
+        let mut values = values.clone();
+        let skip_preflight = values.get_bool(SKIP_PREFLIGHT).unwrap_or(false);
+        // adding DO_AWAIT_CONFIRMATION skips preflight
+        if skip_preflight {
+            values.insert(DO_AWAIT_CONFIRMATION, Value::bool(false));
+        }
         send_transaction_background_task(
             &construct_did,
             &spec,
