@@ -2423,7 +2423,7 @@ fn evaluate_arbitrary_inputs_map(
             for (ident, child_blocks) in ident_grouped_child_blocks {
                 let child_block_result = evaluate_arbitrary_inputs_map(
                     spec_input_name,
-                    parent_result.clone(),
+                    EvaluateMapObjectPropResult::new(),
                     child_blocks,
                     dependencies_execution_results,
                     package_id,
@@ -2601,3 +2601,6 @@ fn evaluate_map_object_prop(
 
     Ok(parent_result)
 }
+
+#[cfg(test)]
+mod map_eval_tests;
