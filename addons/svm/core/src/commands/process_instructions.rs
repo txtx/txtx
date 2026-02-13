@@ -151,6 +151,19 @@ impl CommandImplementation for ProcessInstructions {
             )
         })?;
 
+        // Validate at least one writable signer exists (required for fee payer)
+        if !has_writable_signer(&instructions) {
+            return Err((
+                signers.clone(),
+                first_signer_state.clone(),
+                diagnosed_error!(
+                    "no writable signer found in instructions. At least one signer must be \
+                     writable to serve as the fee payer. If using an Anchor program, ensure \
+                     the signer account has `#[account(mut)]`."
+                ),
+            ));
+        }
+
         let mut message = Message::new(&instructions, None);
         let client = RpcClient::new(rpc_api_url);
         message.recent_blockhash = client.get_latest_blockhash().map_err(|e| {
@@ -227,4 +240,10 @@ impl CommandImplementation for ProcessInstructions {
             &supervision_context,
         )
     }
+}
+
+/// Check if any instruction has at least one account that is both a signer and writable.
+/// This is required for fee payer functionality on Solana.
+pub fn has_writable_signer(instructions: &[solana_instruction::Instruction]) -> bool {
+    instructions.iter().any(|ix| ix.accounts.iter().any(|acc| acc.is_signer && acc.is_writable))
 }
