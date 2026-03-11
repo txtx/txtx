@@ -6,6 +6,7 @@ use crate::constants::{DEFAULT_NATIVE_TARGET_PATH, DEFAULT_SHANK_IDL_PATH};
 use solana_pubkey::Pubkey;
 use solana_sdk_ids::system_program;
 use spl_associated_token_account_interface::instruction::create_associated_token_account_idempotent;
+use spl_token_2022_interface::inline_spl_token;
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{
@@ -829,7 +830,7 @@ impl FunctionImplementation for GetAssociatedTokenAccount {
                 )
             })?
         } else {
-            spl_token::id()
+            inline_spl_token::id()
         };
 
         let spl_associated_token_account =
