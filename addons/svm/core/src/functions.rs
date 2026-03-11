@@ -328,7 +328,7 @@ lazy_static! {
                     token_mint_address: {
                         documentation: "The address of the token mint used to compute the token account.",
                         typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
-                        optional: true
+                        optional: false
                     }
                 ],
                 output: {
