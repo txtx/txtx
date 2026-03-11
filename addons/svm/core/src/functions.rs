@@ -6,6 +6,7 @@ use crate::constants::{DEFAULT_NATIVE_TARGET_PATH, DEFAULT_SHANK_IDL_PATH};
 use solana_pubkey::Pubkey;
 use solana_sdk_ids::system_program;
 use spl_associated_token_account_interface::instruction::create_associated_token_account_idempotent;
+use spl_token_2022_interface::inline_spl_token;
 use txtx_addon_kit::types::{
     diagnostics::Diagnostic,
     functions::{
@@ -316,7 +317,7 @@ lazy_static! {
                 documentation: "`svm::get_associated_token_account` computes the address of the associated token account for the provided wallet and token mint addresses.",
                 example: indoc! {r#"
                     variable "token_account" {
-                        value = svm::get_associated_token_account(signer.caller.address, "So11111111111111111111111111111111111111112")
+                        value = svm::get_associated_token_account(signer.caller.address, "So11111111111111111111111111111111111111112", "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
                     }
                 "#},
                 inputs: [
@@ -327,6 +328,11 @@ lazy_static! {
                     },
                     token_mint_address: {
                         documentation: "The address of the token mint used to compute the token account.",
+                        typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
+                        optional: true
+                    },
+                    token_program_id: {
+                        documentation: "The address of the token program used to compute the token account.",
                         typing: vec![Type::string(), Type::addon(SVM_PUBKEY.into())],
                         optional: true
                     }
@@ -816,10 +822,22 @@ impl FunctionImplementation for GetAssociatedTokenAccount {
             )
         })?;
 
+        let token_program_id = if let Some(val) = args.get(2) {
+            SvmValue::to_pubkey(val).map_err(|e| {
+                to_diag(
+                    fn_spec,
+                    format!("invalid token program id for getting associated token account: {e}"),
+                )
+            })?
+        } else {
+            inline_spl_token::id()
+        };
+
         let spl_associated_token_account =
-            spl_associated_token_account_interface::address::get_associated_token_address(
+            spl_associated_token_account_interface::address::get_associated_token_address_with_program_id(
                 &wallet_address,
                 &token_mint_address,
+                &token_program_id,
             );
 
         Ok(SvmValue::pubkey(spl_associated_token_account.to_bytes().to_vec()))
