@@ -304,9 +304,10 @@ impl CommandImplementation for DeployProgram {
 
         let already_generated_deployment_transactions = deployment_transactions.is_some();
 
-        let only_cleanup_transactions_remaining = signed_nested_execution_index
-            == (initial_expected_deployment_transactions_count
-                - (UpgradeableProgramDeployer::get_cleanup_transactions_count() + 1));
+        let only_cleanup_transactions_remaining = !do_cheatcode_deployment
+            && signed_nested_execution_index
+                == (initial_expected_deployment_transactions_count
+                    - (UpgradeableProgramDeployer::get_cleanup_transactions_count() + 1));
 
         let use_existing =
             already_generated_deployment_transactions && !only_cleanup_transactions_remaining;
