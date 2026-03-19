@@ -59,27 +59,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: txtx
 
       - name: Build .env file
-        uses: ./txtx/.github/actions/setup_env
-        with:
-          working_directory: "txtx"
-          
-      - name: Checkout Supervisor UI
-        uses: actions/checkout@v4
-        with:
-          repository: txtx/txtx-supervisor-ui
-          token: ${{ secrets.TXTX_ACCESS_TOKEN }} 
-          path: txtx-supervisor-ui 
-
-      - name: Build Supervisor UI
-        run: |
-          cd txtx-supervisor-ui
-          npm ci
-          npm run build
-          cd ..
+        uses: ./.github/actions/setup_env
 
       - name: Install Rust toolchain
         run: |
@@ -99,7 +81,7 @@ jobs:
           key: ${{ runner.os }}-rust-${{ env.RUST_VERSION_HASH }}-cargo-${{ hashFiles('./Cargo.lock', './crates/txtx-cli/build.rs', 'addons/evm/src/contracts/**') }}
 
       - name: Build Project
-        run: cargo build --manifest-path ./txtx/Cargo.toml --workspace --release
+        run: cargo build --workspace --release --features txtx-supervisor-ui/bypass_supervisor_build
 
       - name: Run Tests
-        run: cargo test --manifest-path ./txtx/Cargo.toml --workspace
+        run: cargo test --workspace --features txtx-supervisor-ui/bypass_supervisor_build
