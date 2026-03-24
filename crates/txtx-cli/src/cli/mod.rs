@@ -3,9 +3,7 @@ use clap::{ArgAction, Parser, Subcommand};
 use dotenvy::dotenv;
 use env::TxtxEnv;
 use hiro_system_kit::{self, Logger};
-use runbooks::load_runbook_from_manifest;
 use std::process;
-use txtx_cloud::{LoginCommand, PublishRunbook};
 
 mod common;
 mod docs;
@@ -90,9 +88,6 @@ enum Command {
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
     Snapshots(SnapshotCommand),
-    /// Txtx cloud commands
-    #[clap(subcommand, name = "cloud", bin_name = "cloud")]
-    Cloud(CloudCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -418,44 +413,6 @@ fn handle_lint_command(cmd: &LintRunbook) -> Result<(), lint::LinterError> {
         cmd.gen_cli,
         cmd.gen_cli_full,
     )
-}
-
-async fn handle_cloud_commands(
-    cmd: &CloudCommand,
-    buffer_stdin: Option<String>,
-    env: &TxtxEnv,
-) -> Result<(), String> {
-    match cmd {
-        CloudCommand::Login(cmd) => {
-            txtx_cloud::login::handle_login_command(
-                cmd,
-                &env.auth_service_url,
-                &env.auth_callback_port,
-                &env.id_service_url,
-            )
-            .await
-        }
-        CloudCommand::Publish(cmd) => {
-            let (_manifest, _runbook_name, runbook, _runbook_state) = load_runbook_from_manifest(
-                &cmd.manifest_path,
-                &cmd.runbook,
-                &cmd.environment,
-                &cmd.inputs,
-                buffer_stdin,
-                env,
-            )
-            .await?;
-
-            txtx_cloud::publish::handle_publish_command(
-                cmd,
-                runbook,
-                &env.id_service_url,
-                &env.txtx_console_url,
-                &env.registry_gql_url,
-            )
-            .await
-        }
-    }
 }
 
 pub fn get_env_var<T: ToString>(key: &str, default: T) -> String {
