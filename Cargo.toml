@@ -11,10 +11,8 @@ members = [
     "crates/txtx-cli",
     "crates/txtx-core",
     "crates/txtx-addon-kit",
-    "crates/txtx-cloud",
     "crates/txtx-lsp",
     "crates/txtx-supervisor-ui",
-    "crates/txtx-serve",
     "addons/evm",
     "addons/svm/core",
 ]
@@ -29,10 +27,8 @@ reqwest = { version = "0.11.27", default-features = false, features = [
 ]}
 txtx-core = { path = "crates/txtx-core", default-features = false }
 txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
-txtx-cloud = { path = "crates/txtx-cloud" }
 txtx-gql = { path = "crates/txtx-gql" }
 txtx-supervisor-ui = { path = "crates/txtx-supervisor-ui" }
-txtx-serve = { path = "crates/txtx-serve" }
 txtx-addon-network-evm = { path = "addons/evm" }
- txtx-addon-network-svm = { path = "addons/svm/core" }
+txtx-addon-network-svm = { path = "addons/svm/core" }
 uuid = { version = "1.15.1", features = ["v4", "serde", "js"] }

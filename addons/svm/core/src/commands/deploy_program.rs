@@ -14,7 +14,7 @@ use txtx_addon_kit::constants::{
 };
 use txtx_addon_kit::futures::future;
 use txtx_addon_kit::indexmap::IndexMap;
-use txtx_addon_kit::types::cloud_interface::{CloudService, CloudServiceContext};
+use txtx_addon_kit::types::cloud_interface::CloudServiceContext;
 use txtx_addon_kit::types::commands::{
     CommandExecutionFutureResult, CommandExecutionResult, CommandImplementation,
     CommandSpecification, PreCommandSpecification,
@@ -37,7 +37,7 @@ use txtx_addon_network_svm_types::{SVM_KEYPAIR, SVM_PUBKEY};
 
 use crate::codec::idl::IdlRef;
 use crate::codec::send_transaction::send_transaction_background_task;
-use crate::codec::utils::cheatcode_deploy_program;
+use crate::codec::utils::{cheatcode_deploy_program, cheatcode_register_idl};
 use crate::codec::{DeploymentTransaction, ProgramArtifacts, UpgradeableProgramDeployer};
 use crate::constants::{
     ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION, AUTHORITY, AUTO_EXTEND, BUFFER_ACCOUNT_PUBKEY,
@@ -829,7 +829,7 @@ impl CommandImplementation for DeployProgram {
         progress_tx: &channel::Sender<BlockEvent>,
         _background_tasks_uuid: &Uuid,
         supervision_context: &RunbookSupervisionContext,
-        cloud_service_context: &Option<CloudServiceContext>,
+        _cloud_service_context: &Option<CloudServiceContext>,
     ) -> CommandExecutionFutureResult {
         let construct_did = construct_did.clone();
         let spec = spec.clone();
@@ -837,7 +837,6 @@ impl CommandImplementation for DeployProgram {
         let outputs = outputs.clone();
         let progress_tx = progress_tx.clone();
         let supervision_context = supervision_context.clone();
-        let cloud_service_context = cloud_service_context.clone();
 
         let future = async move {
             let nested_construct_did =
@@ -950,42 +949,20 @@ impl CommandImplementation for DeployProgram {
                     result.insert(SLOT, Value::integer(slot as i128));
                 };
 
-                let network_id = inputs.get_expected_string(NETWORK_ID)?;
-                // Todo: eventually fill in for mainnet and remove optional url
-                let (idl_registration_url, do_include_token) = match network_id {
-                    "mainnet" | "mainnet-beta" => (None, false),
-                    "devnet" => (inputs.get_expected_string(RPC_API_URL).ok(), false),
-                    "localnet" | _ => (inputs.get_expected_string(RPC_API_URL).ok(), false),
-                };
-
                 let is_surfnet = inputs
                     .get_scoped_value(&nested_construct_did.to_string(), IS_SURFNET)
                     .unwrap()
                     .as_bool()
                     .unwrap();
 
-                if let Some(idl_registration_url) = idl_registration_url {
+                if is_surfnet {
                     if let Some(idl) = inputs
                         .get_scoped_value(&nested_construct_did.to_string(), PROGRAM_IDL)
                         .and_then(|v| v.as_string())
                     {
                         if let Ok(idl_ref) = IdlRef::from_str(idl) {
-                            let value = serde_json::to_value(&idl_ref.idl).unwrap();
-                            let params = serde_json::to_value(&vec![value]).unwrap();
-
-                            let router = cloud_service_context
-                                .expect("cloud service context not found")
-                                .authenticated_cloud_service_router
-                                .expect("authenticated cloud service router not found");
-                            let _ = router
-                                .route(CloudService::svm_register_idl(
-                                    idl_registration_url,
-                                    params,
-                                    do_include_token,
-                                    is_surfnet,
-                                ))
-                                .await
-                                .map_err(|e| {
+                            let _ =
+                                cheatcode_register_idl(&rpc_client, &idl_ref.idl).map_err(|e| {
                                     diagnosed_error!("failed to register program IDL: {}", e)
                                 })?;
                         }
