@@ -10426,7 +10426,6 @@ dependencies = [
  "lazy_static",
  "log 0.4.27",
  "serde",
- "serde_derive",
  "serde_json",
  "solana-account",
  "solana-account-decoder-client-types",
@@ -10464,7 +10463,6 @@ dependencies = [
  "anchor-lang-idl",
  "borsh",
  "bs58",
- "convert_case 0.6.0",
  "lazy_static",
  "serde",
  "serde_json",
@@ -10474,7 +10472,6 @@ dependencies = [
  "solana-pubkey",
  "solana-signature",
  "solana-transaction",
- "solana-transaction-status-client-types",
  "test-case",
  "txtx-addon-kit",
 ]
@@ -10492,7 +10489,6 @@ dependencies = [
  "colored",
  "console 0.15.8",
  "criterion",
- "crossbeam-channel",
  "ctrlc",
  "dialoguer",
  "dotenvy",
@@ -10506,7 +10502,6 @@ dependencies = [
  "openssl-sys",
  "proptest",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_yml",
  "strum 0.26.3",
@@ -10523,7 +10518,6 @@ dependencies = [
  "txtx-lsp",
  "txtx-supervisor-ui",
  "txtx-test-utils",
- "unicode-width 0.2.0",
 ]
 
 [[package]]
@@ -10544,7 +10538,6 @@ dependencies = [
  "petgraph",
  "ripemd",
  "serde",
- "serde_derive",
  "serde_json",
  "serde_with",
  "serde_yml",
