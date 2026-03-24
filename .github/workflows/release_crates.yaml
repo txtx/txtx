@@ -16,11 +16,6 @@ jobs:
         with:
           path: txtx
 
-      - name: Build .env file
-        uses: ./txtx/.github/actions/setup_env
-        with:
-          working_directory: "txtx"
-
       - name: Checkout Supervisor UI
         uses: actions/checkout@v4
         with:
