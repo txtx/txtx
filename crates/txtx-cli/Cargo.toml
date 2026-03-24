@@ -16,8 +16,6 @@ txtx-core = { workspace = true }
 txtx-addon-kit = { workspace = true }
 txtx-lsp = { path = "../txtx-lsp" }
 txtx-supervisor-ui = { workspace = true, optional = true }
-txtx-cloud = { workspace = true }
-txtx-serve = { workspace = true, optional = true }
 txtx-addon-network-svm = { workspace = true }
 txtx-addon-network-evm = { workspace = true }
 txtx-gql = { workspace = true }
@@ -55,7 +53,6 @@ strum = { version = "0.26", features = ["derive"] }
 default = ["cli", "supervisor_ui"]
 cli = ["clap", "ctrlc", "hiro-system-kit/log"]
 supervisor_ui = ["txtx-supervisor-ui"]
-txtx_serve = ["txtx-serve"]
 debug = ["hiro-system-kit/debug"]
 release = ["hiro-system-kit/release"]
 

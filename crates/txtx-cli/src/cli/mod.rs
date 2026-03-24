@@ -81,10 +81,6 @@ enum Command {
     /// Start the txtx language server
     #[clap(name = "lsp", bin_name = "lsp")]
     Lsp,
-    /// Start a server to listen for requests to execute runbooks
-    #[clap(name = "serve", bin_name = "serve")]
-    #[cfg(feature = "txtx_serve")]
-    Serve(StartServer),
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
     Snapshots(SnapshotCommand),
@@ -267,38 +263,6 @@ pub struct LintRunbook {
     pub gen_cli_full: bool,
 }
 
-#[derive(Parser, PartialEq, Clone, Debug)]
-#[cfg(feature = "txtx_serve")]
-pub struct StartServer {
-    /// Serve runbooks from a specific project
-    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
-    pub manifest_path: Option<String>,
-    /// When running in unsupervised mode, print outputs in JSON format
-    #[arg(long = "output-json", action=ArgAction::SetTrue)]
-    pub output_json: bool,
-    /// Pick a specific output to stdout at the end of the execution
-    #[arg(long = "output", conflicts_with = "output_json")]
-    pub output: Option<String>,
-    /// Set the port for hosting the web UI
-    #[arg(long = "port", short = 'p', default_value = txtx_serve::SERVE_BINDING_PORT )]
-    pub network_binding_port: u16,
-    /// Set the port for hosting the web UI
-    #[arg(long = "ip", short = 'i', default_value = txtx_serve::SERVE_BINDING_ADDRESS )]
-    pub network_binding_ip_address: String,
-}
-
-#[derive(Subcommand, PartialEq, Clone, Debug)]
-pub enum CloudCommand {
-    /// Login to the Txtx Cloud
-    #[clap(name = "login", bin_name = "login")]
-    Login(LoginCommand),
-    /// Publish a runbook to the cloud, allowing it to be called by other runbooks.
-    /// In order to package the runbook for publishing, it will be simulated, and thus requires all required inputs to be provided.
-    /// However, the published runbook will have the inputs removed.
-    #[clap(name = "publish", bin_name = "publish")]
-    Publish(PublishRunbook),
-}
-
 fn load_stdin() -> Option<String> {
     if atty::is(Stream::Stdin) {
         return None;
@@ -364,22 +328,6 @@ async fn handle_command(
         Command::Lsp => {
             lsp::run_lsp().await?;
         }
-        #[cfg(feature = "txtx_serve")]
-        Command::Serve(cmd) => {
-            warn!(
-                ctx.expect_logger(),
-                "The command `txtx serve` is experimental and will run for 30 minutes."
-            );
-            let addr = format!("{}:{}", cmd.network_binding_ip_address, cmd.network_binding_port);
-            let _ = txtx_serve::start_server(&addr).await.unwrap();
-            ctrlc::set_handler(move || {
-                std::process::exit(1);
-            })
-            .expect("Error setting Ctrl-C handler");
-            // Consider making the duration configurable or running indefinitely
-            thread::sleep(std::time::Duration::new(1800, 0));
-        }
-        Command::Cloud(cmd) => handle_cloud_commands(&cmd, buffer_stdin, &env).await?,
     }
     Ok(())
 }
