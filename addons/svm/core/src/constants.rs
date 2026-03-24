@@ -3,7 +3,6 @@ pub const SIGNERS: &str = "signers";
 pub const SIGNER: &str = "signer";
 pub const PAYER: &str = "payer";
 pub const AUTHORITY: &str = "authority";
-pub const OWNER: &str = "owner";
 
 pub const DEFAULT_DERIVATION_PATH: &str = "m/44'/501'/0'/0'";
 pub const DEFAULT_ANCHOR_TARGET_PATH: &str = "target";
@@ -79,13 +78,7 @@ pub const REMAINING_ACCOUNT: &str = "remaining_account";
 pub const SKIP_PREFLIGHT: &str = "skip_preflight";
 
 // Subgraph keys
-pub const BLOCK_HEIGHT: &str = "block_height";
 pub const SLOT: &str = "slot";
-pub const SUBGRAPH_NAME: &str = "subgraph_name";
-pub const SUBGRAPH_REQUEST: &str = "subgraph_request";
-pub const SUBGRAPH_URL: &str = "subgraph_url";
-pub const SUBGRAPH_ENDPOINT_URL: &str = "subgraph_endpoint_url";
-pub const DO_INCLUDE_TOKEN: &str = "do_include_token";
 
 // Actions items keys
 pub const ACTION_ITEM_CHECK_BALANCE: &str = "check_balance";
@@ -93,10 +86,6 @@ pub const ACTION_ITEM_CHECK_ADDRESS: &str = "check_address";
 pub const ACTION_ITEM_PROVIDE_PUBLIC_KEY: &str = "provide_public_key";
 pub const ACTION_ITEM_PROVIDE_SIGNED_TRANSACTION: &str = "provide_signed_transaction";
 pub const ACTION_ITEM_PROVIDE_SIGNED_SQUAD_TRANSACTION: &str = "provide_signed_squad_transaction";
-
-// Subgraph endpoints
-pub const MAINNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";
-pub const DEVNET_SUBGRAPH_ENDPOINT: &str = "https://svm-cloud-api.txtx.run/v1/subgraphs";
 
 // Squads keys
 pub const VAULT_INDEX: &str = "vault_index";

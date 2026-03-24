@@ -1,8 +1,6 @@
 use anchor_lang_idl::types::{
-    IdlConst, IdlDefinedFields, IdlGenericArg, IdlInstruction, IdlInstructionAccountItem, IdlType,
-    IdlTypeDef, IdlTypeDefGeneric, IdlTypeDefTy,
+    IdlConst, IdlDefinedFields, IdlGenericArg, IdlType, IdlTypeDef, IdlTypeDefGeneric, IdlTypeDefTy,
 };
-use solana_pubkey::Pubkey;
 use txtx_addon_kit::{
     indexmap::IndexMap,
     types::types::{ObjectDefinition, ObjectProperty, ObjectType, Type, Value},
@@ -650,34 +648,5 @@ pub fn parse_bytes_to_value_with_expected_idl_type_with_leftover_bytes<'a>(
     }
 }
 
-/// Flattens nested account items into a flat ordered list
-fn flatten_accounts(accounts: &[IdlInstructionAccountItem]) -> Vec<String> {
-    let mut result = Vec::new();
-    for item in accounts {
-        match item {
-            IdlInstructionAccountItem::Single(account) => {
-                result.push(account.name.clone());
-            }
-            IdlInstructionAccountItem::Composite(nested) => {
-                // Prepend the parent name as a prefix if desired
-                result.extend(flatten_accounts(&nested.accounts));
-            }
-        }
-    }
-    result
-}
-
-/// Given a message account key list and a CompiledInstruction, return a mapping from IDL account names to pubkeys
-pub fn match_idl_accounts(
-    idl_instruction: &IdlInstruction,
-    instruction_account_indices: &[u8],
-    message_account_keys: &[Pubkey],
-) -> Vec<(String, Pubkey, usize)> {
-    let flat_idl_account_names = flatten_accounts(&idl_instruction.accounts);
-
-    flat_idl_account_names
-        .into_iter()
-        .zip(instruction_account_indices.iter())
-        .map(|(name, &index)| (name, message_account_keys[index as usize], index as usize))
-        .collect()
-}
+#[cfg(test)]
+mod tests;
