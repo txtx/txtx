@@ -1,4 +1,4 @@
-use super::{env::TxtxEnv, CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
+use super::{CheckRunbook, Context, CreateRunbook, ExecuteRunbook, ListRunbooks};
 use crate::{get_addon_by_namespace, get_available_addons};
 use ascii_table::AsciiTable;
 use console::Style;
@@ -15,7 +15,6 @@ use std::{
     time::Duration,
 };
 use tokio::sync::RwLock;
-use txtx_cloud::router::TxtxAuthenticatedCloudServiceRouter;
 use txtx_core::{
     kit::types::{commands::UnevaluatedInputsMap, stores::ValueStore},
     mustache,
@@ -66,7 +65,6 @@ use txtx_gql::kit::{
 use actix_web::dev::ServerHandle;
 #[cfg(feature = "supervisor_ui")]
 use txtx_gql::kit::types::frontend::SupervisorAddonData;
-
 
 lazy_static::lazy_static! {
     static ref CLI_SPINNER_STYLE: ProgressStyle = {
@@ -169,7 +167,6 @@ pub async fn handle_check_command(
     cmd: &CheckRunbook,
     buffer_stdin: Option<String>,
     _ctx: &Context,
-    env: &TxtxEnv,
 ) -> Result<(), String> {
     let (_manifest, _runbook_name, mut runbook, runbook_state) = load_runbook_from_manifest(
         &cmd.manifest_path,
@@ -177,7 +174,6 @@ pub async fn handle_check_command(
         &cmd.environment,
         &cmd.inputs,
         buffer_stdin,
-        env,
     )
     .await?;
 
@@ -503,7 +499,6 @@ pub async fn handle_run_command(
     cmd: &ExecuteRunbook,
     buffer_stdin: Option<String>,
     _ctx: &Context,
-    env: &TxtxEnv,
 ) -> Result<(), String> {
     let is_execution_unsupervised = cmd.unsupervised;
 
@@ -527,7 +522,6 @@ pub async fn handle_run_command(
         &cmd.environment,
         &cmd.inputs,
         buffer_stdin.clone(),
-        env,
     )
     .await;
     let (runbook_name, mut runbook, runbook_state_location) = match res {
@@ -536,7 +530,7 @@ pub async fn handle_run_command(
         }
         Err(_) => {
             let (runbook_name, runbook) =
-                load_runbook_from_file_path(&cmd.runbook, &cmd.inputs, buffer_stdin, env).await?;
+                load_runbook_from_file_path(&cmd.runbook, &cmd.inputs, buffer_stdin).await?;
             (runbook_name, runbook, None)
         }
     };
@@ -935,7 +929,6 @@ pub async fn load_runbook_from_manifest(
     environment_selector: &Option<String>,
     cli_inputs: &Vec<String>,
     buffer_stdin: Option<String>,
-    env: &TxtxEnv,
 ) -> Result<(WorkspaceManifest, String, Runbook, Option<RunbookStateLocation>), String> {
     let manifest = load_workspace_manifest_from_manifest_path(manifest_path)?;
     let top_level_inputs_map =
@@ -954,9 +947,7 @@ pub async fn load_runbook_from_manifest(
             let authorization_context =
                 AuthorizationContext::new(manifest.location.clone().unwrap());
 
-            let cloud_svc_context = CloudServiceContext::new(Some(Arc::new(
-                TxtxAuthenticatedCloudServiceRouter::new(&env.id_service_url),
-            )));
+            let cloud_svc_context = CloudServiceContext::new();
 
             let res = runbook
                 .build_contexts_from_sources(
@@ -983,7 +974,6 @@ pub async fn load_runbook_from_file_path(
     file_path: &str,
     cli_inputs: &Vec<String>,
     buffer_stdin: Option<String>,
-    env: &TxtxEnv,
 ) -> Result<(String, Runbook), String> {
     let location = FileLocation::from_path_string(file_path)?;
     let (runbook_name, mut runbook, runbook_sources) =
@@ -995,9 +985,7 @@ pub async fn load_runbook_from_file_path(
 
     let authorization_context = AuthorizationContext::new(location);
 
-    let cloud_svc_context = CloudServiceContext::new(Some(Arc::new(
-        TxtxAuthenticatedCloudServiceRouter::new(&env.id_service_url),
-    )));
+    let cloud_svc_context = CloudServiceContext::new();
 
     let res = runbook
         .build_contexts_from_sources(

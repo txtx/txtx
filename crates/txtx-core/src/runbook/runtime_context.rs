@@ -1,7 +1,5 @@
 use kit::indexmap::IndexMap;
 use kit::types::cloud_interface::CloudServiceContext;
-use serde::Deserialize;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
@@ -194,8 +192,9 @@ impl RuntimeContext {
 
                 self.addons_context.register(&package_id.did(), "std", false).unwrap();
 
-                let blocks =
-                    raw_content.into_typed_blocks().map_err(|diag| vec![diag.location(&location)])?;
+                let blocks = raw_content
+                    .into_typed_blocks()
+                    .map_err(|diag| vec![diag.location(&location)])?;
 
                 let _ = self
                     .register_addons_from_blocks(
@@ -652,11 +651,4 @@ impl AddonConstructFactory {
             namespace: namespace.to_string(),
         })
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EnvironmentMetadata {
-    location: String,
-    name: String,
-    description: Option<String>,
 }

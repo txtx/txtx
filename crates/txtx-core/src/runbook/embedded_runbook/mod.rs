@@ -2,7 +2,6 @@ pub mod publishable;
 
 use publishable::PublishableEmbeddedRunbookSpecification;
 use std::collections::HashMap;
-use std::str::FromStr;
 use txtx_addon_kit::hcl::structure::Block;
 use txtx_addon_kit::helpers::fs::FileLocation;
 use txtx_addon_kit::types::commands::DependencyExecutionResultCache;
@@ -248,6 +247,7 @@ impl EmbeddedRunbookInstanceBuilder {
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
+    use std::str::FromStr;
 
     use txtx_addon_kit::helpers::fs::FileLocation;
     use txtx_addon_kit::helpers::hcl::RawHclContent;

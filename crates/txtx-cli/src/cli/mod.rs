@@ -1,29 +1,15 @@
 use atty::Stream;
 use clap::{ArgAction, Parser, Subcommand};
 use dotenvy::dotenv;
-use env::TxtxEnv;
 use hiro_system_kit::{self, Logger};
 use std::process;
 
 mod common;
 mod docs;
-mod env;
 mod lint;
 mod lsp;
 mod runbooks;
 mod snapshots;
-
-pub const AUTH_SERVICE_URL_KEY: &str = "AUTH_SERVICE_URL";
-pub const AUTH_CALLBACK_PORT_KEY: &str = "AUTH_CALLBACK_PORT";
-pub const TXTX_CONSOLE_URL_KEY: &str = "TXTX_CONSOLE_URL";
-pub const TXTX_ID_SERVICE_URL_KEY: &str = "TXTX_ID_SERVICE_URL";
-pub const REGISTRY_GQL_URL_KEY: &str = "REGISTRY_GQL_URL";
-
-pub const DEFAULT_AUTH_SERVICE_URL: &str = "https://auth.txtx.run";
-pub const DEFAULT_AUTH_CALLBACK_PORT: u16 = 8488;
-pub const DEFAULT_TXTX_CONSOLE_URL: &str = "https://txtx.run";
-pub const DEFAULT_TXTX_ID_SERVICE_URL: &str = "https://id.gql.txtx.run/v1";
-pub const DEFAULT_REGISTRY_GQL_URL: &str = "https://registry.gql.txtx.run/v1";
 
 #[derive(Clone)]
 pub struct Context {
@@ -299,13 +285,12 @@ async fn handle_command(
     ctx: &Context,
     buffer_stdin: Option<String>,
 ) -> Result<(), String> {
-    let env = TxtxEnv::load();
     match opts.command {
         Command::Check(cmd) => {
-            runbooks::handle_check_command(&cmd, buffer_stdin, ctx, &env).await?;
+            runbooks::handle_check_command(&cmd, buffer_stdin, ctx).await?;
         }
         Command::Run(cmd) => {
-            runbooks::handle_run_command(&cmd, buffer_stdin, ctx, &env).await?;
+            runbooks::handle_run_command(&cmd, buffer_stdin, ctx).await?;
         }
         Command::List(cmd) => {
             runbooks::handle_list_command(&cmd, ctx).await?;
@@ -334,7 +319,8 @@ async fn handle_command(
 
 fn handle_lint_command(cmd: &LintRunbook) -> Result<(), lint::LinterError> {
     // Parse CLI inputs from "key=value" strings
-    let cli_inputs: Vec<(String, String)> = cmd.inputs
+    let cli_inputs: Vec<(String, String)> = cmd
+        .inputs
         .iter()
         .filter_map(|input| {
             let parts: Vec<&str> = input.splitn(2, '=').collect();
@@ -346,10 +332,7 @@ fn handle_lint_command(cmd: &LintRunbook) -> Result<(), lint::LinterError> {
         })
         .collect();
 
-    let linter_options = lint::LinterOptions {
-        config_path: cmd.config.clone(),
-        init: cmd.init,
-    };
+    let linter_options = lint::LinterOptions { config_path: cmd.config.clone(), init: cmd.init };
 
     lint::run_lint(
         cmd.runbook.clone(),
