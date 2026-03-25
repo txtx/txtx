@@ -27,11 +27,26 @@ fn run() -> Result<(), Box<dyn Error>> {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR")?);
     let bundled_dist_dir = out_dir.join("supervisor");
     let cache_root = out_dir.join("supervisor-release-cache");
+    let local_dist_dir = PathBuf::from("supervisor-dist");
 
     println!("cargo:warning=------------ Supervisor Build Script ------------");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed={VERSION_ENV_VAR}");
+    println!("cargo:rerun-if-changed={}", local_dist_dir.display());
     println!("cargo:warning=Supervisor build script output dir: {:?}", bundled_dist_dir);
+
+    if local_dist_dir.exists() {
+        println!("cargo:warning=Using packaged supervisor UI assets from local supervisor-dist");
+
+        if bundled_dist_dir.exists() {
+            fs::remove_dir_all(&bundled_dist_dir)?;
+        }
+        fs::create_dir_all(&bundled_dist_dir)?;
+        copy_dir_recursive(&local_dist_dir, &bundled_dist_dir)?;
+
+        println!("cargo:warning=Prepared supervisor UI assets from local supervisor-dist");
+        return Ok(());
+    }
 
     let requested_version = std::env::var(VERSION_ENV_VAR).ok();
     let client = build_http_client()?;

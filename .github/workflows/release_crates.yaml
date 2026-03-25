@@ -20,19 +20,22 @@ jobs:
         with:
           working_directory: "txtx"
 
-      - name: Checkout Supervisor UI
-        uses: actions/checkout@v4
-        with:
-          repository: txtx/txtx-supervisor-ui
-          token: ${{ secrets.TXTX_ACCESS_TOKEN }} 
-          path: txtx-supervisor-ui 
-      
-      - name: Build Supervisor UI
+      - name: Download Supervisor UI release
+        shell: bash
         run: |
-          cd txtx-supervisor-ui
-          npm i
-          npm run build
-          cp -r dist ../txtx/crates/txtx-supervisor-ui/supervisor-dist
+          SUPERVISOR_UI_TAG="$(gh release view --repo solana-foundation/txtx-supervisor-ui --json tagName --jq '.tagName')"
+          echo "Using supervisor UI release ${SUPERVISOR_UI_TAG}"
+
+          rm -rf txtx/crates/txtx-supervisor-ui/supervisor-dist
+          mkdir -p txtx/crates/txtx-supervisor-ui/supervisor-dist
+
+          curl -fsSL \
+            --retry 3 \
+            --output txtx-supervisor-ui-dist.tar.gz \
+            "https://github.com/solana-foundation/txtx-supervisor-ui/releases/download/${SUPERVISOR_UI_TAG}/txtx-supervisor-ui-dist.tar.gz"
+
+          tar -xzf txtx-supervisor-ui-dist.tar.gz -C txtx/crates/txtx-supervisor-ui/supervisor-dist
+          rm -f txtx-supervisor-ui-dist.tar.gz
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
