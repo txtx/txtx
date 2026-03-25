@@ -5,6 +5,11 @@ on:
       - main
       - ci/windows
   workflow_dispatch:
+    inputs:
+      supervisor_ui_version:
+        description: Supervisor UI release version to embed, without the leading v. Leave empty to use the latest release.
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}
@@ -90,20 +95,6 @@ jobs:
         with:
           working_directory: "txtx"
 
-      - name: Checkout Supervisor UI
-        uses: actions/checkout@v4
-        with:
-          repository: txtx/txtx-supervisor-ui
-          token: ${{ secrets.TXTX_ACCESS_TOKEN }} 
-          path: txtx-supervisor-ui 
-
-      - name: Build Supervisor UI
-        run: |
-          cd txtx-supervisor-ui
-          npm ci
-          npm run build
-          cd ..
-          
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
@@ -148,6 +139,8 @@ jobs:
           echo "PRE_GYP_TARGET_NAME=${{ matrix.platform }}-${{ matrix.architecture }}-unknown" >> $GITHUB_ENV
         
       - name: Build - Cargo
+        env:
+          TXTX_SUPERVISOR_UI_VERSION: ${{ inputs.supervisor_ui_version }}
         run: 
           cargo build --manifest-path ./txtx/Cargo.toml --release --locked --target ${{ matrix.target }} --features supervisor_ui
 
