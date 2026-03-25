@@ -14,6 +14,7 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: read
       id-token: write
@@ -68,22 +69,10 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
 
-      - name: Detect bumped publishable crates
+      - name: Detect unpublished publishable crates
         id: detect
         run: |
           cd txtx
-          extract_version() {
-            awk '
-              /^\[package\]/ { in_package = 1; next }
-              /^\[/ { in_package = 0 }
-              in_package && $1 == "version" {
-                gsub(/"/, "", $3)
-                print $3
-                exit
-              }
-            '
-          }
-
           mapfile -t publishable_crates < <(
             cargo metadata --format-version=1 --no-deps \
               | jq -r '
@@ -91,59 +80,61 @@ jobs:
                   | .packages[]
                   | select(.manifest_path | startswith($root))
                   | select((.publish // null) != [])
-                  | "\(.name):\(.manifest_path | ltrimstr($root + "/"))"
+                  | "\(.name):\(.version):\(.manifest_path | ltrimstr($root + "/"))"
                 '
           )
 
-          bumped_packages=()
-          base_sha="${{ github.event.before }}"
+          unpublished_packages=()
 
           for entry in "${publishable_crates[@]}"; do
             package_name="${entry%%:*}"
-            manifest="${entry#*:}"
-            current_version="$(extract_version < "$manifest")"
-            previous_version=""
+            remainder="${entry#*:}"
+            current_version="${remainder%%:*}"
 
-            if [ -n "$base_sha" ] && [ "$base_sha" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$base_sha:$manifest" 2>/dev/null; then
-              previous_version="$(git show "$base_sha:$manifest" | extract_version)"
-            fi
+            http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+              -H 'User-Agent: txtx-release-ci' \
+              -H 'Accept: application/json' \
+              "https://crates.io/api/v1/crates/${package_name}/${current_version}")"
 
-            if [ "$current_version" != "$previous_version" ]; then
-              bumped_packages+=("$package_name")
+            if [[ "${http_code}" == "404" ]]; then
+              unpublished_packages+=("$package_name")
+            elif [[ "${http_code}" != "200" ]]; then
+              echo "::error::Unexpected crates.io response for ${package_name}@${current_version}: HTTP ${http_code}"
+              exit 1
             fi
           done
 
           exclude_args=()
           for entry in "${publishable_crates[@]}"; do
             package_name="${entry%%:*}"
-            if [[ ! " ${bumped_packages[*]} " =~ " ${package_name} " ]]; then
+            if [[ ! " ${unpublished_packages[*]} " =~ " ${package_name} " ]]; then
               exclude_args+=(--exclude "$package_name")
             fi
           done
 
           {
-            echo "bumped_count=${#bumped_packages[@]}"
-            if [ "${#bumped_packages[@]}" -gt 0 ]; then
-              echo "has_bumped=true"
-              echo "bumped_packages=${bumped_packages[*]}"
+            echo "publish_count=${#unpublished_packages[@]}"
+            if [ "${#unpublished_packages[@]}" -gt 0 ]; then
+              echo "has_unpublished=true"
+              echo "publish_packages=${unpublished_packages[*]}"
               echo "exclude_args=${exclude_args[*]}"
             else
-              echo "has_bumped=false"
-              echo "bumped_packages="
+              echo "has_unpublished=false"
+              echo "publish_packages="
               echo "exclude_args="
             fi
           } >> "$GITHUB_OUTPUT"
 
       - name: Authenticate with crates.io
-        if: steps.detect.outputs.has_bumped == 'true'
+        if: steps.detect.outputs.has_unpublished == 'true'
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
 
       - name: Publish Crates
-        if: steps.detect.outputs.has_bumped == 'true'
+        if: steps.detect.outputs.has_unpublished == 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           cd txtx
-          echo "Bumped crates: ${{ steps.detect.outputs.bumped_packages }}"
+          echo "Publishing crates: ${{ steps.detect.outputs.publish_packages }}"
           cargo publish --workspace --allow-dirty --locked ${{ steps.detect.outputs.exclude_args }}
