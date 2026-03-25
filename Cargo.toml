@@ -14,6 +14,7 @@ members = [
     "crates/txtx-lsp",
     "crates/txtx-supervisor-ui",
     "addons/evm",
+    "addons/svm/types",
     "addons/svm/core",
 ]
 default-members = ["crates/txtx-cli"]
@@ -25,10 +26,11 @@ reqwest = { version = "0.11.27", default-features = false, features = [
     "json",
     "rustls-tls",
 ]}
-txtx-core = { path = "crates/txtx-core", default-features = false }
-txtx-addon-kit = { path = "crates/txtx-addon-kit", default-features = false }
-txtx-gql = { path = "crates/txtx-gql" }
-txtx-supervisor-ui = { path = "crates/txtx-supervisor-ui" }
-txtx-addon-network-evm = { path = "addons/evm" }
-txtx-addon-network-svm = { path = "addons/svm/core" }
+txtx-core = { path = "crates/txtx-core", version = "0.4.16", default-features = false }
+txtx-addon-kit = { path = "crates/txtx-addon-kit", version = "0.4.13", default-features = false }
+txtx-gql = { path = "crates/txtx-gql", version = "0.3.9" }
+txtx-supervisor-ui = { path = "crates/txtx-supervisor-ui", version = "0.2.10" }
+txtx-addon-network-evm = { path = "addons/evm", version = "0.1.2" }
+txtx-addon-network-svm-types = { path = "addons/svm/types", version = "0.3.18" }
+txtx-addon-network-svm = { path = "addons/svm/core", version = "0.3.20" }
 uuid = { version = "1.15.1", features = ["v4", "serde", "js"] }

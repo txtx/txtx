@@ -21,14 +21,15 @@ juniper_graphql_ws = { version = "0.4.0", features = ["graphql-transport-ws"] }
 mime_guess = "2.0.4"
 tokio = "1.37.0"
 
-[build-dependencies]
-npm_rs="1.0.0"
-
 [features]
-default = ["bin_build"]
-crates_build = []
-bin_build = []
+default = []
 bypass_supervisor_build = []
 
 [lib]
 crate-type = ["lib", "cdylib"] 
+
+[build-dependencies]
+flate2 = "1.1.2"
+reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+tar = "0.4.44"
