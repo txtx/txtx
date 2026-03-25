@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      supervisor_ui_tag:
+        description: Supervisor UI release tag to package, for example v0.1.2. Leave empty to use the latest release.
+        required: false
+        type: string
 
 jobs:
   publish:
@@ -20,8 +26,20 @@ jobs:
 
       - name: Download Supervisor UI release
         shell: bash
+        env:
+          SUPERVISOR_UI_TAG_INPUT: ${{ github.event.inputs.supervisor_ui_tag }}
         run: |
-          SUPERVISOR_UI_TAG="$(gh release view --repo solana-foundation/txtx-supervisor-ui --json tagName --jq '.tagName')"
+          SUPERVISOR_UI_TAG_INPUT="$(echo "${SUPERVISOR_UI_TAG_INPUT:-}" | xargs)"
+
+          if [[ -n "${SUPERVISOR_UI_TAG_INPUT}" ]]; then
+            if [[ "${SUPERVISOR_UI_TAG_INPUT}" == v* ]]; then
+              SUPERVISOR_UI_TAG="${SUPERVISOR_UI_TAG_INPUT}"
+            else
+              SUPERVISOR_UI_TAG="v${SUPERVISOR_UI_TAG_INPUT}"
+            fi
+          else
+            SUPERVISOR_UI_TAG="$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/solana-foundation/txtx-supervisor-ui/releases/latest | sed -E 's#.*/tag/([^/?]+)$#\1#')"
+          fi
           echo "Using supervisor UI release ${SUPERVISOR_UI_TAG}"
 
           rm -rf txtx/crates/txtx-supervisor-ui/supervisor-dist
