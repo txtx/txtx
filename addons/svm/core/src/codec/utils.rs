@@ -6,6 +6,7 @@ use solana_loader_v3_interface::{get_program_data_address, state::UpgradeableLoa
 use solana_pubkey::Pubkey;
 
 use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
+use txtx_addon_network_svm_types::anchor::types::Idl;
 
 use crate::commands::setup_surfnet::set_account::SurfpoolAccountUpdate;
 
@@ -95,6 +96,51 @@ pub async fn cheatcode_deploy_program(
     program_payload.send_request(&rpc_client).await?;
 
     Ok(())
+}
+
+pub fn cheatcode_register_idl(
+    rpc_client: &solana_client::rpc_client::RpcClient,
+    idl: &Idl,
+) -> Result<serde_json::Value, Diagnostic> {
+    let value = serde_json::to_value(idl).unwrap();
+    let params = serde_json::to_value(&vec![value]).unwrap();
+    send_rpc_request(rpc_client, "surfnet_registerIdl", params)
+}
+
+pub fn send_rpc_request(
+    rpc_client: &solana_client::rpc_client::RpcClient,
+    method: &'static str,
+    params: serde_json::Value,
+) -> Result<serde_json::Value, Diagnostic> {
+    rpc_client
+        .send::<serde_json::Value>(
+            solana_client::rpc_request::RpcRequest::Custom { method },
+            params,
+        )
+        .map_err(|e| diagnosed_error!("`{}` RPC call failed: {e}", method))
+}
+
+pub async fn cheatcode_register_idl_async(
+    rpc_client: &RpcClient,
+    idl: &Idl,
+) -> Result<serde_json::Value, Diagnostic> {
+    let value = serde_json::to_value(idl).unwrap();
+    let params = serde_json::to_value(&vec![value]).unwrap();
+    send_rpc_request_async(rpc_client, "surfnet_registerIdl", params).await
+}
+
+pub async fn send_rpc_request_async(
+    rpc_client: &RpcClient,
+    method: &'static str,
+    params: serde_json::Value,
+) -> Result<serde_json::Value, Diagnostic> {
+    rpc_client
+        .send::<serde_json::Value>(
+            solana_client::rpc_request::RpcRequest::Custom { method },
+            params,
+        )
+        .await
+        .map_err(|e| diagnosed_error!("`{}` RPC call failed: {e}", method))
 }
 
 pub fn wait_n_slots(rpc_client: &solana_client::rpc_client::RpcClient, n: u64) -> u64 {

@@ -1,19 +1,15 @@
 use serde_json::Value as JsonValue;
-use std::{fmt::Debug, future::Future, pin::Pin, sync::Arc};
+use std::{fmt::Debug, future::Future, pin::Pin};
 
 #[derive(Debug, Clone)]
-pub struct CloudServiceContext {
-    pub authenticated_cloud_service_router: Option<Arc<dyn AuthenticatedCloudServiceRouter>>,
-}
+pub struct CloudServiceContext {}
 
 impl CloudServiceContext {
-    pub fn new(
-        authenticated_cloud_service_router: Option<Arc<dyn AuthenticatedCloudServiceRouter>>,
-    ) -> Self {
-        Self { authenticated_cloud_service_router }
+    pub fn new() -> Self {
+        Self {}
     }
     pub fn empty() -> Self {
-        Self { authenticated_cloud_service_router: None }
+        Self {}
     }
 }
 

@@ -4,7 +4,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate txtx_addon_kit;
 
-pub mod subgraph;
+pub mod idl;
 
 use std::str::FromStr;
 

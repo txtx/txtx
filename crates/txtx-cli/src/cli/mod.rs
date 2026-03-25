@@ -1,31 +1,15 @@
 use atty::Stream;
 use clap::{ArgAction, Parser, Subcommand};
 use dotenvy::dotenv;
-use env::TxtxEnv;
 use hiro_system_kit::{self, Logger};
-use runbooks::load_runbook_from_manifest;
 use std::process;
-use txtx_cloud::{LoginCommand, PublishRunbook};
 
 mod common;
 mod docs;
-mod env;
 mod lint;
 mod lsp;
 mod runbooks;
 mod snapshots;
-
-pub const AUTH_SERVICE_URL_KEY: &str = "AUTH_SERVICE_URL";
-pub const AUTH_CALLBACK_PORT_KEY: &str = "AUTH_CALLBACK_PORT";
-pub const TXTX_CONSOLE_URL_KEY: &str = "TXTX_CONSOLE_URL";
-pub const TXTX_ID_SERVICE_URL_KEY: &str = "TXTX_ID_SERVICE_URL";
-pub const REGISTRY_GQL_URL_KEY: &str = "REGISTRY_GQL_URL";
-
-pub const DEFAULT_AUTH_SERVICE_URL: &str = "https://auth.txtx.run";
-pub const DEFAULT_AUTH_CALLBACK_PORT: u16 = 8488;
-pub const DEFAULT_TXTX_CONSOLE_URL: &str = "https://txtx.run";
-pub const DEFAULT_TXTX_ID_SERVICE_URL: &str = "https://id.gql.txtx.run/v1";
-pub const DEFAULT_REGISTRY_GQL_URL: &str = "https://registry.gql.txtx.run/v1";
 
 #[derive(Clone)]
 pub struct Context {
@@ -83,16 +67,9 @@ enum Command {
     /// Start the txtx language server
     #[clap(name = "lsp", bin_name = "lsp")]
     Lsp,
-    /// Start a server to listen for requests to execute runbooks
-    #[clap(name = "serve", bin_name = "serve")]
-    #[cfg(feature = "txtx_serve")]
-    Serve(StartServer),
     /// Snapshot management (work in progress)
     #[clap(subcommand)]
     Snapshots(SnapshotCommand),
-    /// Txtx cloud commands
-    #[clap(subcommand, name = "cloud", bin_name = "cloud")]
-    Cloud(CloudCommand),
 }
 
 #[derive(Subcommand, PartialEq, Clone, Debug)]
@@ -272,38 +249,6 @@ pub struct LintRunbook {
     pub gen_cli_full: bool,
 }
 
-#[derive(Parser, PartialEq, Clone, Debug)]
-#[cfg(feature = "txtx_serve")]
-pub struct StartServer {
-    /// Serve runbooks from a specific project
-    #[arg(long = "manifest-file-path", short = 'm', default_value = "./txtx.yml")]
-    pub manifest_path: Option<String>,
-    /// When running in unsupervised mode, print outputs in JSON format
-    #[arg(long = "output-json", action=ArgAction::SetTrue)]
-    pub output_json: bool,
-    /// Pick a specific output to stdout at the end of the execution
-    #[arg(long = "output", conflicts_with = "output_json")]
-    pub output: Option<String>,
-    /// Set the port for hosting the web UI
-    #[arg(long = "port", short = 'p', default_value = txtx_serve::SERVE_BINDING_PORT )]
-    pub network_binding_port: u16,
-    /// Set the port for hosting the web UI
-    #[arg(long = "ip", short = 'i', default_value = txtx_serve::SERVE_BINDING_ADDRESS )]
-    pub network_binding_ip_address: String,
-}
-
-#[derive(Subcommand, PartialEq, Clone, Debug)]
-pub enum CloudCommand {
-    /// Login to the Txtx Cloud
-    #[clap(name = "login", bin_name = "login")]
-    Login(LoginCommand),
-    /// Publish a runbook to the cloud, allowing it to be called by other runbooks.
-    /// In order to package the runbook for publishing, it will be simulated, and thus requires all required inputs to be provided.
-    /// However, the published runbook will have the inputs removed.
-    #[clap(name = "publish", bin_name = "publish")]
-    Publish(PublishRunbook),
-}
-
 fn load_stdin() -> Option<String> {
     if atty::is(Stream::Stdin) {
         return None;
@@ -340,13 +285,12 @@ async fn handle_command(
     ctx: &Context,
     buffer_stdin: Option<String>,
 ) -> Result<(), String> {
-    let env = TxtxEnv::load();
     match opts.command {
         Command::Check(cmd) => {
-            runbooks::handle_check_command(&cmd, buffer_stdin, ctx, &env).await?;
+            runbooks::handle_check_command(&cmd, buffer_stdin, ctx).await?;
         }
         Command::Run(cmd) => {
-            runbooks::handle_run_command(&cmd, buffer_stdin, ctx, &env).await?;
+            runbooks::handle_run_command(&cmd, buffer_stdin, ctx).await?;
         }
         Command::List(cmd) => {
             runbooks::handle_list_command(&cmd, ctx).await?;
@@ -369,29 +313,14 @@ async fn handle_command(
         Command::Lsp => {
             lsp::run_lsp().await?;
         }
-        #[cfg(feature = "txtx_serve")]
-        Command::Serve(cmd) => {
-            warn!(
-                ctx.expect_logger(),
-                "The command `txtx serve` is experimental and will run for 30 minutes."
-            );
-            let addr = format!("{}:{}", cmd.network_binding_ip_address, cmd.network_binding_port);
-            let _ = txtx_serve::start_server(&addr).await.unwrap();
-            ctrlc::set_handler(move || {
-                std::process::exit(1);
-            })
-            .expect("Error setting Ctrl-C handler");
-            // Consider making the duration configurable or running indefinitely
-            thread::sleep(std::time::Duration::new(1800, 0));
-        }
-        Command::Cloud(cmd) => handle_cloud_commands(&cmd, buffer_stdin, &env).await?,
     }
     Ok(())
 }
 
 fn handle_lint_command(cmd: &LintRunbook) -> Result<(), lint::LinterError> {
     // Parse CLI inputs from "key=value" strings
-    let cli_inputs: Vec<(String, String)> = cmd.inputs
+    let cli_inputs: Vec<(String, String)> = cmd
+        .inputs
         .iter()
         .filter_map(|input| {
             let parts: Vec<&str> = input.splitn(2, '=').collect();
@@ -403,10 +332,7 @@ fn handle_lint_command(cmd: &LintRunbook) -> Result<(), lint::LinterError> {
         })
         .collect();
 
-    let linter_options = lint::LinterOptions {
-        config_path: cmd.config.clone(),
-        init: cmd.init,
-    };
+    let linter_options = lint::LinterOptions { config_path: cmd.config.clone(), init: cmd.init };
 
     lint::run_lint(
         cmd.runbook.clone(),
@@ -418,44 +344,6 @@ fn handle_lint_command(cmd: &LintRunbook) -> Result<(), lint::LinterError> {
         cmd.gen_cli,
         cmd.gen_cli_full,
     )
-}
-
-async fn handle_cloud_commands(
-    cmd: &CloudCommand,
-    buffer_stdin: Option<String>,
-    env: &TxtxEnv,
-) -> Result<(), String> {
-    match cmd {
-        CloudCommand::Login(cmd) => {
-            txtx_cloud::login::handle_login_command(
-                cmd,
-                &env.auth_service_url,
-                &env.auth_callback_port,
-                &env.id_service_url,
-            )
-            .await
-        }
-        CloudCommand::Publish(cmd) => {
-            let (_manifest, _runbook_name, runbook, _runbook_state) = load_runbook_from_manifest(
-                &cmd.manifest_path,
-                &cmd.runbook,
-                &cmd.environment,
-                &cmd.inputs,
-                buffer_stdin,
-                env,
-            )
-            .await?;
-
-            txtx_cloud::publish::handle_publish_command(
-                cmd,
-                runbook,
-                &env.id_service_url,
-                &env.txtx_console_url,
-                &env.registry_gql_url,
-            )
-            .await
-        }
-    }
 }
 
 pub fn get_env_var<T: ToString>(key: &str, default: T) -> String {

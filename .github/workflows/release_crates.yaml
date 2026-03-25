@@ -15,11 +15,6 @@ jobs:
           path: txtx
           fetch-depth: 0
 
-      - name: Build .env file
-        uses: ./txtx/.github/actions/setup_env
-        with:
-          working_directory: "txtx"
-
       - name: Download Supervisor UI release
         shell: bash
         run: |

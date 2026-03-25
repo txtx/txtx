@@ -17,8 +17,6 @@ txtx-core = { workspace = true }
 txtx-addon-kit = { workspace = true }
 txtx-lsp = { path = "../txtx-lsp" }
 txtx-supervisor-ui = { workspace = true, optional = true }
-txtx-cloud = { workspace = true }
-txtx-serve = { workspace = true, optional = true }
 txtx-addon-network-svm = { workspace = true }
 txtx-addon-network-evm = { workspace = true }
 txtx-gql = { workspace = true }
@@ -28,11 +26,9 @@ ctrlc = { version = "3.2.2", optional = true }
 dotenvy = "0.15.7"
 serde = "1"
 serde_json = "1"
-serde_derive = "1"
 serde_yml = "0.0.11"
 ascii_table = "4.0.3"
 itertools = "0.12.0"
-unicode-width = "0.2.0"
 ansi_term = "0.12.1"
 atty = "0.2.14"
 tokio = "1.37.0"
@@ -41,7 +37,6 @@ openssl-sys = { version = "*", features = ["vendored"] }
 dialoguer = "0.11.0"
 console = "0.15.8"
 tower-lsp = "0.20.0"
-crossbeam-channel = "0.5"
 chrono = "0.4.38"
 actix-web = "4"
 indicatif = "0.18.0"
@@ -56,7 +51,6 @@ strum = { version = "0.26", features = ["derive"] }
 default = ["cli", "supervisor_ui"]
 cli = ["clap", "ctrlc", "hiro-system-kit/log"]
 supervisor_ui = ["txtx-supervisor-ui"]
-txtx_serve = ["txtx-serve"]
 debug = ["hiro-system-kit/debug"]
 release = ["hiro-system-kit/release"]
 
