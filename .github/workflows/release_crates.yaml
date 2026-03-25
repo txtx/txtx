@@ -8,6 +8,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -113,10 +116,15 @@ jobs:
             fi
           } >> "$GITHUB_OUTPUT"
 
+      - name: Authenticate with crates.io
+        if: steps.detect.outputs.has_bumped == 'true'
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
       - name: Publish Crates
         if: steps.detect.outputs.has_bumped == 'true'
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           cd txtx
           echo "Bumped crates: ${{ steps.detect.outputs.bumped_packages }}"
