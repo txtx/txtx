@@ -13,13 +13,11 @@ const RELEASES_API_BASE: &str =
     "https://api.github.com/repos/solana-foundation/txtx-supervisor-ui/releases";
 const RELEASE_ASSET_NAME: &str = "txtx-supervisor-ui-dist.tar.gz";
 const VERSION_ENV_VAR: &str = "TXTX_SUPERVISOR_UI_VERSION";
+const BYPASS_FEATURE_ENV_VAR: &str = "CARGO_FEATURE_BYPASS_SUPERVISOR_BUILD";
 
 fn main() {
-    #[cfg(not(feature = "bypass_supervisor_build"))]
-    {
-        if let Err(err) = run() {
-            panic!("Supervisor build failed: {err}");
-        }
+    if let Err(err) = run() {
+        panic!("Supervisor build failed: {err}");
     }
 }
 
@@ -34,6 +32,12 @@ fn run() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-env-changed={VERSION_ENV_VAR}");
     println!("cargo:rerun-if-changed={}", local_dist_dir.display());
     println!("cargo:warning=Supervisor build script output dir: {:?}", bundled_dist_dir);
+
+    if std::env::var_os(BYPASS_FEATURE_ENV_VAR).is_some() {
+        prepare_bypass_assets(&bundled_dist_dir)?;
+        println!("cargo:warning=Prepared placeholder supervisor UI assets for bypass build");
+        return Ok(());
+    }
 
     if local_dist_dir.exists() {
         println!("cargo:warning=Using packaged supervisor UI assets from local supervisor-dist");
@@ -68,6 +72,18 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     println!("cargo:warning=Prepared supervisor UI assets from {}", release.tag_name);
 
+    Ok(())
+}
+
+fn prepare_bypass_assets(bundled_dist_dir: &Path) -> Result<(), Box<dyn Error>> {
+    if bundled_dist_dir.exists() {
+        fs::remove_dir_all(bundled_dist_dir)?;
+    }
+    fs::create_dir_all(bundled_dist_dir)?;
+    fs::write(
+        bundled_dist_dir.join("index.html"),
+        "<!doctype html><title>Supervisor UI unavailable</title>",
+    )?;
     Ok(())
 }
 

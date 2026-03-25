@@ -22,9 +22,7 @@ mime_guess = "2.0.4"
 tokio = "1.37.0"
 
 [features]
-default = ["bin_build"]
-crates_build = []
-bin_build = []
+default = []
 bypass_supervisor_build = []
 
 [lib]
