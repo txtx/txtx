@@ -783,6 +783,12 @@ lazy_static! {
             typing: Type::string(),
             optional: true,
             tainting: true
+        },
+        field_type: {
+            documentation: "The type of the field being patched. This is used to determine how to apply the patch. Valid values are 'u8', 'u16', 'u32', 'u64', 'u128', 'i8', 'i16', 'i32', 'i64', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
         }
     };
 
