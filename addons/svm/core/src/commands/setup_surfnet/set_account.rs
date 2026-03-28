@@ -18,18 +18,27 @@ use txtx_addon_network_svm_types::SvmValue;
 
 use crate::constants::SET_ACCOUNT;
 
+macro_rules! parse_num {
+    ($type:ty, $value:expr) => {{
+        let num = <$type>::from_str($value).map_err(|e| {
+            diagnosed_error!("failed to parse field_value as {}: {e}", stringify!($type))
+        })?;
+        num.to_le_bytes().to_vec()
+    }};
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchAccountData {
     pub offset: u64,
     pub length: u64,
-    pub bytes: String,
-    pub patch_type: String,
+    pub field_value: String,
+    pub field_type: String,
 }
 
 impl PatchAccountData {
-    pub fn new(offset: u64, length: u64, bytes: String, patch_type: String) -> Self {
-        Self { offset, length, bytes, patch_type }
+    pub fn new(offset: u64, length: u64, field_value: String, field_type: String) -> Self {
+        Self { offset, length, field_value, field_type }
     }
 
     pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
@@ -49,27 +58,27 @@ impl PatchAccountData {
                 || diagnosed_error!("expected 'length' field in patch item to be a u64"),
             )??;
 
-        let some_bytes = map
-            .get("bytes")
-            .ok_or_else(|| diagnosed_error!("missing 'bytes' field in patch item"))?;
-        let bytes = some_bytes
+        let some_field_value = map
+            .get("field_value")
+            .ok_or_else(|| diagnosed_error!("missing 'field_value' field in patch item"))?;
+        let field_value = some_field_value
             .as_string()
             .ok_or_else(|| {
-                diagnosed_error!("expected 'bytes' field in patch item to be a hex string")
+                diagnosed_error!("expected 'field_value' field in patch item to be a hex string")
             })?
             .to_string();
 
-        let some_patch_type = map
-            .get("patch_type")
-            .ok_or_else(|| diagnosed_error!("missing 'patch_type' field in patch item"))?;
-        let patch_type = some_patch_type
+        let some_field_type = map
+            .get("field_type")
+            .ok_or_else(|| diagnosed_error!("missing 'field_type' field in patch item"))?;
+        let field_type = some_field_type
             .as_string()
             .ok_or_else(|| {
-                diagnosed_error!("expected 'patch_type' field in patch item to be a string")
+                diagnosed_error!("expected 'field_type' field in patch item to be a string")
             })?
             .to_string();
 
-        Ok(Self::new(offset, length, bytes, patch_type))
+        Ok(Self::new(offset, length, field_value, field_type))
     }
 }
 
@@ -183,7 +192,7 @@ impl SurfpoolAccountUpdate {
                 .transpose()?;
 
             let some_data = map.swap_remove("data");
-            let data_bytes = some_data.map(|v| v.to_be_bytes());
+            let data_bytes = some_data.map(|v| v.to_le_bytes());
 
             let some_owner = map.swap_remove("owner");
             let owner = some_owner
@@ -238,72 +247,43 @@ impl SurfpoolAccountUpdate {
                 "expected each item in 'patch' array to be a map with 'offset', 'length', and 'bytes' fields"
             ))?;
 
-                    let PatchAccountData { offset, length, bytes, patch_type } =
+                    let PatchAccountData { offset, length, field_value, field_type } =
                         PatchAccountData::from_map(patch_map)?;
                     let range = offset as usize..(offset + length) as usize;
-                    let bytes = match patch_type.as_str() {
-                        "u8" | "i8" => {
-                            let num = u8::from_str(&bytes).map_err(|e| {
-                                diagnosed_error!("failed to parse patch bytes as u8: {e}")
-                            })?;
-                            vec![num]
-                        }
-                        "u16" | "i16" => {
-                            let num = u16::from_str(&bytes).map_err(|e| {
-                                diagnosed_error!("failed to parse patch bytes as u16: {e}")
-                            })?;
-                            num.to_be_bytes().to_vec()
-                        }
-                        "u32" | "i32" => {
-                            let num = u32::from_str(&bytes).map_err(|e| {
-                                diagnosed_error!("failed to parse patch bytes as u32: {e}")
-                            })?;
-                            num.to_be_bytes().to_vec()
-                        }
-                        "u64" | "i64" => {
-                            let num = u64::from_str(&bytes).map_err(|e| {
-                                diagnosed_error!("failed to parse patch bytes as u64: {e}")
-                            })?;
-                            num.to_be_bytes().to_vec()
-                        }
-                        "u128" | "i128" => {
-                            let num = u128::from_str(&bytes).map_err(|e| {
-                                diagnosed_error!("failed to parse patch bytes as u128: {e}")
-                            })?;
-                            num.to_be_bytes().to_vec()
-                        }
-                        "f32" => {
-                            let num = f32::from_str(&bytes).map_err(|e| {
-                                diagnosed_error!("failed to parse patch bytes as f32: {e}")
-                            })?;
-                            num.to_be_bytes().to_vec()
-                        }
-                        "f64" => {
-                            let num = f64::from_str(&bytes).map_err(|e| {
-                                diagnosed_error!("failed to parse patch bytes as f64: {e}")
-                            })?;
-                            num.to_be_bytes().to_vec()
-                        }
+                    let bytes = match field_type.as_str() {
+                        "u8" => parse_num!(u8, &field_value),
+                        "i8" => parse_num!(i8, &field_value),
+                        "u16" => parse_num!(u16, &field_value),
+                        "i16" => parse_num!(i16, &field_value),
+                        "u32" => parse_num!(u32, &field_value),
+                        "i32" => parse_num!(i32, &field_value),
+                        "u64" => parse_num!(u64, &field_value),
+                        "i64" => parse_num!(i64, &field_value),
+                        "u128" => parse_num!(u128, &field_value),
+                        "i128" => parse_num!(i128, &field_value),
+                        "f32" => parse_num!(f32, &field_value),
+                        "f64" => parse_num!(f64, &field_value),
                         "pubkey" => {
-                            let pubkey =
-                                Pubkey::from_str(&bytes).map_err(|e| {
-                                    diagnosed_error!("failed to parse patch bytes as Pubkey: {e}")
-                                })?;
+                            let pubkey = Pubkey::from_str(&field_value).map_err(|e| {
+                                diagnosed_error!("failed to parse field_value as Pubkey: {e}")
+                            })?;
                             pubkey.to_bytes().to_vec()
                         }
-                        "string" => bytes.into_bytes(),
+                        "string" => field_value.into_bytes(),
                         "boolean" => {
-                            let b = bool::from_str(&bytes).map_err(|e| {
-                                diagnosed_error!("failed to parse patch bytes as boolean: {e}")
+                            let b = bool::from_str(&field_value).map_err(|e| {
+                                diagnosed_error!("failed to parse field_value as boolean: {e}")
                             })?;
                             vec![b as u8]
                         }
-                        "buffer" => hex::decode(&bytes).map_err(|e| {
-                            diagnosed_error!("failed to parse patch bytes as hex string: {e}")
+                        "buffer" => hex::decode(&field_value).map_err(|e| {
+                            diagnosed_error!("failed to parse field_value as hex string: {e}")
                         })?,
                         _ => {
                             return Err(diagnosed_error!(
-                                "invalid 'patch_type' field in patch item: must be one of 'u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', 'u128', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'"
+                                "invalid 'patch_type' field in patch item: must be one of \
+                                'u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', \
+                                'u128', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'"
                             ))
                         }
                     };

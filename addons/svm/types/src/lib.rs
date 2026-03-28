@@ -778,7 +778,7 @@ lazy_static! {
             optional: true,
             tainting: true
         },
-        bytes: {
+        field_value: {
             documentation: "The bytes of the patch.",
             typing: Type::string(),
             optional: true,
