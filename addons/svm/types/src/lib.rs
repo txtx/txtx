@@ -765,6 +765,27 @@ lazy_static! {
         }
     };
 
+    pub static ref SET_ACCOUNT_PATCH: Type = define_documented_arbitrary_map_type! {
+        offset: {
+            documentation: "The offset at which the patch should be applied.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: true
+        },
+        length: {
+            documentation: "The length of the patch.",
+            typing: Type::integer(),
+            optional: true,
+            tainting: true
+        },
+        bytes: {
+            documentation: "The bytes of the patch.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        }
+    };
+
     pub static ref SET_ACCOUNT_MAP: Type = define_strict_map_type! {
         public_key: {
             documentation: "The public key of the account to set.",
@@ -805,6 +826,12 @@ lazy_static! {
         account_path: {
             documentation: "The path to a JSON file containing the account data to set. If provided, all other fields.",
             typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        patch: {
+            documentation: "A patch to apply to the account's existing data. If provided, the offset and length will determine which bytes of the account data to replace with the provided bytes.",
+            typing: Type::array(SET_ACCOUNT_PATCH.clone()),
             optional: true,
             tainting: true
         }
