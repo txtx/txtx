@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -17,6 +17,54 @@ use txtx_addon_kit::{
 use txtx_addon_network_svm_types::SvmValue;
 
 use crate::constants::SET_ACCOUNT;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PatchAccountData {
+    pub offset: u64,
+    pub length: u64,
+    pub bytes: Vec<u8>,
+}
+
+impl PatchAccountData {
+    pub fn new(offset: u64, length: u64, bytes: Vec<u8>) -> Self {
+        Self { offset, length, bytes }
+    }
+
+    pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
+        let some_offset = map
+            .get("offset")
+            .ok_or_else(|| diagnosed_error!("missing 'offset' field in patch item"))?;
+        let offset =
+            some_offset.as_uint().map(|r| r.map_err(|e| diagnosed_error!("{e}"))).ok_or_else(
+                || diagnosed_error!("expected 'offset' field in patch item to be a u64"),
+            )??;
+
+        let some_length = map
+            .get("length")
+            .ok_or_else(|| diagnosed_error!("missing 'length' field in patch item"))?;
+        let length =
+            some_length.as_uint().map(|r| r.map_err(|e| diagnosed_error!("{e}"))).ok_or_else(
+                || diagnosed_error!("expected 'length' field in patch item to be a u64"),
+            )??;
+
+        let some_bytes = map
+            .get("bytes")
+            .ok_or_else(|| diagnosed_error!("missing 'bytes' field in patch item"))?;
+        let bytes = some_bytes
+            .as_string()
+            .ok_or_else(|| {
+                diagnosed_error!("expected 'bytes' field in patch item to be a hex string")
+            })
+            .and_then(|s| {
+                hex::decode(s).map_err(|e| {
+                    diagnosed_error!("invalid hex string in 'bytes' field of patch item: {e}")
+                })
+            })?;
+
+        Ok(Self::new(offset, length, bytes))
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,6 +107,7 @@ impl SurfpoolAccountUpdate {
     pub fn from_map(
         map: &mut IndexMap<String, Value>,
         auth_ctx: &AuthorizationContext,
+        prefetched_data: &HashMap<String, Vec<u8>>,
     ) -> Result<Self, Diagnostic> {
         let some_public_key = map.swap_remove("public_key");
 
@@ -127,7 +176,7 @@ impl SurfpoolAccountUpdate {
                 .transpose()?;
 
             let some_data = map.swap_remove("data");
-            let data = some_data.map(|v| hex::encode(v.to_be_bytes()));
+            let data_bytes = some_data.map(|v| v.to_be_bytes());
 
             let some_owner = map.swap_remove("owner");
             let owner = some_owner
@@ -157,6 +206,44 @@ impl SurfpoolAccountUpdate {
                 .transpose()?
                 .transpose()?;
 
+            let data_bytes = if let Some(patch) = map.swap_remove("patch") {
+                let patches = patch.as_array().ok_or_else(|| {
+                    diagnosed_error!(
+            "expected 'patch' field to be a map with 'offset', 'length', and 'bytes' fields"
+        )
+                })?;
+
+                let mut data_bytes = match data_bytes {
+                    Some(d) => d,
+                    None => {
+                        prefetched_data.get(&public_key.to_string()).cloned().ok_or_else(|| {
+                            diagnosed_error!(
+                                "account data must be provided or prefetched for patching"
+                            )
+                        })?
+                    }
+                };
+
+                for patch_item in patches.iter() {
+                    let patch_map = patch_item
+            .as_object()
+            .ok_or_else(|| diagnosed_error!(
+                "expected each item in 'patch' array to be a map with 'offset', 'length', and 'bytes' fields"
+            ))?;
+
+                    let PatchAccountData { offset, length, bytes } =
+                        PatchAccountData::from_map(patch_map)?;
+                    let range = offset as usize..(offset + length) as usize;
+                    data_bytes[range].copy_from_slice(&bytes);
+                }
+
+                Some(data_bytes)
+            } else {
+                data_bytes
+            };
+
+            let data = data_bytes.map(|d| hex::encode(d));
+
             if lamports.is_none()
                 && data.is_none()
                 && owner.is_none()
@@ -169,9 +256,69 @@ impl SurfpoolAccountUpdate {
         }
     }
 
+    // This function checks if any of the account updates require prefetched data and fetches it if needed. It returns a map of account public keys to their prefetched data.
+    pub async fn get_accounts_data_if_needed(
+        values: &ValueStore,
+        rpc_client: &RpcClient,
+    ) -> Result<HashMap<String, Vec<u8>>, Diagnostic> {
+        let account_update_data = match values.get_value(SET_ACCOUNT) {
+            None => return Ok(HashMap::new()),
+            Some(v) => {
+                v.as_map().ok_or_else(|| diagnosed_error!("'set_account' must be a map type"))?
+            }
+        };
+
+        let account_updates = account_update_data
+            .iter()
+            .map(|i| {
+                i.as_object()
+                    .cloned()
+                    .ok_or_else(|| diagnosed_error!("'set_account' must be a map type"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let accounts_to_fetch = account_updates
+        .iter()
+        .enumerate()
+        .filter_map(|(i, update)| {
+            update.get("patch")?;
+            let prefix = format!("failed to parse `set_account` map #{}", i + 1);
+            Some(
+                update
+                    .get("public_key")
+                    .ok_or_else(|| {
+                        diagnosed_error!(
+                            "{prefix} missing required 'public_key' field and 'pubkey' field in account file"
+                        )
+                    })
+                    .and_then(|pk| {
+                        SvmValue::to_pubkey(pk)
+                            .map_err(|e| diagnosed_error!("{prefix} invalid 'public_key' field: {e}"))
+                    }),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+        if accounts_to_fetch.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let accounts_data = rpc_client
+            .get_multiple_accounts(&accounts_to_fetch)
+            .await
+            .map_err(|e| diagnosed_error!("failed to prefetch account infos: {e}"))?
+            .into_iter()
+            .zip(accounts_to_fetch.iter())
+            .filter_map(|(acc, pubkey)| acc.map(|a| (pubkey.to_string(), a.data)))
+            .collect();
+
+        Ok(accounts_data)
+    }
+
     pub fn parse_value_store(
         values: &ValueStore,
         auth_ctx: &AuthorizationContext,
+        prefetched_data: HashMap<String, Vec<u8>>,
     ) -> Result<Vec<Self>, Diagnostic> {
         let mut account_updates = vec![];
 
@@ -195,8 +342,9 @@ impl SurfpoolAccountUpdate {
 
         for (i, account_update) in account_update_data.iter_mut().enumerate() {
             let prefix = format!("failed to parse `set_account` map #{}", i + 1);
-            let account = SurfpoolAccountUpdate::from_map(account_update, auth_ctx)
-                .map_err(|e| diagnosed_error!("{prefix}: {e}"))?;
+            let account =
+                SurfpoolAccountUpdate::from_map(account_update, auth_ctx, &prefetched_data)
+                    .map_err(|e| diagnosed_error!("{prefix}: {e}"))?;
 
             account_updates.push(account);
         }
