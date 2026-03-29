@@ -5,14 +5,15 @@ use std::str::FromStr;
 use crate::typing::anchor as anchor_lang_idl;
 use crate::typing::SvmValue;
 use anchor_lang_idl::types::{
-    Idl, IdlArrayLen, IdlDefinedFields, IdlGenericArg, IdlInstruction, IdlType, IdlTypeDef,
-    IdlTypeDefGeneric, IdlTypeDefTy,
+    Idl, IdlAccount, IdlArrayLen, IdlDefinedFields, IdlGenericArg, IdlInstruction, IdlType,
+    IdlTypeDef, IdlTypeDefGeneric, IdlTypeDefTy,
 };
 use convert_idl::classic_idl_to_anchor_idl;
 use solana_pubkey::Pubkey;
 use std::fmt::Display;
 use txtx_addon_kit::types::diagnostics::Diagnostic;
 use txtx_addon_kit::{helpers::fs::FileLocation, indexmap::IndexMap, types::types::Value};
+use txtx_addon_network_svm_types::idl::parse_bytes_to_value_with_expected_idl_type_with_leftover_bytes;
 use txtx_addon_network_svm_types::I256;
 use txtx_addon_network_svm_types::U256;
 
@@ -62,8 +63,24 @@ impl IdlRef {
             .ok_or_else(|| diagnosed_error!("instruction '{instruction_name}' not found in IDL"))
     }
 
+    pub fn get_account(&self, account_name: &str) -> Result<&IdlAccount, Diagnostic> {
+        self.idl
+            .accounts
+            .iter()
+            .find(|a| a.name == account_name)
+            .ok_or_else(|| diagnosed_error!("account '{account_name}' not found in IDL"))
+    }
+
     pub fn get_types(&self) -> Vec<IdlTypeDef> {
         self.idl.types.clone()
+    }
+
+    pub fn get_type(&self, type_name: &str) -> Result<&IdlTypeDef, Diagnostic> {
+        self.idl
+            .types
+            .iter()
+            .find(|t| t.name == type_name)
+            .ok_or_else(|| diagnosed_error!("type '{}' not found in IDL", type_name))
     }
 
     /// Encodes the arguments for a given instruction into a map of argument names to byte arrays.
@@ -351,7 +368,9 @@ pub fn borsh_encode_value_to_idl_type(
                     // Handle two enum formats:
                     // 1. {"variant": "VariantName", "value": ...} (explicit format)
                     // 2. {"VariantName": ...} (decoded format from parse_bytes_to_value)
-                    let (enum_variant, enum_variant_value) = if let Some(variant_field) = enum_value.get("variant") {
+                    let (enum_variant, enum_variant_value) = if let Some(variant_field) =
+                        enum_value.get("variant")
+                    {
                         // Format 1: explicit variant field
                         let variant_name = variant_field.as_string().ok_or_else(|| {
                             format!(
@@ -374,12 +393,13 @@ pub fn borsh_encode_value_to_idl_type(
                                 value.to_string(),
                             ));
                         }
-                        let (variant_name, variant_value) = enum_value.iter().next().ok_or_else(|| {
-                            format!(
-                                "unable to encode value ({}) as borsh enum: empty object",
-                                value.to_string(),
-                            )
-                        })?;
+                        let (variant_name, variant_value) =
+                            enum_value.iter().next().ok_or_else(|| {
+                                format!(
+                                    "unable to encode value ({}) as borsh enum: empty object",
+                                    value.to_string(),
+                                )
+                            })?;
                         (variant_name.as_str(), variant_value)
                     };
 
@@ -711,12 +731,10 @@ fn borsh_encode_bytes_to_idl_type(
                 name
             ))
         }
-        IdlType::Generic(name) => {
-            Err(format!(
-                "cannot convert raw bytes to generic type '{}'; type must be resolved first",
-                name
-            ))
-        }
+        IdlType::Generic(name) => Err(format!(
+            "cannot convert raw bytes to generic type '{}'; type must be resolved first",
+            name
+        )),
         t => Err(format!("IDL type {:?} is not yet supported for bytes encoding", t)),
     }
 }
@@ -746,4 +764,54 @@ fn parse_generic_expected_type(
         &expected_type
     };
     Ok(ty.clone())
+}
+
+/// Given account data bytes, the discriminator length, the type definition,
+/// and a target field name, returns `(offset, byte_length, IdlType)` for that
+/// field within the data buffer.
+pub fn get_field_offset_in_account(
+    data: &[u8],
+    discriminator_len: usize,
+    type_def_ty: &IdlTypeDefTy,
+    field_name: &str,
+    idl_types: &Vec<IdlTypeDef>,
+) -> Result<(usize, usize, IdlType), Diagnostic> {
+    let fields = match type_def_ty {
+        IdlTypeDefTy::Struct { fields: Some(IdlDefinedFields::Named(fields)) } => fields,
+        _ => {
+            return Err(diagnosed_error!("expected a struct with named fields for field patching"))
+        }
+    };
+
+    let mut offset = discriminator_len;
+    let mut cursor = &data[discriminator_len..];
+
+    for field in fields {
+        let before_len = cursor.len();
+        let (_value, rest) = parse_bytes_to_value_with_expected_idl_type_with_leftover_bytes(
+            cursor,
+            &field.ty,
+            idl_types,
+            &vec![],
+            &vec![],
+        )
+        .map_err(|e| {
+            diagnosed_error!(
+                "failed to decode field '{}' while computing offset: {}",
+                field.name,
+                e
+            )
+        })?;
+
+        let consumed = before_len - rest.len();
+
+        if field.name == field_name {
+            return Ok((offset, consumed, field.ty.clone()));
+        }
+
+        offset += consumed;
+        cursor = rest;
+    }
+
+    Err(diagnosed_error!("field '{}' not found in account type definition", field_name))
 }
