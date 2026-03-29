@@ -792,7 +792,7 @@ lazy_static! {
         }
     };
 
-    pub static ref SET_ACCOUNT_PATCH_IDL: Type = define_documented_arbitrary_map_type! {
+    pub static ref SET_ACCOUNT_PATCH_IDL: Type = define_strict_map_type! {
         program_idl: {
             documentation: "The IDL of the program being invoked.",
             typing: Type::string(),
@@ -802,19 +802,19 @@ lazy_static! {
         account_name: {
             documentation: "The name of the account in the IDL.",
             typing: Type::string(),
-            optional: true,
+            optional: false,
             tainting: true
         },
         field_value: {
             documentation: "The bytes of the patch.",
             typing: Type::string(),
-            optional: true,
+            optional: false,
             tainting: true
         },
         field_name: {
             documentation: "The name of the field being patched. This is used to determine which field in the account data to update.",
             typing: Type::string(),
-            optional: true,
+            optional: false,
             tainting: true
         }
     };
