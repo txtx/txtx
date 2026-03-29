@@ -765,29 +765,29 @@ lazy_static! {
         }
     };
 
-    pub static ref SET_ACCOUNT_PATCH: Type = define_documented_arbitrary_map_type! {
+    pub static ref SET_ACCOUNT_PATCH: Type = define_strict_map_type! {
         offset: {
             documentation: "The offset at which the patch should be applied.",
             typing: Type::integer(),
-            optional: true,
+            optional: false,
             tainting: true
         },
         length: {
             documentation: "The length of the patch.",
             typing: Type::integer(),
-            optional: true,
+            optional: false,
             tainting: true
         },
         field_value: {
             documentation: "The bytes of the patch.",
             typing: Type::string(),
-            optional: true,
+            optional: false,
             tainting: true
         },
         field_type: {
             documentation: "The type of the field being patched. This is used to determine how to apply the patch. Valid values are 'u8', 'u16', 'u32', 'u64', 'u128', 'i8', 'i16', 'i32', 'i64', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'.",
             typing: Type::string(),
-            optional: true,
+            optional: false,
             tainting: true
         }
     };
