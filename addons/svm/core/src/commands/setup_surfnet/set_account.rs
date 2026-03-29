@@ -63,6 +63,19 @@ fn field_value_to_bytes(field_type: &str, field_value: &Value) -> Result<Vec<u8>
     }
 }
 
+fn resolve_data_bytes(
+    data_bytes: Option<Vec<u8>>,
+    prefetched_data: &HashMap<String, Vec<u8>>,
+    public_key: &Pubkey,
+) -> Result<Vec<u8>, Diagnostic> {
+    match data_bytes {
+        Some(d) => Ok(d),
+        None => prefetched_data.get(&public_key.to_string()).cloned().ok_or_else(|| {
+            diagnosed_error!("account data must be provided or prefetched for patching")
+        }),
+    }
+}
+
 fn apply_patches(
     data_bytes: Option<Vec<u8>>,
     patch: &Value,
@@ -75,12 +88,7 @@ fn apply_patches(
         )
     })?;
 
-    let mut data_bytes = match data_bytes {
-        Some(d) => d,
-        None => prefetched_data.get(&public_key.to_string()).cloned().ok_or_else(|| {
-            diagnosed_error!("account data must be provided or prefetched for patching")
-        })?,
-    };
+    let mut data_bytes = resolve_data_bytes(data_bytes, prefetched_data, public_key)?;
 
     for patch_item in patches.iter() {
         let patch_map = patch_item.as_object().ok_or_else(|| {
@@ -110,6 +118,108 @@ fn apply_patches(
             ));
         }
         data_bytes[range].copy_from_slice(&bytes);
+    }
+
+    Ok(data_bytes)
+}
+
+fn apply_patches_idl(
+    data_bytes: Option<Vec<u8>>,
+    patch: &Value,
+    prefetched_data: &HashMap<String, Vec<u8>>,
+    public_key: &Pubkey,
+    auth_ctx: &AuthorizationContext,
+) -> Result<Vec<u8>, Diagnostic> {
+    let patches = patch.as_array().ok_or_else(|| {
+        diagnosed_error!(
+            "expected 'patch_idl' field to be an array of maps with \
+            'program_idl', 'account_name', 'field_value', and 'field_name' fields"
+        )
+    })?;
+
+    let mut data_bytes = resolve_data_bytes(data_bytes, prefetched_data, public_key)?;
+
+    for patch_item in patches.iter() {
+        let patch_map = patch_item.as_object().ok_or_else(|| {
+            diagnosed_error!(
+                "expected each item in 'patch_idl' array to be a map with \
+                'program_idl', 'account_name', 'field_value', and 'field_name' fields"
+            )
+        })?;
+
+        let PatchAccountDataIdl { program_idl, account_name, field_value, field_name } =
+            PatchAccountDataIdl::from_map(patch_map)?;
+
+        let idl_path_buf = PathBuf::from(&program_idl);
+
+        let idl_path = auth_ctx.get_file_location_from_path_buf(&idl_path_buf).map_err(|e| {
+            diagnosed_error!("invalid program idl path {}: {}", idl_path_buf.display(), e)
+        })?;
+
+        if !idl_path.exists() {
+            return Err(diagnosed_error!(
+                "invalid program idl path; no idl found at: {}",
+                idl_path_buf.display()
+            ));
+        }
+
+        let idl_str = idl_path.read_content_as_utf8().map_err(|e| {
+            diagnosed_error!("invalid idl location {}: {}", &idl_path.to_string(), e)
+        })?;
+
+        let idl = crate::codec::idl::IdlRef::from_str(&idl_str).map_err(|e| {
+            diagnosed_error!("invalid idl at location {}: {}", &idl_path.to_string(), e)
+        })?;
+
+        let idl_account = idl.get_account(&account_name)?;
+        let idl_type_def = idl.get_type(&account_name)?;
+        let idl_types = idl.get_types();
+
+        let disc = &idl_account.discriminator;
+        if !disc.is_empty() {
+            if data_bytes.len() < disc.len() {
+                return Err(diagnosed_error!(
+                    "account data is too short ({} bytes) to contain the discriminator \
+                    ({} bytes) for account '{}'",
+                    data_bytes.len(),
+                    disc.len(),
+                    account_name
+                ));
+            }
+            let account_disc = &data_bytes[..disc.len()];
+            if account_disc != disc.as_slice() {
+                return Err(diagnosed_error!(
+                    "discriminator mismatch for account '{}': expected {:?}, found {:?}",
+                    account_name,
+                    disc,
+                    account_disc
+                ));
+            }
+        }
+
+        let (field_offset, field_byte_len, field_idl_type) = get_field_offset_in_account(
+            &data_bytes,
+            disc.len(),
+            &idl_type_def.ty,
+            &field_name,
+            &idl_types,
+        )?;
+
+        let encoded_value =
+            borsh_encode_value_to_idl_type(&field_value, &field_idl_type, &idl_types, None)
+                .map_err(|e| diagnosed_error!("failed to encode field '{}': {}", field_name, e))?;
+
+        if encoded_value.len() != field_byte_len {
+            return Err(diagnosed_error!(
+                "encoded value for field '{}' has {} bytes, but the existing field \
+                occupies {} bytes; variable-length field patching is not supported",
+                field_name,
+                encoded_value.len(),
+                field_byte_len
+            ));
+        }
+
+        data_bytes[field_offset..field_offset + field_byte_len].copy_from_slice(&encoded_value);
     }
 
     Ok(data_bytes)
@@ -354,115 +464,7 @@ impl SurfpoolAccountUpdate {
             };
 
             data_bytes = if let Some(patch) = map.swap_remove("patch_idl") {
-                let patches = patch.as_array().ok_or_else(|| {
-                    diagnosed_error!("expected 'patch_idl' field to be a map with 'program_idl', 'account_name', 'field_value', and 'field_name' fields")
-                })?;
-
-                let mut data_bytes = match data_bytes {
-                    Some(d) => d,
-                    None => {
-                        prefetched_data.get(&public_key.to_string()).cloned().ok_or_else(|| {
-                            diagnosed_error!(
-                                "account data must be provided or prefetched for patching"
-                            )
-                        })?
-                    }
-                };
-
-                for patch_item in patches.iter() {
-                    let patch_map = patch_item
-            .as_object()
-            .ok_or_else(|| diagnosed_error!(
-                "expected each item in 'patch_idl' array to be a map with 'program_idl', 'account_name', 'field_value', and 'field_name' fields"
-            ))?;
-
-                    let PatchAccountDataIdl { program_idl, account_name, field_value, field_name } =
-                        PatchAccountDataIdl::from_map(patch_map)?;
-
-                    let idl_path_buf = PathBuf::from(&program_idl);
-
-                    let idl_path =
-                        auth_ctx.get_file_location_from_path_buf(&idl_path_buf).map_err(|e| {
-                            diagnosed_error!(
-                                "invalid program idl path {}: {}",
-                                idl_path_buf.display(),
-                                e
-                            )
-                        })?;
-
-                    if !idl_path.exists() {
-                        return Err(diagnosed_error!(
-                            "invalid program idl path; no idl found at: {}",
-                            idl_path_buf.display()
-                        ));
-                    }
-
-                    let idl_str = idl_path.read_content_as_utf8().map_err(|e| {
-                        diagnosed_error!("invalid idl location {}: {}", &idl_path.to_string(), e)
-                    })?;
-
-                    let idl = crate::codec::idl::IdlRef::from_str(&idl_str).map_err(|e| {
-                        diagnosed_error!("invalid idl at location {}: {}", &idl_path.to_string(), e)
-                    })?;
-
-                    let idl_account = idl.get_account(&account_name)?;
-                    let idl_type_def = idl.get_type(&account_name)?;
-                    let idl_types = idl.get_types();
-
-                    let disc = &idl_account.discriminator;
-                    if !disc.is_empty() {
-                        if data_bytes.len() < disc.len() {
-                            return Err(diagnosed_error!(
-                                "account data is too short ({} bytes) to contain the discriminator ({} bytes) for account '{}'",
-                                data_bytes.len(),
-                                disc.len(),
-                                account_name
-                            ));
-                        }
-                        let account_disc = &data_bytes[..disc.len()];
-                        if account_disc != disc.as_slice() {
-                            return Err(diagnosed_error!(
-                                "discriminator mismatch for account '{}': expected {:?}, found {:?}",
-                                account_name,
-                                disc,
-                                account_disc
-                            ));
-                        }
-                    }
-
-                    let (field_offset, field_byte_len, field_idl_type) =
-                        get_field_offset_in_account(
-                            &data_bytes,
-                            disc.len(),
-                            &idl_type_def.ty,
-                            &field_name,
-                            &idl_types,
-                        )?;
-
-                    let encoded_value = borsh_encode_value_to_idl_type(
-                        &field_value,
-                        &field_idl_type,
-                        &idl_types,
-                        None,
-                    )
-                    .map_err(|e| {
-                        diagnosed_error!("failed to encode field '{}': {}", field_name, e)
-                    })?;
-
-                    if encoded_value.len() != field_byte_len {
-                        return Err(diagnosed_error!(
-                            "encoded value for field '{}' has {} bytes, but the existing field occupies {} bytes; variable-length field patching is not supported",
-                            field_name,
-                            encoded_value.len(),
-                            field_byte_len
-                        ));
-                    }
-
-                    data_bytes[field_offset..field_offset + field_byte_len]
-                        .copy_from_slice(&encoded_value);
-                }
-
-                Some(data_bytes)
+                Some(apply_patches_idl(data_bytes, &patch, prefetched_data, &public_key, auth_ctx)?)
             } else {
                 data_bytes
             };
@@ -518,7 +520,9 @@ impl SurfpoolAccountUpdate {
             .iter()
             .enumerate()
             .filter_map(|(i, update)| {
-                update.get("patch")?;
+                if update.get("patch").is_none() && update.get("patch_idl").is_none() {
+                    return None;
+                }
                 let prefix = format!("failed to parse `set_account` map #{}", i + 1);
                 Some(
                     update
