@@ -102,6 +102,60 @@ mod tests {
         assert_eq!(account_update.data, Some("0100000000000000".to_string())); // 1 in little-endian hex
         Ok(())
     }
+
+    #[test]
+    fn test_surfpool_account_update_from_map_with_patch_idl_application() -> Result<(), Diagnostic>
+    {
+        let fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/commands/setup_surfnet/fixtures");
+        let idl_path = fixtures_dir.join("idl.json");
+        let mut map = IndexMap::new();
+        const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
+        const ACC: Pubkey = pubkey!("EnZsyjncjMShCUEPhz4rKnjKQ6gbPF4dkbUANZ2ngPo4");
+        map.insert("public_key".to_string(), SvmValue::pubkey(ACC.to_bytes().to_vec()));
+
+        let patch_idl = Value::Array(Box::new(vec![
+            (Value::Object({
+                let mut m = IndexMap::new();
+                m.insert(
+                    "program_idl".to_string(),
+                    Value::String(idl_path.to_string_lossy().to_string()),
+                );
+                m.insert("account_name".to_string(), Value::String("PositionV2".to_string()));
+                m.insert("field_name".to_string(), Value::String("lb_pair".to_string()));
+                m.insert(
+                    "field_value".to_string(),
+                    Value::Addon(txtx_addon_kit::types::types::AddonData {
+                        bytes: PUBKEY.to_bytes().to_vec(),
+                        id: txtx_addon_network_svm_types::SVM_PUBKEY.to_string(),
+                    }),
+                );
+                m
+            })),
+        ]));
+
+        map.insert("patch_idl".to_string(), patch_idl);
+
+        let auth_ctx = AuthorizationContext::empty();
+        let mut prefetched_data = HashMap::new();
+
+        let acc_data_path = fixtures_dir.join("position_v2_data");
+        let acc_data = std::fs::read_to_string(&acc_data_path)
+            .map_err(|e| diagnosed_error!("failed to read account data fixture: {e}"))?;
+
+        let acc_data = hex::decode(acc_data.trim())
+            .map_err(|e| diagnosed_error!("failed to decode account data fixture as hex: {e}"))?;
+
+        prefetched_data.insert(ACC.to_string(), acc_data);
+        let account_update =
+            SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
+        assert_eq!(account_update.public_key.to_string(), ACC.to_string());
+        assert_eq!(
+            hex::decode(account_update.data.unwrap().as_bytes()).unwrap()[8..32 + 8],
+            PUBKEY.to_bytes()
+        );
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -470,7 +524,7 @@ impl SurfpoolAccountUpdate {
 
                     let disc = &idl_account.discriminator;
                     if !disc.is_empty() {
-                        if data_bytes.len() != disc.len() {
+                        if data_bytes.len() < disc.len() {
                             return Err(diagnosed_error!(
                                 "account data is too short ({} bytes) to contain the discriminator ({} bytes) for account '{}'",
                                 data_bytes.len(),
