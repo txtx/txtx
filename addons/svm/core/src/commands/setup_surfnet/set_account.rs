@@ -16,6 +16,7 @@ use txtx_addon_kit::{
 };
 use txtx_addon_network_svm_types::SvmValue;
 
+use crate::codec::idl::{borsh_encode_value_to_idl_type, get_field_offset_in_account};
 use crate::constants::SET_ACCOUNT;
 
 macro_rules! parse_num {
@@ -73,10 +74,7 @@ mod tests {
     fn test_surfpool_account_update_from_map_with_patch_application() -> Result<(), Diagnostic> {
         let mut map = IndexMap::new();
         const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
-        map.insert(
-            "public_key".to_string(),
-            SvmValue::pubkey(PUBKEY.to_bytes().to_vec()),
-        );
+        map.insert("public_key".to_string(), SvmValue::pubkey(PUBKEY.to_bytes().to_vec()));
 
         let patch = Value::Array(Box::new(vec![
             (Value::Object({
@@ -150,6 +148,56 @@ impl PatchAccountData {
             .to_string();
 
         Ok(Self::new(offset, length, field_value, field_type))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PatchAccountDataIdl {
+    pub program_idl: String,
+    pub account_name: String,
+    pub field_value: Value,
+    pub field_name: String,
+}
+
+impl PatchAccountDataIdl {
+    pub fn new(
+        program_idl: String,
+        account_name: String,
+        field_value: Value,
+        field_name: String,
+    ) -> Self {
+        Self { program_idl, account_name, field_value, field_name }
+    }
+
+    pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
+        let get_field = |key: &str| -> Result<&Value, Diagnostic> {
+            map.get(key).ok_or_else(|| diagnosed_error!("missing '{key}' field in patch_idl item"))
+        };
+
+        let program_idl = get_field("program_idl")?
+            .as_string()
+            .ok_or_else(|| {
+                diagnosed_error!("expected 'program_idl' field in patch_idl item to be a string")
+            })?
+            .to_string();
+
+        let account_name = get_field("account_name")?
+            .as_string()
+            .ok_or_else(|| {
+                diagnosed_error!("expected 'account_name' field in patch_idl item to be a string")
+            })?
+            .to_string();
+
+        let field_value = get_field("field_value")?.clone();
+
+        let field_name = get_field("field_name")?
+            .as_string()
+            .ok_or_else(|| {
+                diagnosed_error!("expected 'field_name' field in patch_idl item to be a string")
+            })?
+            .to_string();
+
+        Ok(Self::new(program_idl, account_name, field_value, field_name))
     }
 }
 
@@ -293,9 +341,9 @@ impl SurfpoolAccountUpdate {
                 .transpose()?
                 .transpose()?;
 
-            let data_bytes = if let Some(patch) = map.swap_remove("patch") {
+            let mut data_bytes = if let Some(patch) = map.swap_remove("patch") {
                 let patches = patch.as_array().ok_or_else(|| {
-                    diagnosed_error!("expected 'patch' field to be a map with 'offset', 'length', and 'bytes' fields")
+                    diagnosed_error!("expected 'patch' field to be a map with 'offset', 'length', 'field_value', and 'field_type' fields")
                 })?;
 
                 let mut data_bytes = match data_bytes {
@@ -313,7 +361,7 @@ impl SurfpoolAccountUpdate {
                     let patch_map = patch_item
             .as_object()
             .ok_or_else(|| diagnosed_error!(
-                "expected each item in 'patch' array to be a map with 'offset', 'length', and 'bytes' fields"
+                "expected each item in 'patch' array to be a map with 'offset', 'length', 'field_value', and 'field_type' fields"
             ))?;
 
                     let PatchAccountData { offset, length, field_value, field_type } =
@@ -357,6 +405,120 @@ impl SurfpoolAccountUpdate {
                         }
                     };
                     data_bytes[range].copy_from_slice(&bytes);
+                }
+
+                Some(data_bytes)
+            } else {
+                data_bytes
+            };
+
+            data_bytes = if let Some(patch) = map.swap_remove("patch_idl") {
+                let patches = patch.as_array().ok_or_else(|| {
+                    diagnosed_error!("expected 'patch_idl' field to be a map with 'program_idl', 'account_name', 'field_value', and 'field_name' fields")
+                })?;
+
+                let mut data_bytes = match data_bytes {
+                    Some(d) => d,
+                    None => {
+                        prefetched_data.get(&public_key.to_string()).cloned().ok_or_else(|| {
+                            diagnosed_error!(
+                                "account data must be provided or prefetched for patching"
+                            )
+                        })?
+                    }
+                };
+
+                for patch_item in patches.iter() {
+                    let patch_map = patch_item
+            .as_object()
+            .ok_or_else(|| diagnosed_error!(
+                "expected each item in 'patch_idl' array to be a map with 'program_idl', 'account_name', 'field_value', and 'field_name' fields"
+            ))?;
+
+                    let PatchAccountDataIdl { program_idl, account_name, field_value, field_name } =
+                        PatchAccountDataIdl::from_map(patch_map)?;
+
+                    let idl_path_buf = PathBuf::from(&program_idl);
+
+                    let idl_path =
+                        auth_ctx.get_file_location_from_path_buf(&idl_path_buf).map_err(|e| {
+                            diagnosed_error!(
+                                "invalid program idl path {}: {}",
+                                idl_path_buf.display(),
+                                e
+                            )
+                        })?;
+
+                    if !idl_path.exists() {
+                        return Err(diagnosed_error!(
+                            "invalid program idl path; no idl found at: {}",
+                            idl_path_buf.display()
+                        ));
+                    }
+
+                    let idl_str = idl_path.read_content_as_utf8().map_err(|e| {
+                        diagnosed_error!("invalid idl location {}: {}", &idl_path.to_string(), e)
+                    })?;
+
+                    let idl = crate::codec::idl::IdlRef::from_str(&idl_str).map_err(|e| {
+                        diagnosed_error!("invalid idl at location {}: {}", &idl_path.to_string(), e)
+                    })?;
+
+                    let idl_account = idl.get_account(&account_name)?;
+                    let idl_type_def = idl.get_type(&account_name)?;
+                    let idl_types = idl.get_types();
+
+                    let disc = &idl_account.discriminator;
+                    if !disc.is_empty() {
+                        if data_bytes.len() != disc.len() {
+                            return Err(diagnosed_error!(
+                                "account data is too short ({} bytes) to contain the discriminator ({} bytes) for account '{}'",
+                                data_bytes.len(),
+                                disc.len(),
+                                account_name
+                            ));
+                        }
+                        let account_disc = &data_bytes[..disc.len()];
+                        if account_disc != disc.as_slice() {
+                            return Err(diagnosed_error!(
+                                "discriminator mismatch for account '{}': expected {:?}, found {:?}",
+                                account_name,
+                                disc,
+                                account_disc
+                            ));
+                        }
+                    }
+
+                    let (field_offset, field_byte_len, field_idl_type) =
+                        get_field_offset_in_account(
+                            &data_bytes,
+                            disc.len(),
+                            &idl_type_def.ty,
+                            &field_name,
+                            &idl_types,
+                        )?;
+
+                    let encoded_value = borsh_encode_value_to_idl_type(
+                        &field_value,
+                        &field_idl_type,
+                        &idl_types,
+                        None,
+                    )
+                    .map_err(|e| {
+                        diagnosed_error!("failed to encode field '{}': {}", field_name, e)
+                    })?;
+
+                    if encoded_value.len() != field_byte_len {
+                        return Err(diagnosed_error!(
+                            "encoded value for field '{}' has {} bytes, but the existing field occupies {} bytes; variable-length field patching is not supported",
+                            field_name,
+                            encoded_value.len(),
+                            field_byte_len
+                        ));
+                    }
+
+                    data_bytes[field_offset..field_offset + field_byte_len]
+                        .copy_from_slice(&encoded_value);
                 }
 
                 Some(data_bytes)
