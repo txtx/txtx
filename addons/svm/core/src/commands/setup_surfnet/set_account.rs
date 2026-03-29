@@ -29,6 +29,8 @@ macro_rules! parse_num {
 
 #[cfg(test)]
 mod tests {
+    use solana_pubkey::pubkey;
+
     #[allow(unused_imports)]
     use super::*;
     #[test]
@@ -39,12 +41,66 @@ mod tests {
         assert_eq!(parse_num!(i16, "-32768"), vec![0, 128]);
         assert_eq!(parse_num!(u32, "4294967295"), vec![255, 255, 255, 255]);
         assert_eq!(parse_num!(i32, "-2147483648"), vec![0, 0, 0, 128]);
-        assert_eq!(parse_num!(u64, "18446744073709551615"), vec![255, 255, 255, 255, 255, 255, 255, 255]);
+        assert_eq!(
+            parse_num!(u64, "18446744073709551615"),
+            vec![255, 255, 255, 255, 255, 255, 255, 255]
+        );
         assert_eq!(parse_num!(i64, "-9223372036854775808"), vec![0, 0, 0, 0, 0, 0, 0, 128]);
         assert_eq!(parse_num!(u128, "340282366920938463463374607431768211455"), vec![255; 16]);
         assert_eq!(parse_num!(i128, "0"), vec![0; 16]);
         assert_eq!(parse_num!(f32, "3.14"), 3.14f32.to_le_bytes().to_vec());
         assert_eq!(parse_num!(f64, "3.14"), 3.14f64.to_le_bytes().to_vec());
+        Ok(())
+    }
+
+    #[test]
+    fn test_patch_account_data_from_map() -> Result<(), Diagnostic> {
+        let mut map = IndexMap::new();
+        map.insert("offset".to_string(), Value::Integer(0));
+        map.insert("length".to_string(), Value::Integer(4));
+        map.insert("field_value".to_string(), Value::String("255".to_string()));
+        map.insert("field_type".to_string(), Value::String("u32".to_string()));
+
+        let patch_data = PatchAccountData::from_map(&map)?;
+        assert_eq!(patch_data.offset, 0);
+        assert_eq!(patch_data.length, 4);
+        assert_eq!(patch_data.field_value, "255");
+        assert_eq!(patch_data.field_type, "u32");
+        Ok(())
+    }
+
+    #[test]
+    fn test_surfpool_account_update_from_map_with_patch_application() -> Result<(), Diagnostic> {
+        let mut map = IndexMap::new();
+        map.insert(
+            "public_key".to_string(),
+            SvmValue::pubkey(pubkey!("11111111111111111111111111111111").to_bytes().to_vec()),
+        );
+
+        let patch = Value::Array(Box::new(vec![
+            (Value::Object({
+                let mut m = IndexMap::new();
+                m.insert("offset".to_string(), Value::Integer(0));
+                m.insert("length".to_string(), Value::Integer(4));
+                m.insert("field_value".to_string(), Value::String("1".to_string()));
+                m.insert("field_type".to_string(), Value::String("u32".to_string()));
+                m
+            })),
+        ]));
+
+        map.insert("patch".to_string(), patch);
+
+        let auth_ctx = AuthorizationContext::empty();
+        let mut prefetched_data = HashMap::new();
+
+        prefetched_data.insert(
+            "11111111111111111111111111111111".to_string(),
+            vec![0; 8], // Original data is 8 bytes of zeros
+        );
+        let account_update =
+            SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
+        assert_eq!(account_update.public_key.to_string(), "11111111111111111111111111111111");
+        assert_eq!(account_update.data, Some("0100000000000000".to_string())); // 1 in little-endian hex
         Ok(())
     }
 }
