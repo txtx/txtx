@@ -350,26 +350,29 @@ impl SurfpoolAccountUpdate {
         };
 
         let accounts_to_fetch = account_updates
-        .iter()
-        .enumerate()
-        .filter_map(|(i, update)| {
-            update.get("patch")?;
-            let prefix = format!("failed to parse `set_account` map #{}", i + 1);
-            Some(
-                update
-                    .get("public_key")
-                    .ok_or_else(|| {
-                        diagnosed_error!(
-                            "{prefix} missing required 'public_key' field and 'pubkey' field in account file"
-                        )
-                    })
-                    .and_then(|pk| {
-                        SvmValue::to_pubkey(pk)
-                            .map_err(|e| diagnosed_error!("{prefix} invalid 'public_key' field: {e}"))
-                    }),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            .iter()
+            .enumerate()
+            .filter_map(|(i, update)| {
+                update.get("patch")?;
+                let prefix = format!("failed to parse `set_account` map #{}", i + 1);
+                Some(
+                    update
+                        .get("public_key")
+                        .ok_or_else(|| {
+                            diagnosed_error!(
+                                "{prefix} missing required 'public_key' field and 'pubkey' field in account file"
+                            )
+                        })
+                        .and_then(|pk| {
+                            SvmValue::to_pubkey(pk).map_err(|e| {
+                                diagnosed_error!(
+                                    "{prefix} invalid 'public_key' field: {e}"
+                                )
+                            })
+                        }),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         if accounts_to_fetch.is_empty() {
             return Ok(HashMap::new());
@@ -522,14 +525,98 @@ mod tests {
         let auth_ctx = AuthorizationContext::empty();
         let mut prefetched_data = HashMap::new();
 
-        prefetched_data.insert(
-            PUBKEY.to_string(),
-            vec![0; 8], // Original data is 8 bytes of zeros
-        );
+        prefetched_data.insert(PUBKEY.to_string(), vec![0; 8]);
         let account_update =
             SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
         assert_eq!(account_update.public_key.to_string(), PUBKEY.to_string());
-        assert_eq!(account_update.data, Some("0100000000000000".to_string())); // 1 in little-endian hex
+        assert_eq!(account_update.data, Some("0100000000000000".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_apply_multiple_patches() -> Result<(), Diagnostic> {
+        let patch = Value::array(vec![
+            Value::object({
+                let mut m = IndexMap::new();
+                m.insert("offset".to_string(), Value::Integer(0));
+                m.insert("length".to_string(), Value::Integer(4));
+                m.insert("field_value".to_string(), Value::String("100".to_string()));
+                m.insert("field_type".to_string(), Value::String("u32".to_string()));
+                m
+            }),
+            Value::object({
+                let mut m = IndexMap::new();
+                m.insert("offset".to_string(), Value::Integer(4));
+                m.insert("length".to_string(), Value::Integer(4));
+                m.insert("field_value".to_string(), Value::String("200".to_string()));
+                m.insert("field_type".to_string(), Value::String("u32".to_string()));
+                m
+            }),
+            Value::object({
+                let mut m = IndexMap::new();
+                m.insert("offset".to_string(), Value::Integer(8));
+                m.insert("length".to_string(), Value::Integer(1));
+                m.insert("field_value".to_string(), Value::String("true".to_string()));
+                m.insert("field_type".to_string(), Value::String("boolean".to_string()));
+                m
+            }),
+        ]);
+
+        let data = Some(vec![0u8; 16]);
+        let prefetched = HashMap::new();
+        let pubkey = pubkey!("11111111111111111111111111111111");
+
+        let result = apply_patches(data, &patch, &prefetched, &pubkey)?;
+
+        assert_eq!(&result[0..4], &100u32.to_le_bytes());
+        assert_eq!(&result[4..8], &200u32.to_le_bytes());
+        assert_eq!(result[8], 1u8);
+        assert_eq!(&result[9..16], &[0u8; 7]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_apply_patches_uses_provided_data_over_prefetched() -> Result<(), Diagnostic> {
+        let patch = Value::array(vec![Value::object({
+            let mut m = IndexMap::new();
+            m.insert("offset".to_string(), Value::Integer(0));
+            m.insert("length".to_string(), Value::Integer(1));
+            m.insert("field_value".to_string(), Value::String("42".to_string()));
+            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m
+        })]);
+
+        let pubkey = pubkey!("11111111111111111111111111111111");
+
+        let provided_data = Some(vec![0xFF; 4]);
+        let mut prefetched = HashMap::new();
+        prefetched.insert(pubkey.to_string(), vec![0xAA; 4]);
+
+        let result = apply_patches(provided_data, &patch, &prefetched, &pubkey)?;
+        assert_eq!(result[0], 42);
+        assert_eq!(&result[1..4], &[0xFF; 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_apply_patches_falls_back_to_prefetched() -> Result<(), Diagnostic> {
+        let patch = Value::array(vec![Value::object({
+            let mut m = IndexMap::new();
+            m.insert("offset".to_string(), Value::Integer(0));
+            m.insert("length".to_string(), Value::Integer(1));
+            m.insert("field_value".to_string(), Value::String("42".to_string()));
+            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m
+        })]);
+
+        let pubkey = pubkey!("11111111111111111111111111111111");
+
+        let mut prefetched = HashMap::new();
+        prefetched.insert(pubkey.to_string(), vec![0xBB; 4]);
+
+        let result = apply_patches(None, &patch, &prefetched, &pubkey)?;
+        assert_eq!(result[0], 42);
+        assert_eq!(&result[1..4], &[0xBB; 3]);
         Ok(())
     }
 }
