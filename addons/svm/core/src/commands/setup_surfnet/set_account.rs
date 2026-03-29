@@ -342,12 +342,28 @@ impl SurfpoolAccountUpdate {
                         })?,
                         _ => {
                             return Err(diagnosed_error!(
-                                "invalid 'patch_type' field in patch item: must be one of \
+                                "invalid 'field_type' field in patch item: must be one of \
                                 'u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', \
                                 'u128', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'"
                             ))
                         }
                     };
+                    if bytes.len() != length as usize {
+                        return Err(diagnosed_error!(
+                            "patch field_type '{}' produced {} bytes, but 'length' was set to {}",
+                            field_type,
+                            bytes.len(),
+                            length
+                        ));
+                    }
+                    if (offset + length) as usize > data_bytes.len() {
+                        return Err(diagnosed_error!(
+                            "patch range {}..{} exceeds account data length ({})",
+                            offset,
+                            offset + length,
+                            data_bytes.len()
+                        ));
+                    }
                     data_bytes[range].copy_from_slice(&bytes);
                 }
 
