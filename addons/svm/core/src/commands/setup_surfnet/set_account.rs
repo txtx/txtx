@@ -28,147 +28,104 @@ macro_rules! parse_num {
     }};
 }
 
-#[cfg(test)]
-mod tests {
-    use solana_pubkey::pubkey;
-
-    #[allow(unused_imports)]
-    use super::*;
-    #[test]
-    fn test_parse_num() -> Result<(), Diagnostic> {
-        assert_eq!(parse_num!(u8, "255"), vec![255]);
-        assert_eq!(parse_num!(i8, "-128"), vec![128]);
-        assert_eq!(parse_num!(u16, "65535"), vec![255, 255]);
-        assert_eq!(parse_num!(i16, "-32768"), vec![0, 128]);
-        assert_eq!(parse_num!(u32, "4294967295"), vec![255, 255, 255, 255]);
-        assert_eq!(parse_num!(i32, "-2147483648"), vec![0, 0, 0, 128]);
-        assert_eq!(
-            parse_num!(u64, "18446744073709551615"),
-            vec![255, 255, 255, 255, 255, 255, 255, 255]
-        );
-        assert_eq!(parse_num!(i64, "-9223372036854775808"), vec![0, 0, 0, 0, 0, 0, 0, 128]);
-        assert_eq!(parse_num!(u128, "340282366920938463463374607431768211455"), vec![255; 16]);
-        assert_eq!(parse_num!(i128, "0"), vec![0; 16]);
-        assert_eq!(parse_num!(f32, "3.14"), 3.14f32.to_le_bytes().to_vec());
-        assert_eq!(parse_num!(f64, "3.14"), 3.14f64.to_le_bytes().to_vec());
-        Ok(())
-    }
-
-    #[test]
-    fn test_patch_account_data_from_map() -> Result<(), Diagnostic> {
-        let mut map = IndexMap::new();
-        map.insert("offset".to_string(), Value::Integer(0));
-        map.insert("length".to_string(), Value::Integer(4));
-        map.insert("field_value".to_string(), Value::String("255".to_string()));
-        map.insert("field_type".to_string(), Value::String("u32".to_string()));
-
-        let patch_data = PatchAccountData::from_map(&map)?;
-        assert_eq!(patch_data.offset, 0);
-        assert_eq!(patch_data.length, 4);
-        assert_eq!(patch_data.field_value, "255");
-        assert_eq!(patch_data.field_type, "u32");
-        Ok(())
-    }
-
-    #[test]
-    fn test_surfpool_account_update_from_map_with_patch_application() -> Result<(), Diagnostic> {
-        let mut map = IndexMap::new();
-        const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
-        map.insert("public_key".to_string(), SvmValue::pubkey(PUBKEY.to_bytes().to_vec()));
-
-        let patch = Value::Array(Box::new(vec![
-            (Value::Object({
-                let mut m = IndexMap::new();
-                m.insert("offset".to_string(), Value::Integer(0));
-                m.insert("length".to_string(), Value::Integer(4));
-                m.insert("field_value".to_string(), Value::String("1".to_string()));
-                m.insert("field_type".to_string(), Value::String("u32".to_string()));
-                m
-            })),
-        ]));
-
-        map.insert("patch".to_string(), patch);
-
-        let auth_ctx = AuthorizationContext::empty();
-        let mut prefetched_data = HashMap::new();
-
-        prefetched_data.insert(
-            PUBKEY.to_string(),
-            vec![0; 8], // Original data is 8 bytes of zeros
-        );
-        let account_update =
-            SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
-        assert_eq!(account_update.public_key.to_string(), PUBKEY.to_string());
-        assert_eq!(account_update.data, Some("0100000000000000".to_string())); // 1 in little-endian hex
-        Ok(())
-    }
-
-    #[test]
-    fn test_surfpool_account_update_from_map_with_patch_idl_application() -> Result<(), Diagnostic>
-    {
-        let fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/commands/setup_surfnet/fixtures");
-        let idl_path = fixtures_dir.join("idl.json");
-        let mut map = IndexMap::new();
-        const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
-        const ACC: Pubkey = pubkey!("EnZsyjncjMShCUEPhz4rKnjKQ6gbPF4dkbUANZ2ngPo4");
-        map.insert("public_key".to_string(), SvmValue::pubkey(ACC.to_bytes().to_vec()));
-
-        let patch_idl = Value::Array(Box::new(vec![
-            (Value::Object({
-                let mut m = IndexMap::new();
-                m.insert(
-                    "program_idl".to_string(),
-                    Value::String(idl_path.to_string_lossy().to_string()),
-                );
-                m.insert("account_name".to_string(), Value::String("PositionV2".to_string()));
-                m.insert("field_name".to_string(), Value::String("lb_pair".to_string()));
-                m.insert(
-                    "field_value".to_string(),
-                    Value::Addon(txtx_addon_kit::types::types::AddonData {
-                        bytes: PUBKEY.to_bytes().to_vec(),
-                        id: txtx_addon_network_svm_types::SVM_PUBKEY.to_string(),
-                    }),
-                );
-                m
-            })),
-        ]));
-
-        map.insert("patch_idl".to_string(), patch_idl);
-
-        let auth_ctx = AuthorizationContext::empty();
-        let mut prefetched_data = HashMap::new();
-
-        let acc_data_path = fixtures_dir.join("position_v2_data");
-        let acc_data = std::fs::read_to_string(&acc_data_path)
-            .map_err(|e| diagnosed_error!("failed to read account data fixture: {e}"))?;
-
-        let acc_data = hex::decode(acc_data.trim())
-            .map_err(|e| diagnosed_error!("failed to decode account data fixture as hex: {e}"))?;
-
-        prefetched_data.insert(ACC.to_string(), acc_data);
-        let account_update =
-            SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
-        assert_eq!(account_update.public_key.to_string(), ACC.to_string());
-        assert_eq!(
-            hex::decode(account_update.data.unwrap().as_bytes()).unwrap()[8..32 + 8],
-            PUBKEY.to_bytes()
-        );
-        Ok(())
+fn field_value_to_bytes(field_type: &str, field_value: &Value) -> Result<Vec<u8>, Diagnostic> {
+    match field_type {
+        "u8" => Ok(parse_num!(u8, &field_value.to_string())),
+        "i8" => Ok(parse_num!(i8, &field_value.to_string())),
+        "u16" => Ok(parse_num!(u16, &field_value.to_string())),
+        "i16" => Ok(parse_num!(i16, &field_value.to_string())),
+        "u32" => Ok(parse_num!(u32, &field_value.to_string())),
+        "i32" => Ok(parse_num!(i32, &field_value.to_string())),
+        "u64" => Ok(parse_num!(u64, &field_value.to_string())),
+        "i64" => Ok(parse_num!(i64, &field_value.to_string())),
+        "u128" => Ok(parse_num!(u128, &field_value.to_string())),
+        "i128" => Ok(parse_num!(i128, &field_value.to_string())),
+        "f32" => Ok(parse_num!(f32, &field_value.to_string())),
+        "f64" => Ok(parse_num!(f64, &field_value.to_string())),
+        "pubkey" => {
+            let pubkey = Pubkey::from_str(&field_value.to_string())
+                .map_err(|e| diagnosed_error!("failed to parse field_value as Pubkey: {e}"))?;
+            Ok(pubkey.to_bytes().to_vec())
+        }
+        "string" => Ok(field_value.to_string().into_bytes()),
+        "boolean" => {
+            let b = bool::from_str(&field_value.to_string())
+                .map_err(|e| diagnosed_error!("failed to parse field_value as boolean: {e}"))?;
+            Ok(vec![b as u8])
+        }
+        "buffer" => hex::decode(&field_value.to_string())
+            .map_err(|e| diagnosed_error!("failed to parse field_value as hex string: {e}")),
+        _ => Err(diagnosed_error!(
+            "invalid 'field_type' field in patch item: must be one of \
+            'u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', \
+            'u128', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'"
+        )),
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+fn apply_patches(
+    data_bytes: Option<Vec<u8>>,
+    patch: &Value,
+    prefetched_data: &HashMap<String, Vec<u8>>,
+    public_key: &Pubkey,
+) -> Result<Vec<u8>, Diagnostic> {
+    let patches = patch.as_array().ok_or_else(|| {
+        diagnosed_error!(
+            "expected 'patch' field to be a map with 'offset', 'length', and 'bytes' fields"
+        )
+    })?;
+
+    let mut data_bytes = match data_bytes {
+        Some(d) => d,
+        None => prefetched_data.get(&public_key.to_string()).cloned().ok_or_else(|| {
+            diagnosed_error!("account data must be provided or prefetched for patching")
+        })?,
+    };
+
+    for patch_item in patches.iter() {
+        let patch_map = patch_item.as_object().ok_or_else(|| {
+            diagnosed_error!(
+                "expected each item in 'patch' array to be a map with 'offset', 'length', and 'bytes' fields"
+            )
+        })?;
+
+        let PatchAccountData { offset, length, field_value, field_type } =
+            PatchAccountData::from_map(patch_map)?;
+        let range = offset as usize..(offset + length) as usize;
+        let bytes = field_value_to_bytes(&field_type, &field_value)?;
+        if bytes.len() != length as usize {
+            return Err(diagnosed_error!(
+                "patch field_type '{}' produced {} bytes, but 'length' was set to {}",
+                field_type,
+                bytes.len(),
+                length
+            ));
+        }
+        if (offset + length) as usize > data_bytes.len() {
+            return Err(diagnosed_error!(
+                "patch range {}..{} exceeds account data length ({})",
+                offset,
+                offset + length,
+                data_bytes.len()
+            ));
+        }
+        data_bytes[range].copy_from_slice(&bytes);
+    }
+
+    Ok(data_bytes)
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchAccountData {
     pub offset: u64,
     pub length: u64,
-    pub field_value: String,
+    pub field_value: Value,
     pub field_type: String,
 }
 
 impl PatchAccountData {
-    pub fn new(offset: u64, length: u64, field_value: String, field_type: String) -> Self {
+    pub fn new(offset: u64, length: u64, field_value: Value, field_type: String) -> Self {
         Self { offset, length, field_value, field_type }
     }
 
@@ -187,12 +144,7 @@ impl PatchAccountData {
             .ok_or_else(|| diagnosed_error!("expected 'length' field in patch item to be a u64"))?
             .map_err(|e| diagnosed_error!("{e}"))?;
 
-        let field_value = get_field("field_value")?
-            .as_string()
-            .ok_or_else(|| {
-                diagnosed_error!("expected 'field_value' field in patch item to be a hex string")
-            })?
-            .to_string();
+        let field_value = get_field("field_value")?.clone();
 
         let field_type = get_field("field_type")?
             .as_string()
@@ -396,72 +348,7 @@ impl SurfpoolAccountUpdate {
                 .transpose()?;
 
             let mut data_bytes = if let Some(patch) = map.swap_remove("patch") {
-                let patches = patch.as_array().ok_or_else(|| {
-                    diagnosed_error!("expected 'patch' field to be a map with 'offset', 'length', 'field_value', and 'field_type' fields")
-                })?;
-
-                let mut data_bytes = match data_bytes {
-                    Some(d) => d,
-                    None => {
-                        prefetched_data.get(&public_key.to_string()).cloned().ok_or_else(|| {
-                            diagnosed_error!(
-                                "account data must be provided or prefetched for patching"
-                            )
-                        })?
-                    }
-                };
-
-                for patch_item in patches.iter() {
-                    let patch_map = patch_item
-            .as_object()
-            .ok_or_else(|| diagnosed_error!(
-                "expected each item in 'patch' array to be a map with 'offset', 'length', 'field_value', and 'field_type' fields"
-            ))?;
-
-                    let PatchAccountData { offset, length, field_value, field_type } =
-                        PatchAccountData::from_map(patch_map)?;
-                    let range = offset as usize..(offset + length) as usize;
-                    let bytes = match field_type.as_str() {
-                        "u8" => parse_num!(u8, &field_value),
-                        "i8" => parse_num!(i8, &field_value),
-                        "u16" => parse_num!(u16, &field_value),
-                        "i16" => parse_num!(i16, &field_value),
-                        "u32" => parse_num!(u32, &field_value),
-                        "i32" => parse_num!(i32, &field_value),
-                        "u64" => parse_num!(u64, &field_value),
-                        "i64" => parse_num!(i64, &field_value),
-                        "u128" => parse_num!(u128, &field_value),
-                        "i128" => parse_num!(i128, &field_value),
-                        "f32" => parse_num!(f32, &field_value),
-                        "f64" => parse_num!(f64, &field_value),
-                        "pubkey" => {
-                            let pubkey = Pubkey::from_str(&field_value).map_err(|e| {
-                                diagnosed_error!("failed to parse field_value as Pubkey: {e}")
-                            })?;
-                            pubkey.to_bytes().to_vec()
-                        }
-                        "string" => field_value.into_bytes(),
-                        "boolean" => {
-                            let b = bool::from_str(&field_value).map_err(|e| {
-                                diagnosed_error!("failed to parse field_value as boolean: {e}")
-                            })?;
-                            vec![b as u8]
-                        }
-                        "buffer" => hex::decode(&field_value).map_err(|e| {
-                            diagnosed_error!("failed to parse field_value as hex string: {e}")
-                        })?,
-                        _ => {
-                            return Err(diagnosed_error!(
-                                "invalid 'patch_type' field in patch item: must be one of \
-                                'u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', \
-                                'u128', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'"
-                            ))
-                        }
-                    };
-                    data_bytes[range].copy_from_slice(&bytes);
-                }
-
-                Some(data_bytes)
+                Some(apply_patches(data_bytes, &patch, prefetched_data, &public_key)?)
             } else {
                 data_bytes
             };
@@ -594,19 +481,17 @@ impl SurfpoolAccountUpdate {
         }
     }
 
-    // This function checks if any of the account updates require prefetched data and fetches it if needed. It returns a map of account public keys to their prefetched data.
-    pub async fn get_accounts_data_if_needed(
+    fn get_account_update_maps(
         values: &ValueStore,
-        rpc_client: &RpcClient,
-    ) -> Result<HashMap<String, Vec<u8>>, Diagnostic> {
+    ) -> Result<Option<Vec<IndexMap<String, Value>>>, Diagnostic> {
         let account_update_data = match values.get_value(SET_ACCOUNT) {
-            None => return Ok(HashMap::new()),
+            None => return Ok(None),
             Some(v) => {
                 v.as_map().ok_or_else(|| diagnosed_error!("'set_account' must be a map type"))?
             }
         };
 
-        let account_updates = account_update_data
+        let maps = account_update_data
             .iter()
             .map(|i| {
                 i.as_object()
@@ -615,27 +500,44 @@ impl SurfpoolAccountUpdate {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        Ok(Some(maps))
+    }
+
+    /// Checks if any of the account updates require prefetched data and fetches it if needed.
+    /// Returns a map of account public keys to their prefetched data.
+    pub async fn get_accounts_data_if_needed(
+        values: &ValueStore,
+        rpc_client: &RpcClient,
+    ) -> Result<HashMap<String, Vec<u8>>, Diagnostic> {
+        let account_updates = match Self::get_account_update_maps(values)? {
+            None => return Ok(HashMap::new()),
+            Some(maps) => maps,
+        };
+
         let accounts_to_fetch = account_updates
-        .iter()
-        .enumerate()
-        .filter_map(|(i, update)| {
-            update.get("patch")?;
-            let prefix = format!("failed to parse `set_account` map #{}", i + 1);
-            Some(
-                update
-                    .get("public_key")
-                    .ok_or_else(|| {
-                        diagnosed_error!(
-                            "{prefix} missing required 'public_key' field and 'pubkey' field in account file"
-                        )
-                    })
-                    .and_then(|pk| {
-                        SvmValue::to_pubkey(pk)
-                            .map_err(|e| diagnosed_error!("{prefix} invalid 'public_key' field: {e}"))
-                    }),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            .iter()
+            .enumerate()
+            .filter_map(|(i, update)| {
+                update.get("patch")?;
+                let prefix = format!("failed to parse `set_account` map #{}", i + 1);
+                Some(
+                    update
+                        .get("public_key")
+                        .ok_or_else(|| {
+                            diagnosed_error!(
+                                "{prefix} missing required 'public_key' field and 'pubkey' field in account file"
+                            )
+                        })
+                        .and_then(|pk| {
+                            SvmValue::to_pubkey(pk).map_err(|e| {
+                                diagnosed_error!(
+                                    "{prefix} invalid 'public_key' field: {e}"
+                                )
+                            })
+                        }),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         if accounts_to_fetch.is_empty() {
             return Ok(HashMap::new());
@@ -658,25 +560,12 @@ impl SurfpoolAccountUpdate {
         auth_ctx: &AuthorizationContext,
         prefetched_data: HashMap<String, Vec<u8>>,
     ) -> Result<Vec<Self>, Diagnostic> {
-        let mut account_updates = vec![];
-
-        let account_update_data = values
-            .get_value(SET_ACCOUNT)
-            .map(|v| v.as_map().ok_or_else(|| diagnosed_error!("'set_account' must be a map type")))
-            .transpose()?;
-
-        let Some(account_update_data) = account_update_data else {
-            return Ok(vec![]);
+        let mut account_update_data = match Self::get_account_update_maps(values)? {
+            None => return Ok(vec![]),
+            Some(maps) => maps,
         };
 
-        let mut account_update_data = account_update_data
-            .iter()
-            .map(|i| {
-                i.as_object()
-                    .map(|o| o.clone())
-                    .ok_or(diagnosed_error!("'set_account' must be a map type"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut account_updates = vec![];
 
         for (i, account_update) in account_update_data.iter_mut().enumerate() {
             let prefix = format!("failed to parse `set_account` map #{}", i + 1);
@@ -734,6 +623,219 @@ impl SurfpoolAccountUpdate {
             let _ = account_update.send_request(rpc_client).await?;
             account_update.update_status(logger, i, account_updates.len());
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use solana_pubkey::pubkey;
+
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn test_parse_num() -> Result<(), Diagnostic> {
+        assert_eq!(parse_num!(u8, "255"), vec![255]);
+        assert_eq!(parse_num!(i8, "-128"), vec![128]);
+        assert_eq!(parse_num!(u16, "65535"), vec![255, 255]);
+        assert_eq!(parse_num!(i16, "-32768"), vec![0, 128]);
+        assert_eq!(parse_num!(u32, "4294967295"), vec![255, 255, 255, 255]);
+        assert_eq!(parse_num!(i32, "-2147483648"), vec![0, 0, 0, 128]);
+        assert_eq!(
+            parse_num!(u64, "18446744073709551615"),
+            vec![255, 255, 255, 255, 255, 255, 255, 255]
+        );
+        assert_eq!(parse_num!(i64, "-9223372036854775808"), vec![0, 0, 0, 0, 0, 0, 0, 128]);
+        assert_eq!(parse_num!(u128, "340282366920938463463374607431768211455"), vec![255; 16]);
+        assert_eq!(parse_num!(i128, "0"), vec![0; 16]);
+        assert_eq!(parse_num!(f32, "3.14"), 3.14f32.to_le_bytes().to_vec());
+        assert_eq!(parse_num!(f64, "3.14"), 3.14f64.to_le_bytes().to_vec());
+        Ok(())
+    }
+
+    #[test]
+    fn test_patch_account_data_from_map() -> Result<(), Diagnostic> {
+        let mut map = IndexMap::new();
+        map.insert("offset".to_string(), Value::Integer(0));
+        map.insert("length".to_string(), Value::Integer(4));
+        map.insert("field_value".to_string(), Value::String("255".to_string()));
+        map.insert("field_type".to_string(), Value::String("u32".to_string()));
+
+        let patch_data = PatchAccountData::from_map(&map)?;
+        assert_eq!(patch_data.offset, 0);
+        assert_eq!(patch_data.length, 4);
+        assert_eq!(patch_data.field_value, Value::String("255".to_string()));
+        assert_eq!(patch_data.field_type, "u32");
+        Ok(())
+    }
+
+    #[test]
+    fn test_surfpool_account_update_from_map_with_patch_application() -> Result<(), Diagnostic> {
+        let mut map = IndexMap::new();
+        const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
+        map.insert("public_key".to_string(), SvmValue::pubkey(PUBKEY.to_bytes().to_vec()));
+
+        let patch = Value::Array(Box::new(vec![Value::Object({
+            let mut m = IndexMap::new();
+            m.insert("offset".to_string(), Value::Integer(0));
+            m.insert("length".to_string(), Value::Integer(4));
+            m.insert("field_value".to_string(), Value::String("1".to_string()));
+            m.insert("field_type".to_string(), Value::String("u32".to_string()));
+            m
+        })]));
+
+        map.insert("patch".to_string(), patch);
+
+        let auth_ctx = AuthorizationContext::empty();
+        let mut prefetched_data = HashMap::new();
+
+        prefetched_data.insert(PUBKEY.to_string(), vec![0; 8]);
+        let account_update =
+            SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
+        assert_eq!(account_update.public_key.to_string(), PUBKEY.to_string());
+        assert_eq!(account_update.data, Some("0100000000000000".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_apply_multiple_patches() -> Result<(), Diagnostic> {
+        let patch = Value::array(vec![
+            Value::object({
+                let mut m = IndexMap::new();
+                m.insert("offset".to_string(), Value::Integer(0));
+                m.insert("length".to_string(), Value::Integer(4));
+                m.insert("field_value".to_string(), Value::String("100".to_string()));
+                m.insert("field_type".to_string(), Value::String("u32".to_string()));
+                m
+            }),
+            Value::object({
+                let mut m = IndexMap::new();
+                m.insert("offset".to_string(), Value::Integer(4));
+                m.insert("length".to_string(), Value::Integer(4));
+                m.insert("field_value".to_string(), Value::String("200".to_string()));
+                m.insert("field_type".to_string(), Value::String("u32".to_string()));
+                m
+            }),
+            Value::object({
+                let mut m = IndexMap::new();
+                m.insert("offset".to_string(), Value::Integer(8));
+                m.insert("length".to_string(), Value::Integer(1));
+                m.insert("field_value".to_string(), Value::String("true".to_string()));
+                m.insert("field_type".to_string(), Value::String("boolean".to_string()));
+                m
+            }),
+        ]);
+
+        let data = Some(vec![0u8; 16]);
+        let prefetched = HashMap::new();
+        let pubkey = pubkey!("11111111111111111111111111111111");
+
+        let result = apply_patches(data, &patch, &prefetched, &pubkey)?;
+
+        assert_eq!(&result[0..4], &100u32.to_le_bytes());
+        assert_eq!(&result[4..8], &200u32.to_le_bytes());
+        assert_eq!(result[8], 1u8);
+        assert_eq!(&result[9..16], &[0u8; 7]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_apply_patches_uses_provided_data_over_prefetched() -> Result<(), Diagnostic> {
+        let patch = Value::array(vec![Value::object({
+            let mut m = IndexMap::new();
+            m.insert("offset".to_string(), Value::Integer(0));
+            m.insert("length".to_string(), Value::Integer(1));
+            m.insert("field_value".to_string(), Value::String("42".to_string()));
+            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m
+        })]);
+
+        let pubkey = pubkey!("11111111111111111111111111111111");
+
+        let provided_data = Some(vec![0xFF; 4]);
+        let mut prefetched = HashMap::new();
+        prefetched.insert(pubkey.to_string(), vec![0xAA; 4]);
+
+        let result = apply_patches(provided_data, &patch, &prefetched, &pubkey)?;
+        assert_eq!(result[0], 42);
+        assert_eq!(&result[1..4], &[0xFF; 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_apply_patches_falls_back_to_prefetched() -> Result<(), Diagnostic> {
+        let patch = Value::array(vec![Value::object({
+            let mut m = IndexMap::new();
+            m.insert("offset".to_string(), Value::Integer(0));
+            m.insert("length".to_string(), Value::Integer(1));
+            m.insert("field_value".to_string(), Value::String("42".to_string()));
+            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m
+        })]);
+
+        let pubkey = pubkey!("11111111111111111111111111111111");
+
+        let mut prefetched = HashMap::new();
+        prefetched.insert(pubkey.to_string(), vec![0xBB; 4]);
+
+        let result = apply_patches(None, &patch, &prefetched, &pubkey)?;
+        assert_eq!(result[0], 42);
+        assert_eq!(&result[1..4], &[0xBB; 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_surfpool_account_update_from_map_with_patch_idl_application() -> Result<(), Diagnostic>
+    {
+        let fixtures_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/commands/setup_surfnet/fixtures");
+        let idl_path = fixtures_dir.join("idl.json");
+        let mut map = IndexMap::new();
+        const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
+        const ACC: Pubkey = pubkey!("EnZsyjncjMShCUEPhz4rKnjKQ6gbPF4dkbUANZ2ngPo4");
+        map.insert("public_key".to_string(), SvmValue::pubkey(ACC.to_bytes().to_vec()));
+
+        let patch_idl = Value::Array(Box::new(vec![
+            (Value::Object({
+                let mut m = IndexMap::new();
+                m.insert(
+                    "program_idl".to_string(),
+                    Value::String(idl_path.to_string_lossy().to_string()),
+                );
+                m.insert("account_name".to_string(), Value::String("PositionV2".to_string()));
+                m.insert("field_name".to_string(), Value::String("lb_pair".to_string()));
+                m.insert(
+                    "field_value".to_string(),
+                    Value::Addon(txtx_addon_kit::types::types::AddonData {
+                        bytes: PUBKEY.to_bytes().to_vec(),
+                        id: txtx_addon_network_svm_types::SVM_PUBKEY.to_string(),
+                    }),
+                );
+                m
+            })),
+        ]));
+
+        map.insert("patch_idl".to_string(), patch_idl);
+
+        let auth_ctx = AuthorizationContext::empty();
+        let mut prefetched_data = HashMap::new();
+
+        let acc_data_path = fixtures_dir.join("position_v2_data");
+        let acc_data = std::fs::read_to_string(&acc_data_path)
+            .map_err(|e| diagnosed_error!("failed to read account data fixture: {e}"))?;
+
+        let acc_data = hex::decode(acc_data.trim())
+            .map_err(|e| diagnosed_error!("failed to decode account data fixture as hex: {e}"))?;
+
+        prefetched_data.insert(ACC.to_string(), acc_data);
+        let account_update =
+            SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
+        assert_eq!(account_update.public_key.to_string(), ACC.to_string());
+        assert_eq!(
+            hex::decode(account_update.data.unwrap().as_bytes()).unwrap()[8..32 + 8],
+            PUBKEY.to_bytes()
+        );
         Ok(())
     }
 }
