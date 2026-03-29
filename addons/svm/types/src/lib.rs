@@ -779,7 +779,7 @@ lazy_static! {
             tainting: true
         },
         field_value: {
-            documentation: "The bytes of the patch.",
+            documentation: "The value to write at the patch offset, interpreted according to `field_type`.",
             typing: Type::string(),
             optional: false,
             tainting: true
