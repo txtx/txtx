@@ -64,7 +64,7 @@ mod tests {
         let patch_data = PatchAccountData::from_map(&map)?;
         assert_eq!(patch_data.offset, 0);
         assert_eq!(patch_data.length, 4);
-        assert_eq!(patch_data.field_value, "255");
+        assert_eq!(patch_data.field_value, Value::String("255".to_string()));
         assert_eq!(patch_data.field_type, "u32");
         Ok(())
     }
@@ -73,10 +73,7 @@ mod tests {
     fn test_surfpool_account_update_from_map_with_patch_application() -> Result<(), Diagnostic> {
         let mut map = IndexMap::new();
         const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
-        map.insert(
-            "public_key".to_string(),
-            SvmValue::pubkey(PUBKEY.to_bytes().to_vec()),
-        );
+        map.insert("public_key".to_string(), SvmValue::pubkey(PUBKEY.to_bytes().to_vec()));
 
         let patch = Value::Array(Box::new(vec![
             (Value::Object({
@@ -106,17 +103,17 @@ mod tests {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchAccountData {
     pub offset: u64,
     pub length: u64,
-    pub field_value: String,
+    pub field_value: Value,
     pub field_type: String,
 }
 
 impl PatchAccountData {
-    pub fn new(offset: u64, length: u64, field_value: String, field_type: String) -> Self {
+    pub fn new(offset: u64, length: u64, field_value: Value, field_type: String) -> Self {
         Self { offset, length, field_value, field_type }
     }
 
@@ -135,12 +132,7 @@ impl PatchAccountData {
             .ok_or_else(|| diagnosed_error!("expected 'length' field in patch item to be a u64"))?
             .map_err(|e| diagnosed_error!("{e}"))?;
 
-        let field_value = get_field("field_value")?
-            .as_string()
-            .ok_or_else(|| {
-                diagnosed_error!("expected 'field_value' field in patch item to be a hex string")
-            })?
-            .to_string();
+        let field_value = get_field("field_value")?.clone();
 
         let field_type = get_field("field_type")?
             .as_string()
@@ -320,32 +312,32 @@ impl SurfpoolAccountUpdate {
                         PatchAccountData::from_map(patch_map)?;
                     let range = offset as usize..(offset + length) as usize;
                     let bytes = match field_type.as_str() {
-                        "u8" => parse_num!(u8, &field_value),
-                        "i8" => parse_num!(i8, &field_value),
-                        "u16" => parse_num!(u16, &field_value),
-                        "i16" => parse_num!(i16, &field_value),
-                        "u32" => parse_num!(u32, &field_value),
-                        "i32" => parse_num!(i32, &field_value),
-                        "u64" => parse_num!(u64, &field_value),
-                        "i64" => parse_num!(i64, &field_value),
-                        "u128" => parse_num!(u128, &field_value),
-                        "i128" => parse_num!(i128, &field_value),
-                        "f32" => parse_num!(f32, &field_value),
-                        "f64" => parse_num!(f64, &field_value),
+                        "u8" => parse_num!(u8, &field_value.to_string()),
+                        "i8" => parse_num!(i8, &field_value.to_string()),
+                        "u16" => parse_num!(u16, &field_value.to_string()),
+                        "i16" => parse_num!(i16, &field_value.to_string()),
+                        "u32" => parse_num!(u32, &field_value.to_string()),
+                        "i32" => parse_num!(i32, &field_value.to_string()),
+                        "u64" => parse_num!(u64, &field_value.to_string()),
+                        "i64" => parse_num!(i64, &field_value.to_string()),
+                        "u128" => parse_num!(u128, &field_value.to_string()),
+                        "i128" => parse_num!(i128, &field_value.to_string()),
+                        "f32" => parse_num!(f32, &field_value.to_string()),
+                        "f64" => parse_num!(f64, &field_value.to_string()),
                         "pubkey" => {
-                            let pubkey = Pubkey::from_str(&field_value).map_err(|e| {
+                            let pubkey = Pubkey::from_str(&field_value.to_string()).map_err(|e| {
                                 diagnosed_error!("failed to parse field_value as Pubkey: {e}")
                             })?;
                             pubkey.to_bytes().to_vec()
                         }
-                        "string" => field_value.into_bytes(),
+                        "string" => field_value.to_string().into_bytes(),
                         "boolean" => {
-                            let b = bool::from_str(&field_value).map_err(|e| {
+                            let b = bool::from_str(&field_value.to_string()).map_err(|e| {
                                 diagnosed_error!("failed to parse field_value as boolean: {e}")
                             })?;
                             vec![b as u8]
                         }
-                        "buffer" => hex::decode(&field_value).map_err(|e| {
+                        "buffer" => hex::decode(&field_value.to_string()).map_err(|e| {
                             diagnosed_error!("failed to parse field_value as hex string: {e}")
                         })?,
                         _ => {
