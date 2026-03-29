@@ -72,9 +72,10 @@ mod tests {
     #[test]
     fn test_surfpool_account_update_from_map_with_patch_application() -> Result<(), Diagnostic> {
         let mut map = IndexMap::new();
+        const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
         map.insert(
             "public_key".to_string(),
-            SvmValue::pubkey(pubkey!("11111111111111111111111111111111").to_bytes().to_vec()),
+            SvmValue::pubkey(PUBKEY.to_bytes().to_vec()),
         );
 
         let patch = Value::Array(Box::new(vec![
@@ -94,12 +95,12 @@ mod tests {
         let mut prefetched_data = HashMap::new();
 
         prefetched_data.insert(
-            "11111111111111111111111111111111".to_string(),
+            PUBKEY.to_string(),
             vec![0; 8], // Original data is 8 bytes of zeros
         );
         let account_update =
             SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
-        assert_eq!(account_update.public_key.to_string(), "11111111111111111111111111111111");
+        assert_eq!(account_update.public_key.to_string(), PUBKEY.to_string());
         assert_eq!(account_update.data, Some("0100000000000000".to_string())); // 1 in little-endian hex
         Ok(())
     }
@@ -120,36 +121,28 @@ impl PatchAccountData {
     }
 
     pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
-        let some_offset = map
-            .get("offset")
-            .ok_or_else(|| diagnosed_error!("missing 'offset' field in patch item"))?;
-        let offset =
-            some_offset.as_uint().map(|r| r.map_err(|e| diagnosed_error!("{e}"))).ok_or_else(
-                || diagnosed_error!("expected 'offset' field in patch item to be a u64"),
-            )??;
+        let get_field = |key: &str| -> Result<&Value, Diagnostic> {
+            map.get(key).ok_or_else(|| diagnosed_error!("missing '{key}' field in patch item"))
+        };
 
-        let some_length = map
-            .get("length")
-            .ok_or_else(|| diagnosed_error!("missing 'length' field in patch item"))?;
-        let length =
-            some_length.as_uint().map(|r| r.map_err(|e| diagnosed_error!("{e}"))).ok_or_else(
-                || diagnosed_error!("expected 'length' field in patch item to be a u64"),
-            )??;
+        let offset = get_field("offset")?
+            .as_uint()
+            .ok_or_else(|| diagnosed_error!("expected 'offset' field in patch item to be a u64"))?
+            .map_err(|e| diagnosed_error!("{e}"))?;
 
-        let some_field_value = map
-            .get("field_value")
-            .ok_or_else(|| diagnosed_error!("missing 'field_value' field in patch item"))?;
-        let field_value = some_field_value
+        let length = get_field("length")?
+            .as_uint()
+            .ok_or_else(|| diagnosed_error!("expected 'length' field in patch item to be a u64"))?
+            .map_err(|e| diagnosed_error!("{e}"))?;
+
+        let field_value = get_field("field_value")?
             .as_string()
             .ok_or_else(|| {
                 diagnosed_error!("expected 'field_value' field in patch item to be a hex string")
             })?
             .to_string();
 
-        let some_field_type = map
-            .get("field_type")
-            .ok_or_else(|| diagnosed_error!("missing 'field_type' field in patch item"))?;
-        let field_type = some_field_type
+        let field_type = get_field("field_type")?
             .as_string()
             .ok_or_else(|| {
                 diagnosed_error!("expected 'field_type' field in patch item to be a string")
@@ -302,9 +295,7 @@ impl SurfpoolAccountUpdate {
 
             let data_bytes = if let Some(patch) = map.swap_remove("patch") {
                 let patches = patch.as_array().ok_or_else(|| {
-                    diagnosed_error!(
-            "expected 'patch' field to be a map with 'offset', 'length', and 'bytes' fields"
-        )
+                    diagnosed_error!("expected 'patch' field to be a map with 'offset', 'length', and 'bytes' fields")
                 })?;
 
                 let mut data_bytes = match data_bytes {
