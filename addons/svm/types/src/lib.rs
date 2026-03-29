@@ -792,6 +792,33 @@ lazy_static! {
         }
     };
 
+    pub static ref SET_ACCOUNT_PATCH_IDL: Type = define_documented_arbitrary_map_type! {
+        program_idl: {
+            documentation: "The IDL of the program being invoked.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        account_name: {
+            documentation: "The name of the account in the IDL.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        field_value: {
+            documentation: "The bytes of the patch.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        field_name: {
+            documentation: "The name of the field being patched. This is used to determine which field in the account data to update.",
+            typing: Type::string(),
+            optional: true,
+            tainting: true
+        }
+    };
+
     pub static ref SET_ACCOUNT_MAP: Type = define_strict_map_type! {
         public_key: {
             documentation: "The public key of the account to set.",
@@ -838,6 +865,12 @@ lazy_static! {
         patch: {
             documentation: "A patch to apply to the account's existing data. If provided, the offset and length will determine which bytes of the account data to replace with the provided bytes.",
             typing: Type::array(SET_ACCOUNT_PATCH.clone()),
+            optional: true,
+            tainting: true
+        },
+        patch_idl: {
+            documentation: "A patch to apply to the account's existing data, where the field to update is determined by the account's IDL. If provided, the program_idl and account_name will be used to determine which field in the account data to update with the provided bytes.",
+            typing: Type::array(SET_ACCOUNT_PATCH_IDL.clone()),
             optional: true,
             tainting: true
         }
