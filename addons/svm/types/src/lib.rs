@@ -806,7 +806,7 @@ lazy_static! {
             tainting: true
         },
         field_value: {
-            documentation: "The bytes of the patch.",
+            documentation: "The value to write to the specified field, encoded according to the IDL type.",
             typing: Type::string(),
             optional: false,
             tainting: true
