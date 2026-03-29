@@ -27,6 +27,27 @@ macro_rules! parse_num {
     }};
 }
 
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
+    #[test]
+    fn test_parse_num() -> Result<(), Diagnostic> {
+        assert_eq!(parse_num!(u8, "255"), vec![255]);
+        assert_eq!(parse_num!(i8, "-128"), vec![128]);
+        assert_eq!(parse_num!(u16, "65535"), vec![255, 255]);
+        assert_eq!(parse_num!(i16, "-32768"), vec![0, 128]);
+        assert_eq!(parse_num!(u32, "4294967295"), vec![255, 255, 255, 255]);
+        assert_eq!(parse_num!(i32, "-2147483648"), vec![0, 0, 0, 128]);
+        assert_eq!(parse_num!(u64, "18446744073709551615"), vec![255, 255, 255, 255, 255, 255, 255, 255]);
+        assert_eq!(parse_num!(i64, "-9223372036854775808"), vec![0, 0, 0, 0, 0, 0, 0, 128]);
+        assert_eq!(parse_num!(u128, "340282366920938463463374607431768211455"), vec![255; 16]);
+        assert_eq!(parse_num!(i128, "0"), vec![0; 16]);
+        assert_eq!(parse_num!(f32, "3.14"), 3.14f32.to_le_bytes().to_vec());
+        assert_eq!(parse_num!(f64, "3.14"), 3.14f64.to_le_bytes().to_vec());
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchAccountData {
