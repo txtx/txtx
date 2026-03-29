@@ -55,14 +55,14 @@ fn field_value_to_bytes(field_type: &str, field_value: &Value) -> Result<Vec<u8>
         "buffer" => hex::decode(&field_value.to_string())
             .map_err(|e| diagnosed_error!("failed to parse field_value as hex string: {e}")),
         _ => Err(diagnosed_error!(
-            "invalid 'field_type' field in patch item: must be one of \
+            "invalid 'field_type' field in patch_raw item: must be one of \
             'u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', \
             'u128', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'"
         )),
     }
 }
 
-fn apply_patches(
+fn apply_patches_raw(
     data_bytes: Option<Vec<u8>>,
     patch: &Value,
     prefetched_data: &HashMap<String, Vec<u8>>,
@@ -70,7 +70,7 @@ fn apply_patches(
 ) -> Result<Vec<u8>, Diagnostic> {
     let patches = patch.as_array().ok_or_else(|| {
         diagnosed_error!(
-            "expected 'patch' field to be a map with 'offset', 'length', and 'bytes' fields"
+            "expected 'patch_raw' field to be an array of maps with 'offset', 'length', 'field_value', and 'field_type' fields"
         )
     })?;
 
@@ -84,12 +84,12 @@ fn apply_patches(
     for patch_item in patches.iter() {
         let patch_map = patch_item.as_object().ok_or_else(|| {
             diagnosed_error!(
-                "expected each item in 'patch' array to be a map with 'offset', 'length', and 'bytes' fields"
+                "expected each item in 'patch_raw' array to be a map with 'offset', 'length', 'field_value', and 'field_type' fields"
             )
         })?;
 
-        let PatchAccountData { offset, length, field_value, field_type } =
-            PatchAccountData::from_map(patch_map)?;
+        let PatchRawAccountData { offset, length, field_value, field_type } =
+            PatchRawAccountData::from_map(patch_map)?;
         let range = offset as usize..(offset + length) as usize;
         let bytes = field_value_to_bytes(&field_type, &field_value)?;
         if bytes.len() != length as usize {
@@ -116,31 +116,31 @@ fn apply_patches(
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PatchAccountData {
+pub struct PatchRawAccountData {
     pub offset: u64,
     pub length: u64,
     pub field_value: Value,
     pub field_type: String,
 }
 
-impl PatchAccountData {
+impl PatchRawAccountData {
     pub fn new(offset: u64, length: u64, field_value: Value, field_type: String) -> Self {
         Self { offset, length, field_value, field_type }
     }
 
     pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
         let get_field = |key: &str| -> Result<&Value, Diagnostic> {
-            map.get(key).ok_or_else(|| diagnosed_error!("missing '{key}' field in patch item"))
+            map.get(key).ok_or_else(|| diagnosed_error!("missing '{key}' field in patch_raw item"))
         };
 
         let offset = get_field("offset")?
             .as_uint()
-            .ok_or_else(|| diagnosed_error!("expected 'offset' field in patch item to be a u64"))?
+            .ok_or_else(|| diagnosed_error!("expected 'offset' field in patch_raw item to be a u64"))?
             .map_err(|e| diagnosed_error!("{e}"))?;
 
         let length = get_field("length")?
             .as_uint()
-            .ok_or_else(|| diagnosed_error!("expected 'length' field in patch item to be a u64"))?
+            .ok_or_else(|| diagnosed_error!("expected 'length' field in patch_raw item to be a u64"))?
             .map_err(|e| diagnosed_error!("{e}"))?;
 
         let field_value = get_field("field_value")?.clone();
@@ -148,7 +148,7 @@ impl PatchAccountData {
         let field_type = get_field("field_type")?
             .as_string()
             .ok_or_else(|| {
-                diagnosed_error!("expected 'field_type' field in patch item to be a string")
+                diagnosed_error!("expected 'field_type' field in patch_raw item to be a string")
             })?
             .to_string();
 
@@ -296,8 +296,8 @@ impl SurfpoolAccountUpdate {
                 .transpose()?
                 .transpose()?;
 
-            let data_bytes = if let Some(patch) = map.swap_remove("patch") {
-                Some(apply_patches(data_bytes, &patch, prefetched_data, &public_key)?)
+            let data_bytes = if let Some(patch) = map.swap_remove("patch_raw") {
+                Some(apply_patches_raw(data_bytes, &patch, prefetched_data, &public_key)?)
             } else {
                 data_bytes
             };
@@ -353,7 +353,7 @@ impl SurfpoolAccountUpdate {
             .iter()
             .enumerate()
             .filter_map(|(i, update)| {
-                update.get("patch")?;
+                update.get("patch_raw")?;
                 let prefix = format!("failed to parse `set_account` map #{}", i + 1);
                 Some(
                     update
@@ -490,14 +490,14 @@ mod tests {
     }
 
     #[test]
-    fn test_patch_account_data_from_map() -> Result<(), Diagnostic> {
+    fn test_patch_raw_account_data_from_map() -> Result<(), Diagnostic> {
         let mut map = IndexMap::new();
         map.insert("offset".to_string(), Value::Integer(0));
         map.insert("length".to_string(), Value::Integer(4));
         map.insert("field_value".to_string(), Value::String("255".to_string()));
         map.insert("field_type".to_string(), Value::String("u32".to_string()));
 
-        let patch_data = PatchAccountData::from_map(&map)?;
+        let patch_data = PatchRawAccountData::from_map(&map)?;
         assert_eq!(patch_data.offset, 0);
         assert_eq!(patch_data.length, 4);
         assert_eq!(patch_data.field_value, Value::String("255".to_string()));
@@ -520,7 +520,7 @@ mod tests {
             m
         })]));
 
-        map.insert("patch".to_string(), patch);
+        map.insert("patch_raw".to_string(), patch);
 
         let auth_ctx = AuthorizationContext::empty();
         let mut prefetched_data = HashMap::new();
@@ -534,7 +534,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_multiple_patches() -> Result<(), Diagnostic> {
+    fn test_apply_multiple_patches_raw() -> Result<(), Diagnostic> {
         let patch = Value::array(vec![
             Value::object({
                 let mut m = IndexMap::new();
@@ -566,7 +566,7 @@ mod tests {
         let prefetched = HashMap::new();
         let pubkey = pubkey!("11111111111111111111111111111111");
 
-        let result = apply_patches(data, &patch, &prefetched, &pubkey)?;
+        let result = apply_patches_raw(data, &patch, &prefetched, &pubkey)?;
 
         assert_eq!(&result[0..4], &100u32.to_le_bytes());
         assert_eq!(&result[4..8], &200u32.to_le_bytes());
@@ -576,7 +576,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_patches_uses_provided_data_over_prefetched() -> Result<(), Diagnostic> {
+    fn test_apply_patches_raw_uses_provided_data_over_prefetched() -> Result<(), Diagnostic> {
         let patch = Value::array(vec![Value::object({
             let mut m = IndexMap::new();
             m.insert("offset".to_string(), Value::Integer(0));
@@ -592,14 +592,14 @@ mod tests {
         let mut prefetched = HashMap::new();
         prefetched.insert(pubkey.to_string(), vec![0xAA; 4]);
 
-        let result = apply_patches(provided_data, &patch, &prefetched, &pubkey)?;
+        let result = apply_patches_raw(provided_data, &patch, &prefetched, &pubkey)?;
         assert_eq!(result[0], 42);
         assert_eq!(&result[1..4], &[0xFF; 3]);
         Ok(())
     }
 
     #[test]
-    fn test_apply_patches_falls_back_to_prefetched() -> Result<(), Diagnostic> {
+    fn test_apply_patches_raw_falls_back_to_prefetched() -> Result<(), Diagnostic> {
         let patch = Value::array(vec![Value::object({
             let mut m = IndexMap::new();
             m.insert("offset".to_string(), Value::Integer(0));
@@ -614,7 +614,7 @@ mod tests {
         let mut prefetched = HashMap::new();
         prefetched.insert(pubkey.to_string(), vec![0xBB; 4]);
 
-        let result = apply_patches(None, &patch, &prefetched, &pubkey)?;
+        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey)?;
         assert_eq!(result[0], 42);
         assert_eq!(&result[1..4], &[0xBB; 3]);
         Ok(())

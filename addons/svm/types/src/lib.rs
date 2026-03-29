@@ -765,7 +765,7 @@ lazy_static! {
         }
     };
 
-    pub static ref SET_ACCOUNT_PATCH: Type = define_strict_map_type! {
+    pub static ref SET_ACCOUNT_PATCH_RAW: Type = define_strict_map_type! {
         offset: {
             documentation: "The offset at which the patch should be applied.",
             typing: Type::integer(),
@@ -835,9 +835,9 @@ lazy_static! {
             optional: true,
             tainting: true
         },
-        patch: {
-            documentation: "A patch to apply to the account's existing data. If provided, the offset and length will determine which bytes of the account data to replace with the provided bytes.",
-            typing: Type::array(SET_ACCOUNT_PATCH.clone()),
+        patch_raw: {
+            documentation: "A raw patch to apply to the account's existing data. Each item specifies an offset, length, field_value, and field_type to determine which bytes of the account data to replace.",
+            typing: Type::array(SET_ACCOUNT_PATCH_RAW.clone()),
             optional: true,
             tainting: true
         }
