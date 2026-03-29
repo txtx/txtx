@@ -27,6 +27,7 @@ macro_rules! parse_num {
     }};
 }
 
+#[cfg(test)]
 mod tests {
     #[allow(unused_imports)]
     use super::*;
