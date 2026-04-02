@@ -20,9 +20,8 @@ use crate::constants::SET_ACCOUNT;
 
 macro_rules! parse_num {
     ($type:ty, $value:expr) => {{
-        let num = <$type>::from_str($value).map_err(|e| {
-            diagnosed_error!("failed to parse value as {}: {e}", stringify!($type))
-        })?;
+        let num = <$type>::from_str($value)
+            .map_err(|e| diagnosed_error!("failed to parse value as {}: {e}", stringify!($type)))?;
         num.to_le_bytes().to_vec()
     }};
 }
@@ -147,12 +146,16 @@ impl PatchRawAccountData {
 
         let offset = get_field("offset")?
             .as_uint()
-            .ok_or_else(|| diagnosed_error!("expected 'offset' field in patch_raw block to be a u64"))?
+            .ok_or_else(|| {
+                diagnosed_error!("expected 'offset' field in patch_raw block to be a u64")
+            })?
             .map_err(|e| diagnosed_error!("{e}"))?;
 
         let length = get_field("length")?
             .as_uint()
-            .ok_or_else(|| diagnosed_error!("expected 'length' field in patch_raw block to be a u64"))?
+            .ok_or_else(|| {
+                diagnosed_error!("expected 'length' field in patch_raw block to be a u64")
+            })?
             .map_err(|e| diagnosed_error!("{e}"))?;
 
         let value = get_field("value")?.clone();
