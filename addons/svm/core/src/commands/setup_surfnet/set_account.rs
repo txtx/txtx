@@ -302,7 +302,7 @@ impl SurfpoolAccountUpdate {
                 data_bytes
             };
 
-            let data = data_bytes.map(|d| hex::encode(d));
+            let data = data_bytes.map(hex::encode);
 
             if lamports.is_none()
                 && data.is_none()
