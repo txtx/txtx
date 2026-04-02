@@ -65,9 +65,9 @@ fn field_value_to_bytes(field_type: &str, field_value: &Value) -> Result<Vec<u8>
 fn apply_patches_raw(
     data_bytes: Option<Vec<u8>>,
     patch: &Value,
-    prefetched_data: &HashMap<String, Vec<u8>>,
+    prefetched_data: &HashMap<String, Option<Vec<u8>>>,
     public_key: &Pubkey,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<Option<Vec<u8>>, Diagnostic> {
     let patches = patch.as_array().ok_or_else(|| {
         diagnosed_error!(
             "expected 'patch_raw' field to be an array of maps with 'offset', 'length', 'field_value', and 'field_type' fields"
@@ -76,9 +76,21 @@ fn apply_patches_raw(
 
     let mut data_bytes = match data_bytes {
         Some(d) => d,
-        None => prefetched_data.get(&public_key.to_string()).cloned().ok_or_else(|| {
-            diagnosed_error!("account data must be provided or prefetched for patching")
-        })?,
+        None => match prefetched_data.get(&public_key.to_string()) {
+            Some(Some(d)) => d.clone(),
+            Some(None) => {
+                eprintln!(
+                    "Warning: skipping patch_raw for account {}: account does not exist on-chain",
+                    public_key
+                );
+                return Ok(None);
+            }
+            None => {
+                return Err(diagnosed_error!(
+                    "account data must be provided or prefetched for patching"
+                ));
+            }
+        },
     };
 
     for patch_item in patches.iter() {
@@ -111,7 +123,7 @@ fn apply_patches_raw(
         data_bytes[range].copy_from_slice(&bytes);
     }
 
-    Ok(data_bytes)
+    Ok(Some(data_bytes))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -197,7 +209,7 @@ impl SurfpoolAccountUpdate {
     pub fn from_map(
         map: &mut IndexMap<String, Value>,
         auth_ctx: &AuthorizationContext,
-        prefetched_data: &HashMap<String, Vec<u8>>,
+        prefetched_data: &HashMap<String, Option<Vec<u8>>>,
     ) -> Result<Self, Diagnostic> {
         let some_public_key = map.swap_remove("public_key");
 
@@ -297,7 +309,7 @@ impl SurfpoolAccountUpdate {
                 .transpose()?;
 
             let data_bytes = if let Some(patch) = map.swap_remove("patch_raw") {
-                Some(apply_patches_raw(data_bytes, &patch, prefetched_data, &public_key)?)
+                apply_patches_raw(data_bytes, &patch, prefetched_data, &public_key)?
             } else {
                 data_bytes
             };
@@ -343,7 +355,7 @@ impl SurfpoolAccountUpdate {
     pub async fn get_accounts_data_if_needed(
         values: &ValueStore,
         rpc_client: &RpcClient,
-    ) -> Result<HashMap<String, Vec<u8>>, Diagnostic> {
+    ) -> Result<HashMap<String, Option<Vec<u8>>>, Diagnostic> {
         let account_updates = match Self::get_account_update_maps(values)? {
             None => return Ok(HashMap::new()),
             Some(maps) => maps,
@@ -384,7 +396,7 @@ impl SurfpoolAccountUpdate {
             .map_err(|e| diagnosed_error!("failed to prefetch account infos: {e}"))?
             .into_iter()
             .zip(accounts_to_fetch.iter())
-            .filter_map(|(acc, pubkey)| acc.map(|a| (pubkey.to_string(), a.data)))
+            .map(|(acc, pubkey)| (pubkey.to_string(), acc.map(|a| a.data)))
             .collect();
 
         Ok(accounts_data)
@@ -393,7 +405,7 @@ impl SurfpoolAccountUpdate {
     pub fn parse_value_store(
         values: &ValueStore,
         auth_ctx: &AuthorizationContext,
-        prefetched_data: HashMap<String, Vec<u8>>,
+        prefetched_data: HashMap<String, Option<Vec<u8>>>,
     ) -> Result<Vec<Self>, Diagnostic> {
         let mut account_update_data = match Self::get_account_update_maps(values)? {
             None => return Ok(vec![]),
@@ -525,7 +537,7 @@ mod tests {
         let auth_ctx = AuthorizationContext::empty();
         let mut prefetched_data = HashMap::new();
 
-        prefetched_data.insert(PUBKEY.to_string(), vec![0; 8]);
+        prefetched_data.insert(PUBKEY.to_string(), Some(vec![0; 8]));
         let account_update =
             SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
         assert_eq!(account_update.public_key.to_string(), PUBKEY.to_string());
@@ -566,7 +578,7 @@ mod tests {
         let prefetched = HashMap::new();
         let pubkey = pubkey!("11111111111111111111111111111111");
 
-        let result = apply_patches_raw(data, &patch, &prefetched, &pubkey)?;
+        let result = apply_patches_raw(data, &patch, &prefetched, &pubkey)?.unwrap();
 
         assert_eq!(&result[0..4], &100u32.to_le_bytes());
         assert_eq!(&result[4..8], &200u32.to_le_bytes());
@@ -590,9 +602,9 @@ mod tests {
 
         let provided_data = Some(vec![0xFF; 4]);
         let mut prefetched = HashMap::new();
-        prefetched.insert(pubkey.to_string(), vec![0xAA; 4]);
+        prefetched.insert(pubkey.to_string(), Some(vec![0xAA; 4]));
 
-        let result = apply_patches_raw(provided_data, &patch, &prefetched, &pubkey)?;
+        let result = apply_patches_raw(provided_data, &patch, &prefetched, &pubkey)?.unwrap();
         assert_eq!(result[0], 42);
         assert_eq!(&result[1..4], &[0xFF; 3]);
         Ok(())
@@ -612,11 +624,51 @@ mod tests {
         let pubkey = pubkey!("11111111111111111111111111111111");
 
         let mut prefetched = HashMap::new();
-        prefetched.insert(pubkey.to_string(), vec![0xBB; 4]);
+        prefetched.insert(pubkey.to_string(), Some(vec![0xBB; 4]));
 
-        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey)?;
+        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey)?.unwrap();
         assert_eq!(result[0], 42);
         assert_eq!(&result[1..4], &[0xBB; 3]);
         Ok(())
+    }
+
+    #[test]
+    fn test_apply_patches_raw_skips_nonexistent_account() -> Result<(), Diagnostic> {
+        let patch = Value::array(vec![Value::object({
+            let mut m = IndexMap::new();
+            m.insert("offset".to_string(), Value::Integer(0));
+            m.insert("length".to_string(), Value::Integer(1));
+            m.insert("field_value".to_string(), Value::String("42".to_string()));
+            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m
+        })]);
+
+        let pubkey = pubkey!("11111111111111111111111111111111");
+
+        let mut prefetched = HashMap::new();
+        prefetched.insert(pubkey.to_string(), None);
+
+        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey)?;
+        assert_eq!(result, None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_apply_patches_raw_errors_when_not_prefetched() {
+        let patch = Value::array(vec![Value::object({
+            let mut m = IndexMap::new();
+            m.insert("offset".to_string(), Value::Integer(0));
+            m.insert("length".to_string(), Value::Integer(1));
+            m.insert("field_value".to_string(), Value::String("42".to_string()));
+            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m
+        })]);
+
+        let pubkey = pubkey!("11111111111111111111111111111111");
+
+        let prefetched = HashMap::new();
+
+        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey);
+        assert!(result.is_err());
     }
 }
