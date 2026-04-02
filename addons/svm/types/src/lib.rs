@@ -778,13 +778,13 @@ lazy_static! {
             optional: false,
             tainting: true
         },
-        field_value: {
-            documentation: "The value to write at the patch offset, interpreted according to `field_type`.",
+        value: {
+            documentation: "The value to write at the patch offset, interpreted according to `type`.",
             typing: Type::string(),
             optional: false,
             tainting: true
         },
-        field_type: {
+        r#type: {
             documentation: "The type of the field being patched. This is used to determine how to apply the patch. Valid values are 'u8', 'u16', 'u32', 'u64', 'u128', 'i8', 'i16', 'i32', 'i64', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'.",
             typing: Type::string(),
             optional: false,
@@ -863,8 +863,8 @@ lazy_static! {
             tainting: true
         },
         patch_raw: {
-            documentation: "A raw patch to apply to the account's existing data. Each item specifies an offset, length, field_value, and field_type to determine which bytes of the account data to replace.",
-            typing: Type::array(SET_ACCOUNT_PATCH_RAW.clone()),
+            documentation: "A raw patch to apply to the account's existing data. Each block specifies an offset, length, value, and type to determine which bytes of the account data to replace.",
+            typing: SET_ACCOUNT_PATCH_RAW.clone(),
             optional: true,
             tainting: true
         },
