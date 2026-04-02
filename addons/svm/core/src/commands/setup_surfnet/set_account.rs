@@ -70,7 +70,7 @@ fn apply_patches_raw(
 ) -> Result<Option<Vec<u8>>, Diagnostic> {
     let patches = patch.as_array().ok_or_else(|| {
         diagnosed_error!(
-            "expected 'patch_raw' field to be an array of maps with 'offset', 'length', 'field_value', and 'field_type' fields"
+            "expected 'patch_raw' to contain maps with 'offset', 'length', 'field_value', and 'field_type' fields"
         )
     })?;
 
@@ -96,7 +96,7 @@ fn apply_patches_raw(
     for patch_item in patches.iter() {
         let patch_map = patch_item.as_object().ok_or_else(|| {
             diagnosed_error!(
-                "expected each item in 'patch_raw' array to be a map with 'offset', 'length', 'field_value', and 'field_type' fields"
+                "expected each 'patch_raw' item to be a map with 'offset', 'length', 'field_value', and 'field_type' fields"
             )
         })?;
 

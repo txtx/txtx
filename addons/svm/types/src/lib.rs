@@ -837,7 +837,7 @@ lazy_static! {
         },
         patch_raw: {
             documentation: "A raw patch to apply to the account's existing data. Each item specifies an offset, length, field_value, and field_type to determine which bytes of the account data to replace.",
-            typing: Type::array(SET_ACCOUNT_PATCH_RAW.clone()),
+            typing: SET_ACCOUNT_PATCH_RAW.clone(),
             optional: true,
             tainting: true
         }
