@@ -765,6 +765,60 @@ lazy_static! {
         }
     };
 
+    pub static ref SET_ACCOUNT_PATCH_RAW: Type = define_strict_map_type! {
+        offset: {
+            documentation: "The offset at which the patch should be applied.",
+            typing: Type::integer(),
+            optional: false,
+            tainting: true
+        },
+        length: {
+            documentation: "The length of the patch.",
+            typing: Type::integer(),
+            optional: false,
+            tainting: true
+        },
+        value: {
+            documentation: "The value to write at the patch offset, interpreted according to `type`.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        type: {
+            documentation: "The type of the field being patched. This is used to determine how to apply the patch. Valid values are 'u8', 'u16', 'u32', 'u64', 'u128', 'i8', 'i16', 'i32', 'i64', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        }
+    };
+
+    pub static ref SET_ACCOUNT_PATCH_IDL: Type = define_strict_map_type! {
+        program_idl: {
+            documentation: "The IDL of the program being invoked.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        account_name: {
+            documentation: "The name of the account in the IDL.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        value: {
+            documentation: "The value to write to the specified field, encoded according to the IDL type.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        },
+        name: {
+            documentation: "The name of the field being patched. This is used to determine which field in the account data to update.",
+            typing: Type::string(),
+            optional: false,
+            tainting: true
+        }
+    };
+
     pub static ref SET_ACCOUNT_MAP: Type = define_strict_map_type! {
         public_key: {
             documentation: "The public key of the account to set.",
@@ -805,6 +859,18 @@ lazy_static! {
         account_path: {
             documentation: "The path to a JSON file containing the account data to set. If provided, all other fields.",
             typing: Type::string(),
+            optional: true,
+            tainting: true
+        },
+        patch_raw: {
+            documentation: "A raw patch to apply to the account's existing data. Each block specifies an offset, length, value, and type to determine which bytes of the account data to replace.",
+            typing: SET_ACCOUNT_PATCH_RAW.clone(),
+            optional: true,
+            tainting: true
+        },
+        patch_idl: {
+            documentation: "A patch to apply to the account's existing data, where the field to update is determined by the account's IDL. If provided, the program_idl and account_name will be used to determine which field in the account data to update with the provided bytes.",
+            typing: SET_ACCOUNT_PATCH_IDL.clone(),
             optional: true,
             tainting: true
         }

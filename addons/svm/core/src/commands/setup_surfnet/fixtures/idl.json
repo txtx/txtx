@@ -1,0 +1,299 @@
+{
+  "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+  "metadata": {
+    "name": "lb_clmm",
+    "version": "0.11.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [],
+  "accounts": [
+    {
+      "name": "PositionV2",
+      "discriminator": [117, 176, 212, 199, 245, 180, 133, 182]
+    }
+  ],
+  "errors": [],
+  "types": [
+    {
+      "name": "FeeInfo",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fee_x_per_token_complete",
+            "type": "u128"
+          },
+          {
+            "name": "fee_y_per_token_complete",
+            "type": "u128"
+          },
+          {
+            "name": "fee_x_pending",
+            "type": "u64"
+          },
+          {
+            "name": "fee_y_pending",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+
+    {
+      "name": "PositionV2",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lb_pair",
+            "docs": ["The LB pair of this position"],
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "docs": [
+              "Owner of the position. Client rely on this to to fetch their positions."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "liquidity_shares",
+            "docs": [
+              "Liquidity shares of this position in bins (lower_bin_id <-> upper_bin_id). This is the same as LP concept."
+            ],
+            "type": {
+              "array": ["u128", 70]
+            }
+          },
+          {
+            "name": "reward_infos",
+            "docs": ["Farming reward information"],
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "UserRewardInfo"
+                  }
+                },
+                70
+              ]
+            }
+          },
+          {
+            "name": "fee_infos",
+            "docs": ["Swap fee to claim information"],
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "FeeInfo"
+                  }
+                },
+                70
+              ]
+            }
+          },
+          {
+            "name": "lower_bin_id",
+            "docs": ["Lower bin ID"],
+            "type": "i32"
+          },
+          {
+            "name": "upper_bin_id",
+            "docs": ["Upper bin ID"],
+            "type": "i32"
+          },
+          {
+            "name": "last_updated_at",
+            "docs": ["Last updated timestamp"],
+            "type": "i64"
+          },
+          {
+            "name": "total_claimed_fee_x_amount",
+            "docs": ["Total claimed token fee X"],
+            "type": "u64"
+          },
+          {
+            "name": "total_claimed_fee_y_amount",
+            "docs": ["Total claimed token fee Y"],
+            "type": "u64"
+          },
+          {
+            "name": "total_claimed_rewards",
+            "docs": ["Total claimed rewards"],
+            "type": {
+              "array": ["u64", 2]
+            }
+          },
+          {
+            "name": "operator",
+            "docs": ["Operator of position"],
+            "type": "pubkey"
+          },
+          {
+            "name": "lock_release_point",
+            "docs": ["Time point which the locked liquidity can be withdraw"],
+            "type": "u64"
+          },
+          {
+            "name": "_padding_0",
+            "docs": [
+              "_padding_0, previous subjected_to_bootstrap_liquidity_locking, BE CAREFUL FOR TOMBSTONE WHEN REUSE !!"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "fee_owner",
+            "docs": [
+              "Address is able to claim fee in this position, only valid for bootstrap_liquidity_position"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "version",
+            "docs": ["version to know whether we have reset tombstone fields"],
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "docs": ["Reserved space for future use"],
+            "type": {
+              "array": ["u8", 86]
+            }
+          }
+        ]
+      }
+    },
+
+    {
+      "name": "RemainingAccountsInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "slices",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "RemainingAccountsSlice"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RemainingAccountsSlice",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "accounts_type",
+            "type": {
+              "defined": {
+                "name": "AccountsType"
+              }
+            }
+          },
+          {
+            "name": "length",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+
+    {
+      "name": "RewardInfo",
+      "docs": [
+        "Stores the state relevant for tracking liquidity mining rewards"
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "docs": ["Reward token mint."],
+            "type": "pubkey"
+          },
+          {
+            "name": "vault",
+            "docs": ["Reward vault token account."],
+            "type": "pubkey"
+          },
+          {
+            "name": "funder",
+            "docs": ["Authority account that allows to fund rewards"],
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_duration",
+            "docs": ["LM reward duration in seconds."],
+            "type": "u64"
+          },
+          {
+            "name": "reward_duration_end",
+            "docs": ["LM reward duration end time."],
+            "type": "u64"
+          },
+          {
+            "name": "reward_rate",
+            "docs": ["LM reward rate"],
+            "type": "u128"
+          },
+          {
+            "name": "last_update_time",
+            "docs": ["The last time reward states were updated."],
+            "type": "u64"
+          },
+          {
+            "name": "cumulative_seconds_with_empty_liquidity_reward",
+            "docs": [
+              "Accumulated seconds where when farm distribute rewards, but the bin is empty. The reward will be accumulated for next reward time window."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserRewardInfo",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "reward_per_token_completes",
+            "type": {
+              "array": ["u128", 2]
+            }
+          },
+          {
+            "name": "reward_pendings",
+            "type": {
+              "array": ["u64", 2]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "constants": []
+}
