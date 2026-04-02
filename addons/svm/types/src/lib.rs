@@ -805,13 +805,13 @@ lazy_static! {
             optional: false,
             tainting: true
         },
-        field_value: {
+        value: {
             documentation: "The value to write to the specified field, encoded according to the IDL type.",
             typing: Type::string(),
             optional: false,
             tainting: true
         },
-        field_name: {
+        name: {
             documentation: "The name of the field being patched. This is used to determine which field in the account data to update.",
             typing: Type::string(),
             optional: false,
@@ -870,7 +870,7 @@ lazy_static! {
         },
         patch_idl: {
             documentation: "A patch to apply to the account's existing data, where the field to update is determined by the account's IDL. If provided, the program_idl and account_name will be used to determine which field in the account data to update with the provided bytes.",
-            typing: Type::array(SET_ACCOUNT_PATCH_IDL.clone()),
+            typing: SET_ACCOUNT_PATCH_IDL.clone(),
             optional: true,
             tainting: true
         }

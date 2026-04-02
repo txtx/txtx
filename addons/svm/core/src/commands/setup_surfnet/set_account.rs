@@ -27,32 +27,32 @@ macro_rules! parse_num {
     }};
 }
 
-fn field_value_to_bytes(field_type: &str, field_value: &Value) -> Result<Vec<u8>, Diagnostic> {
+fn value_to_bytes(field_type: &str, value: &Value) -> Result<Vec<u8>, Diagnostic> {
     match field_type {
-        "u8" => Ok(parse_num!(u8, &field_value.to_string())),
-        "i8" => Ok(parse_num!(i8, &field_value.to_string())),
-        "u16" => Ok(parse_num!(u16, &field_value.to_string())),
-        "i16" => Ok(parse_num!(i16, &field_value.to_string())),
-        "u32" => Ok(parse_num!(u32, &field_value.to_string())),
-        "i32" => Ok(parse_num!(i32, &field_value.to_string())),
-        "u64" => Ok(parse_num!(u64, &field_value.to_string())),
-        "i64" => Ok(parse_num!(i64, &field_value.to_string())),
-        "u128" => Ok(parse_num!(u128, &field_value.to_string())),
-        "i128" => Ok(parse_num!(i128, &field_value.to_string())),
-        "f32" => Ok(parse_num!(f32, &field_value.to_string())),
-        "f64" => Ok(parse_num!(f64, &field_value.to_string())),
+        "u8" => Ok(parse_num!(u8, &value.to_string())),
+        "i8" => Ok(parse_num!(i8, &value.to_string())),
+        "u16" => Ok(parse_num!(u16, &value.to_string())),
+        "i16" => Ok(parse_num!(i16, &value.to_string())),
+        "u32" => Ok(parse_num!(u32, &value.to_string())),
+        "i32" => Ok(parse_num!(i32, &value.to_string())),
+        "u64" => Ok(parse_num!(u64, &value.to_string())),
+        "i64" => Ok(parse_num!(i64, &value.to_string())),
+        "u128" => Ok(parse_num!(u128, &value.to_string())),
+        "i128" => Ok(parse_num!(i128, &value.to_string())),
+        "f32" => Ok(parse_num!(f32, &value.to_string())),
+        "f64" => Ok(parse_num!(f64, &value.to_string())),
         "pubkey" => {
-            let pubkey = Pubkey::from_str(&field_value.to_string())
+            let pubkey = Pubkey::from_str(&value.to_string())
                 .map_err(|e| diagnosed_error!("failed to parse value as Pubkey: {e}"))?;
             Ok(pubkey.to_bytes().to_vec())
         }
-        "string" => Ok(field_value.to_string().into_bytes()),
+        "string" => Ok(value.to_string().into_bytes()),
         "boolean" => {
-            let b = bool::from_str(&field_value.to_string())
+            let b = bool::from_str(&value.to_string())
                 .map_err(|e| diagnosed_error!("failed to parse value as boolean: {e}"))?;
             Ok(vec![b as u8])
         }
-        "buffer" => hex::decode(&field_value.to_string())
+        "buffer" => hex::decode(&value.to_string())
             .map_err(|e| diagnosed_error!("failed to parse value as hex string: {e}")),
         _ => Err(diagnosed_error!(
             "invalid 'type' field in patch_raw: must be one of \
@@ -118,7 +118,7 @@ fn apply_patches_raw(
         let PatchRawAccountData { offset, length, value, r#type } =
             PatchRawAccountData::from_map(patch_map)?;
         let range = offset as usize..(offset + length) as usize;
-        let bytes = field_value_to_bytes(&r#type, &value)?;
+        let bytes = value_to_bytes(&r#type, &value)?;
         if bytes.len() != length as usize {
             return Err(diagnosed_error!(
                 "patch type '{}' produced {} bytes, but 'length' was set to {}",
@@ -150,8 +150,8 @@ fn apply_patches_idl(
 ) -> Result<Vec<u8>, Diagnostic> {
     let patches = patch.as_array().ok_or_else(|| {
         diagnosed_error!(
-            "expected 'patch_idl' field to be an array of maps with \
-            'program_idl', 'account_name', 'field_value', and 'field_name' fields"
+            "expected 'patch_idl' field to be a map with \
+            'program_idl', 'account_name', 'value', and 'name' fields"
         )
     })?;
 
@@ -160,12 +160,12 @@ fn apply_patches_idl(
     for patch_item in patches.iter() {
         let patch_map = patch_item.as_object().ok_or_else(|| {
             diagnosed_error!(
-                "expected each item in 'patch_idl' array to be a map with \
-                'program_idl', 'account_name', 'field_value', and 'field_name' fields"
+                "expected each 'patch_idl' to be a map with \
+                'program_idl', 'account_name', 'value', and 'name' fields"
             )
         })?;
 
-        let PatchAccountDataIdl { program_idl, account_name, field_value, field_name } =
+        let PatchAccountDataIdl { program_idl, account_name, value, name } =
             PatchAccountDataIdl::from_map(patch_map)?;
 
         let idl_path_buf = PathBuf::from(&program_idl);
@@ -219,19 +219,19 @@ fn apply_patches_idl(
             &data_bytes,
             disc.len(),
             &idl_type_def.ty,
-            &field_name,
+            &name,
             &idl_types,
         )?;
 
         let encoded_value =
-            borsh_encode_value_to_idl_type(&field_value, &field_idl_type, &idl_types, None)
-                .map_err(|e| diagnosed_error!("failed to encode field '{}': {}", field_name, e))?;
+            borsh_encode_value_to_idl_type(&value, &field_idl_type, &idl_types, None)
+                .map_err(|e| diagnosed_error!("failed to encode field '{}': {}", name, e))?;
 
         if encoded_value.len() != field_byte_len {
             return Err(diagnosed_error!(
                 "encoded value for field '{}' has {} bytes, but the existing field \
                 occupies {} bytes; variable-length field patching is not supported",
-                field_name,
+                name,
                 encoded_value.len(),
                 field_byte_len
             ));
@@ -293,18 +293,18 @@ impl PatchRawAccountData {
 pub struct PatchAccountDataIdl {
     pub program_idl: String,
     pub account_name: String,
-    pub field_value: Value,
-    pub field_name: String,
+    pub value: Value,
+    pub name: String,
 }
 
 impl PatchAccountDataIdl {
     pub fn new(
         program_idl: String,
         account_name: String,
-        field_value: Value,
-        field_name: String,
+        value: Value,
+        name: String,
     ) -> Self {
-        Self { program_idl, account_name, field_value, field_name }
+        Self { program_idl, account_name, value, name }
     }
 
     pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
@@ -326,16 +326,16 @@ impl PatchAccountDataIdl {
             })?
             .to_string();
 
-        let field_value = get_field("field_value")?.clone();
+        let value = get_field("value")?.clone();
 
-        let field_name = get_field("field_name")?
+        let name = get_field("name")?
             .as_string()
             .ok_or_else(|| {
-                diagnosed_error!("expected 'field_name' field in patch_idl item to be a string")
+                diagnosed_error!("expected 'name' field in patch_idl item to be a string")
             })?
             .to_string();
 
-        Ok(Self::new(program_idl, account_name, field_value, field_name))
+        Ok(Self::new(program_idl, account_name, value, name))
     }
 }
 
@@ -830,9 +830,9 @@ mod tests {
                     Value::String(idl_path.to_string_lossy().to_string()),
                 );
                 m.insert("account_name".to_string(), Value::String("PositionV2".to_string()));
-                m.insert("field_name".to_string(), Value::String("lb_pair".to_string()));
+                m.insert("name".to_string(), Value::String("lb_pair".to_string()));
                 m.insert(
-                    "field_value".to_string(),
+                    "value".to_string(),
                     Value::Addon(txtx_addon_kit::types::types::AddonData {
                         bytes: PUBKEY.to_bytes().to_vec(),
                         id: txtx_addon_network_svm_types::SVM_PUBKEY.to_string(),
