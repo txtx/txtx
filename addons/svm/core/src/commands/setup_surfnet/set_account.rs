@@ -21,7 +21,7 @@ use crate::constants::SET_ACCOUNT;
 macro_rules! parse_num {
     ($type:ty, $value:expr) => {{
         let num = <$type>::from_str($value).map_err(|e| {
-            diagnosed_error!("failed to parse field_value as {}: {e}", stringify!($type))
+            diagnosed_error!("failed to parse value as {}: {e}", stringify!($type))
         })?;
         num.to_le_bytes().to_vec()
     }};
@@ -43,19 +43,19 @@ fn field_value_to_bytes(field_type: &str, field_value: &Value) -> Result<Vec<u8>
         "f64" => Ok(parse_num!(f64, &field_value.to_string())),
         "pubkey" => {
             let pubkey = Pubkey::from_str(&field_value.to_string())
-                .map_err(|e| diagnosed_error!("failed to parse field_value as Pubkey: {e}"))?;
+                .map_err(|e| diagnosed_error!("failed to parse value as Pubkey: {e}"))?;
             Ok(pubkey.to_bytes().to_vec())
         }
         "string" => Ok(field_value.to_string().into_bytes()),
         "boolean" => {
             let b = bool::from_str(&field_value.to_string())
-                .map_err(|e| diagnosed_error!("failed to parse field_value as boolean: {e}"))?;
+                .map_err(|e| diagnosed_error!("failed to parse value as boolean: {e}"))?;
             Ok(vec![b as u8])
         }
         "buffer" => hex::decode(&field_value.to_string())
-            .map_err(|e| diagnosed_error!("failed to parse field_value as hex string: {e}")),
+            .map_err(|e| diagnosed_error!("failed to parse value as hex string: {e}")),
         _ => Err(diagnosed_error!(
-            "invalid 'field_type' field in patch_raw item: must be one of \
+            "invalid 'type' field in patch_raw: must be one of \
             'u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', \
             'u128', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'"
         )),
@@ -70,7 +70,7 @@ fn apply_patches_raw(
 ) -> Result<Option<Vec<u8>>, Diagnostic> {
     let patches = patch.as_array().ok_or_else(|| {
         diagnosed_error!(
-            "expected 'patch_raw' to contain maps with 'offset', 'length', 'field_value', and 'field_type' fields"
+            "expected 'patch_raw' to contain maps with 'offset', 'length', 'value', and 'type' fields"
         )
     })?;
 
@@ -96,18 +96,18 @@ fn apply_patches_raw(
     for patch_item in patches.iter() {
         let patch_map = patch_item.as_object().ok_or_else(|| {
             diagnosed_error!(
-                "expected each 'patch_raw' item to be a map with 'offset', 'length', 'field_value', and 'field_type' fields"
+                "expected each 'patch_raw' block to be a map with 'offset', 'length', 'value', and 'type' fields"
             )
         })?;
 
-        let PatchRawAccountData { offset, length, field_value, field_type } =
+        let PatchRawAccountData { offset, length, value, r#type } =
             PatchRawAccountData::from_map(patch_map)?;
         let range = offset as usize..(offset + length) as usize;
-        let bytes = field_value_to_bytes(&field_type, &field_value)?;
+        let bytes = field_value_to_bytes(&r#type, &value)?;
         if bytes.len() != length as usize {
             return Err(diagnosed_error!(
-                "patch field_type '{}' produced {} bytes, but 'length' was set to {}",
-                field_type,
+                "patch type '{}' produced {} bytes, but 'length' was set to {}",
+                r#type,
                 bytes.len(),
                 length
             ));
@@ -131,40 +131,40 @@ fn apply_patches_raw(
 pub struct PatchRawAccountData {
     pub offset: u64,
     pub length: u64,
-    pub field_value: Value,
-    pub field_type: String,
+    pub value: Value,
+    pub r#type: String,
 }
 
 impl PatchRawAccountData {
-    pub fn new(offset: u64, length: u64, field_value: Value, field_type: String) -> Self {
-        Self { offset, length, field_value, field_type }
+    pub fn new(offset: u64, length: u64, value: Value, r#type: String) -> Self {
+        Self { offset, length, value, r#type }
     }
 
     pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
         let get_field = |key: &str| -> Result<&Value, Diagnostic> {
-            map.get(key).ok_or_else(|| diagnosed_error!("missing '{key}' field in patch_raw item"))
+            map.get(key).ok_or_else(|| diagnosed_error!("missing '{key}' field in patch_raw block"))
         };
 
         let offset = get_field("offset")?
             .as_uint()
-            .ok_or_else(|| diagnosed_error!("expected 'offset' field in patch_raw item to be a u64"))?
+            .ok_or_else(|| diagnosed_error!("expected 'offset' field in patch_raw block to be a u64"))?
             .map_err(|e| diagnosed_error!("{e}"))?;
 
         let length = get_field("length")?
             .as_uint()
-            .ok_or_else(|| diagnosed_error!("expected 'length' field in patch_raw item to be a u64"))?
+            .ok_or_else(|| diagnosed_error!("expected 'length' field in patch_raw block to be a u64"))?
             .map_err(|e| diagnosed_error!("{e}"))?;
 
-        let field_value = get_field("field_value")?.clone();
+        let value = get_field("value")?.clone();
 
-        let field_type = get_field("field_type")?
+        let r#type = get_field("type")?
             .as_string()
             .ok_or_else(|| {
-                diagnosed_error!("expected 'field_type' field in patch_raw item to be a string")
+                diagnosed_error!("expected 'type' field in patch_raw block to be a string")
             })?
             .to_string();
 
-        Ok(Self::new(offset, length, field_value, field_type))
+        Ok(Self::new(offset, length, value, r#type))
     }
 }
 
@@ -506,14 +506,14 @@ mod tests {
         let mut map = IndexMap::new();
         map.insert("offset".to_string(), Value::Integer(0));
         map.insert("length".to_string(), Value::Integer(4));
-        map.insert("field_value".to_string(), Value::String("255".to_string()));
-        map.insert("field_type".to_string(), Value::String("u32".to_string()));
+        map.insert("value".to_string(), Value::String("255".to_string()));
+        map.insert("type".to_string(), Value::String("u32".to_string()));
 
         let patch_data = PatchRawAccountData::from_map(&map)?;
         assert_eq!(patch_data.offset, 0);
         assert_eq!(patch_data.length, 4);
-        assert_eq!(patch_data.field_value, Value::String("255".to_string()));
-        assert_eq!(patch_data.field_type, "u32");
+        assert_eq!(patch_data.value, Value::String("255".to_string()));
+        assert_eq!(patch_data.r#type, "u32");
         Ok(())
     }
 
@@ -527,8 +527,8 @@ mod tests {
             let mut m = IndexMap::new();
             m.insert("offset".to_string(), Value::Integer(0));
             m.insert("length".to_string(), Value::Integer(4));
-            m.insert("field_value".to_string(), Value::String("1".to_string()));
-            m.insert("field_type".to_string(), Value::String("u32".to_string()));
+            m.insert("value".to_string(), Value::String("1".to_string()));
+            m.insert("type".to_string(), Value::String("u32".to_string()));
             m
         })]));
 
@@ -552,24 +552,24 @@ mod tests {
                 let mut m = IndexMap::new();
                 m.insert("offset".to_string(), Value::Integer(0));
                 m.insert("length".to_string(), Value::Integer(4));
-                m.insert("field_value".to_string(), Value::String("100".to_string()));
-                m.insert("field_type".to_string(), Value::String("u32".to_string()));
+                m.insert("value".to_string(), Value::String("100".to_string()));
+                m.insert("type".to_string(), Value::String("u32".to_string()));
                 m
             }),
             Value::object({
                 let mut m = IndexMap::new();
                 m.insert("offset".to_string(), Value::Integer(4));
                 m.insert("length".to_string(), Value::Integer(4));
-                m.insert("field_value".to_string(), Value::String("200".to_string()));
-                m.insert("field_type".to_string(), Value::String("u32".to_string()));
+                m.insert("value".to_string(), Value::String("200".to_string()));
+                m.insert("type".to_string(), Value::String("u32".to_string()));
                 m
             }),
             Value::object({
                 let mut m = IndexMap::new();
                 m.insert("offset".to_string(), Value::Integer(8));
                 m.insert("length".to_string(), Value::Integer(1));
-                m.insert("field_value".to_string(), Value::String("true".to_string()));
-                m.insert("field_type".to_string(), Value::String("boolean".to_string()));
+                m.insert("value".to_string(), Value::String("true".to_string()));
+                m.insert("type".to_string(), Value::String("boolean".to_string()));
                 m
             }),
         ]);
@@ -593,8 +593,8 @@ mod tests {
             let mut m = IndexMap::new();
             m.insert("offset".to_string(), Value::Integer(0));
             m.insert("length".to_string(), Value::Integer(1));
-            m.insert("field_value".to_string(), Value::String("42".to_string()));
-            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m.insert("value".to_string(), Value::String("42".to_string()));
+            m.insert("type".to_string(), Value::String("u8".to_string()));
             m
         })]);
 
@@ -616,8 +616,8 @@ mod tests {
             let mut m = IndexMap::new();
             m.insert("offset".to_string(), Value::Integer(0));
             m.insert("length".to_string(), Value::Integer(1));
-            m.insert("field_value".to_string(), Value::String("42".to_string()));
-            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m.insert("value".to_string(), Value::String("42".to_string()));
+            m.insert("type".to_string(), Value::String("u8".to_string()));
             m
         })]);
 
@@ -638,8 +638,8 @@ mod tests {
             let mut m = IndexMap::new();
             m.insert("offset".to_string(), Value::Integer(0));
             m.insert("length".to_string(), Value::Integer(1));
-            m.insert("field_value".to_string(), Value::String("42".to_string()));
-            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m.insert("value".to_string(), Value::String("42".to_string()));
+            m.insert("type".to_string(), Value::String("u8".to_string()));
             m
         })]);
 
@@ -659,8 +659,8 @@ mod tests {
             let mut m = IndexMap::new();
             m.insert("offset".to_string(), Value::Integer(0));
             m.insert("length".to_string(), Value::Integer(1));
-            m.insert("field_value".to_string(), Value::String("42".to_string()));
-            m.insert("field_type".to_string(), Value::String("u8".to_string()));
+            m.insert("value".to_string(), Value::String("42".to_string()));
+            m.insert("type".to_string(), Value::String("u8".to_string()));
             m
         })]);
 
