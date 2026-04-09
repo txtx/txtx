@@ -146,7 +146,6 @@ fn apply_patches_idl(
     patch: &Value,
     prefetched_data: &HashMap<String, Option<Vec<u8>>>,
     public_key: &Pubkey,
-    auth_ctx: &AuthorizationContext,
 ) -> Result<Vec<u8>, Diagnostic> {
     let patches = patch.as_array().ok_or_else(|| {
         diagnosed_error!(
@@ -168,26 +167,8 @@ fn apply_patches_idl(
         let PatchAccountDataIdl { program_idl, account_name, value, name } =
             PatchAccountDataIdl::from_map(patch_map)?;
 
-        let idl_path_buf = PathBuf::from(&program_idl);
-
-        let idl_path = auth_ctx.get_file_location_from_path_buf(&idl_path_buf).map_err(|e| {
-            diagnosed_error!("invalid program idl path {}: {}", idl_path_buf.display(), e)
-        })?;
-
-        if !idl_path.exists() {
-            return Err(diagnosed_error!(
-                "invalid program idl path; no idl found at: {}",
-                idl_path_buf.display()
-            ));
-        }
-
-        let idl_str = idl_path.read_content_as_utf8().map_err(|e| {
-            diagnosed_error!("invalid idl location {}: {}", &idl_path.to_string(), e)
-        })?;
-
-        let idl = crate::codec::idl::IdlRef::from_str(&idl_str).map_err(|e| {
-            diagnosed_error!("invalid idl at location {}: {}", &idl_path.to_string(), e)
-        })?;
+        let idl = crate::codec::idl::IdlRef::from_str(&program_idl)
+            .map_err(|e| diagnosed_error!("failed to parse program idl: {e}"))?;
 
         let idl_account = idl.get_account(&account_name)?;
         let idl_type_def = idl.get_type(&account_name)?;
@@ -298,12 +279,7 @@ pub struct PatchAccountDataIdl {
 }
 
 impl PatchAccountDataIdl {
-    pub fn new(
-        program_idl: String,
-        account_name: String,
-        value: Value,
-        name: String,
-    ) -> Self {
+    pub fn new(program_idl: String, account_name: String, value: Value, name: String) -> Self {
         Self { program_idl, account_name, value, name }
     }
 
@@ -485,8 +461,8 @@ impl SurfpoolAccountUpdate {
                 data_bytes
             };
 
-             data_bytes = if let Some(patch) = map.swap_remove("patch_idl") {
-                Some(apply_patches_idl(data_bytes, &patch, prefetched_data, &public_key, auth_ctx)?)
+            data_bytes = if let Some(patch) = map.swap_remove("patch_idl") {
+                Some(apply_patches_idl(data_bytes, &patch, prefetched_data, &public_key)?)
             } else {
                 data_bytes
             };
@@ -817,6 +793,8 @@ mod tests {
         let fixtures_dir =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/commands/setup_surfnet/fixtures");
         let idl_path = fixtures_dir.join("idl.json");
+        let idl_str = std::fs::read_to_string(&idl_path)
+            .map_err(|e| diagnosed_error!("failed to read idl fixture: {e}"))?;
         let mut map = IndexMap::new();
         const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
         const ACC: Pubkey = pubkey!("EnZsyjncjMShCUEPhz4rKnjKQ6gbPF4dkbUANZ2ngPo4");
@@ -825,10 +803,7 @@ mod tests {
         let patch_idl = Value::Array(Box::new(vec![
             (Value::Object({
                 let mut m = IndexMap::new();
-                m.insert(
-                    "program_idl".to_string(),
-                    Value::String(idl_path.to_string_lossy().to_string()),
-                );
+                m.insert("program_idl".to_string(), Value::String(idl_str));
                 m.insert("account_name".to_string(), Value::String("PositionV2".to_string()));
                 m.insert("name".to_string(), Value::String("lb_pair".to_string()));
                 m.insert(
