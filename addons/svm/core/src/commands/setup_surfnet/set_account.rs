@@ -78,9 +78,9 @@ fn resolve_data_bytes(
                 );
                 Ok(None)
             }
-            None => Err(diagnosed_error!(
-                "account data must be provided or prefetched for patching"
-            )),
+            None => {
+                Err(diagnosed_error!("account data must be provided or prefetched for patching"))
+            }
         },
     }
 }
