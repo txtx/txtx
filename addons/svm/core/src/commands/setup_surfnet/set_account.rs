@@ -16,6 +16,7 @@ use txtx_addon_kit::{
 };
 use txtx_addon_network_svm_types::SvmValue;
 
+use crate::codec::idl::{borsh_encode_value_to_idl_type, get_field_offset_in_account};
 use crate::constants::SET_ACCOUNT;
 
 macro_rules! parse_num {
@@ -26,38 +27,61 @@ macro_rules! parse_num {
     }};
 }
 
-fn field_value_to_bytes(field_type: &str, field_value: &Value) -> Result<Vec<u8>, Diagnostic> {
+fn value_to_bytes(field_type: &str, value: &Value) -> Result<Vec<u8>, Diagnostic> {
     match field_type {
-        "u8" => Ok(parse_num!(u8, &field_value.to_string())),
-        "i8" => Ok(parse_num!(i8, &field_value.to_string())),
-        "u16" => Ok(parse_num!(u16, &field_value.to_string())),
-        "i16" => Ok(parse_num!(i16, &field_value.to_string())),
-        "u32" => Ok(parse_num!(u32, &field_value.to_string())),
-        "i32" => Ok(parse_num!(i32, &field_value.to_string())),
-        "u64" => Ok(parse_num!(u64, &field_value.to_string())),
-        "i64" => Ok(parse_num!(i64, &field_value.to_string())),
-        "u128" => Ok(parse_num!(u128, &field_value.to_string())),
-        "i128" => Ok(parse_num!(i128, &field_value.to_string())),
-        "f32" => Ok(parse_num!(f32, &field_value.to_string())),
-        "f64" => Ok(parse_num!(f64, &field_value.to_string())),
+        "u8" => Ok(parse_num!(u8, &value.to_string())),
+        "i8" => Ok(parse_num!(i8, &value.to_string())),
+        "u16" => Ok(parse_num!(u16, &value.to_string())),
+        "i16" => Ok(parse_num!(i16, &value.to_string())),
+        "u32" => Ok(parse_num!(u32, &value.to_string())),
+        "i32" => Ok(parse_num!(i32, &value.to_string())),
+        "u64" => Ok(parse_num!(u64, &value.to_string())),
+        "i64" => Ok(parse_num!(i64, &value.to_string())),
+        "u128" => Ok(parse_num!(u128, &value.to_string())),
+        "i128" => Ok(parse_num!(i128, &value.to_string())),
+        "f32" => Ok(parse_num!(f32, &value.to_string())),
+        "f64" => Ok(parse_num!(f64, &value.to_string())),
         "pubkey" => {
-            let pubkey = Pubkey::from_str(&field_value.to_string())
+            let pubkey = Pubkey::from_str(&value.to_string())
                 .map_err(|e| diagnosed_error!("failed to parse value as Pubkey: {e}"))?;
             Ok(pubkey.to_bytes().to_vec())
         }
-        "string" => Ok(field_value.to_string().into_bytes()),
+        "string" => Ok(value.to_string().into_bytes()),
         "boolean" => {
-            let b = bool::from_str(&field_value.to_string())
+            let b = bool::from_str(&value.to_string())
                 .map_err(|e| diagnosed_error!("failed to parse value as boolean: {e}"))?;
             Ok(vec![b as u8])
         }
-        "buffer" => hex::decode(&field_value.to_string())
+        "buffer" => hex::decode(&value.to_string())
             .map_err(|e| diagnosed_error!("failed to parse value as hex string: {e}")),
         _ => Err(diagnosed_error!(
             "invalid 'type' field in patch_raw: must be one of \
             'u8', 'i8', 'u16', 'i16', 'u32', 'i32', 'u64', 'i64', \
             'u128', 'i128', 'f32', 'f64', 'pubkey', 'string', 'boolean', or 'buffer'"
         )),
+    }
+}
+
+fn resolve_data_bytes(
+    data_bytes: Option<Vec<u8>>,
+    prefetched_data: &HashMap<String, Option<Vec<u8>>>,
+    public_key: &Pubkey,
+) -> Result<Option<Vec<u8>>, Diagnostic> {
+    match data_bytes {
+        Some(d) => Ok(Some(d)),
+        None => match prefetched_data.get(&public_key.to_string()) {
+            Some(Some(d)) => Ok(Some(d.clone())),
+            Some(None) => {
+                eprintln!(
+                    "Warning: skipping patch for account {}: account does not exist on-chain",
+                    public_key
+                );
+                Ok(None)
+            }
+            None => {
+                Err(diagnosed_error!("account data must be provided or prefetched for patching"))
+            }
+        },
     }
 }
 
@@ -73,23 +97,9 @@ fn apply_patches_raw(
         )
     })?;
 
-    let mut data_bytes = match data_bytes {
+    let mut data_bytes = match resolve_data_bytes(data_bytes, prefetched_data, public_key)? {
         Some(d) => d,
-        None => match prefetched_data.get(&public_key.to_string()) {
-            Some(Some(d)) => d.clone(),
-            Some(None) => {
-                eprintln!(
-                    "Warning: skipping patch_raw for account {}: account does not exist on-chain",
-                    public_key
-                );
-                return Ok(None);
-            }
-            None => {
-                return Err(diagnosed_error!(
-                    "account data must be provided or prefetched for patching"
-                ));
-            }
-        },
+        None => return Ok(None),
     };
 
     for patch_item in patches.iter() {
@@ -102,7 +112,7 @@ fn apply_patches_raw(
         let PatchRawAccountData { offset, length, value, r#type } =
             PatchRawAccountData::from_map(patch_map)?;
         let range = offset as usize..(offset + length) as usize;
-        let bytes = field_value_to_bytes(&r#type, &value)?;
+        let bytes = value_to_bytes(&r#type, &value)?;
         if bytes.len() != length as usize {
             return Err(diagnosed_error!(
                 "patch type '{}' produced {} bytes, but 'length' was set to {}",
@@ -120,6 +130,92 @@ fn apply_patches_raw(
             ));
         }
         data_bytes[range].copy_from_slice(&bytes);
+    }
+
+    Ok(Some(data_bytes))
+}
+
+fn apply_patches_idl(
+    data_bytes: Option<Vec<u8>>,
+    patch: &Value,
+    prefetched_data: &HashMap<String, Option<Vec<u8>>>,
+    public_key: &Pubkey,
+) -> Result<Option<Vec<u8>>, Diagnostic> {
+    let patches = patch.as_array().ok_or_else(|| {
+        diagnosed_error!(
+            "expected 'patch_idl' field to be a map with \
+            'program_idl', 'account_name', 'value', and 'name' fields"
+        )
+    })?;
+
+    let mut data_bytes = match resolve_data_bytes(data_bytes, prefetched_data, public_key)? {
+        Some(d) => d,
+        None => return Ok(None),
+    };
+
+    for patch_item in patches.iter() {
+        let patch_map = patch_item.as_object().ok_or_else(|| {
+            diagnosed_error!(
+                "expected each 'patch_idl' to be a map with \
+                'program_idl', 'account_name', 'value', and 'name' fields"
+            )
+        })?;
+
+        let PatchAccountDataIdl { program_idl, account_name, value, name } =
+            PatchAccountDataIdl::from_map(patch_map)?;
+
+        let idl = crate::codec::idl::IdlRef::from_str(&program_idl)
+            .map_err(|e| diagnosed_error!("failed to parse program idl: {e}"))?;
+
+        let idl_account = idl.get_account(&account_name)?;
+        let idl_type_def = idl.get_type(&account_name)?;
+        let idl_types = idl.get_types();
+
+        let disc = &idl_account.discriminator;
+        if !disc.is_empty() {
+            if data_bytes.len() < disc.len() {
+                return Err(diagnosed_error!(
+                    "account data is too short ({} bytes) to contain the discriminator \
+                    ({} bytes) for account '{}'",
+                    data_bytes.len(),
+                    disc.len(),
+                    account_name
+                ));
+            }
+            let account_disc = &data_bytes[..disc.len()];
+            if account_disc != disc.as_slice() {
+                return Err(diagnosed_error!(
+                    "discriminator mismatch for account '{}': expected {:?}, found {:?}",
+                    account_name,
+                    disc,
+                    account_disc
+                ));
+            }
+        }
+
+        let (field_offset, field_byte_len, field_idl_type) = get_field_offset_in_account(
+            &data_bytes,
+            disc.len(),
+            &idl_type_def.ty,
+            &name,
+            &idl_types,
+        )?;
+
+        let encoded_value =
+            borsh_encode_value_to_idl_type(&value, &field_idl_type, &idl_types, None)
+                .map_err(|e| diagnosed_error!("failed to encode field '{}': {}", name, e))?;
+
+        if encoded_value.len() != field_byte_len {
+            return Err(diagnosed_error!(
+                "encoded value for field '{}' has {} bytes, but the existing field \
+                occupies {} bytes; variable-length field patching is not supported",
+                name,
+                encoded_value.len(),
+                field_byte_len
+            ));
+        }
+
+        data_bytes[field_offset..field_offset + field_byte_len].copy_from_slice(&encoded_value);
     }
 
     Ok(Some(data_bytes))
@@ -168,6 +264,51 @@ impl PatchRawAccountData {
             .to_string();
 
         Ok(Self::new(offset, length, value, r#type))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PatchAccountDataIdl {
+    pub program_idl: String,
+    pub account_name: String,
+    pub value: Value,
+    pub name: String,
+}
+
+impl PatchAccountDataIdl {
+    pub fn new(program_idl: String, account_name: String, value: Value, name: String) -> Self {
+        Self { program_idl, account_name, value, name }
+    }
+
+    pub fn from_map(map: &IndexMap<String, Value>) -> Result<Self, Diagnostic> {
+        let get_field = |key: &str| -> Result<&Value, Diagnostic> {
+            map.get(key).ok_or_else(|| diagnosed_error!("missing '{key}' field in patch_idl item"))
+        };
+
+        let program_idl = get_field("program_idl")?
+            .as_string()
+            .ok_or_else(|| {
+                diagnosed_error!("expected 'program_idl' field in patch_idl item to be a string")
+            })?
+            .to_string();
+
+        let account_name = get_field("account_name")?
+            .as_string()
+            .ok_or_else(|| {
+                diagnosed_error!("expected 'account_name' field in patch_idl item to be a string")
+            })?
+            .to_string();
+
+        let value = get_field("value")?.clone();
+
+        let name = get_field("name")?
+            .as_string()
+            .ok_or_else(|| {
+                diagnosed_error!("expected 'name' field in patch_idl item to be a string")
+            })?
+            .to_string();
+
+        Ok(Self::new(program_idl, account_name, value, name))
     }
 }
 
@@ -311,8 +452,14 @@ impl SurfpoolAccountUpdate {
                 .transpose()?
                 .transpose()?;
 
-            let data_bytes = if let Some(patch) = map.swap_remove("patch_raw") {
+            let mut data_bytes = if let Some(patch) = map.swap_remove("patch_raw") {
                 apply_patches_raw(data_bytes, &patch, prefetched_data, &public_key)?
+            } else {
+                data_bytes
+            };
+
+            data_bytes = if let Some(patch) = map.swap_remove("patch_idl") {
+                apply_patches_idl(data_bytes, &patch, prefetched_data, &public_key)?
             } else {
                 data_bytes
             };
@@ -368,7 +515,9 @@ impl SurfpoolAccountUpdate {
             .iter()
             .enumerate()
             .filter_map(|(i, update)| {
-                update.get("patch_raw")?;
+                if update.get("patch_raw").is_none() && update.get("patch_idl").is_none() {
+                    return None;
+                }
                 let prefix = format!("failed to parse `set_account` map #{}", i + 1);
                 Some(
                     update
@@ -632,6 +781,59 @@ mod tests {
         let result = apply_patches_raw(None, &patch, &prefetched, &pubkey)?.unwrap();
         assert_eq!(result[0], 42);
         assert_eq!(&result[1..4], &[0xBB; 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_surfpool_account_update_from_map_with_patch_idl_application() -> Result<(), Diagnostic>
+    {
+        let fixtures_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/commands/setup_surfnet/fixtures");
+        let idl_path = fixtures_dir.join("idl.json");
+        let idl_str = std::fs::read_to_string(&idl_path)
+            .map_err(|e| diagnosed_error!("failed to read idl fixture: {e}"))?;
+        let mut map = IndexMap::new();
+        const PUBKEY: Pubkey = pubkey!("11111111111111111111111111111111");
+        const ACC: Pubkey = pubkey!("EnZsyjncjMShCUEPhz4rKnjKQ6gbPF4dkbUANZ2ngPo4");
+        map.insert("public_key".to_string(), SvmValue::pubkey(ACC.to_bytes().to_vec()));
+
+        let patch_idl = Value::Array(Box::new(vec![
+            (Value::Object({
+                let mut m = IndexMap::new();
+                m.insert("program_idl".to_string(), Value::String(idl_str));
+                m.insert("account_name".to_string(), Value::String("PositionV2".to_string()));
+                m.insert("name".to_string(), Value::String("lb_pair".to_string()));
+                m.insert(
+                    "value".to_string(),
+                    Value::Addon(txtx_addon_kit::types::types::AddonData {
+                        bytes: PUBKEY.to_bytes().to_vec(),
+                        id: txtx_addon_network_svm_types::SVM_PUBKEY.to_string(),
+                    }),
+                );
+                m
+            })),
+        ]));
+
+        map.insert("patch_idl".to_string(), patch_idl);
+
+        let auth_ctx = AuthorizationContext::empty();
+        let mut prefetched_data = HashMap::new();
+
+        let acc_data_path = fixtures_dir.join("position_v2_data");
+        let acc_data = std::fs::read_to_string(&acc_data_path)
+            .map_err(|e| diagnosed_error!("failed to read account data fixture: {e}"))?;
+
+        let acc_data = hex::decode(acc_data.trim())
+            .map_err(|e| diagnosed_error!("failed to decode account data fixture as hex: {e}"))?;
+
+        prefetched_data.insert(ACC.to_string(), Some(acc_data));
+        let account_update =
+            SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
+        assert_eq!(account_update.public_key.to_string(), ACC.to_string());
+        assert_eq!(
+            hex::decode(account_update.data.unwrap().as_bytes()).unwrap()[8..32 + 8],
+            PUBKEY.to_bytes()
+        );
         Ok(())
     }
 
