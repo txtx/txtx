@@ -66,16 +66,21 @@ fn resolve_data_bytes(
     data_bytes: Option<Vec<u8>>,
     prefetched_data: &HashMap<String, Option<Vec<u8>>>,
     public_key: &Pubkey,
+    logger: &LogDispatcher,
 ) -> Result<Option<Vec<u8>>, Diagnostic> {
     match data_bytes {
         Some(d) => Ok(Some(d)),
         None => match prefetched_data.get(&public_key.to_string()) {
             Some(Some(d)) => Ok(Some(d.clone())),
             Some(None) => {
-                eprintln!(
-                    "Warning: skipping patch for account {}: account does not exist on-chain",
-                    public_key
+                logger.warn(
+                    "Skipping Patch",
+                    format!(
+                        "Skipping patch for account {}: account does not exist on-chain",
+                        public_key
+                    ),
                 );
+
                 Ok(None)
             }
             None => {
@@ -90,6 +95,7 @@ fn apply_patches_raw(
     patch: &Value,
     prefetched_data: &HashMap<String, Option<Vec<u8>>>,
     public_key: &Pubkey,
+    logger: &LogDispatcher,
 ) -> Result<Option<Vec<u8>>, Diagnostic> {
     let patches = patch.as_array().ok_or_else(|| {
         diagnosed_error!(
@@ -97,7 +103,8 @@ fn apply_patches_raw(
         )
     })?;
 
-    let mut data_bytes = match resolve_data_bytes(data_bytes, prefetched_data, public_key)? {
+    let mut data_bytes = match resolve_data_bytes(data_bytes, prefetched_data, public_key, logger)?
+    {
         Some(d) => d,
         None => return Ok(None),
     };
@@ -140,6 +147,7 @@ fn apply_patches_idl(
     patch: &Value,
     prefetched_data: &HashMap<String, Option<Vec<u8>>>,
     public_key: &Pubkey,
+    logger: &LogDispatcher,
 ) -> Result<Option<Vec<u8>>, Diagnostic> {
     let patches = patch.as_array().ok_or_else(|| {
         diagnosed_error!(
@@ -148,7 +156,8 @@ fn apply_patches_idl(
         )
     })?;
 
-    let mut data_bytes = match resolve_data_bytes(data_bytes, prefetched_data, public_key)? {
+    let mut data_bytes = match resolve_data_bytes(data_bytes, prefetched_data, public_key, logger)?
+    {
         Some(d) => d,
         None => return Ok(None),
     };
@@ -354,6 +363,7 @@ impl SurfpoolAccountUpdate {
         map: &mut IndexMap<String, Value>,
         auth_ctx: &AuthorizationContext,
         prefetched_data: &HashMap<String, Option<Vec<u8>>>,
+        logger: &LogDispatcher,
     ) -> Result<Self, Diagnostic> {
         let some_public_key = map.swap_remove("public_key");
 
@@ -453,13 +463,13 @@ impl SurfpoolAccountUpdate {
                 .transpose()?;
 
             let mut data_bytes = if let Some(patch) = map.swap_remove("patch_raw") {
-                apply_patches_raw(data_bytes, &patch, prefetched_data, &public_key)?
+                apply_patches_raw(data_bytes, &patch, prefetched_data, &public_key, logger)?
             } else {
                 data_bytes
             };
 
             data_bytes = if let Some(patch) = map.swap_remove("patch_idl") {
-                apply_patches_idl(data_bytes, &patch, prefetched_data, &public_key)?
+                apply_patches_idl(data_bytes, &patch, prefetched_data, &public_key, logger)?
             } else {
                 data_bytes
             };
@@ -558,6 +568,7 @@ impl SurfpoolAccountUpdate {
         values: &ValueStore,
         auth_ctx: &AuthorizationContext,
         prefetched_data: HashMap<String, Option<Vec<u8>>>,
+        logger: &LogDispatcher,
     ) -> Result<Vec<Self>, Diagnostic> {
         let mut account_update_data = match Self::get_account_update_maps(values)? {
             None => return Ok(vec![]),
@@ -569,7 +580,7 @@ impl SurfpoolAccountUpdate {
         for (i, account_update) in account_update_data.iter_mut().enumerate() {
             let prefix = format!("failed to parse `set_account` map #{}", i + 1);
             let account =
-                SurfpoolAccountUpdate::from_map(account_update, auth_ctx, &prefetched_data)
+                SurfpoolAccountUpdate::from_map(account_update, auth_ctx, &prefetched_data, logger)
                     .map_err(|e| diagnosed_error!("{prefix}: {e}"))?;
 
             account_updates.push(account);
@@ -629,9 +640,15 @@ impl SurfpoolAccountUpdate {
 #[cfg(test)]
 mod tests {
     use solana_pubkey::pubkey;
+    use txtx_addon_kit::{channel, uuid::Uuid};
 
     #[allow(unused_imports)]
     use super::*;
+
+    fn empty_logger() -> LogDispatcher {
+        let (tx, _rx) = channel::bounded(1);
+        LogDispatcher::new(Uuid::new_v4(), "test", &tx)
+    }
 
     #[test]
     fn test_parse_num() -> Result<(), Diagnostic> {
@@ -690,8 +707,12 @@ mod tests {
         let mut prefetched_data = HashMap::new();
 
         prefetched_data.insert(PUBKEY.to_string(), Some(vec![0; 8]));
-        let account_update =
-            SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
+        let account_update = SurfpoolAccountUpdate::from_map(
+            &mut map,
+            &auth_ctx,
+            &prefetched_data,
+            &empty_logger(),
+        )?;
         assert_eq!(account_update.public_key.to_string(), PUBKEY.to_string());
         assert_eq!(account_update.data, Some("0100000000000000".to_string()));
         Ok(())
@@ -730,7 +751,8 @@ mod tests {
         let prefetched = HashMap::new();
         let pubkey = pubkey!("11111111111111111111111111111111");
 
-        let result = apply_patches_raw(data, &patch, &prefetched, &pubkey)?.unwrap();
+        let result =
+            apply_patches_raw(data, &patch, &prefetched, &pubkey, &empty_logger())?.unwrap();
 
         assert_eq!(&result[0..4], &100u32.to_le_bytes());
         assert_eq!(&result[4..8], &200u32.to_le_bytes());
@@ -756,7 +778,9 @@ mod tests {
         let mut prefetched = HashMap::new();
         prefetched.insert(pubkey.to_string(), Some(vec![0xAA; 4]));
 
-        let result = apply_patches_raw(provided_data, &patch, &prefetched, &pubkey)?.unwrap();
+        let result =
+            apply_patches_raw(provided_data, &patch, &prefetched, &pubkey, &empty_logger())?
+                .unwrap();
         assert_eq!(result[0], 42);
         assert_eq!(&result[1..4], &[0xFF; 3]);
         Ok(())
@@ -778,7 +802,8 @@ mod tests {
         let mut prefetched = HashMap::new();
         prefetched.insert(pubkey.to_string(), Some(vec![0xBB; 4]));
 
-        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey)?.unwrap();
+        let result =
+            apply_patches_raw(None, &patch, &prefetched, &pubkey, &empty_logger())?.unwrap();
         assert_eq!(result[0], 42);
         assert_eq!(&result[1..4], &[0xBB; 3]);
         Ok(())
@@ -827,8 +852,12 @@ mod tests {
             .map_err(|e| diagnosed_error!("failed to decode account data fixture as hex: {e}"))?;
 
         prefetched_data.insert(ACC.to_string(), Some(acc_data));
-        let account_update =
-            SurfpoolAccountUpdate::from_map(&mut map, &auth_ctx, &prefetched_data)?;
+        let account_update = SurfpoolAccountUpdate::from_map(
+            &mut map,
+            &auth_ctx,
+            &prefetched_data,
+            &empty_logger(),
+        )?;
         assert_eq!(account_update.public_key.to_string(), ACC.to_string());
         assert_eq!(
             hex::decode(account_update.data.unwrap().as_bytes()).unwrap()[8..32 + 8],
@@ -853,7 +882,7 @@ mod tests {
         let mut prefetched = HashMap::new();
         prefetched.insert(pubkey.to_string(), None);
 
-        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey)?;
+        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey, &empty_logger())?;
         assert_eq!(result, None);
         Ok(())
     }
@@ -873,7 +902,7 @@ mod tests {
 
         let prefetched = HashMap::new();
 
-        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey);
+        let result = apply_patches_raw(None, &patch, &prefetched, &pubkey, &empty_logger());
         assert!(result.is_err());
     }
 }

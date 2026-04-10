@@ -221,8 +221,12 @@ impl CommandImplementation for SetupSurfpool {
             let acc_data =
                 SurfpoolAccountUpdate::get_accounts_data_if_needed(&values, &rpc_client).await?;
 
-            let account_updates =
-                SurfpoolAccountUpdate::parse_value_store(&values, &auth_context, acc_data)?;
+            let account_updates = SurfpoolAccountUpdate::parse_value_store(
+                &values,
+                &auth_context,
+                acc_data,
+                &logger,
+            )?;
 
             SurfpoolAccountUpdate::process_updates(account_updates, &rpc_client, &logger).await?;
 
