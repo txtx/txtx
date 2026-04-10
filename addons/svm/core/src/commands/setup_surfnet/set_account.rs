@@ -66,14 +66,22 @@ fn resolve_data_bytes(
     data_bytes: Option<Vec<u8>>,
     prefetched_data: &HashMap<String, Option<Vec<u8>>>,
     public_key: &Pubkey,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<Option<Vec<u8>>, Diagnostic> {
     match data_bytes {
-        Some(d) => Ok(d),
-        None => {
-            prefetched_data.get(&public_key.to_string()).and_then(|opt| opt.clone()).ok_or_else(
-                || diagnosed_error!("account data must be provided or prefetched for patching"),
-            )
-        }
+        Some(d) => Ok(Some(d)),
+        None => match prefetched_data.get(&public_key.to_string()) {
+            Some(Some(d)) => Ok(Some(d.clone())),
+            Some(None) => {
+                eprintln!(
+                    "Warning: skipping patch for account {}: account does not exist on-chain",
+                    public_key
+                );
+                Ok(None)
+            }
+            None => Err(diagnosed_error!(
+                "account data must be provided or prefetched for patching"
+            )),
+        },
     }
 }
 
@@ -89,23 +97,9 @@ fn apply_patches_raw(
         )
     })?;
 
-    let mut data_bytes = match data_bytes {
+    let mut data_bytes = match resolve_data_bytes(data_bytes, prefetched_data, public_key)? {
         Some(d) => d,
-        None => match prefetched_data.get(&public_key.to_string()) {
-            Some(Some(d)) => d.clone(),
-            Some(None) => {
-                eprintln!(
-                    "Warning: skipping patch_raw for account {}: account does not exist on-chain",
-                    public_key
-                );
-                return Ok(None);
-            }
-            None => {
-                return Err(diagnosed_error!(
-                    "account data must be provided or prefetched for patching"
-                ));
-            }
-        },
+        None => return Ok(None),
     };
 
     for patch_item in patches.iter() {
@@ -146,7 +140,7 @@ fn apply_patches_idl(
     patch: &Value,
     prefetched_data: &HashMap<String, Option<Vec<u8>>>,
     public_key: &Pubkey,
-) -> Result<Vec<u8>, Diagnostic> {
+) -> Result<Option<Vec<u8>>, Diagnostic> {
     let patches = patch.as_array().ok_or_else(|| {
         diagnosed_error!(
             "expected 'patch_idl' field to be a map with \
@@ -154,7 +148,10 @@ fn apply_patches_idl(
         )
     })?;
 
-    let mut data_bytes = resolve_data_bytes(data_bytes, prefetched_data, public_key)?;
+    let mut data_bytes = match resolve_data_bytes(data_bytes, prefetched_data, public_key)? {
+        Some(d) => d,
+        None => return Ok(None),
+    };
 
     for patch_item in patches.iter() {
         let patch_map = patch_item.as_object().ok_or_else(|| {
@@ -221,7 +218,7 @@ fn apply_patches_idl(
         data_bytes[field_offset..field_offset + field_byte_len].copy_from_slice(&encoded_value);
     }
 
-    Ok(data_bytes)
+    Ok(Some(data_bytes))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -462,7 +459,7 @@ impl SurfpoolAccountUpdate {
             };
 
             data_bytes = if let Some(patch) = map.swap_remove("patch_idl") {
-                Some(apply_patches_idl(data_bytes, &patch, prefetched_data, &public_key)?)
+                apply_patches_idl(data_bytes, &patch, prefetched_data, &public_key)?
             } else {
                 data_bytes
             };
