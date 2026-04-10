@@ -1,5 +1,3 @@
-use crate::codec::idl::IdlRef;
-use convert_case::{Case, Casing};
 use serde::{Deserialize, Serialize};
 
 pub fn get_interpolated_header_template(title: &str) -> String {
@@ -144,41 +142,6 @@ action "deploy_{}" "svm::deploy_program" {{
 "#,
         program_name, program_name, program_name
     );
-}
-
-pub fn get_interpolated_anchor_subgraph_template(
-    program_name: &str,
-    idl_str: &str,
-) -> Result<Option<String>, String> {
-    let idl =
-        IdlRef::from_str(idl_str).map_err(|e| format!("failed to parse program idl: {e}"))?.idl;
-
-    let subgraph_runbook = if idl.events.is_empty() {
-        None
-    } else {
-        Some(
-            idl.events
-                .iter()
-                .map(|event| {
-                    let event_slug = Casing::to_case(&event.name, Case::Snake);
-                    format!(
-                        r#"
-action "{program_name}_{event_slug}" "svm::deploy_subgraph" {{
-    program_id = action.deploy_{program_name}.program_id
-    program_idl = action.deploy_{program_name}.program_idl
-    block_height = 0 // action.deploy_{program_name}.block_height
-    event {{
-        name = "{}"
-    }}
-}}"#,
-                        event.name,
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
-    };
-    Ok(subgraph_runbook)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
