@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_client::rpc_request::RpcRequest;
 use solana_pubkey::Pubkey;
 use spl_associated_token_account_interface::address::get_associated_token_address_with_program_id;
 
@@ -17,6 +15,7 @@ use txtx_addon_network_svm_types::SvmValue;
 
 use crate::constants::SET_TOKEN_ACCOUNT;
 
+use super::surfnet_update::SurfnetAccountUpdate;
 use super::tokens::get_token_by_name;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -247,16 +246,19 @@ impl SurfpoolTokenAccountUpdate {
         Ok(account_updates)
     }
 
+}
+
+impl SurfnetAccountUpdate for SurfpoolTokenAccountUpdate {
+    fn rpc_method() -> &'static str {
+        "surfnet_setTokenAccount"
+    }
+
     fn to_request_params(&self) -> serde_json::Value {
         let pubkey = json![self.public_key.to_string()];
         let token = json![self.token.to_string()];
         let token_program = json![self.token_program.pubkey().to_string()];
         let account_update = serde_json::to_value(&self).unwrap();
         json!(vec![pubkey, token, account_update, token_program])
-    }
-
-    fn rpc_method() -> &'static str {
-        "surfnet_setTokenAccount"
     }
 
     fn update_status(&self, logger: &LogDispatcher, index: usize, total: usize) {
@@ -269,28 +271,6 @@ impl SurfpoolTokenAccountUpdate {
                 self.associated_token_account.to_string()
             ),
         );
-    }
-
-    async fn send_request(&self, rpc_client: &RpcClient) -> Result<serde_json::Value, Diagnostic> {
-        rpc_client
-            .send::<serde_json::Value>(
-                RpcRequest::Custom { method: Self::rpc_method() },
-                self.to_request_params(),
-            )
-            .await
-            .map_err(|e| diagnosed_error!("`{}` RPC call failed: {e}", Self::rpc_method()))
-    }
-
-    pub async fn process_updates(
-        account_updates: Vec<Self>,
-        rpc_client: &RpcClient,
-        logger: &LogDispatcher,
-    ) -> Result<(), Diagnostic> {
-        for (i, account_update) in account_updates.iter().enumerate() {
-            let _ = account_update.send_request(rpc_client).await?;
-            account_update.update_status(logger, i, account_updates.len());
-        }
-        Ok(())
     }
 }
 

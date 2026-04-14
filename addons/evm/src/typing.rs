@@ -4,6 +4,7 @@ use alloy_json_abi::{Function, Param};
 use alloy_primitives::Address;
 use alloy_rpc_types::Log;
 use foundry_compilers_artifacts_solc::Metadata;
+use serde::de::DeserializeOwned;
 use txtx_addon_kit::{
     hex,
     indexmap::IndexMap,
@@ -15,6 +16,27 @@ use txtx_addon_kit::{
 };
 
 use crate::{codec::foundry::BytecodeData, constants::LINKED_LIBRARIES};
+
+/// Decode the bytes payload of an addon `Value`, verifying its id matches `expected_id`.
+/// `what` names the target type for error messages (e.g. "foundry metadata").
+fn decode_addon_bytes<T: DeserializeOwned>(
+    value: &Value,
+    expected_id: &str,
+    what: &str,
+) -> Result<T, Diagnostic> {
+    let err_prefix = format!("could not convert value to {what}");
+    let addon_data = value
+        .as_addon_data()
+        .ok_or_else(|| diagnosed_error!("{err_prefix}: not an addon data type"))?;
+    if addon_data.id != expected_id {
+        return Err(diagnosed_error!(
+            "{err_prefix}: expected type {expected_id}, got {}",
+            addon_data.id
+        ));
+    }
+    serde_json::from_slice(&addon_data.bytes)
+        .map_err(|e| diagnosed_error!("{err_prefix}: {e}"))
+}
 
 pub const EVM_ADDRESS: &str = "evm::address";
 pub const EVM_BYTES: &str = "evm::bytes";
@@ -128,27 +150,16 @@ impl EvmValue {
     }
 
     pub fn to_sim_result(value: &Value) -> Result<(Vec<u8>, Option<Function>), Diagnostic> {
-        let err_msg = "could not convert value to sim result";
-        let addon_data = value
-            .as_addon_data()
-            .ok_or_else(|| diagnosed_error!("{err_msg}: not an addon data type"))?;
-        if addon_data.id != EVM_SIM_RESULT {
-            return Err(diagnosed_error!(
-                "{err_msg}: expected type {EVM_SIM_RESULT}, got {}",
-                addon_data.id
-            ));
-        }
         let (sim_result_bytes, function_spec): (Vec<u8>, Option<Vec<u8>>) =
-            serde_json::from_slice(&addon_data.bytes)
-                .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
-        let fn_spec = if let Some(fn_spec) = function_spec {
-            let fn_spec: Function = serde_json::from_slice(&fn_spec).map_err(|e| {
-                diagnosed_error!("{err_msg}: could not deserialize expected type: {e}")
+            decode_addon_bytes(value, EVM_SIM_RESULT, "sim result")?;
+        let fn_spec = function_spec
+            .map(|fn_spec| serde_json::from_slice::<Function>(&fn_spec))
+            .transpose()
+            .map_err(|e| {
+                diagnosed_error!(
+                    "could not convert value to sim result: could not deserialize expected type: {e}"
+                )
             })?;
-            Some(fn_spec)
-        } else {
-            None
-        };
         Ok((sim_result_bytes, fn_spec))
     }
 
@@ -159,19 +170,7 @@ impl EvmValue {
     }
 
     pub fn to_known_sol_param(value: &Value) -> Result<(Value, Param), Diagnostic> {
-        let err_msg = "could not convert value to known sol type";
-        let addon_data = value
-            .as_addon_data()
-            .ok_or_else(|| diagnosed_error!("{err_msg}: not an addon data type"))?;
-        if addon_data.id != EVM_KNOWN_SOL_PARAM {
-            return Err(diagnosed_error!(
-                "{err_msg}: expected type {EVM_KNOWN_SOL_PARAM}, got {}",
-                addon_data.id
-            ));
-        }
-        let (value, ty): (Value, Param) = serde_json::from_slice(&addon_data.bytes)
-            .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
-        Ok((value, ty))
+        decode_addon_bytes(value, EVM_KNOWN_SOL_PARAM, "known sol type")
     }
 
     pub fn foundry_compiled_metadata(value: &Metadata) -> Result<Value, Diagnostic> {
@@ -181,19 +180,7 @@ impl EvmValue {
     }
 
     pub fn to_foundry_compiled_metadata(value: &Value) -> Result<Metadata, Diagnostic> {
-        let err_msg = "could not convert value to foundry metadata";
-        let addon_data = value
-            .as_addon_data()
-            .ok_or_else(|| diagnosed_error!("{err_msg}: not an addon data type"))?;
-        if addon_data.id != EVM_FOUNDRY_COMPILED_METADATA {
-            return Err(diagnosed_error!(
-                "{err_msg}: expected type {EVM_FOUNDRY_COMPILED_METADATA}, got {}",
-                addon_data.id
-            ));
-        }
-        let metadata: Metadata = serde_json::from_slice(&addon_data.bytes)
-            .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
-        Ok(metadata)
+        decode_addon_bytes(value, EVM_FOUNDRY_COMPILED_METADATA, "foundry metadata")
     }
 
     pub fn foundry_bytecode_data(value: &BytecodeData) -> Result<Value, Diagnostic> {
@@ -203,19 +190,7 @@ impl EvmValue {
     }
 
     pub fn to_foundry_bytecode_data(value: &Value) -> Result<BytecodeData, Diagnostic> {
-        let err_msg = "could not convert value to foundry bytecode data";
-        let addon_data = value
-            .as_addon_data()
-            .ok_or_else(|| diagnosed_error!("{err_msg}: not an addon data type"))?;
-        if addon_data.id != EVM_FOUNDRY_BYTECODE_DATA {
-            return Err(diagnosed_error!(
-                "{err_msg}: expected type {EVM_FOUNDRY_BYTECODE_DATA}, got {}",
-                addon_data.id
-            ));
-        }
-        let bytecode: BytecodeData = serde_json::from_slice(&addon_data.bytes)
-            .map_err(|e| diagnosed_error!("{err_msg}: {e}"))?;
-        Ok(bytecode)
+        decode_addon_bytes(value, EVM_FOUNDRY_BYTECODE_DATA, "foundry bytecode data")
     }
 
     pub fn parse_linked_libraries(

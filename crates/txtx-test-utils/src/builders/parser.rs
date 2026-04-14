@@ -46,25 +46,23 @@ pub fn extract_actions(blocks: &[ParsedBlock]) -> Vec<String> {
         .collect()
 }
 
-/// Find references to signers in content
-pub fn find_signer_references(content: &str) -> Vec<String> {
+/// Scan `content` for occurrences of any prefix in `prefixes` followed by an
+/// identifier (alphanumeric + `_`), returning the deduplicated, sorted list of
+/// identifiers found.
+fn extract_prefixed_idents(content: &str, prefixes: &[&str]) -> Vec<String> {
     let mut references = Vec::new();
 
-    // Simple regex-like pattern matching for signer.xxx
-    let patterns = ["signer.", "signers."];
-    for pattern in &patterns {
+    for pattern in prefixes {
         let mut search_from = 0;
         while let Some(pos) = content[search_from..].find(pattern) {
             let start = search_from + pos + pattern.len();
-
-            // Find the end of the identifier
             let rest = &content[start..];
             let end = rest.find(|c: char| !c.is_alphanumeric() && c != '_').unwrap_or(rest.len());
 
             if end > 0 {
-                let signer_name = &rest[..end];
-                if !signer_name.is_empty() {
-                    references.push(signer_name.to_string());
+                let ident = &rest[..end];
+                if !ident.is_empty() {
+                    references.push(ident.to_string());
                 }
             }
 
@@ -77,60 +75,17 @@ pub fn find_signer_references(content: &str) -> Vec<String> {
     references
 }
 
-/// Find references to actions in content
-pub fn find_action_references(content: &str) -> Vec<String> {
-    let mut references = Vec::new();
-
-    // Simple pattern matching for action.xxx
-    let pattern = "action.";
-    let mut search_from = 0;
-    while let Some(pos) = content[search_from..].find(pattern) {
-        let start = search_from + pos + pattern.len();
-
-        // Find the action name (first identifier)
-        let rest = &content[start..];
-        let end = rest.find(|c: char| !c.is_alphanumeric() && c != '_').unwrap_or(rest.len());
-
-        if end > 0 {
-            let action_name = &rest[..end];
-            if !action_name.is_empty() {
-                references.push(action_name.to_string());
-            }
-        }
-
-        search_from = start + end;
-    }
-
-    references.sort();
-    references.dedup();
-    references
+/// Find references to signers in content (e.g., `signer.my_key`, `signers.my_key`).
+pub fn find_signer_references(content: &str) -> Vec<String> {
+    extract_prefixed_idents(content, &["signer.", "signers."])
 }
 
-/// Find all environment variable references in the content (e.g., env.API_KEY)
+/// Find references to actions in content (e.g., `action.deploy`).
+pub fn find_action_references(content: &str) -> Vec<String> {
+    extract_prefixed_idents(content, &["action."])
+}
+
+/// Find environment variable references in content (e.g., `env.API_KEY`).
 pub fn find_env_references(content: &str) -> Vec<String> {
-    let mut references = Vec::new();
-
-    // Simple pattern matching for env.xxx
-    let pattern = "env.";
-    let mut search_from = 0;
-    while let Some(pos) = content[search_from..].find(pattern) {
-        let start = search_from + pos + pattern.len();
-
-        // Find the env var name (identifier)
-        let rest = &content[start..];
-        let end = rest.find(|c: char| !c.is_alphanumeric() && c != '_').unwrap_or(rest.len());
-
-        if end > 0 {
-            let env_var = &rest[..end];
-            if !env_var.is_empty() {
-                references.push(env_var.to_string());
-            }
-        }
-
-        search_from = start + end;
-    }
-
-    references.sort();
-    references.dedup();
-    references
+    extract_prefixed_idents(content, &["env."])
 }

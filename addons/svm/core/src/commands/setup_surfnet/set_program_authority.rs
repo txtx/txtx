@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_client::rpc_request::RpcRequest;
 use solana_pubkey::Pubkey;
 
 use txtx_addon_kit::{
@@ -10,6 +8,7 @@ use txtx_addon_kit::{
 };
 use txtx_addon_network_svm_types::SvmValue;
 
+use super::surfnet_update::SurfnetAccountUpdate;
 use crate::constants::SET_PROGRAM_AUTHORITY;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -81,14 +80,17 @@ impl SurfpoolSetProgramAuthority {
         Ok(set_authorities)
     }
 
+}
+
+impl SurfnetAccountUpdate for SurfpoolSetProgramAuthority {
+    fn rpc_method() -> &'static str {
+        "surfnet_setProgramAuthority"
+    }
+
     fn to_request_params(&self) -> serde_json::Value {
         let program_id = json![self.program_id.to_string()];
         let authority = json![self.authority.map(|a| a.to_string())];
         json!(vec![program_id, authority])
-    }
-
-    fn rpc_method() -> &'static str {
-        "surfnet_setProgramAuthority"
     }
 
     fn update_status(&self, logger: &LogDispatcher, index: usize, total: usize) {
@@ -96,27 +98,5 @@ impl SurfpoolSetProgramAuthority {
             "Program Authority Set",
             &format!("Set program authority #{}/{}", index + 1, total,),
         );
-    }
-
-    async fn send_request(&self, rpc_client: &RpcClient) -> Result<serde_json::Value, Diagnostic> {
-        rpc_client
-            .send::<serde_json::Value>(
-                RpcRequest::Custom { method: Self::rpc_method() },
-                self.to_request_params(),
-            )
-            .await
-            .map_err(|e| diagnosed_error!("`{}` RPC call failed: {e}", Self::rpc_method()))
-    }
-
-    pub async fn process_updates(
-        account_updates: Vec<Self>,
-        rpc_client: &RpcClient,
-        logger: &LogDispatcher,
-    ) -> Result<(), Diagnostic> {
-        for (i, account_update) in account_updates.iter().enumerate() {
-            let _ = account_update.send_request(rpc_client).await?;
-            account_update.update_status(logger, i, account_updates.len());
-        }
-        Ok(())
     }
 }

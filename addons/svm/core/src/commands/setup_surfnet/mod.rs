@@ -5,7 +5,10 @@ pub mod set_account;
 mod set_program_authority;
 mod set_token_account;
 mod stream_account;
+pub(crate) mod surfnet_update;
 mod tokens;
+
+use surfnet_update::SurfnetAccountUpdate;
 
 use clone_program_account::SurfpoolProgramCloning;
 use set_account::SurfpoolAccountUpdate;
