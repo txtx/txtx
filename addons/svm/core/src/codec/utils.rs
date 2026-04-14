@@ -9,6 +9,7 @@ use txtx_addon_kit::types::{diagnostics::Diagnostic, types::Value};
 use txtx_addon_network_svm_types::anchor::types::Idl;
 
 use crate::commands::setup_surfnet::set_account::SurfpoolAccountUpdate;
+use crate::commands::setup_surfnet::surfnet_update::SurfnetAccountUpdate;
 
 pub fn get_seeds_from_value(value: &Value) -> Result<Vec<Vec<u8>>, Diagnostic> {
     let seeds = value

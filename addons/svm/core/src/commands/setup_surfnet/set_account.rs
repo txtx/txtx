@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use solana_account_decoder_client_types::UiAccount;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_client::rpc_request::RpcRequest;
 use solana_pubkey::Pubkey;
 use txtx_addon_kit::{
     hex,
@@ -16,6 +15,7 @@ use txtx_addon_kit::{
 };
 use txtx_addon_network_svm_types::SvmValue;
 
+use super::surfnet_update::SurfnetAccountUpdate;
 use crate::codec::idl::{borsh_encode_value_to_idl_type, get_field_offset_in_account};
 use crate::constants::SET_ACCOUNT;
 
@@ -589,14 +589,17 @@ impl SurfpoolAccountUpdate {
         Ok(account_updates)
     }
 
+}
+
+impl SurfnetAccountUpdate for SurfpoolAccountUpdate {
+    fn rpc_method() -> &'static str {
+        "surfnet_setAccount"
+    }
+
     fn to_request_params(&self) -> serde_json::Value {
         let pubkey = json![self.public_key.to_string()];
         let account_update = serde_json::to_value(&self).unwrap();
         json!(vec![pubkey, account_update])
-    }
-
-    fn rpc_method() -> &'static str {
-        "surfnet_setAccount"
     }
 
     fn update_status(&self, logger: &LogDispatcher, index: usize, total: usize) {
@@ -609,31 +612,6 @@ impl SurfpoolAccountUpdate {
                 self.public_key.to_string()
             ),
         );
-    }
-
-    pub async fn send_request(
-        &self,
-        rpc_client: &RpcClient,
-    ) -> Result<serde_json::Value, Diagnostic> {
-        rpc_client
-            .send::<serde_json::Value>(
-                RpcRequest::Custom { method: Self::rpc_method() },
-                self.to_request_params(),
-            )
-            .await
-            .map_err(|e| diagnosed_error!("`{}` RPC call failed: {e}", Self::rpc_method()))
-    }
-
-    pub async fn process_updates(
-        account_updates: Vec<Self>,
-        rpc_client: &RpcClient,
-        logger: &LogDispatcher,
-    ) -> Result<(), Diagnostic> {
-        for (i, account_update) in account_updates.iter().enumerate() {
-            let _ = account_update.send_request(rpc_client).await?;
-            account_update.update_status(logger, i, account_updates.len());
-        }
-        Ok(())
     }
 }
 
